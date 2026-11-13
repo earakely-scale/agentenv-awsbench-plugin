@@ -627,8 +627,8 @@ class AwsServer(AgentEnvEnvironment):
         self.bridge.faults.__init__(data.get("faults"), seed)
         seeded = await asyncio.to_thread(self._replay_seed, data)
         try:
-            from .world import World
-            self.world = await asyncio.to_thread(self._w, lambda: World(data, seed, self.aws_port, self.ws_port))
+            from .world import make_world
+            self.world = await asyncio.to_thread(self._w, lambda: make_world(data, seed, self.aws_port, self.ws_port))
             await self._world_call(self.world.start)
             self.meter.world = self.world
         except Exception as e:

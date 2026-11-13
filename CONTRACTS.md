@@ -132,6 +132,10 @@ class World:
     def export(self) -> dict                           # see "Exports"
 ```
 
+`configure` builds the world with `make_world(scenario, seed, aws, ws)`: T01's `World` above unless the scenario sets
+`world.mechanics: <name>`, in which case `MechWorld` (`world/mech.py`, same public methods) runs the timeline and clock
+loop over `awsbench_aws.world.<name>.Mechanics` (interface in `world/mech.py`; T03's in `docs/T03-build.md`).
+
 `AwsPort` (implemented in `ports.py` over the emulator, faked in unit tests):
 ```python
 class AwsPort(Protocol):
