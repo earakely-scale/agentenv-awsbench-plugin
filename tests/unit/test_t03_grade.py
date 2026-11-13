@@ -439,6 +439,9 @@ def test_driver_paths_fit_the_budget_and_keep_their_traps():
     oracle_steps = paths.steps_for("oracle")
     assert 55 <= len([s for s in oracle_steps if s[0] != "wait"]) <= 70
     assert any("jvm/xmx" in json.dumps(args) for _, args in paths.steps_for("heap"))
+    limit = json.dumps(paths.steps_for("limit"))
+    assert "os/limit_nproc --value 4096" in limit
+    assert "update-auto-scaling-group" not in limit and "delete-scheduled-action" not in limit
     early = [args.get("status") for tool, args in paths.steps_for("early") if tool == "tickets_transition"]
     assert early == ["Resolved"]
     bounce = [json.dumps([tool, args]) for tool, args in paths.steps_for("bounce")]

@@ -14,7 +14,8 @@ then, with the gateway URL the run prints:
 
 T03 (deploy with tasks/t03-e2e-env.json): `--scenario t03` (or `--task t03`) with --mode oracle (pass, >= 0.9), nothing
 (<= 0.1), bounce (restart all before the revert: fails C06 and C16), heap (xmx 8g: OOM kills) or early (resolve at
-Maya's push: G4, <= 0.4); the paths are in tests/e2e/t03_oracle.py.
+Maya's push: G4, <= 0.4) or limit (limit_nproc 4096, capacity kept: G2 and G3, <= 0.25); the paths are in
+tests/e2e/t03_oracle.py.
 
 Each mode needs a freshly configured env (the episode ends at the horizon). Exits 1 when an expectation fails or a host
 command exits non-zero, since a path that silently fails grades as a different path.
@@ -192,7 +193,7 @@ async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
     parser.add_argument("--scenario", "--task", choices=("t01", "t03"), default="t01")
-    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early", "bounce", "heap"),
+    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early", "bounce", "heap", "limit"),
                         default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
