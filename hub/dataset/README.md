@@ -72,7 +72,22 @@ to AgentEnv is needed. Code: [agentenv-awsbench-plugin](https://github.com/earak
 AwsIncidentsBench is not affiliated with or endorsed by Amazon Web Services. Vantleaf, its people and its systems are
 fictional.
 
-## Task T01, The Empty Ledger Endpoint
+## Tasks
+
+Each task has a card in `tasks/<task>/`, generated from the bundle by `tools/build_task_cards.py`: the incident and the
+world, the colleagues and what each approves or declines, the exact prompt, the tools, the time horizon and budget,
+every check, gate and cap with its points and rule (read from the grader, with the judges' fact lists), what a fair
+failure looks like, how to run it with AgentEnv from the GitHub bundle, and the build commit. `task.json` beside each
+card holds the same content, machine-readable.
+
+<!-- tasks -->
+| Task | Title | Start | Window | Horizon | Calls | Checks | Gates | Card |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| T01 | The Empty Ledger Endpoint | 02:40 ET 2026-11-17 | 05:10 | 05:10 | 250 | 13 | 4 | [tasks/T01/README.md](tasks/T01/README.md) |
+| T03 | Thread Ceiling | 08:15 ET 2026-11-16 | 13:00 | 16:15 | 220 | 14 | 6 | [tasks/T03/README.md](tasks/T03/README.md) |
+<!-- /tasks -->
+
+### Task T01, The Empty Ledger Endpoint
 
 The agent is the on-call SRE for Vantleaf, a fictional payments company, paged at 02:40 Eastern on Tuesday, November
 17, 2026: checkout success is about 4 %. At 02:31 a race in endpointd, the internal DNS automation, left
@@ -83,7 +98,7 @@ page accurate, route a key merchant's email, leave a handoff note) while the pay
 250 tool calls; the window and the horizon are 05:10 ET. A run passes when the six core checks (C1, C2, C3, C4, C6, C7)
 pass and no cap applies.
 
-## Task T03, Thread Ceiling
+### Task T03, Thread Ceiling
 
 The agent is again Vantleaf's primary on-call SRE, paged at 08:15 Eastern on Monday, November 16, 2026: the ledger
 end-to-end canary says synthetic payment events are no longer reaching the ledger. At 06:05 a pre-approved capacity
@@ -189,6 +204,8 @@ its other marks are the ones the path is built to pass.
 | `tables/<task>/runs.jsonl` | The dataset viewer's `t01-runs` and `t03-runs` tables: one row per run and the task's reference, with its score, checks lost, gates fired, calls, end time, the task's key times (T01: restore, minutes collapsed; T03: routing back to 95 %, ledger lag under 5 min, settlement, restarts, ejections), final message and handoff note or root-cause write-up |
 | `tables/<task>/calls.jsonl` | The `calls` tables: one row per charged call of every run, with its virtual start and end, tool, cost class, command or arguments, result, error, and whether it changed production |
 | `tables/<task>/checks.jsonl` | The `checks` tables: one row per check and gate of every run, with its points (and, for T03, the points earned when the grader gave part of them), whether it passed or fired, and the grader's evidence |
+| `tasks/<task>/README.md` | The task's card (see Tasks above) |
+| `tasks/<task>/task.json` | The same card, machine-readable (schema `awsincidentsbench.task/v1`): prompt, tools with their descriptions, time and budget, colleagues and their decisions, checks, gates, caps, judges' fact lists, pass rule, build |
 | `index.json` | Per task, one row per run: model, build, development flag, D12, pass, checks lost, gates fired, calls, end; plus the task's reference (schema `awsincidentsbench.index/v2`) |
 | `runs/<run>/viewer.json` | The viewers' JSON. T01 runs: schema `awsincidentsbench.viewer/v1`, documented at the top of `tools/export_run.py` (every call with its virtual times, cost class, arguments and result; the world's series every 30 s; per-host DNS recovery; levers; the ticket and status-page history; events; the agent's messages; the grade's checks; the final message and the handoff note). T03 runs: schema `awsincidentsbench.viewer/v2`, documented at the top of `tools/export_t03.py` (the same, with T03's series every 30 s from 06:00: hosts by state, routing share, per-cell ledger lag and backlog, the ASG, restarts in flight, load-shed, canary, a sample host's threads and limit, the scheduled hold's state; every host's state every 30 s; the hold's history, settlement, ejections and OOM kills) |
 | `runs/<run>/aws-export.json` | The `aws` server's horizon export: `episode`, the `action_log` of every call and world write, the `meter`, the `world` (T01: endpointd, DNS, ledger, traffic; T03: `t03` with srcoord, backlog, cellmap, memory, ASG, hold, settlement, canary; both: timeline, approvals), `aws_state` and `start_state` |

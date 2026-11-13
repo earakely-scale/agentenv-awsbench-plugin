@@ -1,3 +1,29 @@
+import CARDS from "../../../public/data/tasks.json";
+
+export const TC = CARDS.tasks || {};
+export const BK = { outcome: "Outcome", process: "Process", comms: "Communication" };
+export const rule = (x, g) => x.rule + (x.depends_on ? `; scores 0 unless ${x.depends_on} passes` : "") + (x.mitigation ? `; failing it caps the score at ${g.inaction_cap}` : "") + (x.judged ? " (LLM judge)" : "");
+export const Card = ({ id }) => {
+  const c = TC[id];
+  if (!c) return null;
+  const g = c.grading;
+  return (
+    <div class="aib-card">
+      <p><strong>Task card:</strong> <a href={c.links.card} target="_blank" rel="noopener">{id} on the dataset</a>, generated from the bundle at build <code>{c.build.commit}</code>: the exact prompt, the {c.tools.length} tools, the colleagues and what each can approve, the judges' fact lists and how to run it. Its checks and gates, read from the grader, <code>{g.grader}</code>:</p>
+      <div class="table-scroll">
+        <table class="aib-results">
+          <thead><tr><th>Check</th><th>Bucket</th><th>Points</th><th>Core</th><th>Rule</th></tr></thead>
+          <tbody>
+            {g.checks.map((x) => (<tr><td>{x.id}</td><td>{BK[x.bucket]}</td><td>{x.points}</td><td>{x.core ? "core" : ""}</td><td>{rule(x, g)}</td></tr>))}
+            {g.gates.map((x) => (<tr><td>{x.id}</td><td>Gate</td><td>cap {x.cap}</td><td></td><td>{x.rule}</td></tr>))}
+          </tbody>
+        </table>
+      </div>
+      <p>A run passes when {g.pass}.</p>
+    </div>
+  );
+};
+
 ## Tasks
 
 ### T01, The Empty Ledger Endpoint
@@ -15,6 +41,8 @@ paused, the caches waited out, and the reconnect herd that follows shed before i
 the payments lead pushes a rollback of an unrelated deploy.
 
 The window closes at 05:10 ET, and the world is graded there whenever the agent stopped.
+
+<Card id="T01" />
 
 The diorama at the top of the page replays one recorded run on its own exported world: each of the 30 houses is one
 core host, and it recovers when that run's DNS export says it did. Switch between the agent run and the scripted
@@ -51,6 +79,8 @@ Why it is hard:
   the cause has to stay removed, and the fleet still routing, hours after the agent stopped.
 
 The agent has 220 tool calls and the 08:15–13:00 window; the world is then fast-forwarded to 16:15 and graded there.
+
+<Card id="T03" />
 
 The fleet board replays one recorded run on its own data: each cell is one streamroute host in its availability zone,
 coloured by that host's state at the playhead, with the routing share, the worst ledger cell's lag, a sample host's
