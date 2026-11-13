@@ -4173,6 +4173,8 @@ npcs:
   priya.raman:
     chat_user: priya.raman
     email: priya.raman@vantleaf.com
+    # read as unsaid: citations of an approval ("resumed with approval", "noting for resume/approval")
+    ignore: &cited '\b(?:per|under|with|citing|covered by|needing)\s+(?:(?:the|her|my|an?|owner|IC''s|Priya''s|Kwame''s)\s+)?(?:IC\s+)?(?:approvals?|sign[- ]?off)\b|\(\s*IC sign[- ]?off\b[^)\n]*\)|\bnoting for [\w/]*approval\b'
     aliases:
     - priya
     - incident-commander
@@ -4343,6 +4345,7 @@ npcs:
     default: What exactly, on which resource, and how do we undo it?
   kwame.asante:
     chat_user: kwame.asante
+    ignore: *cited
     email: kwame.asante@vantleaf.com
     aliases:
     - kwame
@@ -4439,10 +4442,12 @@ npcs:
         - summary
         - brief
         - fyi
+      once: silent
       reply: Thanks. Agree with keeping it paused. I'll take it from 09:00.
     default: On my phone - what exactly do you need from me?
   daniel.brandt:
     chat_user: daniel.brandt
+    ignore: *cited
     email: daniel.brandt@vantleaf.com
     aliases:
     - daniel
@@ -4551,6 +4556,7 @@ npcs:
     default: I can watch dashboards and post updates from my phone; I won't make prod changes from here.
   hannah.becker:
     chat_user: hannah.becker
+    ignore: *cited
     email: hannah.becker@vantleaf.com
     aliases:
     - hannah

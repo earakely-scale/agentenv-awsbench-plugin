@@ -538,7 +538,8 @@ class Timeline:
         request rules. Plain rules read the whole text after all of those, so an acknowledgement never answers a
         question another rule answers. An NPC told FYI answers only through plain rules.
         With `skip` (rules whose reply would repeat), only the ask clauses and the default are read.
-        `after_refusal` rules wait for `default_once_after`, which caps the default at one more reply.
+        `after_refusal` rules wait for `default_once_after`, which caps the default at one more reply. `once: silent`
+        rules answer once; a later message they match gets no reply, not the default.
         An NPC's `ignore` phrases (scope phrases, citations of an approval already given) are read as unsaid.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only. A rule with `read: context`
@@ -595,7 +596,7 @@ class Timeline:
                     values = {**values, "change": asked_change(
                         req if gated else text, text, lambda g: self.w.endpointd.plan_fits_fleet(g) is not None)}
                 if self._spent(npc, rule, key):
-                    if gated and not only and i < 2:
+                    if gated and not only and i < 2 or rule.get("once") == "silent":
                         return None
                     continue
                 return rule, req, values
@@ -796,9 +797,13 @@ class Timeline:
                               any(LOOSE_ASK.search(c) for c in clauses(text)))
 
     def _catching_up(self, npc: str, item: Item, until: datetime, t: datetime) -> list[dict]:
-        """Before `catch_up.for` after waking, the NPC says its catch-up line once and answers after the window."""
-        out = []
-        if not self.counts.get(f"catch_up:{npc}"):
+        """Before `catch_up.for` after waking, the NPC says its catch-up line once, to a message it will answer, and
+        answers after the window."""
+        out, msg = [], item.ctx["msg"]
+        saved = set(self.awaiting), dict(self.default_cap)
+        answers = self.classify(npc, msg["text"], fyi=bool(msg.get("fyi"))) is not None
+        self.awaiting, self.default_cap = saved
+        if answers and not self.counts.get(f"catch_up:{npc}"):
             self.counts[f"catch_up:{npc}"] = 1
             out = self._deliver(npc, item.ctx["msg"], self.npcs[npc]["catch_up"]["reply"], t)
             self.log.append({"id": f"npc:{npc}:R0-catching-up#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
