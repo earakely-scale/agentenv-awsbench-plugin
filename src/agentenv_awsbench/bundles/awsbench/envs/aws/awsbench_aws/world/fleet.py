@@ -7,6 +7,7 @@ import json
 import re
 import shlex
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from .endpointd import COMPONENTS, host_of
 from .util import hms, iso, unit
@@ -160,6 +161,8 @@ class Fleet:
         if cmd in ("hostname", "uptime", "date"):
             return {"hostname": host, "date": now.strftime("%a %b %d %H:%M:%S %Z %Y"),
                     "uptime": f" {hms(now)} up 41 days,  3:12,  0 users,  load average: 0.31, 0.27, 0.22"}[cmd] + "\n", 0
+        if cmd == "ls":
+            return self.ls(host, argv[1:])
         if cmd == "envoy-certcheck" and h["fleet"] == "ledger-ingress":
             if h.get("ready"):
                 return "OK sds secret ingress-tls loaded; listener ledger_https ready\n", 0
@@ -260,6 +263,8 @@ class Fleet:
             return "\n".join(o for o, _ in outs), max(c for _, c in outs)
         if verb in ("stop", "start", "restart") and len(units) == 1 and self.hosts[host]["fleet"] == "endpointd":
             return self.systemctl(host, verb, units[0], now)
+        if verb == "restart" and [u.removesuffix(".service") for u in units] == ["envoy"] and "envoy" in self.units(host):
+            return self.restart_envoy(host, now)
         if verb == "is-active" and units:
             states = [self._running(host, u.removesuffix(".service")) if u.removesuffix(".service") in self.units(host)
                       else None for u in units]
@@ -280,6 +285,34 @@ class Fleet:
             self.w.set_process(comp, verb != "stop", now)
             return "", 0
         return NOT_AVAILABLE.format(cmd=f"systemctl {verb}") + "\n", 127
+
+    def restart_envoy(self, host, now):
+        """Envoy starts again and loads the certificate its SDS config names: a host without one stays NOT READY."""
+        h, pid = self.hosts[host], self.units(host)["envoy"]["pid"]
+        lines = ["[info][main] starting main dispatch loop"] + (
+            ["[info][config] all dependencies initialized. starting workers"] if h.get("ready") else
+            ["[warning][config] sds: failed to load certificate chain /etc/envoy/certs/ledger-ingress.pem: No such file",
+             "[info][init] listener ledger_https NOT READY: waiting for secret ingress-tls"])
+        h["journal"] = list(h.get("journal") or self.cfg[h["fleet"]].get("journal") or []) + [
+            f"{hms(now)} envoy[{pid}]: {line}" for line in lines]
+        h.setdefault("started", {})["envoy"] = now
+        return "", 0
+
+    def ls(self, host, args):
+        """ls of the directories the scenario lists for the host (its fleet's `ls`, the host's own over it), each entry
+        in `ls -l` form; null is a directory that does not exist. Other paths are not modelled."""
+        h = self.hosts[host]
+        dirs = {**(self.cfg[h["fleet"]].get("ls") or {}), **(h.get("ls") or {})}
+        paths = {a: a.rstrip("/") for a in args if not a.startswith("-")}
+        if not paths or any(d not in dirs for d in paths.values()):
+            return NOT_AVAILABLE.format(cmd="ls") + "\n", 127
+        long = any(a.startswith("-") and not a.startswith("--") and "l" in a for a in args)
+        out = [f"ls: cannot access '{a}': No such file or directory" for a, d in paths.items() if dirs[d] is None]
+        for a, d in paths.items():
+            if dirs[d] is not None:
+                out += [f"{a}:"] * (len(paths) > 1) + (
+                    [f"total {4 * len(dirs[d])}", *dirs[d]] if long else [e.split()[-1] for e in dirs[d]])
+        return "\n".join(out) + "\n", 2 if any(dirs[d] is None for d in paths.values()) else 0
 
     # ---- units: systemctl status, journalctl, ps, curl ----
     def units(self, host: str) -> dict[str, dict]:
@@ -302,9 +335,13 @@ class Fleet:
         if u is None:
             return f"Unit {name}.service could not be found.\n", 4
         running = self._running(host, name)
+        since = (self.hosts[host].get("started") or {}).get(name)
+        ago = int((now - since).total_seconds()) if since else 0
+        since = (f"{since.astimezone(ZoneInfo(self.w.scenario['timezone'])):%a %Y-%m-%d %H:%M:%S %Z}; "
+                 f"{f'{ago // 60}min ' if ago >= 60 else ''}{ago % 60}s ago" if since else f"{BOOT}; 41 days ago")
         lines = [f"\u25cf {name}.service - {u.get('desc', name)}",
                  f"     Loaded: loaded (/etc/systemd/system/{name}.service; enabled; vendor preset: enabled)",
-                 f"     Active: {'active (running) since ' + BOOT + '; 41 days ago' if running else 'inactive (dead)'}",
+                 f"     Active: {'active (running) since ' + since if running else 'inactive (dead)'}",
                  f"   Main PID: {str(u['pid']) + ' (' + u['cmd'].split()[0].rsplit('/', 1)[-1] + ')' if running else '-'}"]
         if name.startswith("endpointd-"):
             comp, ep = name.removeprefix("endpointd-"), self.w.endpointd

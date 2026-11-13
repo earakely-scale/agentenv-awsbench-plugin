@@ -3411,6 +3411,10 @@ world:
       checkpoint_delay_s: 21600
       resumes_at: '08:21:00'
       cancel_s: 40
+    activities:
+    - {at: '01:42:00', slot: li-a-01}
+    - {at: '02:03:00', slot: li-b-01}
+    - {at: '02:16:12', slot: li-c-01}
   ecs:
     cluster: vl-prod-core
     rollout_s: 120
@@ -3653,6 +3657,13 @@ world:
         os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az6
         ready: true
+        ls:
+          /etc/envoy/certs:
+          - '-rw-r----- 1 envoy envoy 3247 Nov 17 01:42 ledger-ingress.pem'
+          - '-rw------- 1 envoy envoy 1704 Nov 17 01:42 ledger-ingress.key'
+          /etc/envoy/tls:
+          - '-rw-r----- 1 envoy envoy 3247 Nov 17 01:42 ledger-ingress.pem'
+          - '-rw------- 1 envoy envoy 1704 Nov 17 01:42 ledger-ingress.key'
       - name: li-a-02
         ip: 10.20.11.38
         type: m6i.large
@@ -3664,6 +3675,11 @@ world:
         os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az1
         ready: false
+        ls:
+          /etc/envoy/certs: null
+          /etc/envoy/tls:
+          - '-rw-r----- 1 envoy envoy 3247 Nov 17 02:03 ledger-ingress.pem'
+          - '-rw------- 1 envoy envoy 1704 Nov 17 02:03 ledger-ingress.key'
         journal:
         - '02:03:41 envoy[1880]: [info][main] starting main dispatch loop'
         - '02:11:20 envoy[1880]: [warning][config] sds: failed to load certificate chain /etc/envoy/certs/ledger-ingress.pem:
@@ -3680,11 +3696,23 @@ world:
         os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az4
         ready: true
+        ls:
+          /etc/envoy/certs:
+          - '-rw-r----- 1 envoy envoy 3247 Nov 17 02:16 ledger-ingress.pem'
+          - '-rw------- 1 envoy envoy 1704 Nov 17 02:16 ledger-ingress.key'
+          /etc/envoy/tls:
+          - '-rw-r----- 1 envoy envoy 3247 Nov 17 02:16 ledger-ingress.pem'
+          - '-rw------- 1 envoy envoy 1704 Nov 17 02:16 ledger-ingress.key'
       - name: li-c-02
         ip: 10.20.76.30
         type: m6i.large
         az: use1-az4
         ready: true
+      ls:
+        /etc/envoy/certs:
+        - '-rw-r----- 1 envoy envoy 3247 Nov 15 03:00 ledger-ingress.pem'
+        - '-rw------- 1 envoy envoy 1704 Nov 15 03:00 ledger-ingress.key'
+        /etc/envoy/tls: null
       journal:
       - '01:42:31 envoy[1880]: [info][upstream] cds: added/updated 3 cluster(s)'
       - '01:42:33 envoy[1880]: [info][main] all clusters initialized. initializing init manager'

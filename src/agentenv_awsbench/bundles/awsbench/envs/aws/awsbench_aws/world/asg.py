@@ -13,6 +13,12 @@ from ..errors import AwsError
 from .fleet import instance_id
 from .util import iso, parse_time
 
+READS = {"DescribePolicies": "ScalingPolicies", "DescribeLifecycleHooks": "LifecycleHooks",
+         "DescribeNotificationConfigurations": "NotificationConfigurations", "DescribeWarmPool": "Instances",
+         "DescribeLoadBalancerTargetGroups": "LoadBalancerTargetGroups", "DescribeLoadBalancers": "LoadBalancers",
+         "DescribeTrafficSources": "TrafficSources", "DescribeScalingActivities": "Activities"}
+TAG_FILTERS = {"auto-scaling-group": "ResourceId", "key": "Key", "value": "Value"}
+
 
 def asg_arn(name: str) -> str:
     """An ECS-managed group's ARN, the same in DescribeAutoScalingGroups and in its capacity provider."""
@@ -96,6 +102,22 @@ class IngressAsg:
                      {"ResourceId": self.name, "ResourceType": "auto-scaling-group", "Key": "owner",
                       "Value": "platform", "PropagateAtLaunch": True}],
         }
+
+    def activities(self, now: datetime) -> list[dict]:
+        """The refresh's replacements so far, newest first: each slot's old instance out, then its m7g in."""
+        rid, out = self.cfg["refresh"]["id"], []
+        for a in self.cfg.get("activities") or []:
+            t, slot = parse_time(a["at"], self.w.start_t), a["slot"]
+            cause = (f"At {t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} an instance was taken out of service in "
+                     f"response to an instance refresh.  Instance refresh ID: {rid}.")
+            for n, (what, iid) in enumerate((("Terminating", instance_id(slot + "/m6i")),
+                                             ("Launching a new", instance_id(slot))), 1):
+                at = t + timedelta(seconds=5 * (n - 1))
+                out.append({"ActivityId": f"{iid[2:10]}-{rid[:4]}-{n:04x}", "AutoScalingGroupName": self.name,
+                            "Description": f"{what} EC2 instance: {iid}", "Cause": cause, "StartTime": at,
+                            "EndTime": at + timedelta(seconds=60 if n == 1 else 5), "StatusCode": "Successful",
+                            "Progress": 100, "Details": "{}"})
+        return sorted((a for a in out if a["StartTime"] <= now), key=lambda a: a["StartTime"], reverse=True)
 
     def refresh(self, now: datetime) -> dict:
         r, status = self.cfg["refresh"], self.refresh_status(now)
@@ -207,6 +229,18 @@ def serve_groups(groups: list, op: str, p: dict, now: datetime) -> dict | None:
     if op == "DescribeAutoScalingGroups":
         names = p.get("AutoScalingGroupNames")
         return {"AutoScalingGroups": [g.group(now) for g in groups if not names or g.name in names]}
+    if op == "DescribeAutoScalingInstances":
+        ids = p.get("InstanceIds")
+        return {"AutoScalingInstances": [{**i, "AutoScalingGroupName": g.name} for g in groups
+                                         for i in g.group(now)["Instances"] if not ids or i["InstanceId"] in ids]}
+    if op == "DescribeTags":
+        return {"Tags": [t for g in groups for t in g.group(now)["Tags"] if all(
+            t[TAG_FILTERS[f["Name"]]] in f.get("Values", []) for f in p.get("Filters") or []
+            if f.get("Name") in TAG_FILTERS)]}
+    named = [g for g in groups if g.name == p.get("AutoScalingGroupName")]
+    if op in READS and (named or op == "DescribePolicies" and not p.get("AutoScalingGroupName")):
+        acts = [a for g in named if hasattr(g, "activities") for a in g.activities(now)]
+        return {READS[op]: acts if op == "DescribeScalingActivities" else []}
     for g in groups:
         if (out := g.serve(op, p, now)) is not None:
             return out
