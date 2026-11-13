@@ -180,6 +180,11 @@ def counts_check(world, export: dict) -> dict:
 
 # ---------------------------------------------------------------- an agent run
 
+
+def pacing(args: dict) -> dict:
+    """The restart's ``wait_for`` and ``pause_seconds`` as the call gave them; builds before 0d12611 take neither."""
+    return {k: args[k] for k in ("wait_for", "pause_seconds") if args.get(k) is not None}
+
 def replay_run(root: Path, run_dir: Path) -> dict:
     export = json.loads((run_dir / "aws-export.json").read_text())
     ep = export["episode"]
@@ -209,7 +214,7 @@ def replay_run(root: Path, run_dir: Path) -> dict:
         tool = m["tool"]
         if tool == "fleet_restart" and not any(r.get("error") for r in mine):
             world.fleet_restart(args.get("selector") or args.get("host"), int(args.get("batch_size") or 1), AGENT,
-                                args.get("wait_for") or "ready", args.get("pause_seconds") or 0)
+                                **pacing(args))
         elif tool == "fleet_exec":
             world.fleet_exec(args.get("selector") or args.get("host") or "", args.get("command") or args.get("cmd") or "",
                              AGENT)
@@ -292,8 +297,7 @@ def replay_reference(root: Path) -> dict:
                 elif tool == "fleet_inspect_host":
                     data = world.fleet_inspect_host(args["host"])
                 elif tool == "fleet_restart":
-                    data = world.fleet_restart(args["selector"], args["batch_size"], AGENT,
-                                               args.get("wait_for") or "ready", args.get("pause_seconds") or 0)
+                    data = world.fleet_restart(args["selector"], args["batch_size"], AGENT, **pacing(args))
                     found["job_id"] = data.get("job_id", found["job_id"])
                 elif tool == "fleet_job_status":
                     data = world.fleet_job_status(args["job_id"])

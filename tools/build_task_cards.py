@@ -116,13 +116,20 @@ def disclaimer() -> str:
     raise SystemExit("the dataset card lost its line saying it is not affiliated with or endorsed by Amazon Web Services")
 
 
+def _run_tasks(text: str) -> set[str]:
+    """The tasks of the run ids a text names: ``T03R4-opus-2`` is T03's, a bare ``R11-opus-2`` T01's."""
+    return {m.group(1) or "T01" for m in re.finditer(r"\b(T\d\d)?R\d+-(?:opus|sonnet)", text)}
+
+
 def fair_failure(task: str) -> list[str]:
     """The article's section, with an example drawn from another task's runs left out."""
     out = []
     for p in _paragraphs(_section((CHAPTERS / "results.mdx").read_text(), "What makes a failure fair", 3)):
-        p = " ".join(p.split())
+        p = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", " ".join(p.split()))
         head, _, example = p.partition(". ")
-        if example and re.search(r"\bT\d\dR\d", example) and not re.search(rf"\b{task}R\d", example):
+        if _run_tasks(head) and task not in _run_tasks(head):
+            continue
+        if _run_tasks(example) and task not in _run_tasks(example):
             p = head + "."
         out.append(p)
     return out
@@ -163,6 +170,21 @@ def doc_bullets(task: str, heading: str) -> list[str]:
 
 
 # ---------------------------------------------------------------- the card's parts
+
+def wiki_pages(scenario: str, users: dict[str, dict]) -> list[dict]:
+    """The wiki's policy and runbook pages as the agent finds them: each page's latest version, verbatim."""
+    wiki = WS_PKG / "scenarios" / scenario
+    out = []
+    for page in yaml.safe_load((wiki / "wiki.yaml").read_text()).get("pages") or []:
+        kind = next((k for k in ("policy", "runbook") if k in (page.get("labels") or [])), None)
+        if not kind:
+            continue
+        last = page["versions"][-1]
+        out.append({"id": page["id"], "title": page["title"], "kind": kind, "version": last["version"],
+                    "author": (users.get(last["author"]) or {}).get("name", last["author"]),
+                    "body": X.scrub((wiki / last["body_ref"]).read_text()).strip()})
+    return out
+
 
 def colleagues(scenario: dict, users: dict[str, dict]) -> list[dict]:
     """The colleagues the world plays, with what each approves or declines when asked (the scenario's decision rules)."""
@@ -270,6 +292,7 @@ def build_card(task: str) -> dict:
                   "bundle": f"{GITHUB}/tree/main/src/agentenv_awsbench/bundles/awsbench"},
         "incident": chapter, "world": doc_bullets(task, "The world"),
         "colleagues": colleagues(scenario, users),
+        "wiki": wiki_pages(configure["scenario"], users),
         "agent": {"role": prompt_step.get("role", "sre-primary"), "agent_name": prompt_step["agent_name"],
                   "builtin_tools": step["deploy-sre"].get("builtin_tools")},
         "prompt": prompt_step["prompt"], "tools": tools,
@@ -338,6 +361,14 @@ def render(c: dict) -> str:
         appr = "<br>".join(a["change"] for a in single)
         decl = "<br>".join(d["change"] for d in p["declines"])
         out.append(f"| {_cell(p['name'])} | {_cell(role)} | {_cell(appr) or 'none'} | {_cell(decl) or 'none'} |")
+    out += ["", "## Policies and runbooks", "",
+            "The company's policies and the runbooks on the wiki, each at the version the agent finds, verbatim. The "
+            "graded rules live in these pages and the runbooks; the grader's own wording is under Checks.", "",
+            "| Page | Title | Kind | Version | Author |", "| --- | --- | --- | --- | --- |"]
+    out += [f"| `{w['id']}` | {_cell(w['title'])} | {w['kind']} | v{w['version']} | {_cell(w['author'])} |" for w in c["wiki"]]
+    for w in c["wiki"]:
+        out += ["", f"<details><summary><code>{w['id']}</code> v{w['version']}: {w['title']}</summary>", "",
+                "````markdown", w["body"], "````", "", "</details>"]
     out += ["", "## The prompt", "",
             f"The agent gets this prompt once, verbatim from `{c['task_file']}` (the scrub shows the scenario's fictional "
             "account as the emulator's `000000000000`):", "", "```text", c["prompt"], "```", ""]

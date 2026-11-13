@@ -16,16 +16,102 @@ export const T01L = latest(TASKS.T01);
 export const T03L = latest(TASKS.T03);
 export const opus = (r) => /Opus/.test(r.model);
 export const son = (r) => /Sonnet/.test(r.model);
-export const T03LAST2 = TASKS.T03 ? TASKS.T03.runs.filter((r) => r.build === T03L[0]?.build || /^T03R2-/.test(r.id)) : [];
+export const fin = (r) => (r.final ? r.final.pass : r.pass);
+export const P1 = (rs) => `${rs.filter(fin).length}/${rs.length}`;
+export const P1G = (rs) => `${rs.filter((r) => r.pass).length}/${rs.length}`;
+export const PCT = (rs) => `${Math.round((100 * rs.filter(fin).length) / Math.max(rs.length, 1))} %`;
+export const T01O = T01L.filter(opus);
+export const T03O = T03L.filter(opus);
+export const MEAN = (rs) => (rs.reduce((a, r) => a + (r.final ? r.final.d12 : r.d12), 0) / Math.max(rs.length, 1)).toFixed(3);
 
-## Runs
+## Results
+
+### Where the tasks stand
+
+The bar the task owner set for this round: over six runs of Claude Opus 5.5 on the current build, **pass@1 below
+90 %, with every failure fair**, one the agent could have avoided with what the world showed it (see
+[What makes a failure fair](#what-makes-a-failure-fair)). A failure caused by a world, colleague or grader defect
+doesn't count. The current build is the hardened one, <code>{T01L[0]?.build}</code>, which removed what earlier builds gave away
+beyond each task's design (see below). Pass@1 is read from the final grader, <code>{FG.build}</code>:
+
+<div class="table-scroll">
+<table class="aib-results aib-bar">
+  <thead><tr><th>Task</th><th>Opus runs</th><th>Pass@1 as graded</th><th>Pass@1, final grader</th><th>Failures</th><th>Bar</th></tr></thead>
+  <tbody>
+    <tr><td>T01</td><td>{T01O.length} ({T01O[0]?.id.split("-")[0]})</td><td>{P1G(T01O)}</td><td><strong>{P1(T01O)} ({PCT(T01O)})</strong></td><td>{T01O.filter((r) => !fin(r)).map((r) => `${r.id}, ${[...(r.final?.gates || r.gates), ...(r.final?.failed || [])].join(", ")}, ${LOSSES[r.final?.losses] || ""}`).join("; ") || "none"}</td><td class="pass">met</td></tr>
+    <tr><td>T03</td><td>{T03O.length} ({T03O[0]?.id.split("-")[0]})</td><td>{P1G(T03O)}</td><td><strong>{P1(T03O)} ({PCT(T03O)})</strong></td><td>{T03O.filter((r) => !fin(r)).map((r) => r.id).join(", ") || "none"}</td><td class="fail">not met</td></tr>
+  </tbody>
+</table>
+</div>
+
+**T01 meets the bar.** Five of the six runs pass, and the one failure is fair. R11-opus-2 set the incident to
+Mitigated while checkout was still dipping: at 03:25 it unpaused the webhook dispatcher at concurrency 10, checkout
+success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved the incident ticket to
+Mitigated, citing "≥ 99.7 % every minute" from a metric read taken before its own change. The incident process says
+stable means checkout at 99 % or better in every minute for 5 minutes before Mitigated; the dip was in CloudWatch, and
+the agent's own summary admits it. Gate G3 caps the run at 0.40 (raw 1.00). R11-opus-4 was graded 0.25 because gate
+G2 read its stop of tonight's acme-renewer task, given by bare task id, as an unapproved change; stopping that task is
+a standing change the freeze allows, and its change record names it. That was a grader defect: the final grader scores
+the run 1.00, a pass. R11-opus-5 passes but loses C5 fairly: its only resolution test after the fix still returned
+NXDOMAIN, and it declared Mitigated without testing again.
+
+**T03 does not meet it, because no run fails.** All six Opus runs pass under the final grader, at a mean D12 of
+{MEAN(T03O)}. T03R4-opus-2 was graded 0.40 because gate G4 read its reply to the VP of Engineering ("Not yet. Routing is restored …
+Rough projection: backlog cleared around 10:05-10:15") as a claim the incident was resolved; that was the grader's
+mistake, and the final grader scores it 0.975. The half of C11 it still loses is the environment's: its first status
+post went out 5 minutes late because the incident commander's scripted replies misread its two asks to approve the
+draft, a colleague defect fixed since. The other points lost are fair: two runs (opus-1, opus-4) filed no follow-up for
+an alarm on thread use against the limit (C14), and opus-6's root-cause write-up added the threads up to 1,010, under
+the 1,024 limit it blamed (C13). Getting a fair T03 failure would mean adding difficulty back, which this round ruled
+out, so that is the task owner's call.
+
+The R11 and T03R4 runs were made on build 5fe025c. The head the task cards show, 689ab3b, adds the grader and colleague
+fixes those runs found; its scripted regression (each task's oracle and the scripted failure modes, run end to end on
+a deployed env) gives the same scores and failing checks as before, and both oracles score 1.000.
+
+### What the hint removal changed
+
+Audits of the earlier builds against the designs found the physics faithful but the builds generous: policy pages
+restated the grade, tools printed the answer, and colleagues volunteered the fix. The hardened build puts each back the
+way the design has it. Some examples, before and after:
+
+- **T01's DNS check.** `epctl verify --resolve` printed "NXDOMAIN (cached negative answer, Ns left)" for each host.
+  Now it prints what `dig` on each host prints: `status: NXDOMAIN` and the SOA line with its remaining TTL. Checkout's
+  `/health` named the UnknownHostException and the breaker; now it answers a bare `{"status": "DOWN"}`.
+- **T01's handoff rule.** The incident process's §7 asked the handoff to cover "what delayed recovery once the fix was
+  in (caching, for example), any load that followed the fix and the lever holding it". Now it is the company's text:
+  "(impact, cause, changes and their undo, open risks, owners)". Every R10 Opus handoff note named negative DNS caching
+  (C11's fact F6); 1 of the 6 R11 notes did, though every R11 note still passes C11.
+- **T01's colleagues.** The payments lead backed off his rollback on any mention of DNS; now he needs name-resolution
+  evidence and its time. The rotation commander answered a request to shed load with an approval and a record; now
+  she says the change-control policy needs none: act, then post the change record within 15 minutes.
+- **T01's journals.** Every endpointd host's journal told the whole race; now each host logs only its own component.
+- **T03's runbook.** RB-SR-07's tip said "`fleet_restart` with `batch_size` 12 runs the waves for you: it starts the
+  next batch only when every host of the previous one is ROUTING (or EJECTED)". Now it is the design's own line, "Tip:
+  `fleet_restart` with `batch_size 12` and `wait_for ready`", and `fleet_restart` takes `wait_for` (`ready`, the
+  default, or `process_up`, which overlaps batches and can trip the bootstrap service's load-shed) and `pause_seconds`.
+- **T03's colleagues.** Asked about the wedged hosts, the platform on-call said "No: a host whose
+  shard-map build already failed stays wedged … needs a process restart (RB-SR-07 …)". Now he says "That's streamroute
+  internals, Elena's area. `srctl host status` and the shard-map logs show what a host is doing."
+- **T03's policy pages and prompt.** The pages opened with "The rules every responder is held to" and named the second
+  approver; now they are the company's text, word for word. The prompt lost its tool primer, "get_time is free" and "at
+  most 220 tool calls"; the banners and tool descriptions still say all three.
+
+What it changed in the results: on the build before, T01's three Opus runs (R10) and T03's (T03R3) all scored 1.00.
+On the hardened build, T01's six Opus runs pass 5 of 6, with one fair failure, and T03's pass 6 of 6 but lose points
+in three runs, all in the judged write-up and the follow-ups. T03's core play did not change: all six runs named the
+thread limit as the cause between 08:22 and 08:28, waited for the incident commander's approval, reverted both halves
+of the capacity change, restarted 12 hosts at a time with `wait_for ready`, and ejected
+{" "}{T03O.reduce((a, r) => a + (r.ejections || 0), 0)} hosts.
+
+### Runs
 
 Each row is one recorded run by an agent in Claude Code, with the solver's built-in tools off so that it works only
 through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs that are
 fixed since. The reference for each task is its scripted oracle path. Click a run to open it in the flight recorder.
 
 **Graded** is the score a run got when it was graded. **Final** is the same run's exports graded again by the final
-grader (build `{FG.build}`). Where the two differ, or a run still loses points, the note under the table says why and
+grader (build <code>{FG.build}</code>). Where the two differ, or a run still loses points, the note under the table says why and
 whose the lost points are: **fair** when the agent could have avoided the loss with what the world showed it,
 **environment** when a world, colleague or grader defect caused it.
 
@@ -84,63 +170,59 @@ graded again.
 
 {SAID.length > 0 && <p>The {SAID.length} runs on build {[...new Set(SAID.map((r) => r.build))].join(", ")} replied <code>RESULT: DONE</code> before 13:00, at the time in brackets, but that build's turn hook missed it (see Methods), so the episode ran on to the 13:00 window. Later builds end the episode on it.</p>}
 
-### Where the tasks stand
+### Earlier builds
 
-**T01.** On the latest build ({T01L[0]?.build}), all {T01L.length} runs passed: {T01L.filter(opus).length} Opus runs
-at {each(T01L.filter(opus))}, and {T01L.filter(son).length} Sonnet runs at
-{" "}{T01L.filter(son).map((r) => pct(r.d12)).join(" and ")} as graded ({T01L.filter(son).map((r) => pct(r.final?.d12)).join(" and ")}
-under the final grader). Opus has scored 1.00 in every T01 run since R9 (R9's three Opus runs, on build 9e55614, are
-not shown here). The one point loss that stands on this build is fair: a Sonnet handoff note that leaves out the root
-cause.
-
-**T03.** On the latest build ({T03L[0]?.build}), all {T03L.filter(opus).length} Opus runs passed at
-{" "}{each(T03L.filter(opus))}. Both Sonnet runs were capped at 0.40 by G4, for different
-reasons. T03R3-sonnet-1 failed fairly: it reverted the Auto Scaling group but left the scheduled capacity hold in place,
-which put the fleet back to 132 hosts at 14:00, so its "resolved" was false by the horizon. That is the half-revert trap
-the task is built around, and the same miss as T03R2-sonnet-2 on the build before. T03R3-sonnet-2 was capped because
-the grader read a conditional in its change record ("…unless the thread budget is fixed first") as a resolved claim; the
-final grader fixes that and scores it 0.975, a pass.
+The development runs show how the tasks got here. On the last build before the hardening (R10 for T01, on 5095dda;
+T03R3 for T03, on e61297b) every Opus run scored 1.00, as Opus had in every T01 run since R9 (R9's runs are not shown
+here). Those rounds also ran Claude Sonnet 5.5; the hardened round ran Opus only. Both T01 Sonnet runs passed, one
+losing its handoff fairly. T03R3-sonnet-1 failed fairly on the half-revert trap the task is built around: it reverted
+the Auto Scaling group but left the scheduled capacity hold in place, which put the fleet back to 132 hosts at 14:00,
+so its "resolved" was false by the horizon, the same miss as T03R2-sonnet-2 on the build before. T03R3-sonnet-2 was
+capped because the grader read a conditional in its change record ("…unless the thread budget is fixed first") as a
+resolved claim; the final grader fixes that and scores it 0.975, a pass.
 
 ### Calibration: easier than designed
 
-Both task designs aim for a frontier pass rate near 10–18 %. On the latest builds every T01 run passed, and 3 of the 5
-T03 runs passed as graded (4 of 5 under the final grader). A handful of runs per model and build shows where a task
-bites, not a rate, but the gap is too large to be noise. Audits of the build the R10 and T03R2 runs used (5095dda)
-against the designs found the physics faithful: T01's storm thresholds, autoscaler revert and reconnect-herd collapse,
-and T03's thread arithmetic (132 hosts fail, 124 and fewer fit), its restart behaviour and its 14:00 relapse all follow
-the designs. The builds are easier in what they give away:
+Both task designs aim for a frontier pass rate near 10–18 %. On the hardened build Opus passes T01 at {PCT(T01O)} and
+T03 at {PCT(T03O)} under the final grader. Six runs per task show where a task bites, not a rate, but the gap is too
+large to be noise. Audits against the designs found the physics faithful: T01's storm thresholds, autoscaler revert
+and reconnect-herd collapse, and T03's thread arithmetic (132 hosts fail, 124 and fewer fit), its restart behaviour and
+its 14:00 relapse all follow the designs. The earlier builds were easier in what they gave away, and the hardened build
+took that back (see [What the hint removal changed](#what-the-hint-removal-changed)): policy pages that restated the
+grade, a DNS check and a health endpoint that named the answer, journals that told the whole race, colleagues who
+volunteered the fix, and a prompt that primed the tools. What is still easier than the designs:
 
-- **Policy pages restate the grade.** The incident-process pages open with the graded thresholds and rules, and T01's
-  handoff section asks for the facts the handoff judge looks for; the R10 handoff notes copy its headings.
-- **Tools and logs hand out answers.** T01's DNS check prints the cached NXDOMAIN with its seconds left, and every
-  endpointd host's journal holds the whole race. T03's host journal shows only the two lines that matter, and its log
-  group has about 5,500 lines where the design has about 430,000. The design's log noise is missing in both.
-- **Colleagues volunteer the fix.** In T03 a colleague recites the wedge and the restart recipe when the agent uses the
-  right words, and the incident commander offers the safe host range.
-- **T03's restart discipline is automatic.** The fleet restart tool waits for each batch on its own, and the runbook
-  says how to use it. In all {T03LAST2.length} T03 runs on the last two builds the agent restarted at most
-  {" "}{Math.max(...T03LAST2.map((r) => r.peak_conc))} hosts at a time with {T03LAST2.reduce((a, r) => a + r.ejections, 0)} hosts
-  ejected, and no run changed anything before the incident commander approved it; the design expected each of those
-  mistakes in 10–25 % of runs.
+- **The logs are quiet.** T03's log group has about 5,500 lines where the design has about 430,000; the design's log
+  noise is missing in both tasks.
+- **T03's restart discipline is automatic by default.** `fleet_restart` waits for each batch to be ready unless told
+  otherwise, and the runbook's tip, now the design's own words, says to use it that way. In all {T03O.length} hardened
+  T03 runs the agent restarted at most {Math.max(...T03O.map((r) => r.peak_conc || 0))} hosts at a time with
+  {" "}{T03O.reduce((a, r) => a + (r.ejections || 0), 0)} hosts ejected, and no run made a change that needed the
+  incident commander's approval before getting it; the design expected each of those mistakes in 10–25 % of runs.
 - **Some grader rules are looser than the checks they implement.**
 
 Even aligned with its design, T01's core checks may stay easy for strong agents: the runbook's own plan diff steers an
 agent away from the stale-plan trap, and C6's 20-minute collapse budget admits shedding after the collapse has started.
-Reaching the target will take harder levers than the designs have, which is a design decision still open.
+Reaching the target will take harder levers than the hint removal. This round ruled out adding difficulty, so that is a
+design decision still open for the task owner.
 
 ### What makes a failure fair
 
 A failure is **fair** when the agent could have avoided it with what the world showed it: the evidence was there to
-find, the policy said what to do, and a reasonable colleague would have answered. T03R3-sonnet-1's relapse is fair. The
-hold was in the capacity change's ticket, in a #deploys post the agent read at 08:19 ("Hold schedule in place"), and in
-the Auto Scaling group's scheduled actions, which it never listed; it asked the incident commander only about capacity.
+find, the policy said what to do, and a reasonable colleague would have answered. R11-opus-2's G3 in T01 is fair. The
+incident process defines stable as checkout at 99 % or better in every minute for 5 minutes before Mitigated, the dip
+its own dispatcher change caused was in CloudWatch, and it declared Mitigated from a read taken before that change.
+
+In T03, T03R3-sonnet-1's relapse is fair. The hold was in the capacity change's ticket, in a #deploys post the agent
+read at 08:19 ("Hold schedule in place"), and in the Auto Scaling group's scheduled actions, which it never listed; it
+asked the incident commander only about capacity.
 
 It is the **environment's** when the world, a colleague or the grader got it wrong: a colleague answering a correct
-request with an approval for something else, a lookup returning nothing that should have returned a row, or a grader
-rule reading a conditional as a claim. Every lost check in the runs since R8 was traced to its evidence and labelled
-that way. Grader defects are fixed, and the final grader grades the run again from its own exports. World and colleague
-defects are fixed too, but a regrade can't change what a recorded run did, so those losses stay in the final score and
-are labelled environment.
+request with an approval for something else, or misreading a request to approve a status draft; a lookup returning
+nothing that should have returned a row; or a grader rule reading a conditional or a projection as a claim. Every lost
+check in the runs since R8 was traced to its evidence and labelled that way. Grader defects are fixed, and the final
+grader grades the run again from its own exports. World and colleague defects are fixed too, but a regrade can't
+change what a recorded run did, so those losses stay in the final score and are labelled environment.
 
 ### The flight recorder
 
