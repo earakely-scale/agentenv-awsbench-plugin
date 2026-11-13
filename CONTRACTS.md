@@ -104,7 +104,9 @@ Only items addressed to the agent's identities appear.
 **`wait`** (an `aws` tool): `wait(minutes: float | None = None, until: str | None = None)`. `until` takes `HH:MM`,
 `HH:MM:SS` (ET, on the episode's date) or RFC 3339. It is clamped to 30 minutes and to `window_end`. It advances event
 by event and returns early when a wake item arrives (`dm`, `mention`, `page`, `email` to the agent, `job_done`). It
-returns `{waited_s, now, woke_early, reason: "inbound"|"until_reached"|"window_end", inbound: [...]}`.
+returns exactly `{waited_s, now, woke_early, reason: "inbound"|"until_reached"|"window_end", inbound: [...]}`: the
+timeline ids the world fired stay internal. Its description says which zone each part shows: banners and workspace
+records Eastern, AWS and epctl UTC, and any tool that takes a time takes RFC 3339 with an offset.
 
 ## The world (in `aws`, package `awsbench_aws.world`, pure Python)
 

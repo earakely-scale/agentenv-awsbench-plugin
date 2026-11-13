@@ -505,7 +505,9 @@ class AwsServer(AgentEnvEnvironment):
         return await self._metered(ctx, "fleet_job_status", {"job_id": job_id}, work)
 
     @tool(description="Let time pass: `minutes` (at most 30), or `until` a time (HH:MM or HH:MM:SS Eastern, or RFC "
-                      "3339). Returns early when a DM, mention, page or email reaches you, or a fleet job finishes.",
+                      "3339). Returns early when a DM, mention, page or email reaches you, or a fleet job finishes. "
+                      "Banners and workspace records are in Eastern time, AWS and epctl print UTC, and any tool that "
+                      "takes a time takes RFC 3339 with an offset.",
           structured_output=False)
     async def wait(self, ctx: ToolContext, minutes: float | None = None, until: str | None = None) -> str:
         role, meter = _role(ctx), self.meter
