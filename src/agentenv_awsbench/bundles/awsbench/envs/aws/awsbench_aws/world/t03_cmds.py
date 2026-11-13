@@ -12,6 +12,7 @@ NOT_AVAILABLE = "sh: {cmd}: not available in this environment"
 NOT_FOUND = "bash: {cmd}: command not found"
 SR_ONLY, ADMIN_ONLY = {"srctl", "sr-apply-limits", "sr-metrics-agent"}, {"cmctl"}
 SYSCTL = {"kernel.threads-max": 125520, "kernel.pid_max": 4194304}
+NPROC = SYSCTL["kernel.threads-max"] // 2  # the kernel's default RLIMIT_NPROC, root's `ulimit -u`
 TASKS_MAX = 18828
 CGROUP = "/sys/fs/cgroup/system.slice/{unit}.service/pids.{what}"
 DIRS = {"/etc/streamroute": "env  streamroute.conf", "/etc/systemd/system/streamroute.service.d": "10-limits.conf",
@@ -76,8 +77,8 @@ Max stack size            8388608              unlimited            bytes
 Max core file size        0                    unlimited            bytes
 Max resident set          unlimited            unlimited            bytes
 Max processes             {n:<20} {n:<20} processes
-Max open files            65536                65536                files
-Max locked memory         65536                65536                bytes
+Max open files            {files:<20} {files_max:<20} files
+Max locked memory         {lock:<20} {lock:<20} bytes
 Max address space         unlimited            unlimited            bytes
 Max file locks            unlimited            unlimited            locks
 Max pending signals       62760                62760                signals
@@ -365,11 +366,15 @@ class Commands:
                                               CGROUP.format(unit=svc, what="current")):
                 return f"{TASKS_MAX if path.endswith('max') else tasks}\n", 0
         mm = re.fullmatch(r"/proc/(\d+|self)/(limits|status)", path)
+        comm = {str(p["pid"]): p["comm"] for p in self.procs(h)} | {"self": "cat"}
+        if mm and mm.group(2) == "limits" and mm.group(1) in comm:
+            jvm = comm[mm.group(1)] == "java"  # its unit's LimitNPROC/LimitNOFILE; the rest, `self` too, the defaults
+            return PROC_LIMITS.format(n=h.limit if jvm else NPROC, files=65536 if jvm else 1024,
+                                      files_max=65536 if jvm else 524288,
+                                      lock=67108864 if mm.group(1) == "self" else 65536), 0
         pids = {str(self.pid(h)): "java", "1187": "sr-metrics-agent"} if h.proc else {}
         if mm and mm.group(1) in pids:
-            pid, what = mm.group(1), mm.group(2)
-            if what == "limits":
-                return PROC_LIMITS.format(n=h.limit), 0
+            pid = mm.group(1)
             java = pids[pid] == "java"
             threads = h.jvm_threads(self.m.fleet.p) if java else 22
             rss = self.rss_mib(h) * 1024 if java else 49152

@@ -152,3 +152,17 @@ def test_a_named_terminated_host_is_unreachable_not_dropped():
     assert "terminated" in w.fleet_inspect_host("sr-a-041")["error"]
     job = w.fleet_restart("sr-a-041,sr-a-001", 12, AGENT)
     assert job["hosts"] == 1 and job["skipped"]["sr-a-041"].startswith("terminated ")
+
+
+def test_proc_limits_answer_as_linux_does(opening):
+    out, code = sh(opening, "cat /proc/sys/kernel/threads-max /sys/fs/cgroup/pids.max /proc/self/limits",
+                   "sr-a-001")  # T03R3-sonnet-1 CALL 28, verbatim
+    assert code == 1 and out.startswith("125520\ncat: /sys/fs/cgroup/pids.max: No such file or directory\nLimit ")
+    assert "Max processes             62760                62760                processes\n" in out
+    assert "Max open files            1024                 524288               files\n" in out
+    out, code = sh(opening, "cat /proc/2214/limits")
+    assert code == 0 and "Max processes             1024                 1024                 processes\n" in out
+    assert "Max open files            65536                65536                files\n" in out
+    assert "Max processes             62760" in sh(opening, "cat /proc/1187/limits")[0]
+    assert sh(opening, "cat /proc/1/limits")[1] == 0
+    assert sh(opening, "cat /proc/2215/limits") == ("cat: /proc/2215/limits: No such file or directory\n", 1)
