@@ -145,22 +145,34 @@ class Ecs:
         return int(a["done_at_start"] + (a["total"] - a["done_at_start"]) * frac)
 
     # ---- shapes ----
-    def _deployment(self, name, rev, status, state, created, desired, running) -> dict:
+    def _deployment(self, name, rev, status, state, created, desired, running, updated=None) -> dict:
         return {"id": f"ecs-svc/{int(_hex(name, rev, iso(created))[:15], 16)}", "status": status,
                 "taskDefinition": self.td_arn(name, rev), "desiredCount": desired, "runningCount": running,
                 "pendingCount": max(0, desired - running), "failedTasks": 0, "createdAt": created,
-                "updatedAt": created, "launchType": "EC2", "rolloutState": state,
+                "updatedAt": updated or created, "launchType": "EC2", "rolloutState": state,
                 "rolloutStateReason": "ECS deployment " + ("in progress." if state == "IN_PROGRESS" else "completed.")}
 
     def service(self, name: str, now: datetime) -> dict:
         s, spec = self.services[name], self.cfg["services"][name]
         desired, running = self.counts(name)
         rolling = now < s["ready_at"] and s["prev"] is not None
+        steady = max(s["ready_at"], s["deployed_at"])
+        events = [] if rolling or steady > now else [(steady, f"(service {name}) has reached a steady state.",
+                                                     _hex(name, iso(steady)))]
+        scaled = [a for a in self.activities + self.w.storm.disp_events
+                  if name == self.cfg["dispatcher_target"]["service"] and a[0] <= now]
+        for t, a, b, _ in scaled:
+            ids = " ".join(f"(task {_name(self._task(name, i)['taskArn'])})" for i in range(a, min(b, a + 10)))
+            done = (t + timedelta(seconds=20), f"(service {name}) has started {b - a} tasks: {ids}.") if b > a \
+                else (t, f"(service {name}) has stopped {a - b} running tasks.")
+            events += [(*done, _hex(name, iso(t), b)),
+                       (t + timedelta(seconds=60), f"(service {name}) has reached a steady state.", _hex(name, iso(t)))]
+        events = sorted((e for e in events if e[0] <= now), key=lambda e: e[0], reverse=True)[:100]
         deps = [self._deployment(name, s["rev"], "PRIMARY", "IN_PROGRESS" if rolling else "COMPLETED",
-                                 s["deployed_at"], desired, running)]
+                                 s["deployed_at"], desired, running,
+                                 max([s["deployed_at"]] + [a[0] for a in scaled]))]
         if rolling:
             deps.append(self._deployment(name, s["prev"], "ACTIVE", "COMPLETED", s["deployed_at"], 0, 0))
-        steady = max(s["ready_at"], s["deployed_at"])
         out = {"serviceArn": self.arn("service", f"{self.cluster}/{name}"), "serviceName": name,
                "clusterArn": self.arn("cluster", self.cluster), "status": "ACTIVE", "desiredCount": desired,
                "runningCount": running, "pendingCount": max(0, desired - running),
@@ -170,9 +182,7 @@ class Ecs:
                                            "deploymentCircuitBreaker": {"enable": True, "rollback": True}},
                "deployments": deps, "createdAt": parse_time(spec["created"], self.w.start_t),
                "placementConstraints": [{"type": c} for c in spec.get("placement", [])],
-               "events": [] if rolling or steady > now else [
-                   {"id": _hex(name, iso(steady))[:36], "createdAt": steady,
-                    "message": f"(service {name}) has reached a steady state."}]}
+               "events": [{"id": i[:36], "createdAt": t, "message": m} for t, m, i in events]}
         return out
 
     def task_definition(self, family: str, rev: int) -> dict:
@@ -350,6 +360,12 @@ class Ecs:
                     + ", ".join(f"{k}={v}" for k, v in sorted(env.items())))))
         return {}
 
+    @staticmethod
+    def _stopping(p: dict, now: datetime) -> dict:
+        """What StopTask answers for a task it stops: still RUNNING, stopping as the user asked."""
+        return {"lastStatus": "RUNNING", "desiredStatus": "STOPPED", "stopCode": "UserInitiated", "stoppingAt": now,
+                "stoppedReason": f"Task stopped by user: {p.get('reason') or 'sre-primary'}"}
+
     def _stop_task(self, p: dict, now: datetime, commit: bool) -> dict:
         self._cluster(p)
         tid = _name(p.get("task"))
@@ -361,19 +377,17 @@ class Ecs:
                 self.w.world_effect("acme_complete", {"stopped_by": "agent", "message": (
                     f"WARN run stopped (SIGTERM, StopTask): {done:,}/{self.acme['total']:,} certificates renewed; "
                     "the rest renew on the next nightly run")}, now)
-            return {**acme, "desiredStatus": "STOPPED", "lastStatus": "RUNNING"}
+            return {**acme, **self._stopping(p, now)}
         for name, s in self.services.items():
             for k in range(self.counts(name)[1]):
                 t = self._task(name, k)
                 if _name(t["taskArn"]) != tid:
                     continue
                 if commit:
-                    self.stopped[tid] = {**t, "lastStatus": "STOPPED", "desiredStatus": "STOPPED", "stoppedAt": now,
-                                         "stopCode": "UserInitiated",
-                                         "stoppedReason": f"Task stopped by user: {p.get('reason') or 'sre-primary'}"}
+                    self.stopped[tid] = {**t, **self._stopping(p, now), "lastStatus": "STOPPED", "stoppedAt": now}
                     s["gens"][k] = s["gens"].get(k, 0) + 1
                     s["restarted"][k] = now + timedelta(seconds=30)
-                return {**t, "desiredStatus": "STOPPED"}
+                return {**t, **self._stopping(p, now)}
         raise AwsError("InvalidParameterException", "The referenced task was not found.")
 
     def _aas(self, op: str, p: dict, now: datetime) -> dict | None:

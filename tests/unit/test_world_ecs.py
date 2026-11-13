@@ -223,3 +223,30 @@ def test_every_capacity_provider_group_is_served_and_cp_core_holds_the_core_host
     assert ids == {world.fleet_inspect_host(h)["instance_id"] for h in world.core_hosts}
     assert {i["AvailabilityZone"] for i in core[0]["Instances"]} == {"us-east-1a", "us-east-1b", "us-east-1c"}
     assert {"Key": "ecs-capacity-provider", "Value": "cp-core"}.items() <= core[0]["Tags"][1].items()
+
+
+def test_dispatcher_service_shows_tonights_scaling(world):
+    """R11-opus-4 CALL 73: webhooks-dispatcher at 40 tasks showed only its Nov 5 steady state, though its target
+    scaled it 6 -> 18 -> 40 at 02:34 and 02:38."""
+    world.advance_to(at("03:00:00"))
+    svc = world.serve_aws("ecs", "DescribeServices", {"cluster": "vl-prod-core",
+                                                      "services": ["webhooks-dispatcher"]})["services"][0]
+    events = [(e["createdAt"], e["message"].split(":")[0]) for e in svc["events"]]
+    assert events[:4] == [(at("02:39:00"), "(service webhooks-dispatcher) has reached a steady state."),
+                          (at("02:38:20"), "(service webhooks-dispatcher) has started 22 tasks"),
+                          (at("02:35:00"), "(service webhooks-dispatcher) has reached a steady state."),
+                          (at("02:34:20"), "(service webhooks-dispatcher) has started 12 tasks")]
+    assert len({e["id"] for e in svc["events"]}) == len(svc["events"])
+    assert svc["deployments"][0]["updatedAt"] >= at("02:38:00")
+
+
+@pytest.mark.parametrize("family", ["acme-renewer", "webhooks-dispatcher"])
+def test_stop_task_answers_with_the_stop_it_started(world, family):
+    """R11-opus-4 CALL 60: StopTask answered RUNNING/STOPPED with no stopCode, stoppedReason or stoppingAt."""
+    reason = "OPS-4452: Route 53 throttling contributing to endpointd race; SRE-RB-14"
+    world.advance_to(at("03:15:45"))
+    arn = world.serve_aws("ecs", "ListTasks", {"cluster": "vl-prod-core", "family": family})["taskArns"][0]
+    task = world.serve_aws("ecs", "StopTask", {"cluster": "vl-prod-core", "task": arn.rsplit("/", 1)[-1],
+                                               "reason": reason})["task"]
+    assert (task["lastStatus"], task["desiredStatus"], task["stopCode"]) == ("RUNNING", "STOPPED", "UserInitiated")
+    assert task["stoppedReason"] == f"Task stopped by user: {reason}" and task["stoppingAt"] == world.now
