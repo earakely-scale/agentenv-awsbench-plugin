@@ -363,7 +363,7 @@ class Meter:
             if call is not None:
                 record = {"t": rfc3339(self.now), "t_issue": call["t_issue"], "call_no": call_no, "role": call["role"],
                           "server": call["server"], "tool": tool, "args": dict(args), "result": result_summary,
-                          "resolved": resolved or {}}
+                          "resolved": resolved or {}, "ops": self.ops(call_no)}
                 if self.actionlog is not None and not (resolved or {}).get("logged"):
                     self.actionlog.record(t=self.now, t_issue=call["t_issue"], call_no=call_no, role=call["role"],
                                           principal=call["role"], world_made=False, server=call["server"], tool=tool,
@@ -375,6 +375,16 @@ class Meter:
             if call_no is not None:
                 self.lane.release()
         return {"banner": self.banner(drain=drain)}
+
+    def ops(self, call_no: int) -> list[dict]:
+        """The AWS operations the call made, from the action log rows it owns, in issue order."""
+        out = []
+        for r in reversed(self.actionlog.rows[:] if self.actionlog is not None else []):
+            if r["call_no"] == call_no and r["service"] and not r["world_made"]:
+                out.append({k: r[k] for k in ("service", "operation", "params", "error")})
+            elif isinstance(r["call_no"], int) and r["call_no"] < call_no:
+                break
+        return out[::-1]
 
     def banner(self, *, drain: bool = True) -> dict:
         return {"now": clock_text(self.now), "call": self.calls_used, "calls_left": self.calls_left,

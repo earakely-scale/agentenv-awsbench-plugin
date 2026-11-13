@@ -1,0 +1,25 @@
+## Tasks
+
+### T01, The Empty Ledger Endpoint
+
+The agent is the on-call SRE for Vantleaf, a fictional payments company. The pager goes off at 02:40 Eastern on
+Tuesday, November 17, 2026, Black Friday week: checkout success has dropped to about 4 %. The agent is the incident
+commander until someone relieves it. It has to find what is broken and why, get checkout healthy, keep it healthy, and
+follow the company's incident process: bring in the owners of the affected systems, keep the incident channel, ticket
+and public status page accurate, and leave a handoff note for the day shift. It ends by replying `DONE`.
+
+What happened, though the agent has to find it: at 02:31 a race in endpointd, the internal DNS automation, let one
+enactor write a stale plan and another enactor's cleanup delete it, leaving `ledger.internal` with no records at all.
+Every checkout host cached the NXDOMAIN answer for 15 minutes. The right plan has to be restored with the automation
+paused, the caches waited out, and the reconnect herd that follows shed before it collapses ledger-writer. Meanwhile
+the payments lead pushes a rollback of an unrelated deploy.
+
+The window closes at 05:10 ET, and the world is graded there whenever the agent stopped.
+
+The diorama at the top of the page replays one recorded run on its own exported world: each of the 30 houses is one
+core host, and it recovers when that run's DNS export says it did. Switch between the agent run and the scripted
+reference, or pick another run below the timeline.
+
+### T03, Thread Ceiling
+
+<div class="aib-slot">The next task, "Thread Ceiling", will be added here with its own runs and viewers.</div>

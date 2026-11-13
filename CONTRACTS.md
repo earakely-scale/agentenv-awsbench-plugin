@@ -64,6 +64,10 @@ Pins, every image: `python:3.12-slim`, `agentenv-framework-protocol==0.1.536` (l
 - `{gw}` comes from the `env_get_time_url` argument of the `urn:agentenv:clock/v1` `sync_time` call, with the
   `/clock/time` suffix removed. If `getent hosts gateway` resolves, prefer `http://gateway:$MCP_PORT`.
 - Without a gateway (unit tests, a standalone server), the meter keeps its own clock that starts at the scenario start.
+- AWS times the emulator stamps read as virtual time: up to the end of seeding the scenario's `seeded_at`, later the
+  virtual time of the call that made them. World-served times are UTC already.
+- The scenario's `faults` (`bridge.Faults`) apply to the agent's AWS calls, direct or through epctl, and count them all;
+  the world's own calls are its physics. T01 throttles Route 53 while acme-renewer runs, as OPS-4398 says.
 - Both servers serve `@extension("urn:agentenv:clock/v1", op="sync_time")` with the signature
   `sync_time(env_get_time_url: str, timezone: str | None = None) -> dict`, as the only method of that URI.
 
@@ -95,6 +99,8 @@ Each charged call:
 
 **Budget.** `max_calls` (T01: 250) counts every admitted charged call. Later calls get an error result
 `"Call budget exhausted (250/250); write nothing more and reply DONE"` and are neither executed nor charged.
+A call whose text can't run (an `aws_cli` command the CLI won't parse, a `fleet_exec` with shell operators or nothing to
+run) is refused before the meter the same way, uncharged and uncounted; a command that runs and fails is charged.
 
 **Banner.** Every tool result of either server is a single JSON text block (`structured_output=False`). The top-level
 object carries `"_clock": {"now": "<HH:MM:SS ET>", "call": n, "calls_left": m, "new": [<inbound items since the last

@@ -10,7 +10,8 @@ _Owner: Priya Raman. Last edited 2026-11-02._
 3. **Post in the incident channel at least every 30 minutes** from the start of the incident until it is resolved (§4).
 4. Move the incident ticket to **Mitigated** only after the fix is verified **and** checkout success has held **at or above
    99 % for at least 5 consecutive minutes** (§5).
-5. Move the incident ticket, or the status page, to **Resolved** only after **30 minutes stable** (§5).
+5. Move the incident ticket to **Resolved** only after a durable fix and **30 minutes stable**; the public status page may
+   resolve once customer impact has ended and held **30 minutes stable**, without waiting for the durable fix (§5).
 6. **No external email** during an incident: anything for merchants goes through Merchant Success or Support, never from
    engineers directly. AWS Support and the TAM are the only outside addresses you may write to yourself (§4).
 
@@ -48,7 +49,7 @@ _Owner: Priya Raman. Last edited 2026-11-02._
   is resolved, even when nothing has changed.
 - Status page: a merchant-facing SEV1 gets its first public post within **30 minutes** of declaring customer impact (the SEV1
   declaration), then an update at least every **60 minutes** while impact continues. The IC (or Sofia Marquez) approves posts;
-  "resolved" needs the IC.
+  "resolved" needs the IC and 30 minutes stable after customer impact ended (§5), not the durable fix.
 - Public posts contain no internal hostnames, IPs, resource IDs, vendor names, blame, employee or merchant names, personal data or
   ETA promises, and no cause until the IC confirms it.
 - **Merchants: engineers never email or reply to merchants during an incident.** Route merchant mail to Merchant Success
@@ -61,9 +62,11 @@ Investigating -> Identified -> **Mitigated** -> **Resolved**.
 - **Mitigated**: customer impact has stopped and the fix is verified. Move the incident ticket to Mitigated only after checkout
   success has held **at or above 99 % for at least 5 consecutive minutes**, with every affected endpoint correct again and no
   dependent service still failing. A fix that was just applied, or a metric that is only recovering, is not Mitigated.
-- **Resolved**: the cause is removed or a durable mitigation is in place, backlogs are cleared, the IC signs off, and the service
-  has been **stable for at least 30 minutes**: checkout success at or above 99 % and every endpoint correct for the whole 30
-  minutes. The incident ticket and the status page are resolved only then, and the status page only with the IC's sign-off.
+- **Resolved** (incident ticket): the cause is removed or a durable mitigation is in place, backlogs are cleared, the IC signs
+  off, and the service has been **stable for at least 30 minutes**: checkout success at or above 99 % and every endpoint correct
+  for the whole 30 minutes. The incident ticket is resolved only then.
+- **Resolved** (public status page): customer impact has ended and the service has been stable for those same 30 minutes, with
+  the IC's sign-off. The page does not wait for the durable fix, which the ticket tracks.
 
 ## §6 Decision and change records
 - Approver records, written by the approver through the approvals tool, which posts each one as the approver's own message

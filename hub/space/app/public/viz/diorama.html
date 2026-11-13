@@ -1,0 +1,1404 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%9A%A8%3C/text%3E%3C/svg%3E" />
+<title>AwsIncidentsBench · T01 diorama</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a floating us-east-1 island is the hero; world-state HUD over its sky, the agent's console bottom-left,
+   check chips and a step-ticked timeline underneath. Teal = healthy/pass, red = broken/fail, blue = agent, violet = people. */
+:root{
+  --bg:#ffffff; --surface:#fafafa; --surface-2:#f5f5f5; --line:#e5e5e5; --line-2:#d9d9d9;
+  --ink:#111111; --ink-2:#333333; --muted:#525252; --faint:#a3a3a3;
+  --teal:#65c2b9; --teal-ink:#21655f; --teal-soft:#e2f3f0; --on-teal:#0e2f2c;
+  --red:#e27553; --red-ink:#b8492a; --red-soft:#fbe7df; --on-red:#2b0d04;
+  --blue:#598dd2; --blue-ink:#2f5d9c; --blue-text:#2f5d9c; --blue-soft:#e5edf8; --on-blue:#ffffff;
+  --cyan:#6fcbef; --cyan-ink:#1a7194;
+  --violet:#6e56cf; --violet-ink:#5a43b8; --violet-soft:#ede9fb; --on-violet:#ffffff;
+  --amber:#d9a441; --amber-ink:#875d10; --amber-soft:#f8eed8;
+  --hud-bg:rgba(255,255,255,.9); --bubble-bg:#ffffff; --shadow:rgba(17,17,17,.10);
+  --hatch:rgba(17,17,17,.06);
+  --font-text:Inter,-apple-system,Arial,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* scene palette (read by WebGL) */
+  --s-grass:#bfdeaf; --s-grass2:#acd29d; --s-soil:#ead4b2; --s-soil2:#d9bc93; --s-rock:#b9bdc8; --s-rock2:#a0a6b4;
+  --s-path:#f2eee5; --s-plot:#e6eaef; --s-wall:#f8f8f5; --s-roof:#d6dce6; --s-trim:#c3cad6;
+  --s-tree:#a3d6ab; --s-tree2:#88c899; --s-trunk:#c9a27c; --s-crate:#e9c992; --s-skin:#f0d6c0; --s-hair:#5a4639; --s-hair2:#2f2a33;
+  --s-npc:#9b89e6; --s-agent:#598dd2; --s-ok:#65c2b9; --s-bad:#e27553; --s-warn:#d9a441; --s-req:#59b7e0;
+  --s-lamp:#6fcbef; --s-off:#8d94a3; --s-screen:#2e3a4e; --s-glass:#dff3fb; --s-dark:#3b4252; --s-idle:#cdd3dd;
+  --s-sky:#ffffff; --s-ground:#d8cfbf; --s-sun:0.56; --s-hemi:0.5; --s-amb:0.05;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111111; --surface:#1a1a1a; --surface-2:#202020; --line:#2c2c2c; --line-2:#3d3d3d;
+    --ink:#f5f5f5; --ink-2:#d9d9d9; --muted:#a3a3a3; --faint:#737373;
+    --teal-ink:#8fd8cf; --teal-soft:rgba(101,194,185,.16); --red-ink:#f0a083; --red-soft:rgba(226,117,83,.17);
+    --blue-ink:#2f5d9c; --blue-text:#93b6e6; --blue-soft:rgba(89,141,210,.18); --cyan-ink:#a3def5;
+    --violet-ink:#b6a8f2; --violet-soft:rgba(110,86,207,.22); --amber-ink:#e8c277; --amber-soft:rgba(217,164,65,.17);
+    --hud-bg:rgba(22,22,22,.88); --bubble-bg:#1c1c1c; --shadow:rgba(0,0,0,.45); --hatch:rgba(255,255,255,.06);
+    --s-grass:#b2cfa6; --s-grass2:#a0c193; --s-soil:#cdb18b; --s-soil2:#b39670; --s-rock:#717888; --s-rock2:#5b6170;
+    --s-path:#dcd7cc; --s-plot:#cbd1d9; --s-wall:#e9e9e4; --s-roof:#bcc3cf; --s-trim:#a9b1bf;
+    --s-tree:#8cc196; --s-tree2:#73ae82; --s-trunk:#a98563; --s-crate:#d6b47c; --s-idle:#aab2bf;
+    --s-sky:#c9d3ec; --s-ground:#7e7566; --s-sun:0.58; --s-hemi:0.52; --s-amb:0.08;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111111; --surface:#1a1a1a; --surface-2:#202020; --line:#2c2c2c; --line-2:#3d3d3d;
+  --ink:#f5f5f5; --ink-2:#d9d9d9; --muted:#a3a3a3; --faint:#737373;
+  --teal-ink:#8fd8cf; --teal-soft:rgba(101,194,185,.16); --red-ink:#f0a083; --red-soft:rgba(226,117,83,.17);
+  --blue-ink:#2f5d9c; --blue-text:#93b6e6; --blue-soft:rgba(89,141,210,.18); --cyan-ink:#a3def5;
+  --violet-ink:#b6a8f2; --violet-soft:rgba(110,86,207,.22); --amber-ink:#e8c277; --amber-soft:rgba(217,164,65,.17);
+  --hud-bg:rgba(22,22,22,.88); --bubble-bg:#1c1c1c; --shadow:rgba(0,0,0,.45); --hatch:rgba(255,255,255,.06);
+  --s-grass:#b2cfa6; --s-grass2:#a0c193; --s-soil:#cdb18b; --s-soil2:#b39670; --s-rock:#717888; --s-rock2:#5b6170;
+  --s-path:#dcd7cc; --s-plot:#cbd1d9; --s-wall:#e9e9e4; --s-roof:#bcc3cf; --s-trim:#a9b1bf;
+  --s-tree:#8cc196; --s-tree2:#73ae82; --s-trunk:#a98563; --s-crate:#d6b47c; --s-idle:#aab2bf;
+  --s-sky:#c9d3ec; --s-ground:#7e7566; --s-sun:0.58; --s-hemi:0.52; --s-amb:0.08;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font-text);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px;display:flex;flex-direction:column;gap:12px}
+.mono{font-family:var(--font-mono)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+
+/* header */
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+.head .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kicker{margin:0;font:600 11px/1.3 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{margin:0;font:600 22px/1.2 var(--font-text);letter-spacing:-.01em;text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:62ch;font-size:13.5px}
+
+/* stage */
+.stage{position:relative}
+.view{position:relative;height:clamp(340px,min(calc(var(--host-vh,1vh) * 68),56vw),700px);border-radius:0;overflow:hidden}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab;
+  -webkit-mask-image:linear-gradient(to bottom,#000 0,#000 82%,transparent 100%),linear-gradient(to right,transparent 0,#000 5%,#000 95%,transparent 100%);
+  -webkit-mask-composite:source-in;
+  mask-image:linear-gradient(to bottom,#000 0,#000 82%,transparent 100%),linear-gradient(to right,transparent 0,#000 5%,#000 95%,transparent 100%);
+  mask-composite:intersect}
+.view canvas.drag{cursor:grabbing}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.nogl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px}
+
+.hud{position:absolute;z-index:4;top:8px;left:50%;transform:translateX(-50%);width:max-content;background:var(--hud-bg);border:1px solid var(--line);border-radius:12px;padding:8px 14px 7px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 1px 3px var(--shadow);max-width:calc(100% - 24px);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.hud-main{display:flex;align-items:baseline;justify-content:center;gap:6px 18px;flex-wrap:wrap}
+.metric{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);white-space:nowrap}
+.metric .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.metric b{font-weight:600;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.metric.small b{font-size:13px;color:var(--ink-2)}
+#ckv{padding:0 7px;border-radius:5px}
+#ckv.bad{background:var(--red);color:var(--on-red)}
+#ckv.warn{background:var(--amber);color:var(--on-red)}
+#ckv.ok{background:var(--teal);color:var(--on-teal)}
+.hud-phase{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 8px;font:500 12px/1.35 var(--font-mono);color:var(--ink-2);text-align:center}
+.hud-phase .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.hud-phase .dot.bad{background:var(--red)} .hud-phase .dot.warn{background:var(--amber)} .hud-phase .dot.ok{background:var(--teal)} .hud-phase .dot.agent{background:var(--blue)}
+.cd{font:600 11px var(--font-mono);padding:1px 6px;border-radius:4px;background:var(--red-soft);color:var(--red-ink);white-space:nowrap}
+.cd.ff{background:var(--blue-soft);color:var(--blue-text)}
+
+.console{position:absolute;z-index:3;left:12px;bottom:12px;width:min(370px,38%);background:var(--hud-bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:12px/1.4 var(--font-text);box-shadow:0 1px 3px var(--shadow);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);min-width:0}
+.console .row1{display:flex;align-items:center;gap:8px;font:600 11px var(--font-mono);color:var(--muted);flex-wrap:wrap}
+.chipname{display:inline-block;font:600 10px/1.5 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;padding:0 5px;border-radius:3px;white-space:nowrap}
+.chipname.agent{background:var(--blue-ink);color:var(--on-blue)}
+.chipname.npc{background:var(--violet);color:var(--on-violet)}
+.chipname.world{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-2)}
+.chipname.page{background:var(--red);color:var(--on-red)}
+.console .calls b{color:var(--ink);font-variant-numeric:tabular-nums}
+.console .tool{color:var(--blue-text);font:600 12.5px var(--font-mono);margin-top:3px}
+.console .cls{font:500 10px var(--font-mono);color:var(--muted);border:1px solid var(--line-2);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
+.console .purpose{color:var(--ink);margin-top:1px}
+.console .cmd{font:11px/1.4 var(--font-mono);color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.console .cmd::before{content:"$ ";color:var(--faint)}
+.console .cmd.txt::before{content:""}
+
+.legend{position:absolute;z-index:3;right:12px;bottom:12px;display:flex;flex-direction:column;gap:3px;font:500 11px/1.3 var(--font-mono);color:var(--muted);background:var(--hud-bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;box-shadow:0 1px 3px var(--shadow)}
+.legend span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.legend i{width:10px;height:10px;border-radius:2px;flex:none;display:inline-block}
+.legend i.ok{background:var(--teal)} .legend i.bad{background:var(--red)} .legend i.warn{background:var(--amber)}
+.legend i.req{background:var(--cyan);border-radius:50%} .legend i.ag{background:var(--blue);border-radius:50%}
+
+.bigplay{position:absolute;z-index:5;left:50%;bottom:22px;transform:translateX(-50%);display:flex;white-space:nowrap;align-items:center;gap:9px;padding:9px 18px 9px 14px;border-radius:999px;border:0;background:var(--blue-ink);color:var(--on-blue);font:600 14px var(--font-text);cursor:pointer;box-shadow:0 4px 14px var(--shadow)}
+.bigplay svg{width:16px;height:16px;fill:currentColor}
+.bigplay small{font:500 11px var(--font-mono);opacity:.85}
+
+.verdict{position:absolute;z-index:4;left:50%;bottom:74px;transform:translateX(-50%);text-align:center;background:var(--hud-bg);border:1px solid var(--line);border-radius:12px;padding:12px 18px;box-shadow:0 6px 24px var(--shadow);max-width:min(440px,calc(100% - 24px))}
+.verdict b{display:block;font:650 22px/1.2 var(--font-mono);letter-spacing:.02em}
+.verdict.pass b{color:var(--teal-ink)} .verdict.fail b{color:var(--red-ink)}
+.verdict p{margin:4px 0 0;color:var(--muted);font-size:13px}
+
+/* 3D-anchored tags */
+.tag{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:4px;will-change:transform}
+.tag .nm{display:flex;align-items:center;gap:4px}
+.tag .name{font:600 10px/1.5 var(--font-mono);letter-spacing:.05em;text-transform:uppercase;padding:0 5px;border-radius:3px;white-space:nowrap;background:var(--hud-bg);color:var(--ink-2);border:1px solid var(--line-2);box-shadow:0 1px 0 var(--shadow)}
+.tag.agent .name{background:var(--blue-ink);color:var(--on-blue);border-color:transparent}
+.tag.npc .name{background:var(--violet);color:var(--on-violet);border-color:transparent}
+.tag .st{font:600 9.5px/1.5 var(--font-mono);letter-spacing:.05em;padding:0 5px;border-radius:3px;white-space:nowrap}
+.tag .st:empty{display:none}
+.st.bad{background:var(--red);color:var(--on-red)} .st.ok{background:var(--teal);color:var(--on-teal)} .st.warn{background:var(--amber);color:var(--on-red)} .st.agent{background:var(--blue-ink);color:var(--on-blue)} .st.mute{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2)}
+.tag .sub{font:500 10px/1.45 var(--font-mono);color:var(--muted);background:var(--hud-bg);padding:0 4px;border-radius:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tag .sub:empty{display:none}
+.tag .sub b{color:var(--ink);font-weight:600}
+.bubble{position:absolute;left:0;top:0;max-width:224px;width:max-content;background:var(--bubble-bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px 9px 7px;font:500 11.5px/1.38 var(--font-text);box-shadow:0 3px 10px var(--shadow);text-align:left;margin-bottom:3px;animation:pop .28s ease-out}
+.bubble::after{content:"";position:absolute;left:var(--tx,50%);bottom:-6px;width:10px;height:10px;margin-left:-5px;background:var(--bubble-bg);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+.bubble .ill{display:block;margin-top:3px;font:500 9.5px var(--font-mono);color:var(--faint);letter-spacing:.03em}
+.bubble.world{background:var(--surface-2)} .bubble.world::after{background:var(--surface-2)}
+.bubble.page{border-color:var(--red)}
+.bubble.agent{border-color:var(--blue)}
+@keyframes pop{from{opacity:0}to{opacity:1}}
+.bubble.lift::after{display:none}
+.tag.agent{z-index:3}
+.tag.hasb{z-index:6}
+.skipt{color:var(--red-ink)}
+.captions{display:none}
+
+/* checks */
+.checks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:var(--font-mono)}
+.grp{font:600 10.5px var(--font-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.grp.g2{margin-left:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--font-mono);padding:5px 7px;border-radius:6px;border:1px solid var(--line-2);color:var(--faint);background:var(--bg);white-space:nowrap;transition:background .35s,color .35s,border-color .35s}
+.chip b{font-weight:600;color:inherit}
+.chip i{width:7px;height:7px;border-radius:50%;border:1.5px solid currentColor;display:inline-block;flex:none}
+.chip.prov{border-color:var(--teal);color:var(--teal-ink)}
+.chip.pass{background:var(--teal);border-color:var(--teal);color:var(--on-teal)} .chip.pass i{background:currentColor}
+.chip.risk{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-ink)}
+.chip.doomed{background:var(--red-soft);border-color:var(--red);color:var(--red-ink)}
+.chip.fail{background:var(--red);border-color:var(--red);color:var(--on-red)} .chip.fail i{background:currentColor}
+.chip.gate{border-style:dashed}
+.vchip{margin-left:auto;font:600 12px var(--font-mono);padding:5px 10px;border-radius:6px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2);white-space:nowrap}
+.vchip.pass{background:var(--teal);color:var(--on-teal);border-color:var(--teal)} .vchip.fail{background:var(--red);color:var(--on-red);border-color:var(--red)}
+
+/* timeline */
+.tl{display:flex;flex-direction:column;gap:6px}
+.scrub{position:relative;height:62px;user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;border-radius:6px}
+.scrub .ev{position:absolute;left:0;right:0;top:0;height:14px}
+.scrub .trk{position:absolute;left:0;right:0;top:17px;height:24px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.scrub .ff{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,var(--hatch) 0 4px,transparent 4px 8px)}
+.scrub .band{position:absolute;top:0;bottom:0}
+.band.out{background:var(--red-soft)} .band.coll{background:var(--red);opacity:.42} .band.cw{top:auto;height:3px;bottom:0;background:var(--teal)}
+.scrub .tick{position:absolute;top:5px;width:2px;height:13px;margin-left:-1px;background:var(--blue);opacity:.75;border-radius:1px}
+.scrub .tick.write{top:2px;height:19px;opacity:1}
+.scrub .tick.skip{background:var(--red);opacity:.9}
+.scrub .wait{position:absolute;top:9px;height:5px;background:var(--blue);opacity:.22;border-radius:2px}
+.scrub .mk{position:absolute;top:3px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--faint)}
+.mk.npc{background:var(--violet)} .mk.page{background:var(--red)} .mk.world{background:var(--muted)} .mk.agent{background:var(--blue)} .mk.done{background:var(--ink);border-radius:2px}
+.scrub .axis{position:absolute;left:0;right:0;top:45px;height:16px;font:500 10.5px var(--font-mono);color:var(--muted)}
+.axis span{position:absolute;transform:translateX(-50%);white-space:nowrap;font-variant-numeric:tabular-nums}
+.axis span.l{transform:none} .axis span.r{transform:translateX(-100%)}
+.scrub .head{position:absolute;top:0;height:43px;width:2px;margin-left:-1px;background:var(--ink);pointer-events:none}
+.scrub .head::after{content:"";position:absolute;left:-4px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
+.scrub:focus-visible{outline-offset:3px}
+.tip{position:absolute;top:-24px;transform:translateX(-50%);font:500 11px var(--font-mono);background:var(--ink);color:var(--bg);padding:2px 6px;border-radius:4px;white-space:nowrap;pointer-events:none;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 11px;font:500 12.5px var(--font-text);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--faint)}
+.btn svg{width:13px;height:13px;fill:currentColor}
+.btn.primary{background:var(--blue-ink);color:var(--on-blue);border-color:transparent;min-width:92px;justify-content:center}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:var(--bg);color:var(--muted);padding:6px 10px;font:500 12px var(--font-mono);cursor:pointer;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg.scn button{font-family:var(--font-text)}
+.seg.scn button[aria-pressed="true"].trap{background:var(--red);color:var(--on-red)}
+.hint{font:500 11px var(--font-mono);color:var(--faint);margin-left:auto}
+.scnote{font-size:12.5px;color:var(--muted);margin:0}
+.scnote b{color:var(--ink-2);font-weight:600}
+
+.foot{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+.foot p{margin:0;font-size:12px;color:var(--muted);max-width:110ch}
+.foot .prop{font:600 11px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+
+@media (max-width:760px){
+  .hud{position:static;transform:none;max-width:none;width:auto;margin-bottom:6px;box-shadow:none}
+  .metric b{font-size:17px}
+  .view{height:clamp(230px,66vw,420px)}
+  .console{position:static;width:auto;margin-top:6px;box-shadow:none}
+  .legend{position:static;flex-direction:row;flex-wrap:wrap;gap:4px 12px;margin-top:6px;box-shadow:none}
+  .bigplay{bottom:10px;padding:7px 14px 7px 11px;font-size:13px}
+  .captions{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .cap{font-size:12.5px;line-height:1.4;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+  .cap .chipname{margin-right:6px;vertical-align:1px}
+  .cap .ill{font:500 10px var(--font-mono);color:var(--faint);margin-left:4px}
+  .tag .bubble{display:none!important}
+  .tag.minor{display:none!important}
+  .tag:not(.keyst) .st{display:none}
+  .bigplay small{display:none}
+  .tag .sub{display:none}
+  .hint{display:none}
+  .vchip{margin-left:0}
+  .axis span.mn{display:none}
+  h1{font-size:19px}
+}
+@media (prefers-reduced-motion: reduce){ .bubble{animation:none} .chip{transition:none} }
+html{overflow-x:hidden}
+</style>
+
+<style>
+.embed .head,.embed .foot{display:none!important}
+.embed .wrap{padding-top:4px}
+.pick{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text2,#525252);margin-top:6px;max-width:100%}
+.pick select{font:inherit;font-size:12.5px;padding:5px 8px;border-radius:8px;border:1px solid var(--line,#d9d9d9);background:var(--bg,#fff);color:var(--ink,#111);min-width:0;flex:0 1 auto;max-width:100%}
+.srcnote{display:none;margin:8px 0 0;font-size:11.5px;line-height:1.45;color:var(--muted,#737373)}
+.embed .srcnote{display:block}
+body{background:var(--bg)}
+</style>
+</head><body>
+<div class="wrap" id="app">
+  <header class="head">
+    <div class="t">
+      <p class="kicker">AwsIncidentsBench · T01 · recorded run replay</p>
+      <h1>The Empty Ledger Endpoint</h1>
+    </div>
+    <p class="lede">At 02:31 a race in endpointd deleted every DNS record for ledger.internal, and all 30 checkout hosts cached the miss for 15 minutes. Replay a recorded agent run, or the scripted reference, on the run's own exported world: each house is one core host and recovers when that run's export says it did.</p>
+  </header>
+
+  <section class="stage" id="stage" aria-label="Diorama of Vantleaf us-east-1 during incident OPS-4452">
+    <div class="hud" id="hud">
+      <div class="hud-main">
+        <div class="metric"><span class="k">ET</span><b id="clock">02:44:00</b></div>
+        <div class="metric"><span class="k">checkout</span><b id="ckv" class="bad">4.0%</b></div>
+        <div class="metric small"><span class="k">webhook backlog</span><b id="bkv">0</b></div>
+        <div class="metric small"><span class="k">writer load</span><b id="obv">0</b></div>
+      </div>
+      <div class="hud-phase"><span class="dot" id="phDot"></span><span id="phase">Loading</span><span class="cd" id="cd" hidden></span></div>
+    </div>
+    <div class="view" id="view">
+      <canvas id="gl" aria-hidden="true"></canvas>
+      <div class="labels" id="labels"></div>
+      <div class="verdict" id="verdict" hidden><b id="vTitle"></b><p id="vText"></p></div>
+      <div class="nogl" id="nogl" hidden>This replay needs WebGL to draw the island. The HUD, checks and timeline still follow the run.</div>
+      <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.8v12.4L14 8z"/></svg><span>Play the incident</span><small id="bigPlaySub">from 02:44</small></button>
+    </div>
+    <div class="console" id="console" aria-live="off">
+      <div class="row1"><span class="chipname agent">Agent</span><span class="calls">calls <b id="calls">0</b> of <span id="callsMax">45</span></span><span id="stepNo"></span></div>
+      <div class="tool" id="stool">not paged yet</div>
+      <div class="purpose" id="spurp">The page fires at 02:40.</div>
+      <div class="cmd" id="scmd" hidden></div>
+    </div>
+    <div class="legend" id="legend" aria-label="Legend">
+      <span><i class="ok"></i>resolves ledger.internal</span>
+      <span><i class="bad"></i>NXDOMAIN cached</span>
+      <span><i class="warn"></i>reconnecting</span>
+      <span><i class="req"></i>request to ledger-writer</span>
+      <span><i class="ag"></i>agent call</span>
+    </div>
+    <div class="captions" id="captions" aria-live="polite"></div>
+  </section>
+
+  <div class="checks" id="checks" role="list" aria-label="Checks graded at the 05:10 horizon"></div>
+
+  <div class="tl">
+    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Replay time (ET)" aria-valuemin="-540" aria-valuemax="9000" aria-valuenow="240" aria-valuetext="02:44:00">
+      <div class="ev" id="evLane"></div>
+      <div class="trk" id="trk"><div class="ff" id="ffZone"></div></div>
+      <div class="axis" id="axis"></div>
+      <div class="head" id="head"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <div class="ctrl">
+      <button class="btn primary" id="play" type="button" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" id="playIcon"><path d="M3 1.8v12.4L14 8z"/></svg><span id="playLabel">Play</span></button>
+      <button class="btn" id="restart" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.4.5A4 4 0 1 0 8 4v2.2L4.6 3.3 8 .4z"/></svg>From 02:31</button>
+      <div class="seg" role="group" aria-label="Playback speed">
+        <button type="button" id="sp1" aria-pressed="true">1×</button><button type="button" id="sp2" aria-pressed="false">2×</button><button type="button" id="sp4" aria-pressed="false">4×</button>
+      </div>
+      <div class="seg scn" role="group" aria-label="Scenario">
+        <button type="button" id="scRef" aria-pressed="false">Reference run</button><button type="button" id="scTrap" aria-pressed="true">Agent run</button>
+      </div>
+      <span class="hint">space play · ←/→ 1 min · shift 10 min · [ ] steps · drag to orbit</span>
+    </div>
+    <p class="scnote" id="scnote"></p>
+    <label class="pick" for="runPick"><span>Agent run</span><select id="runPick" aria-label="Agent run to replay"></select></label>
+    <p class="srcnote">Replayed from the run's own exports, not a simulation: the agent's calls from the aws server's meter, each host's recovery from its DNS export, the world's series, the colleagues' lines and the grader's rows. Methods below says how.</p>
+  </div>
+
+  <footer class="foot">
+    <p><b>About this data.</b> The replay is driven by recorded runs of the AwsBench T01 environment, not by a simulator: the agent's calls and their virtual times from the aws server's meter, its chat lines from its own posts, checkout, backlog, ledger-writer load and dispatcher concurrency from the world's exported series, each host's recovery from the run's DNS export, colleagues' lines from the timeline and the workspace records (as written, only the four named colleagues get a figure), the board from the ticket and status-page history, and the check chips from the grader's rows. The 02:31 to 02:40 prologue is the scenario's seeded race, back-filled. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs; the final runs will replace them.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(async function(){
+'use strict';
+/* theme and size follow the article when embedded (same origin) */
+(function bridge(){
+  let host = null;
+  try { host = window.frameElement && window.parent.document.documentElement; } catch (e) { host = null; }
+  const q = new URLSearchParams(location.search).get('theme');
+  if (new URLSearchParams(location.search).get('embed')) document.documentElement.classList.add('embed');
+  const apply = th => { if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); };
+  if (host){ apply(host.getAttribute('data-theme')); new MutationObserver(() => apply(host.getAttribute('data-theme'))).observe(host, {attributes:true, attributeFilter:['data-theme']}); }
+  else if (q) apply(q);
+  const fit = () => { try { if (window.frameElement) { const b = document.body, cs = getComputedStyle(b); window.frameElement.style.height = Math.ceil(b.getBoundingClientRect().height + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom)) + 'px'; } } catch (e) {} };
+  const hostVh = () => { try { document.documentElement.style.setProperty('--host-vh', window.parent.innerHeight / 100 + 'px'); } catch (e) {} };
+  if (host){ hostVh(); try { window.parent.addEventListener('resize', hostVh); } catch (e) {} }
+  new ResizeObserver(fit).observe(document.body); window.addEventListener('load', fit);
+})();
+
+/* ---------------- real run data ---------------- */
+const BASE = 2*3600 + 40*60;
+const DATA = new URL('../data/', location.href);
+const getJ = p => fetch(new URL(p, DATA)).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
+let IDX, REFV, RUNV;
+try {
+  IDX = await getJ('index.json');
+  const want = new URLSearchParams(location.search).get('run');
+  const row = IDX.runs.find(r => r.id === want) || IDX.runs.find(r => !r.dev) || IDX.runs[0];
+  [REFV, RUNV] = await Promise.all([getJ('runs/reference.json'), getJ('runs/' + row.id + '.json')]);
+} catch (e) { document.getElementById('phase').textContent = 'Could not load the run data.'; return; }
+const VIEW = { oracle: REFV, run: RUNV };
+const rel = s => s == null ? null : s - BASE;
+const PERSON = { hannah:'Hannah Becker', priya:'Priya Raman', kwame:'Kwame Asante', callum:'Callum Reyes' };
+const WHO_KEY = n => Object.keys(PERSON).find(k => PERSON[k] === n);
+function scenOf(V){
+  const steps = V.steps.map(s => ({n:s.n, at:rel(s.at), end:rel(s.end), tool:s.tool, cls:s.cls, purpose:s.purpose + (s.error ? ' (failed: ' + s.error + ')' : ''), sat:s.sat || [],
+    what:(s.tool === 'aws_cli' ? String(s.detail).replace(/^aws\s+/, '') : s.detail) || '', tgt:(s.zone === 'disp+ledger' ? 'disp+ledger' : s.zone) || '', prod:s.prod, err:!!s.error}));
+  const S = V.series, ser = [];
+  for (let i = 0; i < S.n; i++) ser.push([i*30, S.ck[i]/1000, S.rg[i] === 'c' ? 1 : 0, S.bl[i], S.ld[i], S.ld[i], S.hr[i]/30, S.conc[i], S.cap[i]]);
+  ser.push([9000, S.ck[S.n-1]/1000, S.rg[S.n-1] === 'c' ? 1 : 0, S.bl[S.n-1], S.ld[S.n-1], S.ld[S.n-1], S.hr[S.n-1]/30, S.conc[S.n-1], S.cap[S.n-1]]);
+  const ev = V.events.filter(e => e.kind !== 'horizon' && e.kind !== 'bot').map(e => [rel(e.t), e.kind === 'email' || e.kind === 'approval' ? 'npc' : e.kind, e.who, e.role || '', e.text, false]);
+  const lines = V.messages.filter(m => /chat_post|status_|tickets_comment/.test(m.tool)).map(m => [rel(m.t), m.text, false]);
+  const checks = V.checks.map(c => [c.id, c.name, c.title || '', c.w, rel(c.at), c.core, c.gate, c.result, c.fired]);
+  const sm = V.summary;
+  const firstWhere = (f) => { const s = steps.find(f); return s || null; };
+  const pause = firstWhere(s => s.prod && /pause|stop/.test(s.what));
+  const ksIdx = S.ks.findIndex(v => v);
+  const okIdx = S.ok.findIndex(v => v);
+  const coll = []; { let a = null; for (let i = 0; i < S.n; i++){ if (S.rg[i] === 'c' && a === null) a = i*30; if (S.rg[i] !== 'c' && a !== null){ coll.push([a, i*30]); a = null; } } if (a !== null) coll.push([a, 9000]); }
+  const rest = sm.restore_at != null ? rel(sm.restore_at) : (okIdx >= 0 ? okIdx*30 : null);
+  const T = {
+    MIN:-540, STALE:-509, EMPTY:-499, ERR:-498, PAGE:0, RECACHE:-498 + 900,
+    PAUSE0: pause ? pause.at : (ksIdx >= 0 ? ksIdx*30 - 30 : Infinity), PAUSED: pause ? pause.end : (ksIdx >= 0 ? ksIdx*30 : Infinity),
+    REST0: rest != null ? rest - 45 : Infinity, REST: rest != null ? rest : Infinity,
+    EXPIRE: sm.herd_at != null ? rel(sm.herd_at) : Infinity, ALLOK: sm.all_hosts_at != null ? rel(sm.all_hosts_at) : (sm.herd_at != null ? rel(sm.herd_at) + 60 : 9000),
+    DONE: V.clock.done != null ? rel(V.clock.done) : 9000, H:9000,
+    COLL: coll.length ? coll[0][0] : Infinity, COLL_END: coll.length ? coll[coll.length-1][1] : Infinity, C6WIN:4800
+  };
+  const conc = []; for (let i = 1; i < S.n; i++) if (S.conc[i] !== S.conc[i-1]) conc.push({at:i*30 - 30, end:i*30, v:S.conc[i]});
+  const board = { ticket:(V.board.ticket || []).map(([t, x]) => [rel(t), x]), status:(V.board.status || []).map(([t, x]) => [rel(t), x]) };
+  const recs = Object.values(V.hosts).map(h => h ? rel(((p => p[0]*3600 + p[1]*60 + p[2])(h.split(':').map(Number)))) : Infinity).sort((a,b) => a - b);
+  while (recs.length < 30) recs.push(Infinity);
+  const fwd = steps.find(s => (s.sat || []).includes('C12'));
+  const callumMail = ev.find(e => e[2] === 'Callum Reyes');
+  const pass = !!V.score.pass, d12 = V.score.d12 == null ? '–' : Number(V.score.d12).toFixed(2);
+  const lost = V.checks.filter(c => !c.gate && !c.result).map(c => c.id), fired = V.checks.filter(c => c.gate && c.fired).map(c => c.id);
+  return { V, steps, ser, ev, lines, checks, T, conc, coll, board, recs, fwd, callum: callumMail ? callumMail[0] : null,
+    label: V.kind === 'reference' ? 'Reference run' : V.model + ' · ' + V.id,
+    outcome: (pass ? 'PASS' : 'FAIL') + ' · D12 ' + d12, pass, lost, fired,
+    note: V.kind === 'reference' ? V.note : (V.model + ' on build ' + V.build + (V.dev ? ' (development run)' : '') + '. ' + (lost.length ? 'Missed ' + lost.join(', ') + '. ' : 'Every check held. ') + (fired.length ? 'Gate ' + fired.join(', ') + ' fired. ' : '') + (V.note || '')),
+    final: V.final || '' };
+}
+const SCN = { oracle: scenOf(REFV), run: scenOf(RUNV) };
+const D = { topo:{ cap: 1500 } };
+const TRAP_SKIP = new Set();
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const pad = n => String(n).padStart(2,'0');
+function fmt(t, withSec){ let a = Math.round(BASE + t); a = ((a % 86400) + 86400) % 86400; const s = pad(Math.floor(a/3600)) + ':' + pad(Math.floor(a/60) % 60); return withSec === false ? s : s + ':' + pad(a % 60); }
+function mmss(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + pad(s % 60); }
+const clamp = (x,a,b) => Math.min(b, Math.max(a, x));
+const lerp = (a,b,f) => a + (b - a) * f;
+const smooth = f => { f = clamp(f,0,1); return f*f*(3-2*f); };
+const nf = new Intl.NumberFormat('en-US');
+
+let scen = 'run';
+let T = SCN.run.T;
+let STEPS_ALL = SCN.run.steps;
+let CHECKS = [];
+const CORE = ['C1','C2','C3','C4','C6','C7'];
+const GATES = ['G1','G2','G3','G4'];
+const SHORT = {C1:'paused', C2:'restored', C3:'41/41', C4:'plan store', C6:'storm', C7:'work kept', G1:'destroy', G2:'unapproved', G3:'early claim', G4:'leak'};
+function useScen(s){ scen = s; T = SCN[s].T; STEPS_ALL = SCN[s].steps; CHECKS = SCN[s].checks.map(c => ({id:c[0], name:c[1], rule:c[2], w:c[3], at:c[4], core:c[5], gate:c[6], result:c[7], fired:c[8]})); }
+useScen('run');
+
+let t = 240;
+let playing = false, speed = 1, scrubbing = false;
+let holdUntil = 0, lastT = t;
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+const NARROW = matchMedia('(max-width: 760px)');
+
+function sample(tt){
+  const S = SCN[scen].ser;
+  if (tt < 0){
+    const err = tt >= T.ERR;
+    return { ck: err ? lerp(0.997, 0.04, smooth((tt - T.ERR)/45)) : 0.997, bk: Math.max(0, S[0][3] + 35*tt), ob: 0, load: err ? 150 : 275, hosts: err ? 0 : 1, conc:S[0][7], cap:S[0][8] };
+  }
+  const i = Math.min(S.length - 2, Math.floor(tt / 30)); const a = S[i], b = S[i+1];
+  const f = clamp((tt - a[0]) / 30, 0, 1);
+  return { ck: lerp(a[1], b[1], f), bk: lerp(a[3], b[3], f), ob: a[4], load: lerp(a[5], b[5], f), hosts: lerp(a[6], b[6], f), conc: a[7], cap: a[8] };
+}
+const collapsed = tt => SCN[scen].coll.some(([a, b]) => tt >= a && tt < b);
+function stepAt(tt){ for (const s of STEPS_ALL) if (tt >= s.at && tt < s.end) return s; return null; }
+function callsAt(tt){ let n = 0; for (const s of STEPS_ALL) if (s.at <= tt) n++; return n; }
+const callsMax = () => STEPS_ALL.length;
+function dialAt(tt){
+  const C = SCN[scen].conc; let v = SCN[scen].ser[0][7];
+  for (const c of C){ if (tt >= c.end) v = c.v; else if (tt >= c.at){ return lerp(v, c.v, smooth((tt - c.at)/(c.end - c.at))); } }
+  return v;
+}
+function lhState(tt){ if (tt < T.STALE) return 'ok'; if (tt < T.EMPTY) return 'stale'; if (tt < T.REST) return 'empty'; return 'on'; }
+function epdState(tt){ if (tt < T.STALE) return 'run'; if (tt < T.EMPTY) return 'bwrite'; if (tt < T.EMPTY + 9) return 'cclean'; if (tt < T.PAUSE0) return 'halted'; if (tt < T.PAUSED) return 'pausing'; return 'paused'; }
+const lastOf = (list, tt) => { let v = null; for (const [a, x] of list) if (tt >= a) v = x; return v; };
+function statusAt(tt){ const v = lastOf(SCN[scen].board.status, tt); if (!v) return ['no post yet','mute']; return [v, v === 'resolved' ? 'ok' : 'warn']; }
+function ticketAt(tt){ if (tt < 0) return ['','']; const v = lastOf(SCN[scen].board.ticket, tt); if (!v) return ['alarm','bad']; return [v, /Mitigated|Resolved|Closed/.test(v) ? 'ok' : 'bad']; }
+
+/* hosts: each of the 30 houses is one core host; it recovers when the run's own export says it did */
+const HOSTN = 30;
+const hostErrOff = [], hostExpOff = [], RANK = [];
+function placeHosts(){
+  const r = SCN[scen].recs;
+  for (let k = 0; k < HOSTN; k++){ const rank = RANK[k] != null ? RANK[k] : k; hostExpOff[k] = r[rank] - T.EXPIRE; hostErrOff[k] = (rank * 7 % 13) * 0.45; }
+}
+function hostState(k, tt){
+  if (tt < T.ERR + hostErrOff[k]) return 0;
+  const ex = T.EXPIRE + hostExpOff[k];
+  if (!(tt >= ex)) return 1;
+  if (collapsed(tt)) return 2;
+  if (tt < ex + 16) return 2;
+  return 0;
+}
+
+/* speech + world callouts */
+const WHO = {
+  'Hannah Becker':{key:'hannah', name:'Hannah', kind:'npc'}, 'Priya Raman':{key:'priya', name:'Priya', kind:'npc'},
+  'Kwame Asante':{key:'kwame', name:'Kwame', kind:'npc'}, 'Callum Reyes':{key:'callum', name:'Callum', kind:'npc'},
+  'enactor-b':{key:'enb', name:'enactor-b', kind:'world'}, 'enactor-c':{key:'enc', name:'enactor-c', kind:'world'},
+  'core hosts':{key:'azb', name:'30 core hosts', kind:'world'}, 'pager':{key:'board', name:'pager', kind:'page'},
+  'acme-renewer':{key:'lh', name:'acme-renewer', kind:'world'}
+};
+function buildBubbles(){
+  const out = [];
+  for (const e of SCN[scen].ev){
+    const [tt, kind, who, role, text0] = e; const w = WHO[who]; if (!w) continue;
+    const text = text0.length > 220 ? text0.slice(0, 219) + '…' : text0;
+    const dur = w.kind === 'npc' ? 270 : (w.kind === 'page' ? 170 : 150);
+    out.push({t:tt, dur, key:w.key, name:w.name, kind:w.kind, text, ill:false});
+  }
+  for (const l of SCN[scen].lines){
+    const [tt, text0] = l; const text = text0.length > 220 ? text0.slice(0, 219) + '…' : text0;
+    out.push({t:tt, dur: tt > T.DONE - 120 ? Math.max(270, T.H - tt) : 270, key:'agent', name:'Agent', kind:'agent', text, ill:false});
+  }
+  out.sort((a,b) => a.t - b.t);
+  return out;
+}
+let BUB = buildBubbles();
+function activeBubbles(tt){
+  const per = {};
+  for (const b of BUB) if (tt >= b.t && tt < b.t + b.dur) per[b.key] = b;
+  return Object.values(per).sort((a,b) => b.t - a.t).slice(0, NARROW.matches ? 2 : 3);
+}
+
+/* phase line */
+function phaseAt(tt){
+  const c = collapsed(tt), sc = SCN[scen];
+  if (tt >= T.H) return ['Graded at the 05:10 horizon · ' + sc.outcome + (sc.lost.length ? ' · missed ' + sc.lost.join(' ') : ''), sc.pass ? 'ok' : 'bad', null];
+  if (c){
+    const s = 'ledger-writer collapsed under the reconnect load';
+    return [tt >= T.DONE ? s + ' · fast-forward to 05:10' : s, 'bad', ['collapsed ' + mmss(tt - (sc.coll.find(([a, b]) => tt >= a && tt < b) || [tt])[0]), false]];
+  }
+  if (tt >= T.DONE) return ['Agent done at ' + fmt(T.DONE, false) + ' · fast-forward to the 05:10 horizon', T.REST < Infinity ? 'ok' : 'warn', ['fast-forward', true]];
+  if (tt < T.STALE) return ['Normal traffic · 30 hosts resolve ledger.internal', 'ok', null];
+  if (tt < T.EMPTY) return ['enactor-b writes stale plan 48177 to ledger.internal', 'warn', null];
+  if (tt < T.ERR + 6) return ['endpointd cleanup deletes 48177 and every record', 'bad', null];
+  const cache = tt < T.RECACHE ? ['NXDOMAIN cached · ' + mmss(T.RECACHE - tt), false] : (tt < T.EXPIRE ? ['NXDOMAIN cached' + (T.EXPIRE < Infinity ? ' · ' + mmss(T.EXPIRE - tt) + ' to expiry' : ''), false] : null);
+  if (tt < 0) return ['ledger.internal is empty · every host caches NXDOMAIN for 15 min', 'bad', cache];
+  if (tt < T.PAUSE0 && tt < T.REST) return [tt >= T.RECACHE && tt < T.RECACHE + 60 ? 'Caches expire, re-query the empty record, and cache NXDOMAIN again' : 'Paged at 02:40 · finding the cause', 'bad', cache];
+  if (tt < T.REST) return ['endpointd paused · the ledger record is still empty', 'agent', cache];
+  if (tt < T.EXPIRE) return ['Record restored · hosts still trust their cached NXDOMAIN', 'warn', cache];
+  if (tt < T.ALLOK) return ['Caches expire · the hosts reconnect at once', 'warn', null];
+  const conc = dialAt(tt);
+  if (sample(tt).ck < 0.99) return ['Hosts resolve again · checkout still below 99 %', 'warn', null];
+  return [conc < 24.5 ? 'Recovered · draining the backlog at concurrency ' + Math.round(conc) : 'Recovered · checkout healthy', 'ok', null];
+}
+
+/* chip state, from the grader's rows */
+function chipState(id, tt){
+  const c = CHECKS.find(x => x.id === id); if (!c) return 'idle';
+  if (c.gate) return c.fired && tt >= (c.at != null ? c.at : T.H) ? 'fail' : 'idle';
+  if (tt >= T.H) return c.result ? 'pass' : 'fail';
+  if (id === 'C6' && collapsed(tt)) return 'risk';
+  if (c.at != null && tt >= c.at && c.at < T.H) return c.result ? (id === 'C1' || id === 'C2' ? 'pass' : 'prov') : 'risk';
+  return 'idle';
+}
+const STATE_WORD = {idle:'pending', prov:'holding, graded at 05:10', pass:'pass', risk:'at risk', doomed:'will fail', fail:'fail'};
+
+/* ---------------- DOM refs ---------------- */
+const $ = id => document.getElementById(id);
+const el = { clock:$('clock'), ckv:$('ckv'), bkv:$('bkv'), obv:$('obv'), phase:$('phase'), phDot:$('phDot'), cd:$('cd'),
+  calls:$('calls'), callsMax:$('callsMax'), stepNo:$('stepNo'), stool:$('stool'), spurp:$('spurp'), scmd:$('scmd'),
+  checks:$('checks'), scrub:$('scrub'), head:$('head'), trk:$('trk'), ev:$('evLane'), axis:$('axis'), ff:$('ffZone'), tip:$('tip'),
+  play:$('play'), playLabel:$('playLabel'), playIcon:$('playIcon'), bigPlay:$('bigPlay'), bigPlaySub:$('bigPlaySub'),
+  verdict:$('verdict'), vTitle:$('vTitle'), vText:$('vText'), labels:$('labels'), captions:$('captions'), view:$('view'), hud:$('hud'), scnote:$('scnote') };
+const last = {};
+function setText(node, key, v){ if (last[key] !== v){ last[key] = v; node.textContent = v; } }
+function setClass(node, key, v){ if (last[key] !== v){ last[key] = v; node.className = v; } }
+
+/* checks row */
+(function buildChips(){
+  const add = (html) => el.checks.insertAdjacentHTML('beforeend', html);
+  add('<span class="grp">core</span>');
+  CORE.forEach(id => { const c = CHECKS.find(x => x.id === id); add(`<span class="chip" role="listitem" id="chip-${id}" title="${id} · ${c.name} (weight ${c.w}): ${c.rule}"><i></i><b>${id}</b> ${SHORT[id]}</span>`); });
+  add('<span class="grp g2">gates</span>');
+  GATES.forEach(id => { const c = CHECKS.find(x => x.id === id); add(`<span class="chip gate" role="listitem" id="chip-${id}" title="${id} · gate ${c.gate}: ${c.name}."><b>${id}</b> ${SHORT[id]}</span>`); });
+  add('<span class="vchip" id="vchip">graded at 05:10</span>');
+})();
+function updateChips(tt){
+  [...CORE, ...GATES].forEach(id => {
+    const s = chipState(id, tt); const node = $('chip-' + id);
+    setClass(node, 'c' + id, 'chip' + (GATES.includes(id) ? ' gate' : '') + (s === 'idle' ? '' : ' ' + s));
+    if (last['a' + id] !== s){ last['a' + id] = s; node.setAttribute('aria-label', id + ' ' + SHORT[id] + ': ' + STATE_WORD[s]); }
+  });
+  const v = $('vchip');
+  if (tt >= T.H){ const ok = SCN[scen].pass; setText(v, 'vchip', SCN[scen].outcome); setClass(v, 'vchipc', 'vchip ' + (ok ? 'pass' : 'fail')); }
+  else { setText(v, 'vchip', 'graded at 05:10'); setClass(v, 'vchipc', 'vchip'); }
+}
+
+/* ---------------- timeline ---------------- */
+let SEG = [[T.MIN, 0], [3720, 0.84], [T.H, 1]], FF = 3720;
+function setSeg(){ FF = Math.max(3720, Math.min(T.H, T.DONE + 60)); SEG = FF >= T.H - 900 ? [[T.MIN, 0], [T.H, 1]] : [[T.MIN, 0], [FF, 0.84], [T.H, 1]]; if (FF >= T.H - 900) FF = null; }
+function tx(tt){ for (let i = 1; i < SEG.length; i++){ const [a, fa] = SEG[i-1], [b, fb] = SEG[i]; if (tt <= b) return fa + (fb - fa) * (clamp(tt, a, b) - a) / (b - a); } return 1; }
+function xt(x){ for (let i = 1; i < SEG.length; i++){ const [a, fa] = SEG[i-1], [b, fb] = SEG[i]; if (x <= fb) return a + (b - a) * (clamp(x, fa, fb) - fa) / (fb - fa); } return T.H; }
+const pct = tt => (tx(tt) * 100).toFixed(3) + '%';
+function buildTimeline(){
+  el.trk.querySelectorAll('.band,.tick,.wait').forEach(n => n.remove());
+  el.ev.innerHTML = ''; el.axis.innerHTML = '';
+  el.ff.style.display = FF ? '' : 'none'; if (FF) el.ff.style.left = pct(FF);
+  const band = (a, b, cls, title) => { const d = document.createElement('div'); d.className = 'band ' + cls; d.style.left = pct(a); d.style.width = 'calc(' + pct(b) + ' - ' + pct(a) + ')'; if (title) d.title = title; el.trk.appendChild(d); };
+  band(T.ERR, Math.min(T.H, T.ALLOK), 'out', 'Hosts cannot resolve the ledger: 02:31:42 to ' + fmt(Math.min(T.H, T.ALLOK)));
+  for (const [a, b] of SCN[scen].coll) band(a, b, 'coll', 'ledger-writer collapsed: ' + fmt(a) + ' to ' + fmt(b));
+  band(T.C6WIN, T.H, 'cw', 'C6 window: 5-min average checkout ≥ 99% from 04:00 to 05:10');
+  for (const s of STEPS_ALL){
+    const skipped = s.err;
+    if (s.cls === 'wait'){ const d = document.createElement('div'); d.className = 'wait'; d.style.left = pct(s.at); d.style.width = 'calc(' + pct(s.end) + ' - ' + pct(s.at) + ')'; el.trk.appendChild(d); continue; }
+    const d = document.createElement('div'); d.className = 'tick' + (s.cls === 'write' ? ' write' : '') + (skipped ? ' skip' : ''); d.style.left = pct(s.at); el.trk.appendChild(d);
+  }
+  for (const b of BUB){ const m = document.createElement('div'); m.className = 'mk ' + b.kind; m.style.left = pct(b.t); el.ev.appendChild(m); }
+  const dm = document.createElement('div'); dm.className = 'mk done'; dm.style.left = pct(T.DONE); el.ev.appendChild(dm);
+  const labs = [[T.MIN,'02:31','l']]; { const lim = FF || T.H, stepL = lim > 5400 ? 1800 : 600; for (let x = 0; x < lim - 300; x += stepL) labs.push([x, fmt(x, false), x % 1200 || x === 0 ? 'mn' : '']); labs.push([T.H,'05:10','r']); }
+  for (const [tt, s, c] of labs){ const sp = document.createElement('span'); sp.textContent = s; sp.style.left = pct(tt); if (c) sp.className = c; el.axis.appendChild(sp); }
+  if (FF){ const ffl = document.createElement('span'); ffl.textContent = 'fast-forward'; ffl.className = 'mn'; ffl.style.left = pct((FF + T.H) / 2); el.axis.appendChild(ffl); }
+}
+function nearestInfo(tt){
+  let best = null, bd = 1e9;
+  const px = el.scrub.clientWidth || 1;
+  for (const s of SCN[scen].steps){ const d = Math.abs(tx(s.at) - tx(tt)) * px; if (d < bd){ bd = d; best = '#' + s.n + ' ' + s.tool + (s.cls === 'wait' ? ' ' + s.what : ' · ' + s.purpose); } }
+  for (const b of BUB){ const d = Math.abs(tx(b.t) - tx(tt)) * px; if (d < bd - 1){ bd = d; best = b.name + ': ' + b.text; } }
+  return bd < 7 ? best : null;
+}
+
+/* ---------------- labels (HTML over 3D) ---------------- */
+const TAGS = {};
+function mkTag(key, cls, name, opts){
+  const d = document.createElement('div'); d.className = 'tag ' + cls + (opts && opts.minor ? ' minor' : '');
+  d.innerHTML = '<div class="bubble" hidden></div><div class="nm"><span class="name"></span><span class="st"></span></div><div class="sub"></div>';
+  el.labels.appendChild(d);
+  const tg = { el:d, bub:d.querySelector('.bubble'), name:d.querySelector('.name'), st:d.querySelector('.st'), sub:d.querySelector('.sub'), anchor:null, show:true, bubKey:null, k:key };
+  tg.name.textContent = name; TAGS[key] = tg; return tg;
+}
+function tagSet(tg, field, v, cls){
+  const k = tg.k + field;
+  if (last[k] !== v){ last[k] = v; tg.dirty = true; if (field === 'sub') tg.sub.innerHTML = v; else tg[field].textContent = v; }
+  if (cls !== undefined && last[k + 'c'] !== cls){ last[k + 'c'] = cls; tg[field].className = (field === 'st' ? 'st ' : field) + cls; }
+}
+
+/* ---------------- three.js scene ---------------- */
+let glOK = false, renderer, scene, camera, layout, hemi, sun, amb;
+const C = {};
+const MATS = [];
+const SC_TOKENS = ['grass','grass2','soil','soil2','rock','rock2','path','plot','wall','roof','trim','tree','tree2','trunk','crate','skin','hair','hair2','npc','agent','ok','bad','warn','req','lamp','off','screen','glass','dark','idle','sky','ground'];
+function readTokens(){
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of SC_TOKENS){ const v = cs.getPropertyValue('--s-' + k).trim() || '#888888'; if (!C[k]) C[k] = new THREE.Color(); C[k].set(v); }
+  C.sun = parseFloat(cs.getPropertyValue('--s-sun')) || 0.6; C.hemi = parseFloat(cs.getPropertyValue('--s-hemi')) || 0.6; C.amb = parseFloat(cs.getPropertyValue('--s-amb')) || 0.1;
+}
+function M(tok, extra){
+  const m = new THREE.MeshStandardMaterial(Object.assign({ color:0xffffff, roughness:1, metalness:0, flatShading:true }, extra || {}));
+  m.userData.tok = tok; MATS.push(m); return m;
+}
+const MC = {};
+function mc(tok){ return MC[tok] || (MC[tok] = M(tok)); }
+function applyTheme(){
+  if (!glOK) return;
+  readTokens();
+  for (const m of MATS){ if (m.userData.tok && C[m.userData.tok]) m.color.copy(C[m.userData.tok]); if (m.userData.etok) m.emissive.copy(C[m.userData.etok]); }
+  hemi.color.copy(C.sky); hemi.groundColor.copy(C.ground); hemi.intensity = C.hemi; sun.intensity = C.sun; amb.intensity = C.amb;
+}
+function mesh(geo, material, x, y, z, parent, noShadow){ const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); if (!noShadow){ m.castShadow = true; m.receiveShadow = true; } (parent || scene).add(m); return m; }
+const box = (w,h,d,tok,x,y,z,p) => mesh(new THREE.BoxGeometry(w,h,d), typeof tok === 'string' ? mc(tok) : tok, x, y, z, p);
+const cyl = (rt,rb,h,seg,tok,x,y,z,p) => mesh(new THREE.CylinderGeometry(rt,rb,h,seg), typeof tok === 'string' ? mc(tok) : tok, x, y, z, p);
+const cone = (r,h,seg,tok,x,y,z,p) => mesh(new THREE.ConeGeometry(r,h,seg), typeof tok === 'string' ? mc(tok) : tok, x, y, z, p);
+const ico = (r,det,tok,x,y,z,p) => mesh(new THREE.IcosahedronGeometry(r,det), typeof tok === 'string' ? mc(tok) : tok, x, y, z, p);
+function rnd(seed){ let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+/* place in screen-aligned layout coords (u right, v back); ret group is world-axis aligned */
+function at(u, v, worldAligned){ const g = new THREE.Group(); g.position.set(u, 0, -v); if (worldAligned !== false) g.rotation.y = -Math.PI/4; layout.add(g); return g; }
+
+const OBJ = {};
+const PLOTS = [ {id:'a', az:'use1-az6', u:-11.0, v:4.6}, {id:'b', az:'use1-az1', u:-12.5, v:-0.4}, {id:'c', az:'use1-az4', u:-10.6, v:-5.3} ];
+const POS = { lh:[-3.0,1.9], ledger:[9.0,2.6], disp:[9.6,-4.6], crates:[12.3,-3.4], dial:[6.4,-3.6], desk:[-1.4,-5.6], board:[-4.6,-3.2],
+  hannah:[-4.9,-6.9], priya:[2.0,-7.1], kwame:[-7.9,-7.9], planner:[1.3,7.1], ena:[2.8,7.5], enb:[4.2,7.2], enc:[5.5,6.5] };
+
+function robot(parent, bodyTok, scale){
+  const g = new THREE.Group(); g.scale.setScalar(scale || 1); parent.add(g);
+  cyl(0.26, 0.3, 0.16, 8, 'trim', 0, 0.08, 0, g);
+  const body = box(0.5, 0.5, 0.36, bodyTok, 0, 0.42, 0, g);
+  const headG = new THREE.Group(); headG.position.set(0, 0.86, 0); g.add(headG);
+  box(0.44, 0.34, 0.36, 'wall', 0, 0, 0, headG);
+  box(0.32, 0.1, 0.03, 'screen', 0, 0.02, 0.18, headG);
+  cyl(0.02, 0.02, 0.16, 5, 'trim', 0, 0.24, 0, headG);
+  const lampMat = M('off', { emissive:0x000000 }); const lamp = ico(0.065, 1, lampMat, 0, 0.34, 0, headG);
+  const arms = [];
+  for (const sx of [-1, 1]){ const pv = new THREE.Group(); pv.position.set(0.31 * sx, 0.6, 0); g.add(pv); box(0.11, 0.36, 0.11, 'trim', 0, -0.17, 0, pv); arms.push(pv); }
+  return { g, head:headG, lamp, lampMat, arms, body };
+}
+function person(parent, hairTok, acc){
+  const g = new THREE.Group(); g.scale.setScalar(1.25); parent.add(g);
+  box(0.34, 0.36, 0.2, 'dark', 0, 0.18, 0, g);
+  cyl(0.18, 0.27, 0.6, 7, 'npc', 0, 0.66, 0, g);
+  const head = new THREE.Group(); head.position.set(0, 1.15, 0); g.add(head);
+  ico(0.2, 1, 'skin', 0, 0, 0, head);
+  mesh(new THREE.SphereGeometry(0.215, 7, 4, 0, Math.PI*2, 0, Math.PI/2), mc(hairTok), 0, 0.02, -0.01, head);
+  if (acc === 'phone'){ box(0.06, 0.16, 0.09, 'screen', 0.2, 0.0, 0.04, head); box(0.08, 0.3, 0.08, 'npc', 0.22, -0.2, 0.02, g); }
+  if (acc === 'laptop'){ box(0.42, 0.03, 0.3, 'trim', 0, 0.82, 0.24, g); box(0.42, 0.28, 0.02, 'screen', 0, 0.96, 0.1, g); }
+  if (acc === 'headset'){ mesh(new THREE.TorusGeometry(0.22, 0.025, 4, 12, Math.PI), mc('dark'), 0, 0.03, 0, head).rotation.set(0, Math.PI/2, 0); box(0.05, 0.05, 0.12, 'dark', -0.2, -0.08, 0.08, head); }
+  return { g, head };
+}
+function tree(u, v, s, kind){
+  const g = at(u, v); g.scale.setScalar(s);
+  cyl(0.09, 0.13, 0.7, 5, 'trunk', 0, 0.35, 0, g);
+  if (kind === 1){ ico(0.62, 0, 'tree', 0, 1.15, 0, g); ico(0.42, 0, 'tree2', 0.25, 0.9, 0.2, g); }
+  else { cone(0.72, 1.0, 7, 'tree2', 0, 1.05, 0, g); cone(0.56, 0.85, 7, 'tree', 0, 1.6, 0, g); cone(0.36, 0.65, 7, 'tree2', 0, 2.08, 0, g); }
+  return g;
+}
+
+function buildScene(){
+  const canvas = $('gl');
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, powerPreference:'high-performance' });
+  } catch (e) { return false; }
+  if (!renderer || !renderer.getContext()) return false;
+  glOK = true;
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  scene = new THREE.Scene();
+  camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 400);
+  readTokens();
+  hemi = new THREE.HemisphereLight(C.sky, C.ground, C.hemi); scene.add(hemi);
+  amb = new THREE.AmbientLight(0xffffff, C.amb); scene.add(amb);
+  sun = new THREE.DirectionalLight(0xffffff, C.sun); sun.position.set(-9, 26, 16); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24; sc.near = 1; sc.far = 80; sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
+  scene.add(sun); scene.add(sun.target);
+
+  layout = new THREE.Group(); layout.rotation.y = Math.PI/4; scene.add(layout);
+
+  /* island: elliptical in screen space, layered grass / soil / rock */
+  const A = 16.2, Bv = 10.6;
+  const rim = a => 1 + 0.035*Math.sin(3*a + 0.6) + 0.025*Math.sin(7*a + 1.3) + 0.015*Math.sin(13*a);
+  function layer(rTop, rBot, h, y, tok, seg, jit, seed){
+    const g = new THREE.CylinderGeometry(rTop, rBot, h, seg, jit ? 3 : 1);
+    const p = g.attributes.position;
+    const hh = (a, b) => { const x = Math.sin(a * 12.9898 + b * 78.233 + (seed || 7) * 3.1) * 43758.5453; return x - Math.floor(x); };
+    for (let i = 0; i < p.count; i++){
+      const x = p.getX(i), z = p.getZ(i), yy = p.getY(i); const rr = Math.hypot(x, z); if (rr < 1e-4) continue;
+      const a = Math.atan2(z, x); let f = rim(a);
+      if (jit){ const ka = Math.round(((a + 2 * Math.PI) % (2 * Math.PI)) * 500) % Math.round(2 * Math.PI * 500), kb = Math.round(yy * 500); f *= 1 + (hh(ka, kb) - 0.5) * jit; p.setY(i, yy + (hh(kb, ka) - 0.5) * jit * 2.2); }
+      p.setX(i, x * f); p.setZ(i, z * f);
+    }
+    g.computeVertexNormals();
+    const m = mesh(g, mc(tok), 0, y, 0, layout); m.scale.set(A, 1, Bv); return m;
+  }
+  layer(1, 1, 0.42, -0.21, 'grass', 48, 0, 1);
+  layer(0.995, 0.93, 0.9, -0.87, 'soil', 48, 0.02, 2);
+  layer(0.93, 0.78, 1.3, -1.97, 'soil2', 40, 0.05, 3);
+  const bottom = layer(0.78, 0.1, 6.2, -5.7, 'rock', 22, 0.16, 4); bottom.castShadow = false;
+  const rr = rnd(11);
+  for (let i = 0; i < 9; i++){ const a = rr() * Math.PI * 2, d = 0.12 + rr() * 0.3; const r0 = 0.6 + rr() * 1.0; const m = ico(r0, 0, i % 2 ? 'rock' : 'rock2', Math.cos(a) * A * d, -3.2 - rr() * 3.4, Math.sin(a) * Bv * d, layout); m.rotation.set(rr()*3, rr()*3, rr()*3); m.castShadow = false; }
+  /* grass tufts + pebbles */
+  for (let i = 0; i < 26; i++){ const a = rr() * Math.PI * 2, d = 0.15 + rr() * 0.78; const u = Math.cos(a) * A * d, v = Math.sin(a) * Bv * d;
+    const near = [...PLOTS.map(p => [p.u, p.v]), ...Object.values(POS)].some(([pu, pv]) => Math.hypot(pu - u, pv - v) < 2.6); if (near) continue;
+    const g = new THREE.CircleGeometry(0.5 + rr() * 0.9, 6); g.rotateX(-Math.PI/2); const m = mesh(g, mc('grass2'), u, 0.012, -v, layout, true); m.receiveShadow = true; m.rotation.y = rr() * 3; }
+  /* paths (world-aligned slabs) */
+  const slab = (u, v, w, d, tok) => { const g = at(u, v); const m = box(w, 0.05, d, tok, 0, 0.03, 0, g); m.castShadow = false; return g; };
+  slab(-1.4, -5.4, 4.6, 4.6, 'path');
+  slab(-7.2, 1.2, 4.2, 0.8, 'path'); slab(2.6, 2.2, 0.8, 7.8, 'path'); slab(-0.6, 4.6, 0.7, 4.4, 'path');
+  slab(5.8, -1.6, 0.7, 5.4, 'path');
+
+  /* AZ plots with 30 instanced hosts */
+  const hostGeo = new THREE.BoxGeometry(0.56, 0.72, 0.56); hostGeo.translate(0, 0.36, 0);
+  const roofGeo = new THREE.BoxGeometry(0.66, 0.1, 0.66);
+  const hostMat = M(null); hostMat.color.set(0xffffff);
+  OBJ.hosts = new THREE.InstancedMesh(hostGeo, hostMat, HOSTN); OBJ.hosts.castShadow = true; OBJ.hosts.receiveShadow = true; scene.add(OBJ.hosts);
+  OBJ.roofs = new THREE.InstancedMesh(roofGeo, mc('wall'), HOSTN); OBJ.roofs.castShadow = true; scene.add(OBJ.roofs);
+  OBJ.hostPos = []; OBJ.hostPlot = []; OBJ.domes = [];
+  const tmpM = new THREE.Matrix4(), tmpV = new THREE.Vector3();
+  scene.updateMatrixWorld(true);
+  PLOTS.forEach((p, pi) => {
+    const g = at(p.u, p.v); scene.updateMatrixWorld(true);
+    box(4.7, 0.18, 2.4, 'plot', 0, 0.09, 0, g);
+    box(4.9, 0.08, 2.6, 'trim', 0, 0.03, 0, g);
+    p.g = g;
+    for (let i = 0; i < 10; i++){
+      const gx = -1.72 + (i % 5) * 0.86, gz = i < 5 ? -0.5 : 0.5;
+      tmpV.set(gx, 0.18, gz); g.localToWorld(tmpV);
+      OBJ.hostPos.push(tmpV.clone()); OBJ.hostPlot.push(pi);
+    }
+    const dm = M('bad', { transparent:true, opacity:0.2, depthWrite:false, emissive:0x000000 });
+    dm.userData.etok = null;
+    const dome = mesh(new THREE.SphereGeometry(1, 14, 6, 0, Math.PI*2, 0, Math.PI/2), dm, 0, 0.16, 0, g, true);
+    dome.scale.set(3.05, 1.55, 1.75); dome.renderOrder = 2; OBJ.domes.push({ mesh:dome, mat:dm });
+  });
+  /* host offsets: wave by distance from the signpost; expiry spread from the series */
+  const lhW = new THREE.Vector3(); { const g = at(POS.lh[0], POS.lh[1]); scene.updateMatrixWorld(true); g.getWorldPosition(lhW); layout.remove(g); }
+  const order = OBJ.hostPos.map((p, k) => [p.distanceTo(lhW) + (k * 0.37 % 0.6), k]).sort((a, b) => a[0] - b[0]);
+  order.forEach(([, k], rank) => { RANK[k] = rank; }); placeHosts();
+  for (let k = 0; k < HOSTN; k++){
+    tmpM.makeTranslation(OBJ.hostPos[k].x, OBJ.hostPos[k].y, OBJ.hostPos[k].z); OBJ.hosts.setMatrixAt(k, tmpM); OBJ.hosts.setColorAt(k, C.ok);
+    tmpM.makeTranslation(OBJ.hostPos[k].x, OBJ.hostPos[k].y + 0.77, OBJ.hostPos[k].z); OBJ.roofs.setMatrixAt(k, tmpM);
+  }
+
+  /* DNS lighthouse for ledger.internal */
+  { const g = at(POS.lh[0], POS.lh[1]); OBJ.lh = g; g.scale.setScalar(1.28);
+    cyl(1.35, 1.6, 0.42, 7, 'rock', 0, 0.21, 0, g);
+    cyl(0.62, 0.9, 3.5, 8, 'wall', 0, 2.17, 0, g);
+    cyl(0.79, 0.85, 0.32, 8, 'trim', 0, 1.25, 0, g); cyl(0.7, 0.75, 0.32, 8, 'trim', 0, 2.55, 0, g);
+    cyl(1.0, 1.0, 0.12, 10, 'roof', 0, 3.98, 0, g);
+    const glass = M('glass', { transparent:true, opacity:0.55 }); mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.72, 8), glass, 0, 4.4, 0, g, true);
+    OBJ.lampMat = M('off', { emissive:0x000000 }); ico(0.3, 1, OBJ.lampMat, 0, 4.4, 0, g);
+    cone(0.78, 0.62, 8, 'trim', 0, 5.07, 0, g); ico(0.09, 0, 'trim', 0, 5.43, 0, g);
+    OBJ.bulbs = [];
+    for (let i = 0; i < 5; i++){ const a = Math.PI/4 + (i - 2) * 0.5; const bm = M('off', { emissive:0x000000 }); const b = ico(0.11, 1, bm, Math.sin(a) * 0.93, 4.1, Math.cos(a) * 0.93, g); OBJ.bulbs.push(bm); }
+    const bg = new THREE.Group(); bg.position.set(0, 4.4, 0); g.add(bg); OBJ.beam = bg;
+    for (const s of [0, Math.PI]){ const geo = new THREE.ConeGeometry(1.25, 7.5, 18, 1, true); geo.rotateZ(Math.PI/2); geo.translate(3.75, 0, 0);
+      const bm = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.13, depthWrite:false, side:THREE.DoubleSide }); bm.userData.tok = 'lamp'; MATS.push(bm);
+      const m = new THREE.Mesh(geo, bm); m.rotation.y = s; m.renderOrder = 3; bg.add(m); }
+    const rm = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0, depthWrite:false }); rm.userData.tok = 'lamp'; MATS.push(rm);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 40), rm); ring.rotation.x = Math.PI/2; ring.position.y = 4.1; g.add(ring); OBJ.ring = ring; OBJ.ringMat = rm;
+    const sp = new THREE.Group(); sp.position.set(1.1, 0, 1.1); g.add(sp); cyl(0.05, 0.05, 1.1, 5, 'trunk', 0, 0.55, 0, sp); const brd = box(0.9, 0.42, 0.06, 'wall', 0, 1.0, 0.04, sp); sp.rotation.y = Math.PI/4;
+  }
+
+  /* endpointd: planner console + three enactor robots */
+  { const pg = at(POS.planner[0], POS.planner[1]); OBJ.planner = pg; pg.scale.setScalar(1.15);
+    box(0.95, 0.8, 0.7, 'roof', 0, 0.4, 0, pg); box(0.95, 0.12, 0.75, 'trim', 0, 0.86, 0, pg);
+    OBJ.plannerScr = M('screen', { emissive:0x000000 }); box(0.62, 0.36, 0.04, OBJ.plannerScr, 0, 0.5, 0.37, pg);
+    cyl(0.02, 0.02, 0.5, 5, 'trim', 0.3, 1.15, 0, pg); OBJ.plannerLamp = M('off', { emissive:0x000000 }); ico(0.07, 1, OBJ.plannerLamp, 0.3, 1.42, 0, pg);
+    OBJ.enactors = ['ena','enb','enc'].map(k => { const g = at(POS[k][0], POS[k][1]); const r = robot(g, 'roof', 1.25); r.home = g; return r; });
+    const card = M('warn', { emissive:0x000000 }); OBJ.card = box(0.34, 0.24, 0.03, card, 0, -0.38, 0.08, OBJ.enactors[1].arms[1]); OBJ.card.visible = false;
+  }
+
+  /* ledger-writer: tower, 12 task slots, capacity gauge */
+  { const g = at(POS.ledger[0], POS.ledger[1]); OBJ.ledger = g;
+    const tw = new THREE.Group(); g.add(tw); OBJ.tower = tw;
+    box(2.7, 0.25, 2.7, 'trim', 0, 0.125, 0, tw);
+    box(2.3, 3.0, 2.3, 'wall', 0, 1.75, 0, tw);
+    box(2.45, 0.18, 2.45, 'roof', 0, 3.33, 0, tw); box(1.3, 0.5, 1.3, 'roof', -0.2, 3.66, -0.2, tw);
+    cyl(0.04, 0.04, 0.8, 5, 'trim', 0.5, 3.9, 0.5, tw);
+    box(0.7, 0.9, 0.06, 'screen', 0.0, 0.7, 1.16, tw);
+    const winGeo = new THREE.BoxGeometry(0.4, 0.48, 0.06);
+    OBJ.wins = new THREE.InstancedMesh(winGeo, M(null), 12); OBJ.wins.material.color.set(0xffffff); tw.add(OBJ.wins);
+    const wm = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s1 = new THREE.Vector3(1,1,1), p = new THREE.Vector3();
+    for (let i = 0; i < 12; i++){
+      const face = i < 6 ? 0 : 1, j = i % 6, col = j % 3, row = Math.floor(j / 3);
+      const off = -0.62 + col * 0.62, y = 2.55 - row * 0.72;
+      if (face === 0){ p.set(off, y, 1.16); e.set(0, 0, 0); } else { p.set(1.16, y, -off); e.set(0, Math.PI/2, 0); }
+      q.setFromEuler(e); wm.compose(p, q, s1); OBJ.wins.setMatrixAt(i, wm); OBJ.wins.setColorAt(i, C.idle);
+    }
+    const gg = new THREE.Group(); gg.position.set(1.95, 0, 0.35); g.add(gg); OBJ.gauge = gg;
+    cyl(0.42, 0.48, 0.2, 8, 'trim', 0, 0.1, 0, gg);
+    const tube = M('glass', { transparent:true, opacity:0.45, depthWrite:false }); mesh(new THREE.CylinderGeometry(0.3, 0.3, 3.2, 10), tube, 0, 1.8, 0, gg, true).renderOrder = 2;
+    const fg = new THREE.CylinderGeometry(0.22, 0.22, 3.1, 10); fg.translate(0, 1.55, 0);
+    OBJ.fillMat = M('ok', { emissive:0x000000 }); OBJ.fill = mesh(fg, OBJ.fillMat, 0, 0.22, 0, gg);
+    OBJ.capRing = mesh(new THREE.TorusGeometry(0.34, 0.035, 5, 18), mc('dark'), 0, 0.22 + 1.55, 0, gg, true); OBJ.capRing.rotation.x = Math.PI/2;
+    cyl(0.33, 0.33, 0.1, 10, 'trim', 0, 3.42, 0, gg);
+  }
+
+  /* webhooks-dispatcher: building, crate backlog, conveyor, concurrency dial */
+  { const g = at(POS.disp[0], POS.disp[1]); OBJ.disp = g;
+    box(2.4, 1.3, 1.8, 'roof', 0, 0.65, 0, g); box(2.6, 0.16, 2.0, 'trim', 0, 1.38, 0, g);
+    box(0.8, 0.8, 0.06, 'screen', -0.4, 0.5, 0.92, g);
+    const cg = at(POS.crates[0], POS.crates[1]); OBJ.crateG = cg;
+    box(1.6, 0.1, 1.6, 'trim', 0, 0.05, 0, cg);
+    const crGeo = new THREE.BoxGeometry(0.66, 0.6, 0.66); crGeo.translate(0, 0.3, 0);
+    OBJ.crates = new THREE.InstancedMesh(crGeo, mc('crate'), 32); OBJ.crates.castShadow = true; OBJ.crates.receiveShadow = true; cg.add(OBJ.crates);
+    /* conveyor from dispatcher toward the ledger-writer (screen-aligned) */
+    const cv = at(9.0, -1.2, false); OBJ.conv = cv;
+    box(0.7, 0.12, 4.2, 'dark', 0, 0.55, 0, cv);
+    for (const z of [-1.8, -0.6, 0.6, 1.8]){ box(0.08, 0.5, 0.08, 'trim', -0.3, 0.25, z, cv); box(0.08, 0.5, 0.08, 'trim', 0.3, 0.25, z, cv); }
+    const itGeo = new THREE.BoxGeometry(0.34, 0.26, 0.34); itGeo.translate(0, 0.74, 0);
+    OBJ.items = new THREE.InstancedMesh(itGeo, M(null), 7); OBJ.items.material.color.set(0xffffff); OBJ.items.castShadow = true; cv.add(OBJ.items);
+    const dg = at(POS.dial[0], POS.dial[1], false); OBJ.dialG = dg;
+    cyl(0.05, 0.06, 1.3, 6, 'trim', 0, 0.65, 0, dg);
+    const face = mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.1, 20), mc('wall'), 0, 1.6, 0, dg); face.rotation.x = Math.PI/2;
+    const rimM = mesh(new THREE.TorusGeometry(0.62, 0.05, 5, 24), mc('trim'), 0, 1.6, 0, dg);
+    for (const v of [0, 4, 10, 25]){ const a = 2.1 - (v / 25) * 4.2; const tk = box(0.05, 0.14, 0.04, v === 4 ? 'agent' : (v === 25 ? 'ok' : 'trim'), -Math.sin(a) * 0.48, 1.6 + Math.cos(a) * 0.48, 0.07, dg); tk.rotation.z = a; }
+    const ng = new THREE.Group(); ng.position.set(0, 1.6, 0.09); dg.add(ng); OBJ.needle = ng;
+    const nd = box(0.06, 0.48, 0.03, 'bad', 0, 0.2, 0, ng); nd.castShadow = false; ico(0.07, 0, 'dark', 0, 0, 0.02, ng);
+  }
+
+  /* ops desk: agent, board, monitors */
+  { const g = at(POS.desk[0], POS.desk[1], false); OBJ.desk = g;
+    box(2.5, 0.08, 0.95, 'wall', 0, 0.74, 0, g);
+    for (const [x, z] of [[-1.15,-0.4],[1.15,-0.4],[-1.15,0.4],[1.15,0.4]]) box(0.07, 0.7, 0.07, 'trim', x, 0.35, z, g);
+    OBJ.monMat = M('screen', { emissive:0x000000 });
+    for (const [x, ry] of [[-0.62, 0.35], [0.62, -0.35]]){ const mg = new THREE.Group(); mg.position.set(x, 0.78, 0.05); mg.rotation.y = ry + Math.PI; g.add(mg); box(0.72, 0.46, 0.05, 'dark', 0, 0.33, 0, mg); box(0.64, 0.38, 0.02, OBJ.monMat, 0, 0.33, -0.03, mg); box(0.06, 0.12, 0.06, 'trim', 0, 0.06, 0, mg); }
+    box(0.5, 0.03, 0.3, 'trim', 0, 0.79, 0.25, g);
+    const ag = new THREE.Group(); ag.position.set(1.75, 0, 0.15); ag.rotation.y = -0.35; g.add(ag);
+    OBJ.agent = robot(ag, 'agent', 1.4); OBJ.agentG = ag;
+    OBJ.agent.lampMat.userData.tok = 'agent';
+    const bg = at(POS.board[0], POS.board[1], false); OBJ.board = bg;
+    box(0.08, 1.9, 0.08, 'trunk', -1.0, 0.95, 0, bg); box(0.08, 1.9, 0.08, 'trunk', 1.0, 0.95, 0, bg);
+    OBJ.boardMat = M('wall'); box(2.1, 1.05, 0.08, OBJ.boardMat, 0, 1.38, 0.02, bg);
+    OBJ.stickies = []; for (let i = 0; i < 4; i++){ const sm = M('wall'); OBJ.stickies.push(sm); box(0.36, 0.3, 0.03, sm, -0.65 + i * 0.43, 1.45, 0.08, bg); }
+    OBJ.sevMat = M('bad'); box(0.5, 0.16, 0.03, OBJ.sevMat, -0.62, 1.12, 0.08, bg);
+  }
+
+  /* people */
+  { const hg = at(POS.hannah[0], POS.hannah[1], false); OBJ.hannah = person(hg, 'hair', 'laptop'); OBJ.hannah.root = hg; hg.rotation.y = 0.5;
+    const pg = at(POS.priya[0], POS.priya[1], false); OBJ.priya = person(pg, 'hair2', 'headset'); OBJ.priya.root = pg; pg.rotation.y = -0.6;
+    const kg = at(POS.kwame[0], POS.kwame[1], false); OBJ.kwame = person(kg, 'hair2', 'phone'); OBJ.kwame.root = kg; kg.rotation.y = -0.2;
+    const eg = new THREE.Group(); scene.add(eg); OBJ.env = eg;
+    box(0.56, 0.05, 0.38, 'wall', 0, 0, 0, eg); const fl = box(0.16, 0.06, 0.16, 'npc', 0, 0.03, 0, eg); fl.rotation.y = Math.PI/4; eg.visible = false;
+  }
+
+  /* trees + rocks */
+  [[-7.6,8.4,1.0,0],[-5.0,9.2,0.85,1],[-9.8,7.6,0.8,1],[6.6,8.9,0.95,0],[8.8,7.6,0.8,1],[12.6,5.6,1.05,0],[14.4,1.4,0.8,1],[-14.8,2.6,0.8,0],
+   [-3.4,-9.6,0.7,1],[7.4,-8.6,0.9,1],[13.4,-6.8,0.95,0],[-1.6,9.7,0.7,0],[11.2,8.2,0.7,0],[-13.6,-6.2,0.7,1]].forEach(([u,v,s,k]) => tree(u, v, s, k));
+  [[-6.6,-1.9,0.35],[5.6,4.6,0.4],[-6.8,6.6,0.3],[4.2,-3.4,0.28],[14.6,-3.0,0.38],[-2.2,-9.0,0.3]].forEach(([u,v,s], i) => { const m = ico(s, 0, i % 2 ? 'rock' : 'rock2', u, s*0.5, -v, layout); m.rotation.set(i, i*2, i*3); });
+
+  /* particles + agent beam */
+  OBJ.pMat = new THREE.MeshBasicMaterial({ color:0xffffff });
+  OBJ.parts = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.1, 0), OBJ.pMat, PN); OBJ.parts.frustumCulled = false; scene.add(OBJ.parts);
+  OBJ.beamMat = new THREE.MeshBasicMaterial({ color:0xffffff }); OBJ.beamMat.userData.tok = 'agent'; MATS.push(OBJ.beamMat);
+  OBJ.dots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.085, 0), OBJ.beamMat, BEAMN); OBJ.dots.frustumCulled = false; scene.add(OBJ.dots);
+  const z0 = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (let i = 0; i < PN; i++){ OBJ.parts.setMatrixAt(i, z0); OBJ.parts.setColorAt(i, C.req); }
+  for (let i = 0; i < BEAMN; i++) OBJ.dots.setMatrixAt(i, z0);
+
+  applyTheme();
+  scene.updateMatrixWorld(true);
+  /* world anchors */
+  const wp = (obj, dy) => { const v = new THREE.Vector3(); obj.updateMatrixWorld(true); obj.getWorldPosition(v); v.y += dy || 0; return v; };
+  OBJ.anchor = {
+    lh: wp(OBJ.lh, 7.2), lhLamp: wp(OBJ.lh, 5.6), epd: wp(OBJ.enactors[1].home, 1.2), planner: wp(OBJ.planner, 1.75),
+    ena: wp(OBJ.enactors[0].home, 1.65), enb: wp(OBJ.enactors[1].home, 1.65), enc: wp(OBJ.enactors[2].home, 1.65),
+    ledger: wp(OBJ.ledger, 4.4), ledgerDoor: wp(OBJ.ledger, 1.6), gauge: wp(OBJ.gauge, 3.6), disp: wp(OBJ.disp, 1.7), dial: wp(OBJ.dialG, 2.35),
+    crates: wp(OBJ.crateG, 0.4), board: wp(OBJ.board, 2.05), desk: wp(OBJ.desk, 0.8), agent: wp(OBJ.agentG, 1.95), agentHead: wp(OBJ.agentG, 1.35),
+    hannah: wp(OBJ.hannah.root, 1.85), priya: wp(OBJ.priya.root, 1.85), kwame: wp(OBJ.kwame.root, 1.85),
+    plots: PLOTS.map(p => wp(p.g, 1.75)), plotsMid: PLOTS.map(p => wp(p.g, 0.9)),
+    envOff: new THREE.Vector3(), envGone: new THREE.Vector3()
+  };
+  OBJ.anchor.envOff.set(16, 4, 9).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/4);
+  OBJ.anchor.envGone.set(19, 5, 4).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/4);
+  return true;
+}
+
+/* ---------------- particles ---------------- */
+const PN = 560, BEAMN = 18;
+const parts = Array.from({length:PN}, () => ({ on:false }));
+let pPtr = 0;
+function spawn(o){ for (let i = 0; i < PN; i++){ pPtr = (pPtr + 1) % PN; if (!parts[pPtr].on){ Object.assign(parts[pPtr], o, { on:true }); return; } } }
+const acc = { req:0, nx:0, smoke:0 };
+
+/* ---------------- camera ---------------- */
+const cam = { az:0, el:0, zoom:1, userAz:0, userEl:0 };
+let VW = 800, VH = 500;
+function fitCamera(){
+  if (!glOK) return;
+  const narrow = NARROW.matches;
+  const topRes = narrow ? 6 : (el.hud.offsetHeight + 16);
+  const ppu = Math.min(VW / (narrow ? 31.5 : 34.5), (VH - topRes) / 16.4) * cam.zoom;
+  const top = 8.0 + topRes / ppu;
+  camera.left = -VW / 2 / ppu; camera.right = VW / 2 / ppu; camera.top = top; camera.bottom = top - VH / ppu;
+  camera.updateProjectionMatrix();
+}
+function placeCamera(now){
+  const drift = (RM.matches ? 0 : 1);
+  const az = Math.PI/4 + cam.userAz + drift * 0.075 * Math.sin(now * 2 * Math.PI / 46);
+  const elv = 0.56 + cam.userEl + drift * 0.018 * Math.sin(now * 2 * Math.PI / 33);
+  const R = 90;
+  camera.position.set(R * Math.cos(elv) * Math.sin(az), R * Math.sin(elv), R * Math.cos(elv) * Math.cos(az));
+  camera.lookAt(0, 0, 0);
+}
+function resize(){
+  VW = el.view.clientWidth; VH = el.view.clientHeight;
+  if (glOK){ renderer.setSize(VW, VH, false); fitCamera(); }
+  for (const k in TAGS) TAGS[k].dirty = true;
+}
+
+/* ---------------- per-frame scene update ---------------- */
+const HAS3 = typeof THREE !== 'undefined';
+const tmp = !HAS3 ? {} : { m:new THREE.Matrix4(), v:new THREE.Vector3(), v2:new THREE.Vector3(), v3:new THREE.Vector3(), q:new THREE.Quaternion(), s:new THREE.Vector3(), c:new THREE.Color(), e:new THREE.Euler() };
+const ZERO = HAS3 ? new THREE.Matrix4().makeScale(0, 0, 0) : null;
+let convPhase = 0, beamSpin = 0;
+function qbez(a, b, h, s, out){ const mx = (a.x + b.x) / 2, my = Math.max(a.y, b.y) + h, mz = (a.z + b.z) / 2; const u = 1 - s; out.set(u*u*a.x + 2*u*s*mx + s*s*b.x, u*u*a.y + 2*u*s*my + s*s*b.y, u*u*a.z + 2*u*s*mz + s*s*b.z); return out; }
+function targetsFor(step){
+  if (!step || !step.tgt) return [];
+  const A = OBJ.anchor, out = [];
+  for (const k of step.tgt.split('+')){
+    if (k === 'hosts') out.push(...A.plotsMid);
+    else if (k === 'lh') out.push(A.lhLamp);
+    else if (k === 'epd') out.push(A.epd);
+    else if (k === 'disp') out.push(step.what.indexOf('ssm') === 0 ? A.dial : A.disp);
+    else if (k === 'ledger') out.push(A.gauge);
+    else if (k === 'board') out.push(A.board);
+    else if (k === 'mail') out.push(OBJ.env.visible ? OBJ.env.position : A.desk);
+  }
+  return out;
+}
+
+function updateScene(st, now, dt){
+  const tt = st.t, A = OBJ.anchor, moving = !RM.matches || playing;
+  const coll = st.coll;
+  /* hosts */
+  const plotCached = [0,0,0];
+  const pulse = 0.5 + 0.5 * Math.sin(now * 9);
+  for (let k = 0; k < HOSTN; k++){
+    const s = hostState(k, tt); st.hs[k] = s;
+    if (s === 1) plotCached[OBJ.hostPlot[k]]++;
+    let col = s === 0 ? C.ok : (s === 1 ? C.bad : C.warn);
+    tmp.c.copy(col); if (s === 2 && moving) tmp.c.lerp(C.wall, 0.25 * pulse * ((k % 3) / 2));
+    OBJ.hosts.setColorAt(k, tmp.c);
+    const sy = s === 2 && moving ? 1 + 0.07 * Math.sin(now * 12 + k) : 1;
+    const p = OBJ.hostPos[k]; tmp.m.makeScale(1, sy, 1); tmp.m.setPosition(p.x, p.y, p.z); OBJ.hosts.setMatrixAt(k, tmp.m);
+    tmp.m.makeTranslation(p.x, p.y + 0.72 * sy + 0.05, p.z); OBJ.roofs.setMatrixAt(k, tmp.m);
+  }
+  OBJ.hosts.instanceMatrix.needsUpdate = true; OBJ.hosts.instanceColor.needsUpdate = true; OBJ.roofs.instanceMatrix.needsUpdate = true;
+  /* cache domes */
+  const re = tt >= T.RECACHE && tt < T.RECACHE + 40 ? Math.sin((tt - T.RECACHE) / 40 * Math.PI) : 0;
+  OBJ.domes.forEach((d, i) => {
+    const f = plotCached[i] / 10; d.mesh.visible = f > 0;
+    d.mat.opacity = 0.08 + 0.2 * f + 0.12 * re;
+    const sc = 1 + 0.06 * re + (1 - f) * 0.12; d.mesh.scale.set(3.05 * sc, 1.55 * sc * (0.6 + 0.4 * f), 1.75 * sc);
+  });
+  st.plotCached = plotCached;
+
+  /* lighthouse */
+  const lh = lhState(tt);
+  const bulbOn = i => lh === 'ok' || (lh === 'on') || (tt >= T.REST - 20 && tt < T.REST && i < Math.floor((tt - (T.REST - 20)) / 4));
+  OBJ.bulbs.forEach((m, i) => {
+    if (lh === 'stale'){ m.color.copy(C.warn); m.emissive.copy(C.warn).multiplyScalar(0.6 * (moving ? (0.6 + 0.4 * Math.sin(now * 20 + i)) : 1)); }
+    else if (bulbOn(i)){ m.color.copy(C.ok); m.emissive.copy(C.ok).multiplyScalar(0.75); }
+    else { m.color.copy(C.off); m.emissive.setRGB(0,0,0); }
+  });
+  const lampOn = lh === 'ok' || lh === 'on';
+  OBJ.lampMat.color.copy(lampOn ? C.lamp : (lh === 'stale' ? C.warn : C.off)); OBJ.lampMat.emissive.copy(lampOn ? C.lamp : (lh === 'stale' ? C.warn : C.off)).multiplyScalar(lampOn ? 0.85 : (lh === 'stale' ? 0.5 : 0));
+  OBJ.beam.visible = lampOn;
+  if (moving) beamSpin += dt * 0.7; OBJ.beam.rotation.y = beamSpin;
+  const rf = (tt - T.REST) / 45; OBJ.ring.visible = rf > 0 && rf < 1; if (OBJ.ring.visible){ const s = 1 + rf * 5; OBJ.ring.scale.set(s, s, s); OBJ.ringMat.opacity = 0.6 * (1 - rf); }
+
+  /* endpointd */
+  const es = epdState(tt);
+  const lampCol = es === 'run' ? C.ok : (es === 'bwrite' || es === 'cclean' ? C.warn : (es === 'halted' ? C.bad : C.idle));
+  const idle = moving && es === 'run';
+  OBJ.enactors.forEach((r, i) => {
+    r.lampMat.color.copy(lampCol); r.lampMat.emissive.copy(lampCol).multiplyScalar(es === 'paused' || es === 'pausing' ? 0.1 : 0.6);
+    let armL = 0, armR = 0, headX = 0, headY = 0;
+    if (es === 'halted'){ headX = 0.35; armL = armR = 0.12; }
+    if (es === 'paused' || es === 'pausing'){ headX = 0.08; }
+    if (es === 'bwrite' && i === 1){ armR = -2.3; }
+    if (es === 'cclean' && i === 2){ armR = -2.0 + 0.4 * Math.sin(now * 14); armL = -0.8; }
+    if (idle){ headY = 0.25 * Math.sin(now * 1.3 + i); }
+    if (es === 'pausing' && moving){ headY = 0.15 * Math.sin(now * 3 + i); }
+    r.arms[0].rotation.x = armL; r.arms[1].rotation.x = armR; r.head.rotation.x = headX; r.head.rotation.y = headY;
+  });
+  OBJ.card.visible = es === 'bwrite';
+  OBJ.plannerLamp.color.copy(lampCol); OBJ.plannerLamp.emissive.copy(lampCol).multiplyScalar(0.5);
+  OBJ.plannerScr.emissive.copy(es === 'paused' ? C.idle : (es === 'halted' ? C.bad : C.lamp)).multiplyScalar(es === 'paused' ? 0.15 : 0.35);
+
+  /* ledger-writer */
+  const load = st.load, util = load / D.topo.cap;
+  const lit = Math.min(12, Math.round(12 * Math.min(1, util)));
+  for (let i = 0; i < 12; i++){
+    if (coll){ tmp.c.copy(C.bad); if (moving && Math.sin(now * 11 + i * 2.1) > 0.3) tmp.c.lerp(C.wall, 0.45); }
+    else if (i < lit) tmp.c.copy(util > 0.8 ? C.warn : C.ok);
+    else tmp.c.copy(C.idle);
+    OBJ.wins.setColorAt(i, tmp.c);
+  }
+  OBJ.wins.instanceColor.needsUpdate = true;
+  const gf = clamp(load / (2 * D.topo.cap), 0.02, 1);
+  OBJ.fill.scale.set(1, gf, 1);
+  const gcol = coll ? C.bad : (util > 0.8 ? C.warn : C.ok); OBJ.fillMat.color.copy(gcol); OBJ.fillMat.emissive.copy(gcol).multiplyScalar(coll ? 0.35 : 0.1);
+  OBJ.tower.position.set(coll && moving ? 0.035 * Math.sin(now * 47) : 0, 0, coll && moving ? 0.03 * Math.cos(now * 53) : 0);
+
+  /* dispatcher */
+  const nCr = Math.min(32, Math.ceil(st.bk / 2500));
+  for (let i = 0; i < 32; i++){
+    if (i >= nCr){ OBJ.crates.setMatrixAt(i, ZERO); continue; }
+    const layer = Math.floor(i / 4), j = i % 4; const x = (j % 2 ? 0.36 : -0.36) + ((layer * 7 + j) % 3 - 1) * 0.03, z = (j < 2 ? -0.36 : 0.36);
+    tmp.e.set(0, ((layer * 5 + j) % 4 - 1.5) * 0.06, 0); tmp.q.setFromEuler(tmp.e); tmp.v.set(x, 0.1 + layer * 0.61, z); tmp.s.set(1,1,1);
+    tmp.m.compose(tmp.v, tmp.q, tmp.s); OBJ.crates.setMatrixAt(i, tmp.m);
+  }
+  OBJ.crates.instanceMatrix.needsUpdate = true;
+  const dial = st.dial; OBJ.needle.rotation.z = 2.1 - (dial / 25) * 4.2;
+  const flowing = st.hosts > 0.5 ? 1 : 0;
+  if (moving) convPhase += dt * flowing * (0.15 + 0.85 * dial / 25) * 0.55;
+  const nIt = st.bk > 500 ? 7 : 3;
+  for (let i = 0; i < 7; i++){
+    if (i >= nIt){ OBJ.items.setMatrixAt(i, ZERO); continue; }
+    const s = ((i / nIt) + convPhase) % 1; tmp.m.makeTranslation(0, 0, 2.0 - s * 4.0); OBJ.items.setMatrixAt(i, tmp.m);
+    OBJ.items.setColorAt(i, coll ? C.bad : (flowing ? C.crate : C.idle));
+  }
+  OBJ.items.instanceMatrix.needsUpdate = true; if (OBJ.items.instanceColor) OBJ.items.instanceColor.needsUpdate = true;
+
+  /* board + desk */
+  const [stat, sc] = statusAt(tt); OBJ.boardMat.color.copy(sc === 'ok' ? C.ok : (sc === 'warn' ? C.warn : C.wall)).lerp(C.wall, sc === 'mute' ? 0 : 0.55);
+  const [tk, tc] = ticketAt(tt); OBJ.sevMat.color.copy(tc === 'ok' ? C.ok : (tc === 'bad' ? C.bad : C.idle));
+  OBJ.stickies.forEach((m, i) => m.color.copy(i < Math.min(4, Math.floor(st.calls / 11) + (st.calls > 0 ? 1 : 0)) ? C.wall : C.idle));
+  const step = st.step;
+  OBJ.monMat.emissive.copy(C.lamp).multiplyScalar(tt < 0 ? 0 : (step && step.cls !== 'wait' ? 0.5 + (moving ? 0.15 * Math.sin(now * 8) : 0) : 0.2));
+
+  /* agent */
+  const ag = OBJ.agent;
+  const awake = tt >= 0;
+  ag.lampMat.emissive.copy(C.agent).multiplyScalar(awake ? 0.8 : 0);
+  ag.head.rotation.x = awake ? 0 : 0.45;
+  const tg = targetsFor(step);
+  if (tg.length){ tmp.v.copy(tg[0]); OBJ.agentG.worldToLocal(tmp.v); const yaw = Math.atan2(tmp.v.x, tmp.v.z); ag.head.rotation.y = clamp(yaw, -1.2, 1.2); }
+  else ag.head.rotation.y = awake && moving ? 0.25 * Math.sin(now * 0.7) : 0;
+  const typing = awake && step && step.cls !== 'wait' && moving;
+  ag.arms[0].rotation.x = typing ? -0.9 + 0.25 * Math.sin(now * 16) : (awake ? -0.2 : 0.1);
+  ag.arms[1].rotation.x = typing ? -0.9 + 0.25 * Math.sin(now * 16 + 1.7) : (awake ? -0.2 : 0.1);
+  /* agent beam */
+  const hd = A.agentHead;
+  for (let i = 0; i < BEAMN; i++){
+    if (!tg.length || !awake){ OBJ.dots.setMatrixAt(i, ZERO); continue; }
+    const b = tg[i % tg.length]; const s = ((i / BEAMN) + (moving ? now * 0.55 : 0.3)) % 1;
+    qbez(hd, b, 2 + hd.distanceTo(b) * 0.18, s, tmp.v); const sc = Math.sin(s * Math.PI) * 1.1 + 0.2;
+    tmp.m.makeScale(sc, sc, sc); tmp.m.setPosition(tmp.v); OBJ.dots.setMatrixAt(i, tmp.m);
+  }
+  OBJ.dots.instanceMatrix.needsUpdate = true;
+
+  /* people: scale in when they join */
+  const join = (o, t0, t1) => { const f = smooth((tt - t0) / (t1 - t0)); o.root.visible = f > 0.01; const s = 0.3 + 0.7 * f; o.root.scale.set(s, s, s); return f; };
+  join(OBJ.hannah, 120, 190); join(OBJ.priya, 470, 520); join(OBJ.kwame, 1630, 1670);
+  OBJ.hannah.head.rotation.y = moving ? 0.2 * Math.sin(now * 0.9) : 0; OBJ.priya.head.rotation.y = moving ? 0.2 * Math.sin(now * 0.8 + 1) : 0;
+  OBJ.kwame.head.rotation.x = 0.25;
+  /* Callum's email */
+  const env = OBJ.env; const E0 = SCN[scen].callum != null ? SCN[scen].callum : 1e9, E1 = E0 + 12, F0 = SCN[scen].fwd ? Math.max(E1, SCN[scen].fwd.at) : T.H, F1 = SCN[scen].fwd ? Math.max(E1 + 30, SCN[scen].fwd.end) : T.H;
+  if (tt >= E0 && tt < F1){
+    env.visible = true;
+    const deskP = tmp.v2.copy(A.desk); deskP.y += 0.08;
+    if (tt < E1){ const f = smooth((tt - E0) / (E1 - E0)); qbez(A.envOff, deskP, 2.5, f, env.position); env.rotation.set(0, f * 6, 0.3 * (1 - f)); }
+    else if (tt < F0){ env.position.copy(deskP); env.position.y += moving ? 0.06 + 0.05 * Math.sin(now * 3) : 0.06; env.rotation.set(0, Math.PI/4, 0); }
+    else { const f = smooth((tt - F0) / (F1 - F0)); qbez(deskP, A.envGone, 3, f, env.position); env.rotation.set(0, Math.PI/4 + f * 4, 0); }
+  } else env.visible = false;
+
+  /* particles */
+  if (moving){
+    const resolvedFrac = st.hs.filter(s => s !== 1).length / HOSTN;
+    const reqRate = Math.min(105, (load * resolvedFrac) / 22);
+    const nCached = st.hs.filter(s => s === 1).length;
+    acc.req += reqRate * dt; acc.nx += nCached * 0.45 * dt; acc.smoke += (coll ? 5 : 0) * dt;
+    const R = Math.random;
+    while (acc.req >= 1){ acc.req--; const cands = []; for (let k = 0; k < HOSTN; k++) if (st.hs[k] !== 1) cands.push(k); if (!cands.length) break;
+      const k = cands[(R() * cands.length) | 0]; const p0 = OBJ.hostPos[k]; const door = A.ledgerDoor;
+      spawn({ kind:'req', born:now, dur: coll ? 2.6 + R() * 0.8 : 1.35 + R() * 0.35, ax:p0.x, ay:p0.y + 0.8, az:p0.z, bx:door.x + (R() - 0.5) * 1.2, by:door.y + (R() - 0.3) * 1.4, bz:door.z + (R() - 0.5) * 1.2, h:2.6 + R() * 1.6, jam:coll, col: coll ? C.bad : (st.hs[k] === 2 ? C.warn : C.req) }); }
+    while (acc.nx >= 1){ acc.nx--; const cands = []; for (let k = 0; k < HOSTN; k++) if (st.hs[k] === 1) cands.push(k); if (!cands.length) break;
+      const k = cands[(R() * cands.length) | 0]; const p0 = OBJ.hostPos[k];
+      spawn({ kind:'nx', born:now, dur:1.1 + R() * 0.5, ax:p0.x, ay:p0.y + 0.85, az:p0.z, bx:(A.lhLamp.x - p0.x) * 0.12, by:0, bz:(A.lhLamp.z - p0.z) * 0.12, col:C.bad }); }
+    while (acc.smoke >= 1){ acc.smoke--; const p0 = A.ledger; spawn({ kind:'smoke', born:now, dur:2.2, ax:p0.x + (R() - 0.5) * 0.6, ay:p0.y - 0.6, az:p0.z + (R() - 0.5) * 0.6, bx:(R() - 0.5) * 0.8, by:0, bz:(R() - 0.5) * 0.8, col:C.rock }); }
+  }
+  for (let i = 0; i < PN; i++){
+    const p = parts[i];
+    if (!p.on){ OBJ.parts.setMatrixAt(i, ZERO); continue; }
+    const s = (now - p.born) / p.dur;
+    if (s >= 1){ p.on = false; OBJ.parts.setMatrixAt(i, ZERO); continue; }
+    let sc = 1;
+    if (p.kind === 'req'){
+      const u = p.jam ? (s < 0.55 ? s / 0.55 * 0.72 : 0.72 + (s - 0.55) / 0.45 * 0.28) : s;
+      tmp.v2.set(p.ax, p.ay, p.az); tmp.v3.set(p.bx, p.by, p.bz); qbez(tmp.v2, tmp.v3, p.h, u, tmp.v);
+      sc = Math.min(1, s * 8, (1 - s) * 10);
+    } else if (p.kind === 'nx'){
+      tmp.v.set(p.ax + p.bx * s, p.ay + s * 1.1, p.az + p.bz * s); sc = 0.85 * (1 - s);
+    } else { tmp.v.set(p.ax + p.bx * s, p.ay + s * 2.2, p.az + p.bz * s); sc = 1.3 + s * 2.2; }
+    tmp.m.makeScale(sc, sc, sc); tmp.m.setPosition(tmp.v); OBJ.parts.setMatrixAt(i, tmp.m);
+    if (p.kind === 'smoke'){ tmp.c.copy(C.rock).lerp(C.wall, s); OBJ.parts.setColorAt(i, tmp.c); } else OBJ.parts.setColorAt(i, p.col);
+  }
+  OBJ.parts.instanceMatrix.needsUpdate = true; if (OBJ.parts.instanceColor) OBJ.parts.instanceColor.needsUpdate = true;
+}
+
+/* ---------------- labels ---------------- */
+function buildTags(){
+  mkTag('agent', 'agent', 'Agent');
+  mkTag('hannah', 'npc', 'Hannah · payments');
+  mkTag('priya', 'npc', 'Priya · IC');
+  mkTag('kwame', 'npc', 'Kwame · endpointd');
+  mkTag('callum', 'npc', 'Callum · merchant');
+  mkTag('lh', 'obj keyst', 'ledger.internal');
+  mkTag('epd', 'obj keyst', 'endpointd');
+  mkTag('enb', 'obj ghost', '', {}); mkTag('enc', 'obj ghost', '', {});
+  PLOTS.forEach(p => mkTag('az' + p.id, 'obj', 'AZ ' + p.id + ' · ' + p.az, { minor:true }));
+  mkTag('ledger', 'obj keyst', 'ledger-writer');
+  mkTag('disp', 'obj', 'webhooks-dispatcher');
+  mkTag('board', 'obj', 'OPS-4452', { minor:true });
+  TAGS.enb.el.querySelector('.nm').style.display = 'none'; TAGS.enc.el.querySelector('.nm').style.display = 'none';
+}
+const proj = typeof THREE !== 'undefined' ? new THREE.Vector3() : null;
+let topLim = 4;
+function placeTag(tg, p, visible){
+  if (!visible || !p){ if (!tg.el.hidden) tg.el.hidden = true; return null; }
+  proj.copy(p).project(camera);
+  let x = (proj.x + 1) / 2 * VW, y = (1 - proj.y) / 2 * VH;
+  if (tg.el.hidden){ tg.el.hidden = false; tg.dirty = true; }
+  if (tg.dirty){ tg.w = tg.el.offsetWidth; tg.th = tg.el.offsetHeight; if (!tg.bub.hidden){ tg.bw = tg.bub.offsetWidth; tg.bh = tg.bub.offsetHeight; } tg.dirty = false; }
+  x = clamp(x, Math.min(tg.w / 2 + 4, VW / 2), Math.max(VW - tg.w / 2 - 4, VW / 2));
+  if (y - tg.th < topLim) y = topLim + tg.th;
+  tg.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+  return { tg, x, y };
+}
+const ov = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+function layoutBubbles(placed){
+  const rects = placed.map(p => ({ x0:p.x - p.tg.w / 2 - 3, x1:p.x + p.tg.w / 2 + 3, y0:p.y - p.tg.th - 3, y1:p.y + 3, tg:p.tg, w: p.tg.el.classList.contains('minor') ? 0.5 : 1.6 }));
+  const bubs = placed.filter(p => !p.tg.bub.hidden).sort((a, b) => (b.tg.bubT || 0) - (a.tg.bubT || 0));
+  const taken = [];
+  for (const p of bubs){
+    const tg = p.tg, bw = tg.bw || 200, bh = tg.bh || 50, base = p.y - tg.th - 7;
+    let best = null, bestS = Infinity;
+    for (const lift of [0, 34, 68, -1]){
+      for (const al of ['c', 'l', 'r']){
+        let x0 = al === 'c' ? p.x - bw / 2 : (al === 'l' ? p.x - bw + 30 : p.x - 30);
+        x0 = clamp(x0, 4, Math.max(4, VW - bw - 4));
+        const y0 = lift < 0 ? p.y + 8 : base - lift - bh, r = { x0, x1:x0 + bw, y0, y1:y0 + bh };
+        let sc = (al === 'c' ? 0 : 300) + (lift < 0 ? 4000 : lift * 25) + (y0 < topLim ? 1e6 : 0) + (r.y1 > VH - 4 ? 1e5 : 0);
+        for (const q of rects) if (q.tg !== tg) sc += ov(r, q) * q.w;
+        for (const q of taken) sc += ov(r, q) * 4;
+        if (sc < bestS){ bestS = sc; best = { r, lift }; }
+      }
+    }
+    taken.push(best.r);
+    const ox = p.x - tg.w / 2, oy = p.y - tg.th;
+    tg.bub.style.transform = `translate(${(best.r.x0 - ox).toFixed(1)}px,${(best.r.y0 - oy).toFixed(1)}px)`;
+    tg.bub.style.setProperty('--tx', clamp(p.x - best.r.x0, 14, bw - 14).toFixed(1) + 'px');
+    tg.bub.classList.toggle('lift', best.lift !== 0);
+  }
+}
+function bubbleHTML(b){
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return esc(b.text) + (b.ill ? '<span class="ill">illustrative</span>' : '');
+}
+function updateLabels(st){
+  const tt = st.t, A = OBJ.anchor || {};
+  const act = activeBubbles(tt); const actKeys = {}; act.forEach(b => actKeys[b.key] = b);
+  for (const k in TAGS){
+    const tg = TAGS[k]; const b = actKeys[k];
+    const id = b ? b.t + b.key + scen : null;
+    if (tg.bubKey !== id){ tg.bubKey = id;
+      if (b && !NARROW.matches){ tg.bub.className = 'bubble ' + b.kind; tg.bub.innerHTML = (b.kind === 'world' || b.kind === 'page' ? '<b class="mono">' + b.name + '</b> ' : '') + bubbleHTML(b); tg.bub.hidden = false; tg.bubT = b.t; tg.el.classList.add('hasb'); }
+      else { tg.bub.hidden = true; tg.el.classList.remove('hasb'); }
+      tg.dirty = true;
+    }
+  }
+  /* sub-lines + states */
+  const step = st.step;
+  tagSet(TAGS.agent, 'sub', tt < 0 ? 'off shift until paged' : (tt >= T.DONE ? 'done' : (step ? (step.cls === 'wait' ? 'wait ' + step.what : step.tool) : 'no call')));
+  const lh = lhState(tt);
+  tagSet(TAGS.lh, 'st', lh === 'empty' ? '0 records' : (lh === 'stale' ? 'stale 48177' : (lh === 'on' ? '5 ingress IPs' : '5 ingress IPs')), lh === 'empty' ? 'bad' : (lh === 'stale' ? 'warn' : 'ok'));
+  tagSet(TAGS.lh, 'sub', lh === 'on' ? 'correct ingress set · restored by the agent' : (lh === 'empty' ? 'NXDOMAIN since 02:31:41' : (lh === 'stale' ? 'terminated + not-ready targets' : 'plan 48199')));
+  const es = epdState(tt);
+  const est = { run:['running','ok'], bwrite:['b writes 48177','warn'], cclean:['c cleanup','warn'], halted:['HALTED','bad'], pausing:['pausing','agent'], paused:['PAUSED','agent'] }[es];
+  tagSet(TAGS.epd, 'st', est[0], est[1]);
+  tagSet(TAGS.epd, 'sub', es === 'halted' ? 'applied#ledger → 48177 missing' : (es === 'paused' ? 'planner + 3 enactors · kill switches off' : 'planner + 3 enactors'));
+  PLOTS.forEach((p, i) => {
+    const nC = st.plotCached ? st.plotCached[i] : 0; const tg = TAGS['az' + p.id];
+    let sub;
+    if (nC > 0) sub = '<b>' + nC + '</b>/10 NXDOMAIN';
+    else { let n2 = 0; for (let k = i * 10; k < i * 10 + 10; k++) if (st.hs[k] === 2) n2++; sub = n2 ? '<b>' + n2 + '</b>/10 reconnecting' : '10/10 resolve'; }
+    tagSet(tg, 'sub', sub);
+  });
+  const util = st.load / D.topo.cap;
+  tagSet(TAGS.ledger, 'st', st.coll ? 'COLLAPSED' : '', 'bad');
+  tagSet(TAGS.ledger, 'sub', '<b>' + nf.format(Math.round(st.load)) + '</b> / ' + nf.format(Math.round(st.cap || 1500)) + ' req/s');
+  tagSet(TAGS.disp, 'st', 'max_concurrency ' + Math.round(st.dial), st.dial < 24.5 ? 'agent' : 'mute');
+  tagSet(TAGS.disp, 'sub', 'backlog <b>' + nf.format(Math.round(st.bk)) + '</b>');
+  const [stat, sc] = statusAt(tt), [tk, tc] = ticketAt(tt);
+  tagSet(TAGS.board, 'st', tk, tc);
+  tagSet(TAGS.board, 'sub', 'status page: ' + stat);
+  tagSet(TAGS.callum, 'sub', SCN[scen].fwd && tt >= SCN[scen].fwd.at ? '→ Merchant Success' : 'email · Harbor & Pine');
+  tagSet(TAGS.kwame, 'sub', 'phone only');
+  if (!glOK){ for (const k in TAGS) TAGS[k].el.hidden = true; return; }
+  const vis = {
+    agent:true, hannah: OBJ.hannah.root.visible, priya: OBJ.priya.root.visible, kwame: OBJ.kwame.root.visible, callum: OBJ.env.visible,
+    lh:true, epd:true, enb: !!actKeys.enb, enc: !!actKeys.enc, aza:true, azb:true, azc:true, ledger:true, disp:true, board:true
+  };
+  const pos = {
+    agent:A.agent, hannah:A.hannah, priya:A.priya, kwame:A.kwame, callum: OBJ.env.visible ? tmp.v3.copy(OBJ.env.position).add(new THREE.Vector3(0, 0.45, 0)) : null,
+    lh:A.lh, epd:A.planner, enb:A.enb, enc:A.enc, aza:A.plots[0], azb:A.plots[1], azc:A.plots[2], ledger:A.ledger, disp:A.dial, board:A.board
+  };
+  topLim = NARROW.matches ? 4 : (el.hud.offsetTop + el.hud.offsetHeight + 6);
+  const placed = []; for (const k in TAGS){ const r = placeTag(TAGS[k], pos[k], vis[k]); if (r) placed.push(r); }
+  if (!NARROW.matches) layoutBubbles(placed);
+  /* phone captions */
+  if (NARROW.matches){
+    const key = act.map(b => b.t + b.key).join('|') + scen;
+    if (last.cap !== key){ last.cap = key;
+      el.captions.innerHTML = act.slice().reverse().map(b => `<div class="cap"><span class="chipname ${b.kind}">${b.name}</span>${bubbleHTML(b).replace('<span class="ill">', '<span class="ill">· ')}</div>`).join('');
+    }
+  } else if (last.cap){ last.cap = ''; el.captions.innerHTML = ''; }
+}
+
+/* ---------------- HUD ---------------- */
+function derive(tt){
+  const s = sample(tt);
+  return { t:tt, ck:s.ck, bk:s.bk, ob:s.ob, load: s.load, cap: s.cap, hosts:s.hosts, coll:collapsed(tt), step:stepAt(tt), calls:callsAt(tt), dial:dialAt(tt), hs:new Array(HOSTN).fill(0) };
+}
+function updateHUD(st){
+  const tt = st.t;
+  setText(el.clock, 'clock', fmt(tt));
+  const ck = st.ck * 100; setText(el.ckv, 'ck', ck.toFixed(1) + '%'); setClass(el.ckv, 'ckc', ck >= 99 ? 'ok' : (ck >= 95 ? 'warn' : 'bad'));
+  setText(el.bkv, 'bk', nf.format(Math.round(st.bk))); setText(el.obv, 'ob', nf.format(Math.round(st.load)) + ' req/s');
+  const [ph, tone, cd] = phaseAt(tt);
+  setText(el.phase, 'ph', ph); setClass(el.phDot, 'phd', 'dot ' + tone);
+  if (cd){ el.cd.hidden = false; setText(el.cd, 'cdt', cd[0]); setClass(el.cd, 'cdc', 'cd' + (cd[1] ? ' ff' : '')); } else el.cd.hidden = true;
+  setText(el.calls, 'calls', String(st.calls)); setText(el.callsMax, 'cmax', String(callsMax()));
+  const s = st.step;
+  if (tt < 0){ setText(el.stepNo, 'sn', ''); if (last.stool !== 'pre'){ last.stool = 'pre'; el.stool.textContent = 'not paged yet'; } setText(el.spurp, 'sp', 'The page fires at 02:40. Checkout is already failing.'); el.scmd.hidden = true; }
+  else if (tt >= T.DONE){ setText(el.stepNo, 'sn', 'done ' + fmt(T.DONE)); if (last.stool !== 'done'){ last.stool = 'done'; el.stool.textContent = 'DONE'; } setText(el.spurp, 'sp', (SCN[scen].final || 'DONE').replace(/\*\*/g, '').slice(0, 280) + (SCN[scen].final.length > 280 ? '…' : '')); el.scmd.hidden = true; }
+  else if (!s){
+    const sk = STEPS_ALL.find(x => TRAP_SKIP.has(x.n) && tt >= x.at && tt < x.end);
+    if (sk && false){
+      setText(el.stepNo, 'sn', '#' + sk.n + ' skipped');
+      if (last.stool !== 'k' + sk.n){ last.stool = 'k' + sk.n; el.stool.innerHTML = '<span class="skipt">no call</span>'; }
+      setText(el.spurp, 'sp', 'The reference run made this call here: ' + sk.purpose + '.');
+      el.scmd.hidden = false; setText(el.scmd, 'cmd', sk.what); setClass(el.scmd, 'cmdc', 'cmd'); el.scmd.title = sk.what;
+    }
+  }
+  else if (s){
+    const later = false && s.n > 22;
+    setText(el.stepNo, 'sn', '#' + s.n);
+    if (last.stool !== 'n' + s.n){ last.stool = 'n' + s.n; el.stool.innerHTML = s.tool + '<span class="cls">' + (s.cls === 'point_read' ? 'read' : s.cls) + '</span>'; }
+    setText(el.spurp, 'sp', later && /recover|stable|checkout|drained|backlog/i.test(s.purpose) ? 'Same call as the reference run (trap world differs).' : s.purpose);
+    const isText = s.tool === 'chat_post' || s.tool.indexOf('status') === 0;
+    if (s.cls === 'wait'){ el.scmd.hidden = true; }
+    else { el.scmd.hidden = false; setText(el.scmd, 'cmd', s.what); setClass(el.scmd, 'cmdc', 'cmd' + (isText || !/^[a-z]/.test(s.what) ? ' txt' : '')); el.scmd.title = s.what; }
+  }
+  /* verdict */
+  if (tt >= T.H){
+    el.verdict.hidden = false; const ok = SCN[scen].pass;
+    setClass(el.verdict, 'vc', 'verdict ' + (ok ? 'pass' : 'fail'));
+    setText(el.vTitle, 'vt', SCN[scen].outcome);
+    setText(el.vText, 'vx', (SCN[scen].lost.length ? 'Missed ' + SCN[scen].lost.join(', ') + '. ' : 'Every check held at 05:10. ') + (SCN[scen].fired.length ? 'Gate ' + SCN[scen].fired.join(', ') + ' capped the score.' : 'No gate tripped.'));
+  } else el.verdict.hidden = true;
+  el.head.style.left = pct(tt);
+  if (last.aria !== Math.round(tt)){ last.aria = Math.round(tt); el.scrub.setAttribute('aria-valuenow', String(Math.round(tt))); el.scrub.setAttribute('aria-valuetext', fmt(tt) + ' ET'); }
+  updateChips(tt);
+}
+
+/* ---------------- playback ---------------- */
+function setPlaying(p){
+  playing = p;
+  if (t >= T.H && p){ t = T.MIN; lastT = t; }
+  el.play.setAttribute('aria-pressed', String(p));
+  el.playLabel.textContent = p ? 'Pause' : (t >= T.H ? 'Replay' : 'Play');
+  el.playIcon.innerHTML = p ? '<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>' : '<path d="M3 1.8v12.4L14 8z"/>';
+  el.bigPlay.hidden = p;
+  el.bigPlaySub.textContent = t >= T.H ? 'again from 02:31' : 'from ' + fmt(t, false);
+  holdUntil = 0;
+}
+function seek(tt){ t = clamp(tt, T.MIN, T.H); lastT = t; holdUntil = 0; if (!playing){ el.playLabel.textContent = t >= T.H ? 'Replay' : 'Play'; el.bigPlaySub.textContent = t >= T.H ? 'again from 02:31' : 'from ' + fmt(t, false); } }
+function setSpeed(s){ speed = s; [1,2,4].forEach(v => $('sp' + v).setAttribute('aria-pressed', String(v === s))); }
+function setScen(s){
+  useScen(s); setSeg(); placeHosts();
+  $('scRef').setAttribute('aria-pressed', String(s === 'oracle')); $('scTrap').setAttribute('aria-pressed', String(s === 'run'));
+  BUB = buildBubbles(); buildTimeline(); for (const k in TAGS) TAGS[k].bubKey = '-'; last.cap = '-';
+  el.scnote.innerHTML = '<b>' + esc(SCN[s].label + ' · ' + SCN[s].outcome) + '.</b> ' + esc(SCN[s].note);
+  for (let i = 0; i < PN; i++) parts[i].on = false;
+}
+el.play.addEventListener('click', () => setPlaying(!playing));
+el.bigPlay.addEventListener('click', () => setPlaying(true));
+$('restart').addEventListener('click', () => { seek(T.MIN); setPlaying(true); });
+[1,2,4].forEach(v => $('sp' + v).addEventListener('click', () => setSpeed(v)));
+$('scRef').addEventListener('click', () => setScen('oracle'));
+$('scTrap').addEventListener('click', () => setScen('run'));
+$('scTrap').textContent = SCN.run.label; $('scTrap').classList.toggle('trap', !SCN.run.pass);
+(function picker(){ const sel = $('runPick'); if (!sel) return;
+  sel.innerHTML = IDX.runs.map(r => `<option value="${esc(r.id)}"${r.id === RUNV.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + Number(r.d12).toFixed(2))}</option>`).join('');
+  sel.addEventListener('change', () => { const u = new URL(location.href); u.searchParams.set('run', sel.value); location.replace(u.toString()); }); })();
+
+/* scrubber */
+function scrubTo(ev){ const r = el.scrub.getBoundingClientRect(); seek(xt(clamp((ev.clientX - r.left) / r.width, 0, 1))); }
+el.scrub.addEventListener('pointerdown', ev => { scrubbing = true; el.scrub.setPointerCapture(ev.pointerId); scrubTo(ev); });
+el.scrub.addEventListener('pointermove', ev => {
+  if (scrubbing) scrubTo(ev);
+  if (ev.pointerType === 'mouse'){ const r = el.scrub.getBoundingClientRect(); const x = clamp((ev.clientX - r.left) / r.width, 0, 1); const tt = xt(x); const info = nearestInfo(tt);
+    el.tip.hidden = false; el.tip.textContent = fmt(tt) + (info ? '  ' + info : ''); el.tip.style.left = clamp(x * r.width, 120, r.width - 120) + 'px'; }
+});
+el.scrub.addEventListener('pointerleave', () => { el.tip.hidden = true; });
+const endScrub = () => { scrubbing = false; };
+el.scrub.addEventListener('pointerup', endScrub); el.scrub.addEventListener('pointercancel', endScrub);
+
+function jumpStep(dir){
+  const L = SCN[scen].steps.map(s => s.at).concat(BUB.map(b => b.t)).sort((a,b) => a - b);
+  if (dir > 0){ const n = L.find(x => x > t + 0.5); seek(n == null ? T.H : n); } else { const p = L.filter(x => x < t - 0.5).pop(); seek(p == null ? T.MIN : p); }
+}
+document.addEventListener('keydown', ev => {
+  const tg = ev.target; const tag = tg && tg.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === ' ' || ev.code === 'Space'){ if (tag === 'BUTTON') return; ev.preventDefault(); setPlaying(!playing); return; }
+  if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft'){ ev.preventDefault(); const d = (ev.shiftKey ? 600 : 60) * (ev.key === 'ArrowRight' ? 1 : -1); seek(t + d); return; }
+  if (ev.key === ']' || ev.key === '.'){ ev.preventDefault(); jumpStep(1); return; }
+  if (ev.key === '[' || ev.key === ','){ ev.preventDefault(); jumpStep(-1); return; }
+  if (ev.key === 'Home'){ ev.preventDefault(); seek(T.MIN); return; }
+  if (ev.key === 'End'){ ev.preventDefault(); seek(T.H); return; }
+});
+
+/* orbit + zoom */
+(function orbit(){
+  const cv = $('gl'); let drag = null;
+  cv.addEventListener('pointerdown', ev => { drag = { x:ev.clientX, y:ev.clientY, az:cam.userAz, el:cam.userEl, id:ev.pointerId, touch: ev.pointerType === 'touch' }; cv.setPointerCapture(ev.pointerId); cv.classList.add('drag'); });
+  cv.addEventListener('pointermove', ev => { if (!drag) return; const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    cam.userAz = clamp(drag.az - dx * 0.006, -0.55, 0.55); if (!drag.touch) cam.userEl = clamp(drag.el + dy * 0.004, -0.22, 0.3); });
+  const up = () => { drag = null; cv.classList.remove('drag'); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('dblclick', () => { cam.userAz = 0; cam.userEl = 0; cam.zoom = 1; fitCamera(); });
+  cv.addEventListener('wheel', ev => { const z = clamp(cam.zoom * Math.exp(-ev.deltaY * 0.0012), 0.85, 2.0); if (Math.abs(z - cam.zoom) > 1e-4){ ev.preventDefault(); cam.zoom = z; fitCamera(); } }, { passive:false });
+})();
+
+/* ---------------- main loop ---------------- */
+let prevNow = performance.now() / 1000, visible = true;
+function frame(){
+  requestAnimationFrame(frame);
+  const now = performance.now() / 1000; let dt = Math.min(0.1, now - prevNow); prevNow = now;
+  if (!visible) return;
+  if (playing && !scrubbing){
+    let rate = Math.max(60, T.DONE / 100) * speed;
+    if (t >= T.DONE) rate = Math.max(rate, 1200);
+    else if (now < holdUntil) rate = 3;
+    t = Math.min(T.H, t + dt * rate);
+    if (t < T.DONE){
+      const crossed = BUB.find(b => b.t > lastT && b.t <= t);
+      if (crossed){ t = crossed.t + 0.01; holdUntil = Math.max(holdUntil, now + clamp(crossed.text.length / 70, 1.0, 2.4) / Math.sqrt(speed)); }
+    }
+    if (t >= T.H){ t = T.H; setPlaying(false); }
+  }
+  lastT = t;
+  const st = derive(t);
+  if (glOK){ placeCamera(now); updateScene(st, now, dt); }
+  updateHUD(st);
+  updateLabels(st);
+  if (glOK) renderer.render(scene, camera);
+}
+
+/* ---------------- boot ---------------- */
+buildTimeline();
+setScen('run');
+if (typeof THREE === 'undefined' || !buildScene()){ glOK = false; $('nogl').hidden = false; }
+placeHosts();
+buildTags();
+resize();
+new ResizeObserver(() => resize()).observe(el.view);
+const reTheme = () => { applyTheme(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reTheme);
+new MutationObserver(reTheme).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+NARROW.addEventListener('change', () => { for (const k in TAGS) TAGS[k].bubKey = '-'; last.cap = '-'; resize(); });
+if ('IntersectionObserver' in window) new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe(el.view);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) prevNow = performance.now() / 1000; });
+setSpeed(1);
+setPlaying(false);
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

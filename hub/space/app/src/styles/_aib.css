@@ -1,0 +1,11 @@
+/* AwsIncidentsBench: the viewers are whole pages in same-origin iframes that size themselves and follow the theme. */
+.aib-frame { display: block; width: 100%; border: 0; min-height: 640px; background: transparent; }
+.aib-wide { width: min(1320px, calc(100vw - 32px)); position: relative; left: 50%; transform: translateX(-50%); }
+.hero-banner { aspect-ratio: auto !important; max-width: 1320px !important; overflow: visible !important; }
+.aib-results { font-variant-numeric: tabular-nums; }
+.aib-results td.pass { color: #1d9a57; font-weight: 600; }
+.aib-results td.fail { color: #cf3e33; font-weight: 600; }
+[data-theme="dark"] .aib-results td.pass { color: #3cc47a; }
+[data-theme="dark"] .aib-results td.fail { color: #f0645a; }
+.aib-results td.dev { color: var(--muted-color); }
+.aib-slot { border: 1px dashed var(--border-color); border-radius: 10px; padding: 14px 16px; color: var(--muted-color); }

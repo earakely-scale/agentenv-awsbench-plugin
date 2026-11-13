@@ -34,12 +34,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from .actionlog import ActionLog
-from .bridge import Bridge
+from .bridge import Bridge, CommandError, Faults, WallTimes, WorldPort, parse_command, split_globals
 from .cloudtrail import seed_trail
 from .emulator import Emulator
 from .errors import AwsError
 from .meter import ET, GatewayClock, Inbox, LocalClock, Meter, MeterConfig, parse_time, rfc3339, whole
-from .ports import AwsPort, WorkspacePort
+from .ports import WorkspacePort
+from .world.fleet import ONE_COMMAND, SHELL_OPS
 
 log = logging.getLogger("awsbench.aws")
 
@@ -222,6 +223,21 @@ def fleet_outcome(result: Any) -> tuple[int | None, str | None]:
     return 0, None
 
 
+def unrunnable(tool: str, args: dict) -> dict | None:
+    """The answer to a call whose text can't run at all (shell operators, an empty command, an aws command the CLI
+    would not parse): refused before the meter, uncharged and uncounted. A command that runs and fails is charged."""
+    command = str(args.get("command") or "")
+    if tool == "aws_cli":
+        try:
+            split_globals(parse_command(command))
+        except CommandError as e:
+            return {"exit_code": 2, "stderr": f"aws: error: {e}\n", "charged": False}
+    elif tool == "fleet_exec" and (not command.strip() or SHELL_OPS.search(command)):
+        return {"hosts": [], "exit_code": 2, "charged": False,
+                "error": ONE_COMMAND if command.strip() else "empty command: name one command to run"}
+    return None
+
+
 def count_hosts(world: Any, selector: str) -> int | None:
     """How many hosts a fleet selector names: the world's own resolver when it has a fleet, else a match over its
     host list."""
@@ -266,7 +282,7 @@ class AwsServer(AgentEnvEnvironment):
         self.meter = Meter(MeterConfig(start=now, window_end=now + timedelta(days=1), horizon=now + timedelta(days=1)),
                            clock=self.clock or LocalClock(now), inbox=self.inbox, actionlog=self.actionlog,
                            world_lock=self.world_lock)
-        self.aws_port = AwsPort(self.emulator, self.actionlog, now=self._now)
+        self.aws_port = WorldPort(self.emulator, self.actionlog, now=self._now)
         self.ws_port = WorkspacePort(os.environ.get("AWSBENCH_WORKSPACE_URL") or f"http://workspace:{_port()}",
                                      self.inbox)
         self.bridge = Bridge(self.emulator, self.actionlog, profiles=profiles_of({}), world=lambda: self.world,
@@ -304,8 +320,9 @@ class AwsServer(AgentEnvEnvironment):
         return await asyncio.to_thread(self._w, fn, *args, **kwargs)
 
     def _acting(self, caller: dict, fn, *args):
-        """Run a world call made for an agent call, so the AWS writes it makes are logged under that call."""
-        self.aws_port.acting = {"call_no": caller.get("call_no"), "role": caller.get("role")}
+        """Run a world call made for an agent call, so the AWS writes it makes are logged under that call and their
+        faults see the backoff its retries took (`retry_s`)."""
+        self.aws_port.acting = caller
         try:
             return fn(*args)
         finally:
@@ -331,8 +348,8 @@ class AwsServer(AgentEnvEnvironment):
     async def _metered(self, ctx: ToolContext | None, tool_name: str, args: dict, work, *, hosts: int | None = None,
                        cost_class: str | None = None, logged: bool = False) -> str:
         role = _role(ctx)
-        if refused := self._unconfigured(role):
-            return _json(refused)
+        if refused := self._unconfigured(role) or unrunnable(tool_name, args):
+            return _json({**refused, "_clock": self.meter.banner(drain=self.meter.charged(role))})
         meter = self.meter
         began = await meter.begin("aws", tool_name, args, role, hosts=hosts, cost_class=cost_class)
         if not began["ok"]:
@@ -500,7 +517,10 @@ class AwsServer(AgentEnvEnvironment):
         async def work(call: dict) -> dict:
             caller = self._fleet_caller(ctx, call)
             world = self._need_world()
-            return await self._world_call(self._acting, caller, world.fleet_exec, selector, command, caller)
+            out = await self._world_call(self._acting, caller, world.fleet_exec, selector, command, caller)
+            if caller.get("retry_s"):
+                await self.meter.advance(self.meter.now + timedelta(seconds=caller["retry_s"]))
+            return out
         return await self._metered(ctx, "fleet_exec", {"selector": selector, "command": command}, work, hosts=hosts)
 
     @tool(description="Restart the hosts a selector names, `batch_size` at a time, as a background job; "
@@ -624,8 +644,11 @@ class AwsServer(AgentEnvEnvironment):
                            world_lock=self.world_lock)
         self.bridge.profiles = profiles_of(data)
         self.bridge.policies = data.get("iam") or {}
-        self.bridge.faults.__init__(data.get("faults"), seed)
         seeded = await asyncio.to_thread(self._replay_seed, data)
+        self.bridge.faults = self.aws_port.faults = Faults(data.get("faults"), seed, flags=self._flags)
+        self.bridge.times = self.aws_port.times = WallTimes(parse_time(data["seeded_at"]) if data.get("seeded_at")
+                                                            else None)
+        self.bridge.times.mark(cfg.start)
         try:
             from .world import make_world
             self.world = await asyncio.to_thread(self._w, lambda: make_world(data, seed, self.aws_port, self.ws_port))
@@ -648,6 +671,9 @@ class AwsServer(AgentEnvEnvironment):
         return {"ok": True, "scenario": scenario, "seed": seed, "mode": mode, "start": rfc3339(self.meter.cfg.start),
                 "window_end": rfc3339(self.meter.cfg.window_end), "horizon": rfc3339(self.meter.cfg.horizon),
                 "seed_calls": seeded, "world": self.world is not None, "warnings": self.warnings}
+
+    def _flags(self) -> dict:
+        return getattr(self.world, "world_flags", None) or {}
 
     def _replay_seed(self, data: dict) -> dict:
         refs, done, errors = SeedRefs(), 0, []

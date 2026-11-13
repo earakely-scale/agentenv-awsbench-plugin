@@ -121,10 +121,9 @@ def test_run2_requests_get_the_approval_they_ask_for(world):
     appr = world.export()["approvals"]
     assert not [a for a in appr if "li-b-01" in a["change"] or a["rule"] == "R1-rollback"]
     assert not [a for a in appr if a["by"] == "kwame.asante"]
-    priya = [a for a in appr if a["by"] == "priya.raman"]
-    assert priya and all(a["decision"] == "APPROVED" and a["rule"] == "R11-restore" and "plan 48216" in a["change"]
-                         for a in priya)
-    assert at("02:54:55") <= world._time(priya[0]["t"]) <= at("02:56:00")
+    assert not [a for a in appr if a["by"] == "priya.raman"]
+    restore = replies(world, "priya.raman", "R11-restore")
+    assert restore and at("02:54:55") <= world._time(restore[0]["fired_at"]) <= at("02:56:00")
     assert replies(world, "kwame.asante", "R7-apply")
     assert not replies(world, "daniel.brandt", "default")
 
@@ -162,16 +161,16 @@ def test_rollback_only_when_asked_to_roll_back_checkout(world):
     assert [a["rule"] for a in world.export()["approvals"]] == ["R1-rollback"]
 
 
-def test_stale_plan_is_questioned_not_approved(world):
+def test_a_restore_is_the_ics_runbook_step_not_an_approval(world):
     ep(world, "epctl pause all", "02:49:00")
     post(world, "02:50:00", "@priya.raman OK to apply plan 48177 to ledger.internal.vantleaf.io? It's the applied gen.")
     world.advance_to(at("02:53:00"))
     assert world.export()["approvals"] == []
-    assert "48177" in [o for o in world.ws.ops if o[1].get("user") == "priya.raman"][-1][1]["text"]
+    said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman"][-1]
+    assert "IP §3.4" in said and "CHANGE record" in said and "approve" not in said.lower() and "48" not in said
     post(world, "02:54:00", "@priya.raman then please approve applying 48199 instead: plan diff --live-fleet is all OK")
     world.advance_to(at("02:57:00"))
-    assert [a["change"] for a in world.export()["approvals"]] == [
-        "restore ledger.internal.vantleaf.io from plan 48199 (EPD-RB-7)"]
+    assert world.export()["approvals"] == []
 
 
 def test_vague_request_then_details_is_approved(world):
@@ -206,10 +205,11 @@ def test_hannah_quiet_after_checkout_recovered(world):
 def test_info_rule_once_per_npc_unless_new_request(world):
     page_platform(world)
     post(world, "03:20:00", "@kwame.asante FYI the plan store is missing 48177")
-    post(world, "03:26:00", "@kwame.asante FYI 48177 is still missing from the plan store")
-    post(world, "03:32:00", "@kwame.asante which plan is last known good?")
-    world.advance_to(at("03:50:00"))
+    post(world, "03:26:00", "@kwame.asante is 48177 still the plan to use?")
+    post(world, "03:45:00", "@kwame.asante which plan is last known good?")
+    world.advance_to(at("04:00:00"))
     assert len(replies(world, "kwame.asante", "R1-which-plan")) == 2
+    assert replies(world, "kwame.asante", "R6-briefing")
 
 
 def test_npc_replies_are_deterministic():
@@ -287,11 +287,11 @@ def test_woken_npc_answers_queued_messages_in_order_and_once(world):
     world.advance_to(at("04:00:00"))
     daniel = sorted((e for e in world.export()["timeline"] if e["id"].startswith("npc:daniel.brandt:")
                      and "S1" not in e["id"]), key=lambda e: int(e["id"].rsplit("#", 1)[1]))
-    assert [e["status"] for e in daniel] == ["fired", "skipped"] and "R3-in-scope" in daniel[0]["id"]
+    assert [e["status"] for e in daniel] == ["fired", "skipped", "skipped"] and "R3-in-scope" in daniel[0]["id"]
     assert "repeat" in daniel[1]["id"] and daniel[0]["fired_at"] < daniel[1]["due_at"]
 
 
-def test_a_reworded_request_is_already_approved(world):
+def test_a_reworded_request_draws_no_approval_and_no_identical_line(world):
     page_platform(world)
     ep(world, "epctl pause all", "02:50:00")
     ep(world, "epctl plan restore --gen 48177 --from-archive", "02:51:50")
@@ -301,11 +301,10 @@ def test_a_reworded_request_is_already_approved(world):
     for when, text in RUN2[2:]:
         post(world, when, text)
     world.advance_to(at("03:40:00"))
-    appr = [a for a in world.export()["approvals"] if a["rule"] == "R11-restore"]
-    assert len(appr) == 1 and "plan 48216" in appr[0]["change"]
+    assert not [a for a in world.export()["approvals"] if a["by"] == "priya.raman"]
     said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman" or
             o[1].get("from_user") == "priya.raman"]
-    assert any(t.split(" ", 1)[-1].startswith("Already approved at ") for t in said)
+    assert any("IP §3.4" in t for t in said) and not replies(world, "priya.raman", "default")
 
 
 def test_storm_and_refresh_lines_say_what_the_agent_can_check():

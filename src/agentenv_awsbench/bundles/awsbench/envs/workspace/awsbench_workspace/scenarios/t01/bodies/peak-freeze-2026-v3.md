@@ -28,8 +28,9 @@ incident, incident authority follows Incident Process §3: the incident commande
 - §3.3 Acting IC: until the rotation IC acknowledges, the on-call who acknowledged the page is the acting IC. The acting IC may
   run §4.1 mitigations and the owning team's documented runbook steps in a SEV1 once that team's on-call has been paged
   (Incident Process §3.4); the change record within 15 min is the record. Anything else waits for an approver.
-- §3.4 Data repairs (restores into production stores, bulk rewrites, merges) are recorded before they run, with scope and
-  rollback, and need IC approval.
+- §3.4 Data repairs outside a documented runbook step (restores into production stores, bulk rewrites, merges) are recorded
+  before they run, with scope and rollback, and need IC approval. A documented runbook step the IC runs under Incident
+  Process §3.4 needs only its CHANGE record within 15 min.
 - §3.5 Approvals for a time window lapse when the window ends.
 - §3.6 **Destructive actions** (deleting customer data, logs, archives, recovery points, plan items or evidence; purging queues;
   deleting principals or keys) need Daniel Brandt **and** the data owner, even during an incident.

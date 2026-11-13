@@ -1,0 +1,58 @@
+import IDX from "../../../public/data/index.json";
+
+export const pct = (v) => (v == null ? "–" : Number(v).toFixed(2));
+
+## Runs
+
+Each row is one recorded run of T01 by an agent in Claude Code, with the solver's built-in tools off so that it works
+only through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs
+that are fixed since, and the final runs will replace them. The reference is the scripted oracle path.
+
+<div class="table-scroll">
+<table class="aib-results">
+  <thead>
+    <tr><th>Run</th><th>Model</th><th>Build</th><th>D12</th><th>Pass</th><th>Checks lost</th><th>Gates</th><th>Calls</th><th>DONE</th></tr>
+  </thead>
+  <tbody>
+    {IDX.runs.map((r) => (
+      <tr>
+        <td><a href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener">{r.id}</a></td>
+        <td>{r.model}</td>
+        <td class={r.dev ? "dev" : ""}>{r.build}{r.dev ? " (dev)" : ""}</td>
+        <td>{pct(r.d12)}</td>
+        <td class={r.pass ? "pass" : "fail"}>{r.pass ? "pass" : "fail"}</td>
+        <td>{r.failed.length ? r.failed.join(", ") : "none"}</td>
+        <td>{r.gates.length ? r.gates.join(", ") : "none"}</td>
+        <td>{r.calls}</td>
+        <td>{r.done || r.end_reason}</td>
+      </tr>
+    ))}
+    <tr>
+      <td><a href="/viz/flight-recorder.html?run=reference" target="_blank" rel="noopener">reference</a></td>
+      <td>Scripted oracle</td>
+      <td>{IDX.reference.build}</td>
+      <td>{pct(IDX.reference.d12)}</td>
+      <td class="pass">pass</td>
+      <td>none</td>
+      <td>none</td>
+      <td>{IDX.reference.calls}</td>
+      <td>{IDX.reference.done}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+The reference's D12 of 1.0 is what the same scripted path grades on a deployed env; on this page its world is replayed in
+process (see Methods). Single runs per model and build are not a pass rate: they show where the task bites, not how
+often. Calls count every charged call, `wait` included, as the meter counts them against the 250-call budget.
+
+### The flight recorder
+
+Every run as time-locked lanes: checkout, ledger-writer load against capacity, hosts resolving the ledger, the DNS
+record, the webhook backlog, the agent's calls by cost class, people and world events, and the checks as the grade's
+evidence lands. Hover or drag to move the playhead; click a call to inspect its arguments and result; switch on
+**Compare with reference** to overlay the scripted path.
+
+<div class="aib-wide">
+  <iframe class="aib-frame" src="/viz/flight-recorder.html" title="T01 flight recorder: every recorded run as time-locked lanes" style="min-height:1500px" loading="eager"></iframe>
+</div>

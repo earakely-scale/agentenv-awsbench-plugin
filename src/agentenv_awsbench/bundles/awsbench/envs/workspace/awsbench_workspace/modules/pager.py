@@ -150,5 +150,7 @@ def page_as(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
 
 def ack_as(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
     p = _page(ws, args["page_id"])
+    if args.get("if_open") and (p["status"] == "resolved" or any(a["user"] == args["user"] for a in p["acks"])):
+        return p["id"], []
     _ack(ws, p, args["user"], t)
     return p["id"], []

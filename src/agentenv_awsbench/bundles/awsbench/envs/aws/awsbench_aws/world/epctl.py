@@ -20,8 +20,11 @@ usage:
   epctl apply --gen GEN (--endpoint FQDN | --all) --manual --reason TEXT
   epctl set-applied --endpoint FQDN --gen GEN --reason TEXT
 
-Writes use your own AWS credentials and are recorded in CloudTrail.
+Writes use your own AWS credentials and are recorded in CloudTrail. apply retries Route 53 Throttling and
+PriorRequestNotComplete up to 3 times, backing off 2, 4 and 8 s; the backoff is part of the command's time.
 """
+RETRIED = ("Throttling", "PriorRequestNotComplete")
+BACKOFF_S = (2, 4, 8)
 
 
 def _usages() -> dict[str, list[str]]:
@@ -351,7 +354,8 @@ class Epctl:
         who = caller.get("role", "unknown")
         for fqdn in targets:
             recs = ep.plan_records(gen, fqdn, item)
-            ep.m.replace_records(fqdn, ep.ttl, recs, f"epctl manual apply gen={gen} by {who}", **self._as(caller))
+            self._retrying(caller, lines, ep.m.replace_records, fqdn, ep.ttl, recs,
+                           f"epctl manual apply gen={gen} by {who}", **self._as(caller))
             ep.m.put_item({"pk": "applied#" + fqdn, "generation": gen, "state": "APPLIED",
                            "applied_by": f"manual:{who}", "applied_at": iso(now),
                            "reason": o.get("--reason", "")}, **self._as(caller))
@@ -359,6 +363,19 @@ class Epctl:
         lines.append(f"applied gen {gen} to {len(targets)} endpoint(s)")
         self.world.on_records_changed(now)
         return "\n".join(lines) + "\n", 0
+
+    @staticmethod
+    def _retrying(caller: dict, lines: list[str], fn, *args, **kwargs):
+        """A Route 53 change, retried as HELP says; each backoff adds to the caller's `retry_s`, which the call is
+        charged."""
+        for attempt, wait in enumerate((*BACKOFF_S, None), 1):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                if getattr(e, "code", None) not in RETRIED or wait is None:
+                    raise
+                caller["retry_s"] = caller.get("retry_s", 0) + wait
+                lines.append(f"route53: {e.code}: {getattr(e, 'message', '')} (retry {attempt}/3 in {wait}s)")
 
     def plan_restore(self, gen: int, caller: dict, now: datetime):
         ep = self.ep

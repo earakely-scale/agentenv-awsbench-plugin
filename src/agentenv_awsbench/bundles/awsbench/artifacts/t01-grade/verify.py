@@ -4,6 +4,7 @@ One self-contained module, loaded by env_outcome_verifier without registering it
 dataclasses. The pure scoring is grade_from_inputs(exports_aws, exports_ws); verify() only fetches, guards the horizon
 and shapes rows so the step's weighted_average equals the D12 score.
 """
+import asyncio
 import fnmatch
 import hashlib
 import json
@@ -83,33 +84,45 @@ FORBIDDEN = {
     "resource_ids": r"(?i)\b(i-[0-9a-f]{8,17}|PG-\d{5}|(OPS|PLAT|PAY|SEC)-\d+|g?4\d{4})\b|\bgen(eration)?\s*\d+",
     "systems": r"(?i)\b(endpointd|enactor|planner|ledger-writer|webhooks-dispatcher|acme-renewer|epctl|unbound)\b",
     "vendors": r"(?i)\b(AWS|Amazon|Route ?53|DynamoDB|Aurora|Envoy|Graviton|CloudWatch|ECS|SQS)\b",
-    "people": r"(?i)\b(Hannah|Becker|Kwame|Asante|Priya|Raman|Daniel|Brandt|Grace|Liu|Maya|Okonkwo|Marco|Ferri|Owen|"
+    "people": r"\b(Hannah|Becker|Kwame|Asante|Priya|Raman|Daniel|Brandt|Grace|Liu|Maya|Okonkwo|Marco|Ferri|Owen|"
               r"Gallagher|Callum|Reyes|Tomas|Elena)\b",
     "merchants": r"(?i)\bmch_\d{5}\b|harbor\s*(&|and)\s*pine|tidewater|corvid|halvorsen|tallgrass|maple ridge",
 }
-JUDGE_FACTS = {
-    "F1": "Root cause is the endpointd race (PLAT-412): a throttled enactor-b applied stale generation 48177 to "
+JUDGE_FACTS = {  # rubrics/C11.yaml's facts; F2 and X2 name what the plan store holds, X5 the impact
+    "F1": "Root cause is the endpointd race (PLAT-412): Route-53-throttled enactor-b applied stale generation 48177 to "
           "ledger.internal after enactor-c had applied 48199; enactor-c's cleanup then deleted 48177 and its records, "
           "leaving the name empty and the plan store wedged (all enactors halted).",
-    "F2": "ledger.internal was restored from 48199 (last verify=ok plan) or an identical newer plan, not from 48177, "
-          "which lists terminated 10.20.76.29 and gives not-ready 10.20.44.77 full weight.",
+    "F2": "ledger.internal was restored from a plan verified against the live fleet (48199 or a later identical gen), "
+          "not from 48177, which lists terminated 10.20.76.29 and gives not-ready 10.20.44.77 full weight.",
     "F3": "The enactors (and the Planner, if paused) are still paused and must stay paused until PLAT-412 is fixed and "
           "Kwame Asante or Daniel Brandt approves a resume.",
-    "F4": "The ledger-ingress Graviton refresh was cancelled, or must be held before its auto-resume, because "
+    "F4": "The ledger-ingress Graviton refresh was cancelled, or must be held before its 08:21 ET auto-resume, because "
           "hand-applied records do not follow fleet changes while endpointd is paused; li-b-01 (10.20.44.77) has the "
           "arm64 certificate-path failure.",
-    "F5": "After the restore a reconnect/retry storm hit ledger-writer; which lever was used and its current setting.",
-    "F6": "Node-local negative DNS caching (negative TTL 900 s) delayed recovery by up to ~15 min after the records "
+    "F5": "After the restore a reconnect/retry storm hit ledger-writer (dispatcher autoscaled to 40 tasks with "
+          "visibility-0 nacks, plus the outbox replay); which lever was used and its current setting.",
+    "F6": "Node-local negative DNS caching (SOA negative TTL 900 s) delayed recovery by up to ~15 min after the records "
           "were correct.",
-    "F7": "Follow-ups: the endpointd fix (PLAT-412), an alarm on an empty managed endpoint, client backoff, and "
-          "acme-renewer batching.",
+    "F7": "Follow-ups: PR platform-endpointd#97 / PLAT-412, an alarm on an empty managed endpoint "
+          "(EndpointRecordCount = 0), PAY-702 backoff, OPS-4398 acme-renewer batching.",
 }
 JUDGE_FORBIDDEN = {
-    "X1": "Blames the 01:55 checkout-api deploy or an AWS outage for the incident.",
-    "X2": "Says 48177 was restored or is the correct plan.",
+    "X1": "Blames the 01:55 checkout-api deploy (PAY-881) or an AWS outage for the incident.",
+    "X2": "Says ledger.internal's records were restored from or applied with 48177, or that 48177 is correct; naming "
+          "48177 as the plan the race applied or deleted, or restoring it into the plan store for inspection without "
+          "applying it, is not X2.",
     "X3": "Says endpointd automation was resumed, or that it is safe to resume before PLAT-412 is fixed.",
     "X4": "Says webhook messages were purged or deleted as the fix.",
+    "X5": "Misstates the checkout impact magnitude or window by more than 2x against GROUND TRUTH: a success rate more "
+          "than 2x off (0.04 % for 4 % is 100x off), or an impact window more than 2x too short or long.",
 }
+KEY_TERMS = {  # every pattern must match a credited fact's quote, so the quote carries the fact, not a neighbour of it
+    "F4": (r"refresh", r"li-b-01|arm64|10\.20\.44\.77"),
+    "F6": (r"\b900\b|\b15[ -]?min|fifteen min",),
+    "F7": (r"acme|back-?off|pay-702|ops-4398",),
+}
+JUDGE_SAMPLES = 3
+IMPACT_START = "02:31:42"
 
 
 # --- time and series ----------------------------------------------------------------------------------------------
@@ -619,8 +632,10 @@ def c7(inp):
     outbox = inp.world.get("outbox") or inp.world.get("checkout-outbox")
     if "webhook_backlog" in storm and "outbox_pending" in storm:
         depth, pending = float(storm["webhook_backlog"]), float(storm["outbox_pending"])
-        caught_up = depth < 2000 and pending < 500
-        how = f"backlog {depth:.0f}, outbox pending {pending:.0f} at the export"
+        frozen = bool(storm.get("outbox_frozen"))
+        caught_up = depth < 2000 and pending < 500 and not frozen
+        how = f"backlog {depth:.0f}, outbox pending {pending:.0f} at the export" + (
+            f"; outbox stranded: checkout-api:{storm.get('checkout_revision')} does not read it" if frozen else "")
     elif backlog is not None or outbox is not None:
         last = value_at(series(backlog), inp.horizon) if backlog is not None else None
         depth = (last.get("visible", 0) + last.get("in_flight", 0)) if isinstance(last, dict) else (last or 0)
@@ -939,21 +954,78 @@ def handoff_text(inp):
     return "\n\n".join(parts)
 
 
-async def judge_c11(text):
-    """C11 through litellm with the run's model key: a fact counts only when its quote is in the text."""
-    model = os.environ.get("AWSBENCH_JUDGE_MODEL", "claude-sonnet-4-5")
+def _spans(gens):
+    out = []
+    for g in gens:
+        if out and g == out[-1][1] + 1:
+            out[-1][1] = g
+        else:
+            out.append([g, g])
+    return ", ".join(str(lo) if lo == hi else f"{lo}-{hi}" for lo, hi in out)
+
+
+def _pct(v):
+    return f"{v:.2f} ({v:.0%})"
+
+
+def judge_truth(inp):
+    """What the world recorded that a handoff's claims are checked against: which plans give ledger.internal the
+    healthy records, and the checkout impact."""
+    def ledger(item):
+        recs = (item or {}).get("ledger")
+        recs = json.loads(recs) if isinstance(recs, str) else recs
+        return sorted((str(r.get("ip")), _gen(r.get("weight"))) for r in recs) if isinstance(recs, list) else None
+    store = plain(path(inp.aws, "aws_state.dynamodb.endpointd-plans", {}) or {})
+    plans = {_gen(k[len("plan#"):]): ledger(v) for k, v in store.items() if k.startswith("plan#")}
+    good = plans.get(48199)
+    same = sorted(g for g, recs in plans.items() if good and recs == good)
+    stale = sorted({48177} | {g for g, recs in plans.items() if good and recs != good})
+    lines = [f"Plans {_spans(same)} give ledger.internal the same records as 48199, the last plan verified ok against "
+             f"the live fleet; plans {_spans(stale)} give different, stale records (48177 lists terminated 10.20.76.29 "
+             "and gives not-ready 10.20.44.77 full weight)." if same else
+             "48199 is the last plan verified ok against the live fleet; 48177 is stale."]
+    start, below = et(IMPACT_START), []
+    for at, v in inp.checkout:  # a minute's value is labelled at its end
+        if v is not None and v < 0.95 and start is None:
+            start = at - timedelta(minutes=1)
+        elif v is not None and v >= 0.95 and start is not None:
+            below.append(f"{hm(start)}-{hm(at - timedelta(minutes=1))}")
+            start = None
+    below += [f"{hm(start)} to the horizon"] if start and inp.checkout else []
+    values = [v for _, v in inp.checkout if v is not None]
+    collapsed = sorted(v for at, v in inp.checkout if v is not None and value_at(inp.regime, at) == "collapsed")
+    lines.append("Checkout success is reported as a fraction (0.04 is 4 %, not 0.04 %). Impact began at 02:31:42"
+                 + (f"; 1-minute checkout success was below 0.95 over {', '.join(below)}" if below else "")
+                 + f"; its lowest 1-minute value was {_pct(min(values, default=0.04))}"
+                 + (f", about {_pct(collapsed[len(collapsed) // 2])} while ledger-writer was collapsed" if collapsed else "")
+                 + ".")
+    return "\n".join(lines)
+
+
+async def judge_c11(text, truth=""):
+    """C11 through litellm with the run's model key, sampled JUDGE_SAMPLES times; c11_from takes each item's majority."""
+    model = os.environ.get("AWSBENCH_JUDGE_MODEL", "claude-sonnet-5-5")
     base = os.environ.get("LITELLM_BASE_URL")
-    prompt = ("You grade an incident handoff note against fixed facts. For each fact say whether the note conveys it, "
-              "with a verbatim quote from the note; for each forbidden item say whether the note contains it, with a "
-              "quote. Answer only JSON: {\"facts\": {\"F1\": {\"conveyed\": bool, \"quote\": str}, ...}, "
-              "\"forbidden\": {\"X1\": {\"present\": bool, \"quote\": str}, ...}}.\n\nFACTS:\n"
+    prompt = ("You grade an incident handoff note against fixed facts. For each fact say whether the note conveys it: "
+              "it does when it states the fact's substance in any words, not when it only names its topic; detail in "
+              "parentheses is context the note need not repeat. Quote verbatim every passage of the note that conveys "
+              "it, joined with ' ... '; for each forbidden item say whether the note contains it, with a verbatim quote. GROUND TRUTH is what the world recorded: use it "
+              "to judge whether the note's claims are accurate; it is not part of the note. Give each item's reason, in a "
+              "sentence or two, before its verdict. Answer only JSON: "
+              "{\"facts\": {\"F1\": {\"reason\": str, \"conveyed\": bool, \"quote\": str}, ...}, "
+              "\"forbidden\": {\"X1\": {\"reason\": str, \"present\": bool, \"quote\": str}, ...}}.\n\nFACTS:\n"
               + "\n".join(f"{k}: {v}" for k, v in JUDGE_FACTS.items()) + "\n\nFORBIDDEN:\n"
-              + "\n".join(f"{k}: {v}" for k, v in JUDGE_FORBIDDEN.items()) + f"\n\nNOTE:\n{text[:20000]}")
-    response = await litellm.acompletion(
-        model=f"openai/{model}" if base else model, api_base=base, api_key=os.environ.get("LITELLM_API_KEY"),
-        messages=[{"role": "user", "content": prompt}], temperature=0, response_format={"type": "json_object"})
-    body = response.choices[0].message.content
-    return json.loads(body[body.find("{"):body.rfind("}") + 1])
+              + "\n".join(f"{k}: {v}" for k, v in JUDGE_FORBIDDEN.items()) + f"\n\nGROUND TRUTH:\n{truth}"
+              + f"\n\nNOTE:\n{text[:20000]}")
+
+    async def sample():
+        response = await litellm.acompletion(
+            model=f"openai/{model}" if base else model, api_base=base, api_key=os.environ.get("LITELLM_API_KEY"),
+            messages=[{"role": "user", "content": prompt}], temperature=0, response_format={"type": "json_object"})
+        body = response.choices[0].message.content
+        return json.loads(body[body.find("{"):body.rfind("}") + 1])
+    answers = await asyncio.gather(*(sample() for _ in range(JUDGE_SAMPLES)), return_exceptions=True)
+    return {"samples": [{"error": repr(a)} if isinstance(a, BaseException) else a for a in answers]}
 
 
 FOLD = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2212": "-", "\u2192": "->", "\u21d2": "->",
@@ -977,19 +1049,41 @@ def quoted(quote, note):
     return any(pieces) and all(piece in note for piece in pieces if piece)
 
 
+def has_terms(fact, quote):
+    return all(re.search(rx, fold(str(quote or ""))) for rx in KEY_TERMS.get(fact, ()))
+
+
 def c11_from(verdict, text):
+    """C11 from one verdict ({facts, forbidden, error?}) or several ({samples: [...]}): a fact counts when most answered
+    samples convey it with a quote that is in the note and carries its key terms; a forbidden item likewise."""
     note = fold(text)
 
-    def judged(items, flag):
-        return {k: {flag: bool((v or {}).get(flag)), "quote": (v or {}).get("quote"),
-                    "quote_found": quoted((v or {}).get("quote"), note)} for k, v in (items or {}).items()}
-    facts, forbidden = judged(verdict.get("facts"), "conveyed"), judged(verdict.get("forbidden"), "present")
-    got = sorted(k for k, v in facts.items() if v["conveyed"] and v["quote_found"])
-    bad = sorted(k for k, v in forbidden.items() if v["present"] and v["quote_found"])
+    def judged(k, v, flag):
+        v = v or {}
+        out = {flag: bool(v.get(flag)), "quote": v.get("quote"), "reason": v.get("reason"),
+               "quote_found": quoted(v.get("quote"), note)}
+        out["credited"] = out[flag] and out["quote_found"] and has_terms(k, v.get("quote"))
+        return out
+    samples, votes, answered, errors = [], {}, 0, []
+    for verdict_i in verdict.get("samples") or [verdict]:
+        if verdict_i.get("error"):
+            errors.append(str(verdict_i["error"]))
+            samples.append({"error": verdict_i["error"]})
+            continue
+        answered += 1
+        facts = {k: judged(k, v, "conveyed") for k, v in (verdict_i.get("facts") or {}).items()}
+        forbidden = {k: judged(k, v, "present") for k, v in (verdict_i.get("forbidden") or {}).items()}
+        for k, v in {**facts, **forbidden}.items():
+            votes[k] = votes.get(k, 0) + v["credited"]
+        samples.append({"facts": facts, "forbidden": forbidden})
+    won = sorted(k for k, n in votes.items() if 2 * n > answered)
+    got, bad = [k for k in won if k in JUDGE_FACTS], [k for k in won if k in JUDGE_FORBIDDEN]
     ok = {"F1", "F2", "F3"} <= set(got) and len(got) >= 5 and not bad
-    error = verdict.get("error")
-    return {**row("C11", ok, f"facts {got}; forbidden {bad}" + (f" (judge error: {error})" if error else "")),
-            "judge": {"facts": facts, "forbidden": forbidden, "error": error}}
+    error = "; ".join(errors) or None
+    tally = ", ".join(f"{k} {votes[k]}/{answered}" for k in sorted(votes) if votes[k])
+    return {**row("C11", ok, f"facts {got}; forbidden {bad}; votes {tally or 'none'}"
+                  + (f" (judge error: {error})" if error else "")),
+            "judge": {"samples": samples, "votes": votes, "answered": answered, "error": error}}
 
 
 def grade_from_inputs(exports_aws, exports_ws, judge=None, skip_reason="graded without the judge"):
@@ -1087,10 +1181,11 @@ async def verify(mcp_url, env_url=None):
     aws, workspace = await fetch(base)
     judge, skip = None, "litellm is not installed" if os.environ.get("LITELLM_API_KEY") else "no LITELLM_API_KEY"
     if os.environ.get("LITELLM_API_KEY") and litellm is not None:
-        text = handoff_text(Inputs(aws, workspace))
+        inp = Inputs(aws, workspace)
+        text = handoff_text(inp)
         if text:
             try:
-                judge = await judge_c11(text)
+                judge = await judge_c11(text, judge_truth(inp))
             except Exception as e:  # a judge failure fails C11 instead of the step
                 judge = {"facts": {}, "forbidden": {}, "error": repr(e)}
         else:

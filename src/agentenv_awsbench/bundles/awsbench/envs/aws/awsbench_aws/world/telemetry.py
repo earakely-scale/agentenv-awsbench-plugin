@@ -24,6 +24,7 @@ APP_GROUPS = {"/vl/prod/checkout-api": "checkout", "/vl/prod/webhooks-dispatcher
 OUTBOX = "vl-ledger-outbox"
 SUPPORTED = "supported: fields, filter @message like/=~, sort @timestamp, limit, stats count() by bin()/@log"
 _FIELDS = ("@timestamp", "@message", "@log", "@logStream")
+ACME_LOG = "/vl/platform/acme-renewer"
 _TERM = re.compile(r"\s*(?:(and|or)\s+)?@message\s+(not\s+like|like|=~)\s+(/(?:\\.|[^/\\])*/|\"[^\"]*\"|'[^']*')\s*",
                    re.IGNORECASE)
 _BIN = re.compile(r"bin\(\s*(\d+)\s*(s|m|h)\s*\)$")
@@ -243,6 +244,8 @@ class Telemetry:
             return 4.0 if pre or m["ledger_correct"] else (t - self.outage_start).total_seconds()
         if key == ("AWS/ECS", "RunningTaskCount"):
             svc = dims.get("ServiceName", "")
+            if self.w.ecs is not None:
+                return float(self.w.ecs.counts(svc)[1]) if svc in self.w.ecs.services else None
             return float(self.w.storm.lw_running if "ledger-writer" in svc else
                          self.w.storm.dispatcher_running() if "webhooks" in svc else 18)
         return None
@@ -476,12 +479,43 @@ class Telemetry:
                 out.append({"logStreamName": f"{group.rsplit('/', 1)[-1]}/i-0{abs(hash(group)) % 10**7:07d}",
                             "timestamp": ms, "message": line, "ingestionTime": ms + 400, "eventId": f"{ms}{i}"})
             t += timedelta(minutes=1)
-        for ts, g, msg in self.extra_logs:
+        for ts, g, msg in self.extra_logs + self.acme_lines(now):
             if g == group and start_t <= ts.astimezone(UTC) <= end_t and (not needle or needle in msg.lower()):
                 ms = int(ts.timestamp() * 1000)
                 out.append({"logStreamName": "run", "timestamp": ms, "message": msg, "ingestionTime": ms,
                             "eventId": str(ms)})
         return sorted(out, key=lambda e: e["timestamp"])[:limit]
+
+    def acme_lines(self, now: datetime) -> list[tuple]:
+        """The nightly acme-renewer task's progress every 5 minutes from its start until its run completes or is
+        stopped: its batch, the TXT changes since the last line, domains renewed (`done_at_start` at the episode
+        start, all by `completes_at`) and how many of its Route 53 calls were throttled."""
+        a = ((self.w.scenario.get("world") or {}).get("ecs") or {}).get("tasks", {}).get("acme-renewer")
+        if not a:
+            return []
+        t0, start, total = parse_time(a["started"], self.w.start_t), self.w.start_t, int(a["total"])
+        t1 = parse_time(a["completes_at"], start)
+        batch = int(((a.get("revisions") or {}).get(a.get("revision")) or {}).get("env", {}).get("BATCH_SIZE", 50))
+        done_at = self.w.world_flags.get("acme_complete")
+        end = min(now, parse_time(done_at, start)) if done_at else now
+
+        def renewed(t: datetime) -> int:
+            if t <= start:
+                return round(a["done_at_start"] * (t - t0) / (start - t0))
+            return min(total, round(a["done_at_start"] + (total - a["done_at_start"]) * (t - start) / (t1 - start)))
+
+        out = [(t0, ACME_LOG, (f"INFO run started: {total:,} domains, batches of {batch} TXT changes (route53 "
+                               "ChangeResourceRecordSets)"))]
+        k = 1
+        while (t := t0 + timedelta(seconds=300 * k)) <= end:
+            done, changes = renewed(t), 2 * (renewed(t) - renewed(t - timedelta(seconds=300)))
+            h = int(hashlib.sha256(f"{self.w.seed}|acme|{k}".encode()).hexdigest()[:8], 16)
+            throttled = changes // 3 + h % 7 if k > 1 else 0
+            out.append((t, ACME_LOG, (f"INFO batch {math.ceil(done / batch)}/{math.ceil(total / batch)}: {changes} "
+                                      f"TXT changes; {done:,}/{total:,} domains renewed; Route 53 throttled {throttled} "
+                                      "calls (Throttling, PriorRequestNotComplete), retried with backoff")))
+            k += 1
+        return out if t0 <= end else []
 
     def run_query(self, q: dict, now: datetime) -> dict:
         plan, groups = q["plan"], q["groups"]

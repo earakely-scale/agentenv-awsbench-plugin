@@ -19,7 +19,10 @@ ASIDE = re.compile(r"(?i)^(?:(?:undo|why|auth|rollback(?: plan)?|fallback|held|h
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
          "without", "nobody"}
 GEN = re.compile(r"\b(\d{5})\b")
-LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov|\bsign[- ]?off\b")
+LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov(?:e|al|als)\b|"
+                       r"\bsign[- ]?off\b|\byour call\b|\bdecision for you\b")
+NOUN_HEDGE = re.compile(r"(?i)\b(?:behind|pending|awaiting|after|without)\s+(?:(?:one|an?|the|your|her|his|their|[\w.]+'s)\s+)?$")
+FYI_NEAR = r"(?i)(?:@?{n}\W{{0,3}}(?:fyi|cc)\b|\b(?:fyi|cc)\W{{0,3}}@?{n}\b)"
 REJECT_BEFORE = re.compile(r"(?i)(?:\bnot\b|n't\b|\bnever\b|\brather than\b|\binstead of\b|\bstale\b)[^,.;()]{0,25}$")
 REJECT_AFTER = re.compile(r"(?i)^(?:\s*\([^)]*\))?[^,.;()]{0,30}?\b(?:not|n't|stale|never)\b")
 ASKED_BEFORE = re.compile(r"(?i)(?:\b(?:re-?)?appl(?:y|ying)\b|\brestore\b|--gen\b|\bset-applied\b)[^,.;()]{0,25}$")
@@ -42,7 +45,9 @@ def asks(text: str) -> list[str]:
     out = []
     for c in clauses(text):
         for m in ASK.finditer(c):
-            if not HEDGE & set(re.findall(r"[\w']+", c[:m.start()].lower())[-4:]):
+            before = c[:m.start()]
+            if not (HEDGE & set(re.findall(r"[\w']+", before.lower())[-4:])
+                    or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)):
                 out.append(c[m.start():])
                 break
         else:
@@ -134,6 +139,7 @@ class Timeline:
         self.waiting: dict[str, list[dict]] = {n: [] for n in self.npcs}
         self.world_flags: dict[str, bool] = {}
         self.last_said: dict[str, tuple[datetime, str]] = {}
+        self.catch_up: dict[str, datetime] = {}
 
     # ---- scheduling ----
     def arm(self, start: datetime, horizon: datetime) -> None:
@@ -194,6 +200,8 @@ class Timeline:
     def run(self, item: Item, t: datetime) -> list[dict]:
         if item.kind == "npc_reply":
             return self._npc_reply(item, t)
+        if item.kind == "page_ack":
+            return self._page_ack(item, t)
         ev = self.events[item.ev]
         entry = {"id": item.ev if item.n <= 1 else f"{item.ev}#{item.n}",
                  "due_at": iso(item.due), "fired_at": None, "status": "fired", "deliveries": []}
@@ -325,17 +333,42 @@ class Timeline:
                 if isinstance(addr, str) and self._npc_for(addr):
                     targets.append((self._npc_for(addr), {"via": "mail", "subject": args.get("subject") or
                                                           resolved.get("subject") or ""}))
+        if tool == "pager_page" and str(args.get("urgency", "high")) == "high":
+            npc = self._npc_for(str(args.get("user") or args.get("schedule") or args.get("to") or ""))
+            if npc and self.awake.get(npc, True) and self.npcs[npc].get("page_ack"):
+                body = " ".join(text_of(args.get(k)) for k in ("title", "summary", "details") if args.get(k))
+                self.items.append(Item(call["t"] + timedelta(seconds=seconds(self.npcs[npc]["page_ack"])), "page_ack", npc,
+                                       0, {"msg": {"t": call["t"], "text": body, "via": "dm"},
+                                           "page_id": text_of(dig(call, "result.id") or dig(call, "result.page.id"))},
+                                       call["t"]))
         seen = set()
         for npc, how in targets:
             if npc in seen:
                 continue
             seen.add(npc)
             self._note_refusal(npc, text)
-            msg = {"t": call["t"], "text": text, **how}
+            msg = {"t": call["t"], "text": text, **how, "fyi": how["via"] == "channel" and self._fyi_only(npc, text)}
             if self.awake.get(npc, True):
                 self._schedule_reply(npc, msg, call["t"])
             else:
                 self.waiting[npc].append(msg)
+
+    def _fyi_only(self, npc: str, text: str) -> bool:
+        """An NPC the message marks FYI or cc ("@kwame.asante FYI", "cc @daniel") is told, not asked."""
+        c = self.npcs[npc]
+        names = {npc, str(c.get("chat_user", npc)), *c.get("aliases", [])}
+        return any(re.search(FYI_NEAR.format(n=re.escape(n)), text or "") for n in names)
+
+    def _page_ack(self, item: Item, t: datetime) -> list[dict]:
+        """An awake NPC acks a high page after their `page_ack` delay and answers it like a DM."""
+        npc = item.ev
+        if item.ctx.get("page_id"):
+            self.w.ws_apply("pager.ack_as", {"page_id": item.ctx["page_id"], "user": self.npcs[npc].get("chat_user", npc),
+                                             "if_open": True}, t)
+        self.log.append({"id": f"npc:{npc}:page-ack", "due_at": iso(item.due), "fired_at": iso(t), "status": "fired",
+                         "deliveries": []})
+        self._schedule_reply(npc, item.ctx["msg"], t)
+        return []
 
     def _schedule_reply(self, npc: str, msg: dict, t: datetime, not_before: datetime | None = None) -> datetime:
         c = self.npcs[npc]
@@ -353,51 +386,66 @@ class Timeline:
             return
         self.awake[npc] = True
         prev = None
+        if self.npcs[npc].get("catch_up"):
+            self.catch_up[npc] = t + timedelta(seconds=seconds(self.npcs[npc]["catch_up"]["for"]))
+            prev = self.catch_up[npc] - timedelta(seconds=15)
         for msg in self.waiting.pop(npc, []):
             prev = self._schedule_reply(npc, msg, t, prev)
         self.waiting[npc] = []
 
-    def classify(self, npc: str, text: str) -> tuple[dict, str, dict] | None:
+    def classify(self, npc: str, text: str, skip: frozenset = frozenset(), fyi: bool = False
+                 ) -> tuple[dict, str, dict] | None:
         """The rule that answers `text`, the request it answers and its template values, or None for silence.
 
         Rules with a `decision` or `on_request` answer only a message that asks something (or details awaited): first
-        its ask clauses, then all its clauses (`context`); the others read the whole text. `default_once_after` caps
-        the default at one more reply once a message matches it.
+        its ask clauses, then all its clauses (`context`); `ask_only` rules read only the ask clauses, and the others
+        the whole text. An `answers_direct` NPC also reads a direct request without an ask word ("please take IC")
+        with its non-decision request rules before its default. An NPC told FYI answers only through plain rules.
+        With `skip` (rules whose reply would repeat), only the ask clauses and the default are read.
+        `after_refusal` rules wait for `default_once_after`, which caps the default at one more reply.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only. A rule with `read: context`
         reads every clause from the first pass on, so a bundled request whose items don't each say "approve" is
         answered whole rather than by the one item that does."""
         c = self.npcs[npc]
         self._note_refusal(npc, text)
-        ask_list = asks(text)
-        ask = ""
-        if ask_list or npc in self.awaiting:
+        ask_list, ask, loose = [] if fyi else asks(text), "", ""
+        if not fyi and (ask_list or npc in self.awaiting):
             self.awaiting.discard(npc)
             ask = " ".join(context(text))
-        key = " ".join(ask.lower().split())
-        for i, scope in enumerate((" ".join(ask_list), ask)):
-            for rule in c.get("rules", []):
-                on_request = bool(rule.get("on_request")) or "decision" in rule
-                read = ask if rule.get("read") == "context" else scope
-                if i and not on_request or on_request and not read or not _matches(rule.get("match", {}),
-                                                                                   read if on_request else text):
+        if not (fyi or ask) and c.get("answers_direct"):
+            loose = " ".join(cl for cl in clauses(text) if LOOSE_ASK.search(cl))
+        key = " ".join((ask or loose).lower().split())
+        rules = [r for r in c.get("rules", []) if r["id"] not in skip
+                 and (not r.get("after_refusal") or npc in self.default_cap)]
+        for i, scope in enumerate((" ".join(ask_list), ask, loose)):
+            for rule in rules:
+                decides, only = "decision" in rule, bool(rule.get("ask_only"))
+                gated = bool(rule.get("on_request")) or decides or only
+                read = ask if rule.get("read") == "context" and i < 2 else scope
+                if i and (not gated or i == 1 and (only or skip) or i == 2 and decides) or gated and not read:
                     continue
+                if not _matches(rule.get("match", {}), read if gated else text):
+                    continue
+                req = loose if i == 2 else ask
                 values = {}
                 if "plan_gen" in rule:
-                    values = self._plan_gen(rule["plan_gen"], ask if on_request else text, text)
+                    values = self._plan_gen(rule["plan_gen"], req if gated else text, text)
                     if values is None:
                         continue
                 if self._spent(npc, rule, key):
-                    if on_request:
+                    if gated and not only and i < 2:
                         return None
                     continue
-                return rule, ask, values
-        if not ask and c.get("answers_direct") and LOOSE_ASK.search(" ".join(clauses(text))):
+                return rule, req, values
+        if fyi:
+            return None
+        if not ask and loose:
             ask = " ".join(context(text)) or text
             key = " ".join(ask.lower().split())
         if not ask or c.get("default_unless_state") and self.w.eval_state(c["default_unless_state"]):
             return None
-        if self.counts.get(f"default:{npc}", 0) >= self.default_cap.get(npc, 1 << 30):
+        if self.counts.get(f"default:{npc}", 0) >= self.default_cap.get(npc, 1 << 30) or "default" in skip:
             return None
         rule = {"id": "default", "reply": c.get("default", "Noted."), "asks_details": True}
         return None if self._spent(npc, rule, key) else (rule, ask, {})
@@ -440,7 +488,22 @@ class Timeline:
         """A reworded request for a change the NPC already decided gets "Already approved at ..." and no second record;
         a reply identical to the NPC's last line within 10 min is skipped, as a person wouldn't repeat it."""
         npc, msg = item.ev, item.ctx["msg"]
-        hit = self.classify(npc, msg["text"])
+        until = self.catch_up.get(npc)
+        if until and t < until:
+            return self._catching_up(npc, item, until, t)
+        was_awaiting, skip = npc in self.awaiting, set()
+        while True:
+            hit = self.classify(npc, msg["text"], frozenset(skip), bool(msg.get("fyi")))
+            last = self.last_said.get(npc)
+            if hit is None or not (last and t - last[0] <= timedelta(minutes=10)) or hit[0].get("decision"):
+                break
+            if pick(self.seed, f"{npc}#{item.n}", hit[0].get("reply_variants") or hit[0].get("reply", "")) != last[1]:
+                break
+            skip |= {hit[0]["id"]} | ({"default"} if hit[0].get("on_request") else set())
+            self.log.append({"id": f"npc:{npc}:repeat:{hit[0]['id']}#{item.n}", "due_at": iso(item.due),
+                             "fired_at": None, "status": "skipped", "deliveries": []})
+            if was_awaiting:
+                self.awaiting.add(npc)
         if hit is None:
             self.log.append({"id": f"npc:{npc}:silent#{item.n}", "due_at": iso(item.due), "fired_at": None,
                              "status": "skipped", "deliveries": []})
@@ -462,11 +525,6 @@ class Timeline:
             rid += "#repeat"
         else:
             text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
-        last = self.last_said.get(npc)
-        if last and last[1] == text and t - last[0] <= timedelta(minutes=10):
-            self.log.append({"id": f"npc:{npc}:repeat:{rule['id']}#{item.n}", "due_at": iso(item.due),
-                             "fired_at": None, "status": "skipped", "deliveries": []})
-            return []
         if rule.get("asks_details"):
             self.awaiting.add(npc)
             self.counts[f"default:{npc}"] = self.counts.get(f"default:{npc}", 0) + 1
@@ -477,6 +535,17 @@ class Timeline:
                  "status": "fired", "deliveries": self._deliver(npc, msg, text, t)}
         self.log.append(entry)
         return entry["deliveries"]
+
+    def _catching_up(self, npc: str, item: Item, until: datetime, t: datetime) -> list[dict]:
+        """Before `catch_up.for` after waking, the NPC says its catch-up line once and answers after the window."""
+        out = []
+        if not self.counts.get(f"catch_up:{npc}"):
+            self.counts[f"catch_up:{npc}"] = 1
+            out = self._deliver(npc, item.ctx["msg"], self.npcs[npc]["catch_up"]["reply"], t)
+            self.log.append({"id": f"npc:{npc}:R0-catching-up#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
+                             "status": "fired", "deliveries": out})
+        self._schedule_reply(npc, item.ctx["msg"], t, until)
+        return out
 
     def _say(self, npc: str, line_id: str, t: datetime, ctx: dict) -> list[dict]:
         c = self.npcs[npc]
