@@ -23,6 +23,7 @@ from botocore import xform_name
 from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 
 from .actionlog import ActionLog
+from .cloudtrail import Trail
 from .emulator import ACCESS_KEY, SECRET_KEY, Emulator
 from .errors import AwsError
 from .meter import is_read
@@ -182,6 +183,7 @@ class Bridge:
         self.profiles = profiles or {}
         self.policies = policies or {}
         self.faults = Faults(faults, seed)
+        self.trail = Trail(actionlog)
         self.world = world
         self.world_lock = world_lock or threading.RLock()
         self.lock = threading.Lock()
@@ -224,6 +226,8 @@ class Bridge:
                                                f"{service}:{operation} because no identity-based policy allows the "
                                                f"{service}:{operation} action", 403)
             self.faults.check(service, operation, params, ctx.get("t"))
+            if (service, operation) == ("cloudtrail", "LookupEvents"):
+                return _http(200), {**self.trail.lookup(params), "ResponseMetadata": {"HTTPStatusCode": 200}}
             world = self.world()
             if world is not None:
                 with self.world_lock:

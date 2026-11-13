@@ -30,6 +30,7 @@ src/agentenv_awsbench/bundles/awsbench/        the bundle (agent-env run <path>)
       emulator.py      start/stop the emulator process, its endpoint and credentials       [aws-server]
       bridge.py        aws_cli / aws_api: awscli+botocore in process, hooks, faults        [aws-server]
       actionlog.py     the action log                                                      [aws-server]
+      cloudtrail.py    CloudTrail LookupEvents from the action log                          [aws-server]
       ports.py         AwsPort and WorkspacePort implementations                           [aws-server]
       world/           physics, timeline, NPCs, hosts, epctl, dig; pure Python             [world]
       scenarios/t01.yaml   the T01 scenario data (seed calls, world config, timeline, NPCs) [world]
@@ -217,6 +218,14 @@ env instead.
 ```
 `workspace` returns one `DataPart` with `{"collab": {"chat": ..., "tickets": ..., "wiki": ..., "mail": ...,
 "pager": ..., "status": ...}, "action_log": [...]}`, every record with its history and timestamps.
+
+**CloudTrail.** `LookupEvents` (through `aws_cli`, `aws_api` and `aws_query source=cloudtrail`) is answered from the
+action log, not the emulator: every logged write (not a read) by the agent or the world, including epctl's writes, newest
+first, at its virtual time, with `EventName`, `EventSource` (`<service>.amazonaws.com`), `Username`, `Resources`,
+`ReadOnly: "false"` and a `CloudTrailEvent` JSON carrying `requestParameters`. It honours `StartTime`/`EndTime`, one
+`LookupAttributes` entry, `MaxResults` (at most 50) and `NextToken`. The seed's pre-incident writes are in it too, at the
+times their items record (`applied_at` by `applied_by`, else `created_at` by the planner), and a seeded delete one
+enactor step after the last apply, by the enactor of the newest generation. A world write is logged at the world's time.
 
 `exit_code` is set on the rows of `fleet_exec` and `fleet_restart`: the highest exit code over the hosts (1 when the
 selector named no host), and `error` says which hosts failed when it is non-zero, so a failed command is never read as a

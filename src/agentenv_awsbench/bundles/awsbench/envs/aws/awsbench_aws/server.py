@@ -35,9 +35,10 @@ from starlette.responses import JSONResponse
 
 from .actionlog import ActionLog
 from .bridge import Bridge
+from .cloudtrail import seed_trail
 from .emulator import Emulator
 from .errors import AwsError
-from .meter import ET, GatewayClock, Inbox, LocalClock, Meter, MeterConfig, parse_time, rfc3339
+from .meter import ET, GatewayClock, Inbox, LocalClock, Meter, MeterConfig, parse_time, rfc3339, whole
 from .ports import AwsPort, WorkspacePort
 
 log = logging.getLogger("awsbench.aws")
@@ -262,11 +263,17 @@ class AwsServer(AgentEnvEnvironment):
         self.meter = Meter(MeterConfig(start=now, window_end=now + timedelta(days=1), horizon=now + timedelta(days=1)),
                            clock=self.clock or LocalClock(now), inbox=self.inbox, actionlog=self.actionlog,
                            world_lock=self.world_lock)
-        self.aws_port = AwsPort(self.emulator, self.actionlog, now=lambda: self.meter.now)
+        self.aws_port = AwsPort(self.emulator, self.actionlog, now=self._now)
         self.ws_port = WorkspacePort(os.environ.get("AWSBENCH_WORKSPACE_URL") or f"http://workspace:{_port()}",
                                      self.inbox)
         self.bridge = Bridge(self.emulator, self.actionlog, profiles=profiles_of({}), world=lambda: self.world,
                              world_lock=self.world_lock)
+
+    def _now(self) -> datetime:
+        """When an AWS call the world makes happens: the world's time, which runs ahead of the meter's while it
+        advances."""
+        world = self.world
+        return max(self.meter.now, whole(world.now)) if world is not None and getattr(world, "now", None) else self.meter.now
 
     def boot(self) -> None:
         """Start the emulator off the main thread, so the port binds at once."""
@@ -388,8 +395,9 @@ class AwsServer(AgentEnvEnvironment):
                       "`source=cloudtrail` looks up CloudTrail management events, filtered on one attribute: "
                       "`lookup_attributes` {\"EventName\": \"ChangeResourceRecordSets\"} (or {\"AttributeKey\": "
                       "\"Username\", \"AttributeValue\": \"kwame.asante\"}); keys EventName, Username, EventSource, "
-                      "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId. `start`/`end` are RFC 3339; the "
-                      "default window is the last hour.", structured_output=False)
+                      "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId; newest first. `start`/`end` are "
+                      "RFC 3339; the default window is the last hour for logs, everything until now for cloudtrail.",
+          structured_output=False)
     async def aws_query(self, ctx: ToolContext, source: str = "logs", query: str = "",
                         log_groups: list[str] | None = None, start: str | None = None, end: str | None = None,
                         limit: int = 100, lookup_attributes: dict | list[dict] | None = None,
@@ -399,7 +407,7 @@ class AwsServer(AgentEnvEnvironment):
 
         async def work(call: dict) -> dict:
             t_end = parse_time(end) if end else self.meter.now
-            t_start = parse_time(start) if start else t_end - timedelta(hours=1)
+            t_start = parse_time(start) if start else None if source == "cloudtrail" else t_end - timedelta(hours=1)
             api = self.bridge.call_api
             kw = {"role": _role(ctx), "region": region, "call": call}
             if source == "cloudtrail":
@@ -407,7 +415,7 @@ class AwsServer(AgentEnvEnvironment):
                     attrs = lookup_attributes_of(lookup_attributes)
                 except (TypeError, ValueError) as e:
                     return {"error": str(e)}
-                params = {"StartTime": t_start, "EndTime": t_end, "MaxResults": min(int(limit), 50),
+                params = {**({"StartTime": t_start} if t_start else {}), "EndTime": t_end, "MaxResults": min(int(limit), 50),
                           **({"LookupAttributes": attrs} if attrs else {})}
                 events: list = []
                 while len(events) < limit:
@@ -646,6 +654,8 @@ class AwsServer(AgentEnvEnvironment):
                 errors.append(f"seq {row.get('seq')}: {row['service']}:{row['operation']}: {e.code} {e.message}"[:300])
         if errors:
             self.warnings.append(f"{len(errors)} seed calls failed; first: {errors[0]}")
+        zones = {k.split("/", 1)[1]: v.get("Id") for k, v in refs.bound.items() if k.startswith("route53.zone/")}
+        self.bridge.trail.history = seed_trail(data, seed_rows(data), zones)
         return {"ok": done, "failed": len(errors), "errors": errors[:20]}
 
     def _wait_tables(self, table: str | None, timeout: float = 30.0) -> None:

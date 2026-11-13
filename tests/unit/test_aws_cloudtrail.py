@@ -1,0 +1,111 @@
+import json
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pytest
+from awsbench_aws.actionlog import ActionLog
+from awsbench_aws.bridge import Bridge
+from awsbench_aws.cloudtrail import Trail, seed_trail
+from awsbench_aws.emulator import Emulator
+from awsbench_aws.errors import AwsError
+from awsbench_aws.server import load_scenario_file, seed_rows
+
+ET = ZoneInfo("America/New_York")
+T0 = datetime(2026, 11, 17, 2, 50, tzinfo=ET)
+PLAN = {"TableName": "endpointd-plans", "Item": {"pk": {"S": "plan#0000048220"}, "generation": {"N": "48220"}}}
+
+
+def log() -> ActionLog:
+    al = ActionLog()
+    al.record(t=T0, service="dynamodb", operation="GetItem", principal="assumed-role/SRE-OnCall/sre-primary",
+              params={"TableName": "endpointd-plans", "Key": {"pk": {"S": "x"}}})
+    al.record(t=T0 + timedelta(minutes=5), service="ssm", operation="PutParameter", principal="sre-primary",
+              role="sre-primary", call_no=7, params={"Name": "/platform/endpointd/prod/enactor-a/enabled", "Value": "false"})
+    al.record(t=T0 + timedelta(minutes=10), service="dynamodb", operation="PutItem", principal="sre-primary",
+              role="sre-primary", call_no=9, params=PLAN)
+    al.record(t=T0 + timedelta(minutes=11), service="dynamodb", operation="UpdateItem", world_made=True,
+              principal="role:vl-endpointd-enactor-role", role="world",
+              params={"TableName": "endpointd-plans", "Key": {"pk": {"S": "applied#ledger.internal.vantleaf.io"}}})
+    al.record(t=T0 + timedelta(minutes=12), service="route53", operation="ChangeResourceRecordSets",
+              principal="assumed-role/SRE-OnCall/sre-primary", error={"Code": "AccessDenied", "Message": "no"},
+              params={"HostedZoneId": "Z1", "ChangeBatch": {"Changes": [
+                  {"Action": "UPSERT", "ResourceRecordSet": {"Name": "ledger.internal.vantleaf.io.", "Type": "A"}}]}})
+    al.record(service=None, tool="chat_post", t=T0)
+    return al
+
+
+def names(out: dict) -> list[str]:
+    return [e["EventName"] for e in out["Events"]]
+
+
+def test_writes_newest_first_with_cloudtrail_shape():
+    out = Trail(log()).lookup({})
+    assert names(out) == ["ChangeResourceRecordSets", "UpdateItem", "PutItem", "PutParameter"]
+    put = out["Events"][2]
+    assert put["EventTime"] == T0 + timedelta(minutes=10) and put["Username"] == "sre-primary"
+    assert put["EventSource"] == "dynamodb.amazonaws.com" and put["ReadOnly"] == "false"
+    assert {"ResourceType": "AWS::DynamoDB::Table", "ResourceName": "endpointd-plans"} in put["Resources"]
+    detail = json.loads(put["CloudTrailEvent"])
+    assert detail["eventTime"] == "2026-11-17T08:00:00Z" and detail["requestParameters"]["item"]["pk"]["S"] == \
+        "plan#0000048220"
+    denied = json.loads(out["Events"][0]["CloudTrailEvent"])
+    assert denied["errorCode"] == "AccessDenied"
+    assert out["Events"][1]["Username"] == "vl-endpointd-enactor-role"
+
+
+@pytest.mark.parametrize("attr,value,want", [
+    ("ResourceName", "endpointd-plans", ["UpdateItem", "PutItem"]),
+    ("ResourceName", "ledger.internal.vantleaf.io", ["ChangeResourceRecordSets"]),
+    ("ResourceName", "/platform/endpointd/prod/enactor-a/enabled", ["PutParameter"]),
+    ("EventSource", "dynamodb.amazonaws.com", ["UpdateItem", "PutItem"]),
+    ("EventName", "PutItem", ["PutItem"]),
+    ("Username", "sre-primary", ["ChangeResourceRecordSets", "PutItem", "PutParameter"]),
+    ("ReadOnly", "true", []),
+    ("ReadOnly", "false", ["ChangeResourceRecordSets", "UpdateItem", "PutItem", "PutParameter"]),
+])
+def test_lookup_attributes(attr, value, want):
+    assert names(Trail(log()).lookup({"LookupAttributes": [{"AttributeKey": attr, "AttributeValue": value}]})) == want
+
+
+def test_time_window_and_pages():
+    trail = Trail(log())
+    window = {"StartTime": "2026-11-17T07:55:00Z", "EndTime": (T0 + timedelta(minutes=11)).timestamp()}
+    assert names(trail.lookup(window)) == ["UpdateItem", "PutItem", "PutParameter"]
+    first = trail.lookup({**window, "MaxResults": 2})
+    second = trail.lookup({**window, "MaxResults": 2, "NextToken": first["NextToken"]})
+    assert names(first) + names(second) == ["UpdateItem", "PutItem", "PutParameter"] and "NextToken" not in second
+    with pytest.raises(AwsError):
+        trail.lookup({"StartTime": T0 + timedelta(hours=1), "EndTime": T0})
+    with pytest.raises(AwsError):
+        trail.lookup({"LookupAttributes": [{"AttributeKey": "Colour", "AttributeValue": "x"}]})
+
+
+def test_the_seed_leaves_the_race_in_the_trail():
+    scenario = load_scenario_file("t01", {})
+    history = seed_trail(scenario, seed_rows(scenario), {"internal.vantleaf.io": "Z1"})
+    trail = Trail(ActionLog(), history)
+    out = trail.lookup({"StartTime": "2026-11-17T02:31:30-05:00", "EndTime": "2026-11-17T02:31:45-05:00",
+                        "LookupAttributes": [{"AttributeKey": "ResourceName", "AttributeValue": "endpointd-plans"}]})
+    rows = [(e["EventTime"].astimezone(ET).strftime("%H:%M:%S"), e["EventName"], e["Username"],
+             json.loads(e["CloudTrailEvent"])["requestParameters"]) for e in out["Events"]]
+    deletes = [r for r in rows if r[1] == "DeleteItem"]
+    assert {r[3]["key"]["pk"]["S"] for r in deletes} >= {"plan#0000048177"}
+    assert all(r[0] == "02:31:41" and r[2] == "enactor-c" for r in deletes)
+    ledger = [r for r in rows if r[1] == "PutItem" and r[3]["item"]["pk"]["S"] == "applied#ledger.internal.vantleaf.io"]
+    assert ledger and ledger[0][:3] == ("02:31:31", "PutItem", "enactor-b")
+    dns = trail.lookup({"LookupAttributes": [{"AttributeKey": "ResourceName",
+                                              "AttributeValue": "ledger.internal.vantleaf.io"}]})["Events"]
+    assert any("enactor-b gen=48177" in e["CloudTrailEvent"] for e in dns)
+    assert all(e["EventTime"] <= datetime.fromisoformat(scenario["start"]) for e in history)
+
+
+def test_the_cli_and_the_api_both_read_the_trail():
+    al = log()
+    bridge = Bridge(Emulator(port=1), al, world=lambda: None)
+    out = bridge.run_cli("aws cloudtrail lookup-events --lookup-attributes "
+                         "AttributeKey=ResourceName,AttributeValue=endpointd-plans --start-time 2026-11-17T07:00:00Z",
+                         role="sre-primary")
+    assert out["exit_code"] == 0, out["stderr"]
+    assert [e["EventName"] for e in json.loads(out["stdout"])["Events"]] == ["UpdateItem", "PutItem"]
+    api = bridge.call_api("cloudtrail", "LookupEvents", {"MaxResults": 1}, role="sre-primary")
+    assert names(api) == ["ChangeResourceRecordSets"] and api["NextToken"] == "1"
