@@ -120,9 +120,9 @@ async def window(gw):
         last = await gw.call("wait", {"minutes": 30})
         if err(last) or last.get("reason") == "window_end":
             break
-    refused = await gw.call(*READ)
+    refused = await gw.call("aws_cli", {"command": "aws route53 list-hosted-zones"})
     st = await status(gw)
-    ok = last.get("reason") == "window_end" and bool(err(refused)) and st.get("now", "")[:16] == \
+    ok = last.get("reason") == "window_end" and "window closed" in err(refused) and st.get("now", "")[:16] == \
         (st.get("window_end") or "")[:16]
     return ok, f"last wait {last.get('reason')} at {last.get('now')}; after it: {err(refused)[:80] or 'not refused'}"
 
@@ -151,7 +151,7 @@ async def budget(gw):
     return ok, f"refused after {n} calls ({st.get('calls_used')} used before): {refusal!r:.90}; calls_used {used}"
 
 
-SCENARIOS = ("concurrent", "malformed", "unknown", "inject", "restart", "window", "horizon")
+SCENARIOS = ("concurrent", "malformed", "unknown", "inject", "window", "restart", "horizon")
 
 
 async def main(argv=None):

@@ -342,3 +342,85 @@ async def test_verify_runs_the_horizon_reads_both_exports_and_returns_d12(monkey
     assert fake.invoked == [("http://gw:18765/svc/mcp-aws", grade.HORIZON_URI, "run")]
     assert rows[0]["id"] == "D12" and rows[0]["score"] == pytest.approx(1.0)
     assert score_of(rows) == pytest.approx(1.0)
+
+
+SONNET_0351 = (
+    "UPDATE 03:51: OPS-4452 -> Mitigated. Checkout 99.7% since 03:34 ET; webhooks backlog 132k->14.7k draining at "
+    "concurrency 5 (checkout unaffected). CHANGE: /vl/prod/checkout-api/outbox/replay_rate 100->400 (restored default; "
+    "outbox is empty) | undo: set 100 | auth: PF §4.1(f) relax. Remaining: enactors still PAUSED (resume needs "
+    "Kwame/Daniel APPROVED; manual-applied ledger endpoint won't follow fleet changes, so hold instance "
+    "refresh/scale-in/replacement on ledger-ingress), webhooks concurrency still 5 (restore to 25 after drain). Need 30 "
+    "min stable before Resolved (~04:04 earliest).")
+OPUS_0320 = (
+    "CHANGE records (03:18-03:20 ET):\n"
+    "1) SSM /vl/prod/webhooks-dispatcher/consumer_paused false -> true | why: ledger-writer DB pool exhausted after DNS "
+    "came back (LEDG-RB-2 shed async callers) | undo: set false (gradually, once the ledger drains) | auth: PF "
+    "§4.1(f) / LEDG-RB-2 (payments paged high on PG-77052)\n"
+    "2) SSM /vl/prod/checkout-api/outbox/replay_rate 400 -> 20 | why: same, the outbox replay herd vs a ~19 req/s ledger "
+    "baseline | undo: set 400 (step up gradually) | auth: PF §4.1(f) / LEDG-RB-2\n"
+    "3) cancel-instance-refresh vl-ledger-ingress-asg (4f1c8a52…, was at the 50% checkpoint, due to resume "
+    "13:21Z/08:21 ET) | why: EPD-RB-7 step 5, no membership changes while endpointd is paused; requested by owner "
+    "@kwame.asante | undo: start a new instance refresh (LT v7, SkipMatching) after endpointd resumes and the li-b-01 "
+    "arm64 issue is fixed | auth: PF §4.1(c)\n"
+    "Kwame, thanks: refresh cancelled, not resumed. ASG is 3x v7 (m7g) + 3x v6 (m6i), no instances replaced.\n"
+    "Status: checkout is now failing on ledger-writer 503s / DB pool exhaustion, not DNS. Still investigating; watching "
+    "whether shedding drains it.")
+OPUS_0330 = (
+    "CHANGE (03:29-03:30 ET): SSM /vl/prod/webhooks-dispatcher/max_concurrency 25 -> 8, then consumer_paused true -> "
+    "false | why: checkout steady at 99.7% for 6 min, DB conns 300/400; webhook backlog ~104k and growing, so resume "
+    "delivery at reduced rate | undo: consumer_paused=true; max_concurrency back to 25 once drained | auth: PF "
+    "§4.1(f) / LEDG-RB-2. outbox replay_rate stays at 20 for now.\n"
+    "epctl verify --resolve: ledger.internal resolves to the 5 ready backends from all 3 AZs.")
+OPUS_0313 = (
+    "03:13 ET update: Route 53 now serves ledger.internal.vantleaf.io (upstream 10.20.0.2 resolves). Hosts still had "
+    "cached NXDOMAIN, so I ran `unbound-control flush ledger.internal.vantleaf.io` on vl-core (30 hosts): a cache flush "
+    "only, no config change, nothing to undo.")
+
+
+def ssm_put(log, at, name, value):
+    log.aws_call(at, "aws_cli", {"cmd": "ssm put-parameter ..."},
+                 [("ssm", "PutParameter", {"Name": name, "Value": value, "Overwrite": True})])
+
+
+def c9_of(log):
+    return {r["id"]: r for r in grade.grade_from_inputs(*base_exports(log, done="05:00"))["rows"]}["C9"]
+
+
+def test_c9_counts_a_change_record_mid_line():
+    log = Log()
+    ssm_put(log, "03:50:30", "/vl/prod/checkout-api/outbox/replay_rate", "400")
+    log.ws_call("03:51:00", "chat_post", channel="#inc-4452", text=SONNET_0351)
+    assert c9_of(log)["score"] == 1
+
+
+def test_c9_counts_each_item_under_a_change_records_header_and_a_dated_change():
+    log = Log()
+    ssm_put(log, "03:18:16", "/vl/prod/webhooks-dispatcher/consumer_paused", "true")
+    ssm_put(log, "03:19:01", "/vl/prod/checkout-api/outbox/replay_rate", "20")
+    log.aws_call("03:20:26", "aws_cli", {"cmd": "autoscaling cancel-instance-refresh ..."},
+                 [("autoscaling", "CancelInstanceRefresh", {"AutoScalingGroupName": "vl-ledger-ingress-asg"})])
+    log.ws_call("03:21:00", "chat_post", channel="#inc-4452", text=OPUS_0320)
+    ssm_put(log, "03:29:10", "/vl/prod/webhooks-dispatcher/max_concurrency", "8")
+    ssm_put(log, "03:29:40", "/vl/prod/webhooks-dispatcher/consumer_paused", "false")
+    log.ws_call("03:31:00", "tickets_comment", key="OPS-4452", body=OPUS_0330)
+    assert c9_of(log)["score"] == 1
+    records = [text for _, text in grade.change_records(grade.Inputs(*base_exports(log, done="05:00")))]
+    assert [r[:2] for r in records[:3]] == ["1)", "2)", "3)"] and len(records) == 4
+    assert not any("Kwame, thanks" in r or "epctl verify" in r for r in records)
+
+
+def test_c9_misses_a_change_told_without_a_record_or_too_late():
+    log = Log()
+    log.aws_call("03:12:51", "fleet_exec", {"selector": "vl-core", "command": f"unbound-control flush {LEDGER}"})
+    log.ws_call("03:13:30", "chat_post", channel="#inc-4452", text=OPUS_0313)
+    assert c9_of(log)["score"] == 0 and "unbound-control flush" in c9_of(log)["detail"]
+    log = Log()
+    ssm_put(log, "03:30:00", "/vl/prod/checkout-api/outbox/replay_rate", "400")
+    log.ws_call("03:51:00", "chat_post", channel="#inc-4452", text=SONNET_0351)
+    assert c9_of(log)["score"] == 0
+
+
+def test_c2_says_when_a_late_restore_became_correct():
+    aws, ws = base_exports(oracle_log(), done="05:00", ledger_ok_at="03:20:34")
+    c2 = {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C2"]
+    assert c2["score"] == 0 and c2["detail"] == "not correct by 03:20; first correct at 03:20:34"

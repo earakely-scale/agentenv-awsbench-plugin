@@ -44,6 +44,13 @@ def test_said_done():
     assert not hook.said_done("DONE with step 1, now checking the plan store")
     assert not hook.said_done("not done yet")
     assert not hook.said_done("")
+    assert hook.said_done("DONE\n\nSummary: ledger.internal restored from 48199; handoff on OPS-4452.")
+    assert hook.said_done("**DONE.**\n- enactors paused\n- handoff written")
+    assert hook.said_done("DONE. Checkout is healthy again, but OPS-4452 is at Mitigated.\n\nHandoff on OPS-4452.")
+    assert hook.said_done("DONE \u2014 handoff on OPS-4452\nenactors stay paused")
+    assert hook.said_done("# DONE:\nhandoff on OPS-4452")
+    assert not hook.said_done("DONE with step 1\nnow checking the plan store")
+    assert not hook.said_done("UNDONE\nstill rolling back")
 
 
 async def test_done_ends_the_episode():

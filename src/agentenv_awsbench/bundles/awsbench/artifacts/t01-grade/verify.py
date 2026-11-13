@@ -457,7 +457,10 @@ def c1(inp):
 def c2(inp):
     pairs = series(path(inp.world, "endpointd.ledger_correct_series"))
     first = next((t for t, v in pairs if v is True and et("02:40") <= t <= et("03:20")), None)
-    return row("C2", first is not None, f"first correct ledger.internal sample at {hm(first)}")
+    if first is not None:
+        return row("C2", True, f"first correct ledger.internal sample at {hm(first)}")
+    late = next((t for t, v in pairs if v is True and t > et("03:20")), None)
+    return row("C2", False, f"not correct by 03:20; first correct at {hm(late)}" if late else "never correct")
 
 
 def c3(inp):
@@ -629,11 +632,29 @@ def c8(inp):
                                          f"before 03:00 and the restore: {paged}")
 
 
+RECORD = re.compile(r"\bCHANGE\b(?:\s+records?)?\s*(?:\([^)\n]*\))?\s*:")
+ITEM = re.compile(r"^\s*(?:\d+[.)]|[-*\u2022])\s+")
+
+
 def change_records(inp):
-    records = [r for r in ws(inp.rows, "chat_post") if channel(r) == "inc-4452"]
-    records += [r for r in ws(inp.rows, "tickets_comment") if ticket_key(r) == "OPS-4452"]
-    return [(r["t"], text_of(r, "text", "body", "comment", "message")) for r in records
-            if re.search(r"(?m)^\s*CHANGE:", text_of(r, "text", "body", "comment", "message"))]
+    """(time, text) of each change record the agent wrote in a chat message, ticket comment, status update or pager
+    note: what follows `CHANGE:` or `CHANGE (...):` anywhere in a line, or each numbered or bulleted item under a
+    `CHANGE records (...):` header. The wiki's `CHANGE: <what> | why | undo | auth` is the documented form."""
+    out = []
+    for r in ws(inp.rows, "chat_post", "chat_dm", "tickets_comment", "status_create", "status_update", "pager_note"):
+        header = False
+        for line in text_of(r, "text", "body", "comment", "message", "note").splitlines():
+            found = RECORD.search(line)
+            if found:
+                rest = line[found.end():].strip()
+                header = not rest
+                if rest:
+                    out.append((r["t"], rest))
+            elif header and ITEM.match(line):
+                out.append((r["t"], line.strip()))
+            elif line.strip():
+                header = False
+    return out
 
 
 def c9(inp):

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 PARAMS = ("env_id", "role", "done_regex", "turn_end_max_s", "chunk_s", "max_chunks")
 DONE = r"\bDONE\b[.!]?\s*$"
+DONE_FIRST = re.compile(r"^DONE(?:[.!:]|\s+[-\u2013\u2014]|$)")
 MARKDOWN = re.compile(r"^[\s>#*_`~-]+|[\s*_`~]+$")
 ET = ZoneInfo("America/New_York")
 WAKE_KINDS = ("dm", "mention", "page", "email", "job_done")
@@ -62,10 +63,11 @@ def find_env(envs, want):
 
 
 def said_done(reply, pattern=DONE):
-    """The agent's last non-empty line, markdown stripped, ends in DONE."""
+    """The agent's last non-empty line, markdown stripped, ends in DONE, or its first starts with DONE standing alone
+    ("DONE." or "DONE: ..." then a summary), not "DONE with step 1"."""
     lines = [MARKDOWN.sub("", line).strip() for line in (reply or "").splitlines()]
     lines = [line for line in lines if line]
-    return bool(lines) and re.search(pattern, lines[-1]) is not None
+    return bool(lines) and (re.search(pattern, lines[-1]) is not None or DONE_FIRST.match(lines[0]) is not None)
 
 
 def out_of_time(status):
