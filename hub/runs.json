@@ -1,0 +1,13 @@
+{
+  "about": "Labels for the run folders tools/build_hub_data.py exports. dev: a development run on an older build whose env bugs are fixed since; a folder not listed here is exported as a current run.",
+  "runs": {
+    "R1-sonnet": {"dev": true, "note": "Development run on build e712bd7, before NPC and grader fixes."},
+    "R2-sonnet": {"dev": true, "note": "Development run on build e712bd7, before NPC and grader fixes."},
+    "R3-sonnet": {"dev": true, "note": "Development run on build 4aa8a25, before later grader and world fixes."},
+    "R3-opus": {"dev": true, "note": "Development run on build 4aa8a25, before later grader and world fixes."},
+    "R4-sonnet": {"dev": true, "note": "Development run on build 4f1813f, before later grader and world fixes."},
+    "R4-opus": {"dev": true, "note": "Development run on build 4f1813f, before later grader and world fixes."},
+    "R5-sonnet": {"dev": false, "note": "Latest measured build at publication (8b0f533); the final runs will replace it."},
+    "R5-opus": {"dev": false, "note": "Latest measured build at publication (8b0f533); the final runs will replace it."}
+  }
+}

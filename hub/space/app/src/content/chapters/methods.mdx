@@ -1,0 +1,30 @@
+## Methods and caveats
+
+**How the runs were made.** Each run deploys the AwsBench bundle with AgentEnv, arms the gateway clock at 02:40 ET,
+and prompts the solver once with the page; a post-turn hook lets up to ten minutes pass between turns and wakes the
+agent with what arrived. The solver is Claude Code driving Claude Opus 5.5 or Claude Sonnet 5.5 through a model
+endpoint, with its built-in tools off: it acts only through the `aws` and `workspace` MCP tools. Budget: 250 tool
+calls and the 02:40–05:10 window; the world is fast-forwarded to the 05:10 horizon and graded there. The C11 handoff
+judge is an LLM given a fixed fact list.
+
+**What the viewers read.** `tools/export_run.py` turns each run folder into the viewers' JSON: the agent's calls from
+the `aws` server's meter and action log, with arguments and results from the agent's session; the world's series
+(checkout, ledger-writer load and capacity, webhook backlog, per-host DNS recovery, the ledger record's state, the
+dispatcher's concurrency, endpointd's kill switches); colleagues, pages and emails from the timeline and the workspace
+records; and the grader's rows. Which checks a call "bears on" is a heuristic over its tool and arguments, not the
+grader's attribution. Everything is scrubbed (keys, internal hosts, local paths and endpoints, foreign IPs, account ids
+other than the emulator's) and checked before publishing.
+
+**The reference.** The scripted oracle path from the repository's end-to-end driver, replayed by
+`tools/build_hub_data.py` through the world package in process with the unit tests' in-memory AWS and workspace fakes:
+the same physics, timeline and colleagues, timed by the same meter. On a deployed env the same path grades D12 1.0.
+
+**Caveats.**
+
+- **Development runs.** Runs on older builds met env and grader bugs that the runs themselves found; they are kept for
+  what they show, and the final runs will replace them.
+- **One run each.** A single run per model and build is an example, not a rate.
+- **Calibration is open.** T01 is meant to sit well below a frontier pass rate of one in two; both models pass it on
+  the latest build, and the levers (the cost of shedding late, the approval process, colleague pressure) are being
+  tuned.
+- **The judge is noisy.** C11 decides about six points.

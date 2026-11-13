@@ -1,0 +1,25 @@
+## An outage with a clock
+
+Most agent benchmarks for cloud operations either mock the cloud's API or grade the agent's transcript. Incident
+response is neither. An on-call engineer works a real API against a system that keeps moving: caches expire on their
+own schedule, a fix applied at the wrong moment brings down the next service, colleagues ask for the wrong rollback, and
+the page that matters arrives while you are typing. What counts is the state of the system an hour later.
+
+**AwsIncidentsBench** turns that job into environments for the [AgentEnv Framework](https://www.agentenvframework.com)
+[@agentenv], on AWS's open-source AWS Emulator [@awsemulator]:
+
+- **The real AWS API.** The emulator answers Route 53, DynamoDB, SSM, SQS, ECS, CloudWatch and CloudTrail calls; the
+  agent drives them with the AWS CLI, not a description of it.
+- **Time that each call costs.** The clock is frozen between actions. A point read costs 20 s of virtual time, a write
+  45 s, a broad query 75 s; `wait` lets time pass on purpose. Every tool result carries the time and the calls left.
+- **A world around the API.** Traffic, a fleet of hosts with DNS negative caches, an internal DNS automation with its own
+  race, a ledger service that collapses under a reconnect herd, and colleagues and customers who post, page and email on
+  a timeline, some of them answering what the agent says.
+- **Graded at a horizon.** When the agent says DONE, the world is fast-forwarded to a fixed horizon and the end state of
+  both servers, and the time series the world recorded, are graded. The agent's reasoning is never read.
+
+None of it needs a change to AgentEnv: everything runs on its existing steps, gateway clock and protocol SDK. This page
+is the public face of AwsBench, the plugin that builds it. Its first task is T01, "The Empty Ledger Endpoint"; every
+result below is read from recorded runs, and both viewers on this page run on those runs' own exports.
+
+AwsIncidentsBench is not affiliated with or endorsed by Amazon Web Services.

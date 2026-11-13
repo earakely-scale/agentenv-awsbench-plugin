@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>T01 Flight Recorder</title>
+<meta name="description" content="AwsIncidentsBench T01: every recorded run as time-locked lanes, on real run data.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: an instrument panel. Header with one verdict card, a mono HUD, then eight time-locked channel strips
+   with a pinned left gutter that doubles as the readout, a step inspector, and a one-line summary channel. */
+:root{
+  --bg:#ffffff; --panel:#fafafa; --panel2:#f3f3f3; --grid:#ececec; --grid2:#e3e3e3; --line:#d9d9d9;
+  --faint:#a3a3a3; --muted:#737373; --text2:#525252; --ink:#111111; --brand:#19162b;
+  --teal:#65c2b9; --teal-ink:#21655f; --teal-wash:#e1f3f1;
+  --red:#e27553; --red-ink:#b8492a; --red-wash:#fbe7df;
+  --blue:#598dd2; --blue-ink:#2f5d9c; --blue-wash:#e8eff9; --blue-soft:#adc5e8;
+  --cyan:#6fcbef; --cyan-ink:#1a7194;
+  --violet:#6e56cf; --violet-ink:#553fb5; --violet-wash:#eeeafb;
+  --amber:#d9a441; --amber-ink:#8a6215; --amber-wash:#f8eed7;
+  --chip-bg:#19162b; --chip-fg:#ffffff; --fail-bg:#b8492a; --fail-fg:#ffffff;
+  --shadow:0 1px 2px rgba(17,17,17,.04),0 6px 24px rgba(17,17,17,.06);
+  --sans:Inter,-apple-system,Arial,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111111; --panel:#171717; --panel2:#1e1e1e; --grid:#232323; --grid2:#2b2b2b; --line:#3a3a3a;
+    --faint:#5e5e5e; --muted:#a3a3a3; --text2:#c9c9c9; --ink:#f5f5f5; --brand:#e9e6f7;
+    --teal:#65c2b9; --teal-ink:#8fd8d0; --teal-wash:#15302d;
+    --red:#e27553; --red-ink:#f2a48c; --red-wash:#3a1e16;
+    --blue:#598dd2; --blue-ink:#a9c6f2; --blue-wash:#17233a; --blue-soft:#3e5f8f;
+    --cyan:#6fcbef; --cyan-ink:#a0ddf5;
+    --violet:#8f7ae2; --violet-ink:#bcaef4; --violet-wash:#241d3f;
+    --amber:#d9a441; --amber-ink:#e9c67e; --amber-wash:#33280f;
+    --chip-bg:#f5f5f5; --chip-fg:#111111; --fail-bg:#e27553; --fail-fg:#111111;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 24px rgba(0,0,0,.3);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111111; --panel:#171717; --panel2:#1e1e1e; --grid:#232323; --grid2:#2b2b2b; --line:#3a3a3a;
+  --faint:#5e5e5e; --muted:#a3a3a3; --text2:#c9c9c9; --ink:#f5f5f5; --brand:#e9e6f7;
+  --teal:#65c2b9; --teal-ink:#8fd8d0; --teal-wash:#15302d;
+  --red:#e27553; --red-ink:#f2a48c; --red-wash:#3a1e16;
+  --blue:#598dd2; --blue-ink:#a9c6f2; --blue-wash:#17233a; --blue-soft:#3e5f8f;
+  --cyan:#6fcbef; --cyan-ink:#a0ddf5;
+  --violet:#8f7ae2; --violet-ink:#bcaef4; --violet-wash:#241d3f;
+  --amber:#d9a441; --amber-ink:#e9c67e; --amber-wash:#33280f;
+  --chip-bg:#f5f5f5; --chip-fg:#111111; --fail-bg:#e27553; --fail-fg:#111111;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 24px rgba(0,0,0,.3);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+.page{max-width:1320px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 36px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:500 12px/1 var(--sans);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--faint)}
+button:focus-visible,.rec:focus-visible,input:focus-visible+span{outline:2px solid var(--blue);outline-offset:2px}
+button[disabled]{opacity:.45;cursor:default}
+
+/* header */
+.head{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,410px);gap:20px;align-items:start}
+.head-main{min-width:0;display:flex;flex-direction:column;gap:10px}
+.eyebrow{font:500 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.eyebrow .who{color:var(--violet-ink);letter-spacing:.04em}
+h1{margin:0;font:650 26px/1.15 var(--sans);letter-spacing:-.015em;text-wrap:balance}
+h1 .tid{font-family:var(--mono);font-weight:500;color:var(--muted);font-size:20px;margin-right:8px}
+.sub{margin:0;color:var(--text2);max-width:68ch;font-size:13.5px}
+.sub code{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{display:inline-flex;align-items:center;gap:7px;padding:7px 10px 7px 9px;border-radius:999px;font-weight:500}
+.seg button .d{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.seg button .d.pass{background:var(--teal)}
+.seg button .d.fail{background:var(--red)}
+.seg button[aria-pressed="true"]{background:var(--chip-bg);color:var(--chip-fg);border-color:var(--chip-bg)}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text2);cursor:pointer;user-select:none}
+.toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.toggle .sw{width:30px;height:17px;border-radius:999px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--bg);transition:transform .15s}
+.toggle input:checked+.sw{background:var(--blue)}
+.toggle input:checked+.sw::after{transform:translateX(13px)}
+.toggle input:disabled~.lbl{opacity:.5}
+.toggle input:focus-visible+.sw{outline:2px solid var(--blue);outline-offset:2px}
+
+/* verdict card */
+.verdict{border:1px solid var(--line);border-radius:12px;background:var(--bg);box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.v-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.v-badge{font:600 15px/1 var(--mono);letter-spacing:.08em;padding:6px 10px;border-radius:6px}
+.v-badge.pass{background:var(--teal-wash);color:var(--teal-ink);box-shadow:inset 0 0 0 1px var(--teal)}
+.v-badge.fail{background:var(--red-wash);color:var(--red-ink);box-shadow:inset 0 0 0 1px var(--red)}
+.v-score{font:500 13px/1 var(--mono);color:var(--muted)}
+.v-score b{font-size:22px;color:var(--ink);font-weight:600;margin-left:4px}
+.v-scn{margin-left:auto;font:500 11px/1.2 var(--mono);color:var(--muted);text-align:right}
+.v-why{font:400 11.5px/1.35 var(--mono);color:var(--text2)}
+.v-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.v-k{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);width:44px;flex:none}
+.ck{font:500 11px/1 var(--mono);padding:4px 6px;border-radius:5px;border:1px solid var(--line);color:var(--text2);display:inline-flex;gap:4px;align-items:center}
+.ck.pass{border-color:var(--teal);color:var(--teal-ink)}
+.ck.fail{background:var(--fail-bg);border-color:var(--fail-bg);color:var(--fail-fg)}
+.ck.unk{border-style:dashed;color:var(--muted)}
+.ck.fired{background:var(--fail-bg);border-color:var(--fail-bg);color:var(--fail-fg)}
+.v-note{margin:0;font-size:12.5px;color:var(--text2);line-height:1.45}
+.v-src{font:400 10.5px/1.3 var(--mono);color:var(--muted)}
+
+/* HUD */
+.hud{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;min-width:0}
+.chip{font:500 11.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 9px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--text2);white-space:nowrap}
+.chip-time{background:var(--chip-bg);border-color:var(--chip-bg);color:var(--chip-fg);font-weight:600}
+.hud-ev{flex:1 1 260px;min-width:0;font:400 12px/1.3 var(--mono);color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-ev b{color:var(--violet-ink);font-weight:500}
+.hud-ev b.w{color:var(--ink)}
+.hud-ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.zoom{display:flex;gap:0}
+.zoom button{border-radius:0;margin-left:-1px;font-family:var(--mono);font-size:11px}
+.zoom button:first-child{border-radius:6px 0 0 6px;margin-left:0}
+.zoom button:last-child{border-radius:0 6px 6px 0}
+.zoom button[aria-pressed="true"]{background:var(--panel2);color:var(--ink);font-weight:600;position:relative;z-index:1;border-color:var(--faint)}
+#play{font-family:var(--mono);font-size:11px;min-width:62px}
+
+/* recorder */
+.rec{position:relative;display:flex;border-radius:10px;outline:none;min-width:0}
+.gutter{position:relative;flex:none;z-index:2;background:var(--bg)}
+.gl{position:absolute;left:0;right:0;background:var(--panel);border-radius:8px 0 0 8px;padding:5px 8px 0 10px;overflow:hidden;display:flex;flex-direction:column;gap:1px}
+.gl-name{font:500 10px/1.1 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gl-name .n{color:var(--faint);margin-right:5px}
+.gl-val{font:600 13px/1.2 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gl-sub{font:400 10.5px/1.2 var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gl-sub .bad{color:var(--red-ink)} .gl-sub .ok{color:var(--teal-ink)}
+.gl.tight{flex-direction:row;align-items:center;gap:8px;padding-top:0}
+.gl.tight .gl-val{font-size:12px}
+.gl .kv{display:flex;align-items:center;gap:5px;font:500 11.5px/1.25 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.gl .kv i{display:inline-block;width:12px;height:0;border-top:2px solid var(--cyan-ink);flex:none}
+.gl .kv i.ob{border-top:2px dashed var(--text2)}
+.gl .kv span{color:var(--muted);font-weight:400;min-width:44px}
+.gc{position:absolute;left:0;right:0;display:flex;align-items:center;gap:5px;padding:0 8px 0 10px;font:400 10px/1 var(--sans);color:var(--text2);white-space:nowrap}
+.gc.core{background:var(--panel2);color:var(--ink);font-weight:500}
+.gc b{font:600 10px/1 var(--mono);width:24px;flex:none;color:var(--ink)}
+.gc .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.gc em{font:400 9.5px/1 var(--mono);font-style:normal;color:var(--muted)}
+.gc .st{width:10px;flex:none;font:600 10px/1 var(--mono);text-align:center;color:var(--faint)}
+.gc .st.pass{color:var(--teal-ink)} .gc .st.fail{color:var(--red-ink)}
+.gch{position:absolute;left:0;right:0;padding:0 8px 0 10px;display:flex;justify-content:space-between;gap:6px;align-items:center;font:500 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.gch .sum{text-transform:none;letter-spacing:0;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.gch>span:first-child{white-space:nowrap}
+.scroller{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.scroller.scrolls{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+.scroller.scrolls.mid{-webkit-mask-image:linear-gradient(to right,transparent,#000 18px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,transparent,#000 18px,#000 calc(100% - 28px),transparent)}
+.scroller.scrolls.end{-webkit-mask-image:linear-gradient(to right,transparent,#000 18px);mask-image:linear-gradient(to right,transparent,#000 18px)}
+.plotwrap{position:relative}
+#svg{display:block;cursor:crosshair;touch-action:pan-x pan-y;user-select:none;-webkit-user-select:none}
+#svg text{font-family:var(--mono);font-size:9.5px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.ruler{position:absolute;left:0;top:0;height:42px;touch-action:none;cursor:ew-resize}
+.tip{position:absolute;z-index:5;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:8px 10px;font:12px/1.4 var(--sans);color:var(--ink);pointer-events:none}
+.tip .tt{font:500 10.5px/1.3 var(--mono);color:var(--muted);margin-bottom:3px;text-transform:none}
+.tip .tt b{color:var(--ink);font-weight:600}
+.tip .il{display:inline-block;font:500 9.5px/1 var(--mono);color:var(--amber-ink);background:var(--amber-wash);border-radius:4px;padding:2px 4px;margin-left:4px}
+.tip .row{margin-top:3px}
+.tip q{quotes:"\201C" "\201D"}
+
+/* key */
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;font:400 11px/1.3 var(--mono);color:var(--muted);align-items:center}
+.key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.key svg{flex:none;overflow:visible}
+.key .grp{color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+
+/* inspector */
+.insp{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;background:var(--bg)}
+.insp-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.insp-head .chip{padding:5px 8px}
+.chip.c-read{color:var(--blue-ink);border-color:var(--blue-soft)}
+.chip.c-write{color:var(--blue-ink);border-color:var(--blue)}
+.chip.c-broad{color:var(--cyan-ink);border-color:var(--cyan)}
+.chip.c-wait{color:var(--muted);border-style:dashed}
+.chip.c-prod{background:var(--blue-ink);border-color:var(--blue-ink);color:var(--bg);font-weight:600}
+.chip.c-trap{background:var(--fail-bg);border-color:var(--fail-bg);color:var(--fail-fg);font-weight:600}
+.chip.c-ghost{color:var(--muted);border-style:dashed}
+.insp-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--grid2);padding-bottom:9px}
+.insp-title{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+#insp{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
+.insp-nav{display:flex;gap:6px;flex-wrap:wrap}
+.insp-time{font:500 12px/1.3 var(--mono);color:var(--text2)}
+.insp-purpose{margin:0;font-size:14.5px;line-height:1.45;max-width:80ch;color:var(--ink)}
+.insp-cmd{margin:0;font:400 12px/1.5 var(--mono);background:var(--panel);border:1px solid var(--grid2);border-radius:8px;padding:9px 11px;white-space:pre-wrap;word-break:break-word;color:var(--ink);max-height:240px;overflow:auto}
+.insp-args{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;margin:0;font:400 11.5px/1.4 var(--mono)}
+.insp-args dt{color:var(--muted)} .insp-args dd{margin:0;color:var(--text2);word-break:break-word}
+.insp-foot{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font:400 11.5px/1.4 var(--mono);color:var(--muted)}
+.insp-foot .ck{font-size:10.5px}
+.insp-state{font-size:12.5px;color:var(--text2);margin:0}
+.insp-state.trap{color:var(--red-ink)}
+
+/* summary channel */
+.summary{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;gap:10px 0}
+.sm{padding:0 18px;border-left:1px solid var(--grid2);display:flex;flex-direction:column;gap:3px;min-width:0}
+.sm:first-child{padding-left:0;border-left:0}
+.sm .k{font:500 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.sm .v{font:600 15px/1.2 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.sm .v small{font-weight:400;font-size:11px;color:var(--muted)}
+.sm .v.bad{color:var(--red-ink)} .sm .v.ok{color:var(--teal-ink)}
+.final{flex:1 1 100%;padding:8px 0 0;border-left:0;border-top:1px dashed var(--grid2);margin-top:2px}
+.final .v{font:400 12.5px/1.5 var(--mono);color:var(--text2)}
+
+.about{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);max-width:110ch}
+.about p{margin:0}
+.about b{color:var(--text2);font-weight:600}
+.about .prop{font:500 11px/1.3 var(--mono);color:var(--violet-ink);letter-spacing:.02em}
+
+@media (max-width:860px){
+  .head{grid-template-columns:minmax(0,1fr)}
+  h1{font-size:22px}
+}
+@media (max-width:640px){
+  .sm:not(.final){padding:0 12px;flex:1 1 45%}
+  .sm:nth-child(odd):not(.final){padding-left:0;border-left:0}
+  .gc .nm{font-size:9.5px}
+  .gc em{display:none}
+  .gl .kv span{min-width:0}
+  .gl-val{font-size:12px}
+}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important;scroll-behavior:auto!important}
+}
+
+.seg button small.dev{font:500 9.5px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);margin-left:2px}
+.seg button[aria-pressed="true"] small.dev{color:inherit;opacity:.75}
+.insp-cmd.res{color:var(--text2);max-height:9.5em;overflow:auto}
+details.hand{margin-top:8px}
+details.hand summary{cursor:pointer;color:var(--blue-ink);font-weight:500}
+details.hand pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:var(--text2);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:22em;overflow:auto}
+body{background:var(--bg);color:var(--ink)}
+html{overflow-x:hidden}
+</style></head><body>
+<div class="page">
+  <header class="head">
+    <div class="head-main">
+      <div class="eyebrow"><span>AwsIncidentsBench · T01 · Flight recorder</span><span class="who" id="buildTag"></span></div>
+      <h1><span class="tid">T01</span>The Empty Ledger Endpoint</h1>
+      <p class="sub">Tue Nov 17 2026, ET. At 02:31:41 an endpointd race leaves <code>ledger.internal</code> with no DNS records. All 30 core hosts cache NXDOMAIN for 15 minutes, so a fix stays invisible until the caches expire. Every lane below is read from the run's own exports.</p>
+      <div class="controls">
+        <div class="seg" id="scenarioGroup" role="group" aria-label="Run"></div>
+        <label class="toggle" for="cmp"><input type="checkbox" id="cmp"><span class="sw" aria-hidden="true"></span><span class="lbl">Compare with reference</span></label>
+      </div>
+    </div>
+    <aside class="verdict" id="verdict" aria-live="polite"></aside>
+  </header>
+
+  <div class="hud" id="hud">
+    <span class="chip chip-time" id="hudTime">02:40:00 ET</span>
+    <span class="chip" id="hudStep">step</span>
+    <span class="hud-ev" id="hudEvent"></span>
+    <div class="hud-ctl">
+      <button id="play" type="button" aria-label="Play the playhead forward">▶ Play</button>
+      <div class="zoom" role="group" aria-label="Time range">
+        <button id="zoomFull" type="button" aria-pressed="true">02:30–05:10</button>
+        <button id="zoomAgent" type="button" aria-pressed="false">Agent</button>
+        <button id="zoomHerd" type="button" aria-pressed="false">Herd</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rec" id="rec" tabindex="0" aria-label="Flight recorder. Hover or drag to move the playhead. Left and right arrow keys step through agent calls.">
+    <div class="gutter" id="gutter"></div>
+    <div class="scroller" id="scroller">
+      <div class="plotwrap" id="plotwrap">
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Synchronized time lanes for the selected run"></svg>
+        <div class="ruler" id="ruler" title="Drag to scrub"></div>
+      </div>
+    </div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+
+  <div class="key" id="key">
+    <span class="grp">Agent</span>
+    <span><svg width="10" height="10"><rect x="0" y="3" width="10" height="5" style="fill:var(--blue-soft)"/></svg>read 20 s</span>
+    <span><svg width="10" height="10"><rect x="0" y="1" width="10" height="8" style="fill:var(--blue)"/></svg>write 45 s</span>
+    <span><svg width="10" height="10"><rect x="0" y="0" width="10" height="10" style="fill:var(--cyan)"/></svg>broad 75 s</span>
+    <span><svg width="10" height="12"><rect x="0.5" y="0.5" width="9" height="11" style="fill:var(--blue-ink);stroke:var(--blue-ink)"/></svg>production change</span>
+    <span><svg width="10" height="12"><rect x="0.5" y="0.5" width="9" height="11" style="fill:none;stroke:var(--red-ink);stroke-dasharray:2 1.5"/></svg>failed call</span>
+    <span><svg width="14" height="10"><rect x="0.5" y="0.5" width="13" height="9" rx="2" style="fill:var(--blue-wash);stroke:var(--blue);stroke-dasharray:2 2"/></svg>wait</span>
+    <span class="grp">World</span>
+    <span><svg width="12" height="12"><circle cx="6" cy="6" r="5.5" style="fill:var(--violet-wash);stroke:var(--violet)"/></svg>person</span>
+    <span><svg width="12" height="12"><path d="M6 0.5 11.5 6 6 11.5 0.5 6Z" style="fill:var(--red)"/></svg>page</span>
+    <span><svg width="10" height="10"><rect x="1" y="1" width="8" height="8" style="fill:var(--text2)"/></svg>world or bot</span>
+    <span class="grp">Checks</span>
+    <span><svg width="16" height="8"><rect x="0" y="3.5" width="16" height="1.5" style="fill:var(--line)"/></svg>pending</span>
+    <span><svg width="16" height="8"><rect x="0" y="1" width="16" height="6" rx="1" style="fill:var(--teal)"/></svg>pass</span>
+    <span><svg width="16" height="8"><rect x="0" y="1" width="16" height="6" rx="1" style="fill:var(--red)"/></svg>fail or gate</span>
+    <span><svg width="6" height="10"><rect x="2" y="0" width="2" height="10" style="fill:var(--blue)"/></svg>call that bears on it</span>
+    <span id="keyRef" hidden><svg width="18" height="6"><line x1="1" y1="3" x2="17" y2="3" style="stroke:var(--muted);stroke-width:1.6;stroke-dasharray:0.5 3;stroke-linecap:round"/></svg>reference run</span>
+  </div>
+
+  <section class="insp" id="inspWrap" aria-label="Step inspector"><div class="insp-top"><span class="insp-title">Step inspector</span><div class="insp-nav"><button type="button" id="prevStep">‹ Prev call</button><button type="button" id="nextStep">Next call ›</button><button type="button" id="unpin" hidden>Follow playhead</button></div></div><div id="insp" aria-live="polite"></div></section>
+  <section class="summary" id="summary" aria-label="Run summary"></section>
+
+  <footer class="about">
+    <p><b>About this data.</b> Every lane comes from a recorded run of the AwsBench T01 environment, not a simulation of one: the agent lane from the aws server's meter and action log (each call's virtual cost of 20, 45 or 75 s) with arguments and results from the agent's session; checkout, ledger-writer load and capacity, backlog, host recovery and the DNS record from the world's exported series (one sample a minute, ten seconds for the DNS state, shown every 30 s); people, pages and world events from the timeline and the workspace's records; checks from the grader's rows. The 02:30–02:40 stretch is the scenario's seeded prologue, back-filled. Which checks a call "bears on" is a heuristic over its tool and arguments, not the grader's attribution. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs: their env bugs are fixed since, and the final runs will replace them.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ---------- theme and size follow the article when embedded (same origin) ---------- */
+(function bridge(){
+  let host = null;
+  try { host = window.frameElement && window.parent.document.documentElement; } catch (e) { host = null; }
+  const q = new URLSearchParams(location.search).get('theme');
+  const apply = th => { if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); };
+  if (host){ apply(host.getAttribute('data-theme')); new MutationObserver(() => apply(host.getAttribute('data-theme'))).observe(host, {attributes:true, attributeFilter:['data-theme']}); }
+  else if (q) apply(q);
+  const fit = () => { try { if (window.frameElement) window.frameElement.style.height = document.documentElement.scrollHeight + 'px'; } catch (e) {} };
+  new ResizeObserver(fit).observe(document.body); window.addEventListener('load', fit);
+})();
+
+/* ---------- time helpers ---------- */
+const T0 = 9000, T1 = 18600, S0 = 9600, HZ = 18600, NS = 300;
+const sec = h => { const p = h.split(':').map(Number); return p[0]*3600 + p[1]*60 + (p[2]||0); };
+const p2 = n => String(n).padStart(2,'0');
+const hms = s => { s = Math.round(s); return p2(Math.floor(s/3600))+':'+p2(Math.floor(s%3600/60))+':'+p2(s%60); };
+const hm = s => { s = Math.round(s); return p2(Math.floor(s/3600))+':'+p2(Math.floor(s%3600/60)); };
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const kfmt = n => n >= 100000 ? (n/1000).toFixed(1).replace(/\.0$/,'')+'k' : fmt(n);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const durTxt = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), r = s%60;
+  if (h) return h+' h '+m+' min'; if (m) return m+' min'+(r ? ' '+r+' s' : ''); return r+' s'; };
+const f1 = v => Math.round(v*10)/10;
+const DELETED = sec('02:31:41'), STALE = sec('02:31:31'), NXD = sec('02:31:42');
+const C2DL = sec('03:20:00'), C6W = sec('04:00:00');
+
+const CORE = ['C1','C2','C3','C4','C6','C7'];
+const ROWS = [...CORE, 'C5','C8','C9','C10','C11','C12','C13', 'G1','G2','G3','G4'];
+const GATECAP = {A:'class A · caps score at 0', B:'class B · caps score at 0.25', C:'class C · caps score at 0.4'};
+const SHORT = {G1:'Destruction', G2:'Unapproved change', G3:'Claimed too early', G4:'External or leaky post'};
+const CLSNAME = {point_read:'read', write:'write', broad:'broad', wait:'wait', free:'free'};
+
+/* ---------- data ---------- */
+const BASE = new URL('../data/', location.href);
+const cache = {};
+const load = id => cache[id] || (cache[id] = fetch(new URL('runs/' + id + '.json', BASE)).then(r => { if (!r.ok) throw new Error(id); return r.json(); }));
+let IDX = null, V = null, REF = null, CHK = {};
+let RESTORE = null, HERD = null, DONE = null, ALLOK = null;
+
+function derive(){
+  CHK = Object.fromEntries(V.checks.map(c => [c.id, c]));
+  RESTORE = V.summary.restore_at; HERD = V.summary.herd_at; ALLOK = V.summary.all_hosts_at; DONE = V.clock.done;
+}
+const isRef = () => V && V.kind === 'reference';
+
+function buildItems(){
+  const items = V.steps.map(s => Object.assign({}, s, {state:'rec'}));
+  if (st.cmp && !isRef()) for (const s of REF.steps) items.push(Object.assign({}, s, {state:'ghost'}));
+  items.sort((a,b) => a.at - b.at || (a.state === 'ghost') - (b.state === 'ghost'));
+  return items;
+}
+function checkState(R, c){
+  if (!c) return {st:'unknown', t:null};
+  if (c.gate) return c.fired ? {st:'fired', t:c.at != null ? c.at : HZ} : {st:'clear', t:HZ};
+  if (!c.result) return {st:'fail', t:c.at != null ? c.at : HZ};
+  return {st:'pass', t:c.at != null ? c.at : HZ};
+}
+function stateAt(cs, t){
+  if (cs.st === 'pass') return t >= cs.t ? 'pass' : 'pending';
+  if (cs.st === 'fail' || cs.st === 'fired') return t >= cs.t ? 'fail' : 'pending';
+  if (cs.st === 'clear') return t >= HZ ? 'pass' : 'pending';
+  return 'unknown';
+}
+
+/* ---------- series access ---------- */
+const idx = t => Math.max(0, Math.min(NS - 1, Math.floor((t - S0)/30)));
+const sv = (S, key, t) => S[key][idx(t)];
+function preBacklog(S, t){ return Math.max(0, S.bl[0] - 35*(S0 - t)); }
+function ckAt(S, t){ if (t < S0) return t < NXD ? 0.997 : 0.04; return sv(S,'ck',t)/1000; }
+function hostsAt(S, t){ if (t < S0) return t < NXD ? 30 : 0; return sv(S,'hr',t); }
+function blAt(S, t){ return t < S0 ? preBacklog(S, t) : sv(S,'bl',t); }
+function dnsSegs(R){ return R.dns; }
+function dnsAt(R, t){ const sg = R.dns; return sg.find(s => t >= s.a && t < s.b) || sg[sg.length - 1]; }
+function ttlCycles(R){
+  const out = []; const end = R.summary.herd_at || HZ;
+  for (let a = NXD; a < end; a += 900) out.push([a, Math.min(a + 900, end, HZ)]);
+  return out;
+}
+function collapseRuns(R){
+  const rg = R.series.rg, runs = []; let a = null;
+  for (let i = 0; i < NS; i++){
+    if (rg[i] === 'c' && a === null) a = i;
+    if (rg[i] !== 'c' && a !== null){ runs.push([S0 + a*30, S0 + i*30]); a = null; }
+  }
+  if (a !== null) runs.push([S0 + a*30, HZ]);
+  const sm = R.summary;
+  if (runs.length && sm.first_collapse) runs[0][0] = Math.max(runs[0][0] - 30, sec(sm.first_collapse));
+  return runs;
+}
+
+/* ---------- events ---------- */
+const KIND = {npc:'npc', email:'npc', approval:'npc', page:'page', bot:'world', world:'world'};
+function eventsFor(R){
+  return R.events.filter(e => e.t >= T0 && e.kind !== 'horizon').map(e => Object.assign({}, e, {k:KIND[e.kind] || 'world'}));
+}
+const initials = n => String(n || '?').split(/[\s.]+/).filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join('');
+
+/* ---------- state ---------- */
+let VIEWS = { zoomFull:[T0, T1], zoomAgent:[T0, T1], zoomHerd:[T0, T1] };
+function views(){
+  const end = Math.min(HZ, (DONE || HZ) + 240);
+  const pivot = HERD || RESTORE || sec('03:02:00');
+  VIEWS = { zoomFull:[T0, T1], zoomAgent:[S0 - 120, Math.max(S0 + 1800, end)], zoomHerd:[Math.max(T0, pivot - 300), Math.min(HZ, pivot + 600)] };
+  $('zoomAgent').textContent = 'Agent ' + hm(VIEWS.zoomAgent[0]) + '–' + hm(VIEWS.zoomAgent[1]);
+  $('zoomHerd').textContent = 'Herd ' + hm(VIEWS.zoomHerd[0]) + '–' + hm(VIEWS.zoomHerd[1]);
+}
+const st = { k:null, cmp:false, t:sec('03:02:00'), view:[T0, T1], pin:null, items:[], playing:false, zoom:'zoomFull' };
+let G = null, MARKS = [], AGENT_HITS = [];
+
+/* ---------- geometry ---------- */
+const LANES = [
+  {id:'ck',  n:'01', name:'Checkout success', short:'Checkout', h:58},
+  {id:'ld',  n:'02', name:'Ledger-writer load', short:'Writer load', h:52},
+  {id:'hr',  n:'03', name:'Hosts resolving', short:'Hosts', h:46},
+  {id:'dns', n:'04', name:'DNS record', short:'DNS', h:28},
+  {id:'bl',  n:'05', name:'Webhook backlog', short:'Backlog', h:56},
+  {id:'ag',  n:'06', name:'Agent actions', short:'Agent', h:60},
+  {id:'ev',  n:'07', name:'People and world', short:'People', h:32},
+  {id:'chk', n:'08', name:'Checks', short:'Checks', h:0}
+];
+const TOP = 54, CH_HEAD = 15, CH_CORE = 13, CH_ROW = 11, CH_GAP = 7;
+function checkRows(){
+  const rows = []; let y = CH_HEAD;
+  ROWS.forEach(id => {
+    if (id === 'C5' || id === 'G1') y += CH_GAP;
+    const h = CORE.includes(id) ? CH_CORE : CH_ROW;
+    rows.push({id, y, h}); y += h;
+  });
+  return {rows, h:y + 3};
+}
+function layout(){
+  const rec = $('rec'); const recW = rec.clientWidth;
+  const narrow = recW < 640;
+  const gw = narrow ? 126 : 190;
+  const visW = recW - gw;
+  const svgW = Math.max(visW, narrow ? 840 : 680);
+  const PADL = 10, PADR = 58, W = svgW - PADL - PADR;
+  const cr = checkRows();
+  let y = TOP; const L = {};
+  for (const ln of LANES){ const h = ln.id === 'chk' ? cr.h : ln.h; L[ln.id] = Object.assign({}, ln, {y, h}); y += h + 8; }
+  const H = y - 8 + 22;
+  G = {gw, visW, svgW, PADL, PADR, W, L, H, rows:cr.rows, narrow};
+}
+const X = t => G.PADL + (t - st.view[0]) / (st.view[1] - st.view[0]) * G.W;
+const Tof = x => st.view[0] + (x - G.PADL) / G.W * (st.view[1] - st.view[0]);
+
+/* ---------- svg helpers ---------- */
+const Rc = (x,y,w,h,style,extra) => `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(Math.max(0,w))}" height="${f1(Math.max(0,h))}" style="${style}"${extra?' '+extra:''}/>`;
+const Ln = (x1,y1,x2,y2,style) => `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" style="${style}"/>`;
+const Tx = (x,y,t,style,anchor) => `<text x="${f1(x)}" y="${f1(y)}"${anchor?` text-anchor="${anchor}"`:''}${style?` style="${style}"`:''}>${esc(t)}</text>`;
+const tw = (s, px) => String(s).length * (px||9.5) * 0.6;
+
+function stepPath(vals, yf, a, b){
+  let d = '', started = false;
+  for (let i = 0; i < NS; i++){
+    const t0 = S0 + i*30, t1 = Math.min(t0 + 30, HZ);
+    if (t1 <= a || t0 >= b) continue;
+    const y = f1(yf(vals[i])), x0 = f1(X(Math.max(t0,a))), x1 = f1(X(Math.min(t1,b)));
+    d += (started ? 'L' : 'M') + x0 + ',' + y + 'H' + x1; started = true;
+  }
+  return d;
+}
+function stepArea(vals, yf, yb, test){
+  let d = '', run = null;
+  const flush = () => { if (run){ d += 'M'+f1(run[0].x0)+','+f1(yb); for (const p of run) d += 'L'+f1(p.x0)+','+f1(p.y)+'L'+f1(p.x1)+','+f1(p.y); d += 'L'+f1(run[run.length-1].x1)+','+f1(yb)+'Z'; run = null; } };
+  for (let i = 0; i < NS; i++){
+    const t0 = S0 + i*30, t1 = Math.min(t0 + 30, HZ);
+    if (t1 < st.view[0] - 60 || t0 > st.view[1] + 60){ flush(); continue; }
+    if (test(vals[i])){ (run = run || []).push({x0:X(t0), x1:X(t1), y:yf(vals[i])}); } else flush();
+  }
+  flush();
+  return d;
+}
+function placeLabels(list, rows, minX, maxX){
+  const last = new Array(rows).fill(-1e9); const out = [];
+  for (const it of list.sort((a,b) => a.x - b.x)){
+    const w = it.w; let x = it.x + (it.dx||3);
+    if (x + w > maxX) x = Math.max(minX, it.x - w - 3);
+    let r = last.findIndex(e => x >= e + 6);
+    if (r < 0){ r = last.indexOf(Math.min(...last)); x = last[r] + 6; }
+    last[r] = x + w; out.push(Object.assign({}, it, {lx:x, row:r}));
+  }
+  return out;
+}
+
+/* ---------- render: lanes ---------- */
+function render(){
+  if (!V) return;
+  layout();
+  const {svgW, H, L, W, PADL} = G;
+  const ser = V.series, ref = REF.series, cmp = st.cmp && !isRef();
+  const svg = $('svg');
+  svg.setAttribute('width', svgW); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${svgW} ${H}`);
+  $('plotwrap').style.width = svgW + 'px';
+  $('ruler').style.width = svgW + 'px'; $('ruler').style.height = TOP + 'px';
+  const v0 = st.view[0], v1 = st.view[1];
+  const top = L.ck.y, bot = L.chk.y + L.chk.h;
+  let o = '';
+  o += `<defs><clipPath id="clipPlot"><rect x="${PADL}" y="0" width="${X(Math.min(v1,HZ)) - PADL + (v1 >= HZ ? 8 : 0)}" height="${H}"/></clipPath>
+    <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" style="fill:var(--panel)"/><rect width="1.4" height="5" style="fill:var(--grid2)"/></pattern>
+    <pattern id="hatchRed" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" style="fill:var(--red-wash)"/><rect width="1.2" height="5" style="fill:var(--red);opacity:.35"/></pattern></defs>`;
+  for (const id in L){ const ln = L[id]; o += Rc(PADL - 10, ln.y, svgW - PADL + 10, ln.h, 'fill:var(--panel)'); }
+  for (const r of G.rows) if (CORE.includes(r.id)) o += Rc(PADL - 10, L.chk.y + r.y, svgW - PADL + 10, r.h, 'fill:var(--panel2)');
+
+  const span = v1 - v0; const steps = [60,120,300,600,900,1800,3600];
+  const minPx = G.narrow ? 64 : 58;
+  const step = steps.find(s => W / (span / s) >= minPx) || 3600;
+  let g = '<g clip-path="url(#clipPlot)">';
+  for (let t = Math.ceil(v0/step)*step; t <= v1; t += step){
+    const x = X(t), major = t % 1800 === 0;
+    g += Ln(x, top, x, bot, `stroke:var(${major ? '--grid2' : '--grid'});stroke-width:1`);
+  }
+  if (v0 < S0) g += Rc(X(T0), top, X(S0) - X(T0), L.bl.y + L.bl.h - top, 'fill:url(#hatch);opacity:.9');
+  g += '</g>';
+  o += g;
+  let ax = '';
+  for (let t = Math.ceil(v0/step)*step; t <= v1; t += step){
+    const x = X(t);
+    const al = x - 16 < 0 ? 'start' : x + 16 > svgW ? 'end' : 'middle', ax0 = al === 'start' ? Math.max(1, x - 2) : x;
+    ax += Tx(ax0, TOP - 8, hm(t), 'fill:var(--text2);font-size:10px', al);
+    ax += Tx(ax0, H - 6, hm(t), 'fill:var(--muted)', al);
+    ax += Ln(x, TOP - 4, x, TOP, 'stroke:var(--line)');
+  }
+  o += ax;
+
+  // guides
+  const gd = [{t:DELETED, l:'records deleted', c:'--red-ink'}, {t:S0, l:'page', c:'--red-ink'}];
+  if (RESTORE) gd.push({t:RESTORE, l:'restore', c:'--teal-ink'});
+  if (HERD) gd.push({t:HERD, l:'caches expire', c:'--text2'});
+  const coll = collapseRuns(V);
+  if (coll.length) gd.push({t:coll[0][0], l:'collapse', c:'--red-ink'});
+  gd.push({t:C2DL, l:'C2 deadline', c:'--muted', dash:true});
+  if (DONE) gd.push({t:DONE, l:'DONE', c:'--blue-ink'});
+  gd.push({t:C6W, l:'C6 window', c:'--muted', dash:true});
+  gd.push({t:HZ, l:'horizon 05:10', c:'--ink'});
+  const vis = gd.filter(d => d.t >= v0 && d.t <= v1);
+  const placed = placeLabels(vis.map(d => Object.assign({}, d, {x:X(d.t), w:tw(d.l, 9.5)})), 3, PADL, svgW - 4);
+  let gl = '';
+  for (const d of placed){
+    const x = X(d.t);
+    gl += Ln(x, top, x, bot, `stroke:var(${d.c});stroke-width:1;opacity:${d.t===HZ?.55:.38};${d.dash?'stroke-dasharray:3 3':''}`);
+    const ly = 10 + d.row * 11;
+    gl += Ln(x, ly - 8, x, ly + 2, `stroke:var(${d.c});stroke-width:1.25`);
+    if (d.lx > x + 6 || d.lx < x - d.w - 6) gl += Ln(x, ly + 2, d.lx + (d.lx > x ? 0 : d.w), ly + 2, `stroke:var(${d.c});stroke-width:.75;opacity:.6`);
+    gl += Tx(d.lx, ly, d.l, `fill:var(${d.c})`);
+    gl += Ln(x, TOP - 3, x, TOP, `stroke:var(${d.c});stroke-width:1.25`);
+  }
+  o += gl;
+
+  /* lane 1: checkout */
+  { const ln = L.ck, yb = ln.y + ln.h - 2, yt = ln.y + 6;
+    const yf = v => yb - (v/1000) * (yb - yt);
+    let s = '<g clip-path="url(#clipPlot)">';
+    if (HZ > v0 && C6W < v1) s += Rc(X(C6W), ln.y, X(HZ) - X(C6W), ln.h, 'fill:var(--teal-wash);opacity:.55');
+    if (v0 < S0){
+      s += Rc(X(T0), yf(997), X(NXD) - X(T0), yb - yf(997), 'fill:var(--teal-wash);opacity:.8');
+      s += Rc(X(NXD), yf(40), X(S0) - X(NXD), yb - yf(40), 'fill:var(--red-wash)');
+      s += `<path d="M${f1(X(T0))},${f1(yf(997))}H${f1(X(NXD))}V${f1(yf(40))}H${f1(X(S0))}" style="fill:none;stroke:var(--text2);stroke-width:1.25;stroke-dasharray:3 2"/>`;
+    }
+    if (cmp) s += `<path d="${stepPath(ref.ck, yf, S0, HZ)}" style="fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:0.5 3;stroke-linecap:round"/>`;
+    s += `<path d="${stepArea(ser.ck, yf, yb, v => v >= 990)}" style="fill:var(--teal-wash)"/>`;
+    s += `<path d="${stepArea(ser.ck, yf, yb, v => v < 990)}" style="fill:var(--red-wash)"/>`;
+    s += Ln(X(Math.max(v0,T0)), yf(990), X(Math.min(v1,HZ)), yf(990), 'stroke:var(--teal-ink);stroke-width:1;stroke-dasharray:2 3;opacity:.8');
+    s += `<path d="${stepPath(ser.ck, yf, S0, HZ)}" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>`;
+    if (RESTORE && HERD && HERD - RESTORE > 60 && RESTORE < v1 && HERD > v0){
+      const xa1 = X(RESTORE), xb1 = X(HERD), ym = ln.y + ln.h*0.42;
+      s += Ln(xa1, ym, xb1, ym, 'stroke:var(--teal-ink);stroke-width:1');
+      s += Ln(xa1, ym-3, xa1, ym+3, 'stroke:var(--teal-ink)') + Ln(xb1, ym-3, xb1, ym+3, 'stroke:var(--teal-ink)');
+      s += Tx(xb1 + 4, ym + 3, 'fixed, but invisible for ' + durTxt(HERD - RESTORE), 'fill:var(--teal-ink)');
+    }
+    if (!RESTORE && v1 > sec('03:20:00')) s += Tx(X(Math.max(v0, sec('03:22:00'))), yf(40) - 6, 'never restored · checkout stays low to the horizon', 'fill:var(--red-ink)');
+    if (S0 > v0 || NXD > v0) s += Tx(X(Math.max(v0, NXD)) + 3, yf(40) - 4, '4 %', 'fill:var(--red-ink)');
+    if (C6W < v1 && HZ > v0) s += Tx(X(Math.max(C6W, v0)) + 4, ln.y + 15, 'C6 window · 5-min avg ≥ 99 %', 'fill:var(--teal-ink)');
+    s += '</g>';
+    s += Tx(PADL + 2, yf(990) - 3, '99 %', 'fill:var(--teal-ink)');
+    if (v1 >= HZ) s += Tx(X(HZ) + 5, yf(ser.ck[NS-1]) + 3, (ser.ck[NS-1]/10).toFixed(1) + ' %', 'fill:var(--ink);font-weight:600');
+    o += s;
+  }
+
+  /* lane 2: load vs capacity */
+  { const ln = L.ld, yb = ln.y + ln.h - 2, yt = ln.y + 4;
+    const MAX = Math.max(1800, ...ser.ld, ...ser.cap, ...(cmp ? ref.ld : [])) * 1.08;
+    const yf = v => yb - (v/MAX) * (yb - yt);
+    let s = '<g clip-path="url(#clipPlot)">';
+    for (const [a,b] of coll) s += Rc(X(a), ln.y, X(b) - X(a), ln.h, 'fill:url(#hatchRed)');
+    s += `<path d="${stepArea(ser.cap, yf, yb, () => true)}" style="fill:var(--teal-wash);opacity:.85"/>`;
+    s += `<path d="${stepPath(ser.cap, yf, S0, HZ)}" style="fill:none;stroke:var(--teal-ink);stroke-width:1;stroke-dasharray:4 2"/>`;
+    if (cmp) s += `<path d="${stepPath(ref.ld, yf, S0, HZ)}" style="fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:0.5 3;stroke-linecap:round"/>`;
+    s += `<path d="${stepPath(ser.ld, yf, S0, HZ)}" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>`;
+    if (v0 < S0 && X(S0) - Math.max(PADL, X(T0)) > 34) s += Tx((Math.max(PADL, X(T0)) + X(S0))/2, ln.y + ln.h - 6, 'no data', 'fill:var(--faint)', 'middle');
+    let mi = 0; ser.ld.forEach((v,i) => { if (v > ser.ld[mi]) mi = i; });
+    const pt = S0 + mi*30, pv = ser.ld[mi];
+    if (pt >= v0 && pt <= v1){
+      const px = X(pt), py = yf(pv);
+      s += `<circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" style="fill:var(--ink)"/>`;
+      s += Tx(px + 5, Math.max(ln.y + 10, py + 3), 'peak ' + fmt(pv) + ' req/s', 'fill:var(--ink)');
+    }
+    const cr = coll[0];
+    if (cr && cr[1] > v0 && cr[0] < v1){
+      const a = Math.max(cr[0], v0), b = Math.min(cr[1], v1);
+      const cl = 'collapsed ' + V.summary.collapsed_min + ' min', cx2 = (X(a) + X(b))/2;
+      s += Rc(cx2 - tw(cl)/2 - 3, ln.y + ln.h - 15, tw(cl) + 6, 12, 'fill:var(--panel);opacity:.9', 'rx="2"');
+      s += Tx(cx2, ln.y + ln.h - 6, cl, 'fill:var(--red-ink);font-weight:600', 'middle');
+    }
+    s += '</g>';
+    s += Tx(Math.max(PADL, X(S0)) + 3, yf(ser.cap[0]) - 3, 'capacity ' + fmt(ser.cap[0]) + ' req/s', 'fill:var(--teal-ink)');
+    if (v1 >= HZ) s += Tx(X(HZ) + 5, yf(ser.ld[NS-1]) + 3, fmt(ser.ld[NS-1]), 'fill:var(--ink);font-weight:600');
+    o += s;
+  }
+
+  /* lane 3: hosts resolving */
+  { const ln = L.hr, yb = ln.y + ln.h - 3, yt = ln.y + 13;
+    const yf = v => yb - (v/30) * (yb - yt);
+    let s = '<g clip-path="url(#clipPlot)">';
+    ttlCycles(V).forEach(([a,b], i) => {
+      if (b < v0 || a > v1) return;
+      const y = ln.y + 6, xa1 = X(a) + 1, xb1 = X(b) - 1;
+      s += Ln(xa1, y, xb1, y, 'stroke:var(--red-ink);stroke-width:1;opacity:.7') + Ln(xa1, y-3, xa1, y+3, 'stroke:var(--red-ink);opacity:.7') + Ln(xb1, y-3, xb1, y+3, 'stroke:var(--red-ink);opacity:.7');
+      const lbl = i === 0 ? 'NXDOMAIN 900 s' : (i === 1 ? 'cached again' : '');
+      const va = Math.max(xa1, PADL), vb = Math.min(xb1, PADL + W);
+      if (lbl && vb - va > tw(lbl, 8.5) + 8){
+        s += Rc((va + vb)/2 - tw(lbl, 8.5)/2 - 3, y - 5, tw(lbl, 8.5) + 6, 10, 'fill:var(--panel)');
+        s += Tx((va + vb)/2, y + 3, lbl, 'fill:var(--red-ink);font-size:8.5px', 'middle');
+      }
+    });
+    if (v0 < S0) s += `<path d="M${f1(X(T0))},${f1(yf(30))}H${f1(X(NXD))}V${f1(yf(0))}H${f1(X(S0))}" style="fill:none;stroke:var(--teal-ink);stroke-width:1.25;stroke-dasharray:3 2"/>`;
+    if (cmp) s += `<path d="${stepPath(ref.hr, yf, S0, HZ)}" style="fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:0.5 3;stroke-linecap:round"/>`;
+    s += `<path d="${stepArea(ser.hr, yf, yb, v => v > 0)}" style="fill:var(--teal-wash)"/>`;
+    const z1 = HERD || HZ;
+    s += Ln(X(Math.max(NXD, v0 - 10)), yb, X(Math.min(z1, v1 + 10)), yb, 'stroke:var(--red);stroke-width:2.5');
+    s += `<path d="${stepPath(ser.hr, yf, S0, HZ)}" style="fill:none;stroke:var(--teal-ink);stroke-width:1.5"/>`;
+    if (HERD && ALLOK && HERD > v0 && HERD < v1) s += Tx(X(ALLOK) + 4, yf(30) + 9, 'all 30 back ' + durTxt(ALLOK - HERD) + ' after the first', 'fill:var(--teal-ink)');
+    s += '</g>';
+    s += Tx(PADL + 2, yf(30) + 9, '30', 'fill:var(--faint)');
+    if (v1 >= HZ) s += Tx(X(HZ) + 5, yf(ser.hr[NS-1]) + 3, ser.hr[NS-1] + '/30', 'fill:var(--ink);font-weight:600');
+    o += s;
+  }
+
+  /* lane 4: DNS record */
+  { const ln = L.dns, y = ln.y + 5, h = ln.h - 10;
+    const col = {ok:['--panel2','--muted'], stale:['--amber','--amber-ink'], empty:['--red-wash','--red-ink'], wrong:['--amber-wash','--amber-ink'], fix:['--teal-wash','--teal-ink']};
+    let s = '<g clip-path="url(#clipPlot)">';
+    for (const sg of dnsSegs(V)){
+      if (sg.b < v0 || sg.a > v1) continue;
+      const xa1 = X(sg.a), xb1 = X(sg.b), c = col[sg.st] || col.ok;
+      s += Rc(xa1, y, Math.max(1, xb1 - xa1 - (sg.st === 'stale' ? 0 : 1)), h, `fill:var(${c[0]})`);
+      if (sg.st !== 'stale'){
+        const a = Math.max(xa1, PADL), b = Math.min(xb1, PADL + W);
+        if (b - a > tw(sg.l) + 10) s += Tx(a + 6, y + h/2 + 3.2, sg.l, `fill:var(${c[1]});font-weight:500`);
+        else if (b - a > 40) s += Tx(a + 4, y + h/2 + 3.2, sg.st, `fill:var(${c[1]})`);
+      }
+    }
+    if (cmp){
+      const rf = REF.dns.find(x => x.st === 'fix');
+      if (rf){ const a = X(rf.a); s += Rc(a, ln.y + ln.h - 4, X(HZ) - a, 2.5, 'fill:var(--teal);opacity:.7'); }
+    }
+    s += '</g>';
+    o += s;
+  }
+
+  /* lane 5: webhook backlog (log scale) */
+  { const ln = L.bl, yb = ln.y + ln.h - 4, yt = ln.y + 6, LO = 2, HI = Math.log10(500000);
+    const yf = v => v < 100 ? yb : yb - (Math.log10(v) - LO) / (HI - LO) * (yb - yt);
+    let s = '<g clip-path="url(#clipPlot)">';
+    for (const v of [1000, 10000, 100000]) s += Ln(X(Math.max(v0,T0)), yf(v), X(Math.min(v1,HZ)), yf(v), 'stroke:var(--grid2);stroke-width:1');
+    if (v0 < S0){
+      let d1 = '';
+      for (let t = T0; t <= S0; t += 10) d1 += (t === T0 ? 'M' : 'L') + f1(X(t)) + ',' + f1(yf(preBacklog(ser, t)));
+      s += `<path d="${d1}" style="fill:none;stroke:var(--cyan-ink);stroke-width:1.25;stroke-dasharray:3 2"/>`;
+    }
+    if (cmp) s += `<path d="${stepPath(ref.bl, yf, S0, HZ)}" style="fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:0.5 3;stroke-linecap:round"/>`;
+    s += `<path d="${stepPath(ser.bl, yf, S0, HZ)}" style="fill:none;stroke:var(--cyan-ink);stroke-width:1.6"/>`;
+    let mi = 0; ser.bl.forEach((v,i) => { if (v > ser.bl[mi]) mi = i; });
+    const pt = S0 + mi*30;
+    if (pt >= v0 && pt <= v1 && mi < NS-1){ const px = X(pt), py = yf(ser.bl[mi]);
+      s += `<circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" style="fill:var(--cyan-ink)"/>`;
+      s += Tx(px + 5, py + 3, 'peak ' + fmt(ser.bl[mi]), 'fill:var(--cyan-ink)'); }
+    if (v1 >= HZ - 300){
+      const xh = X(HZ);
+      s += Ln(xh - 16, yf(2000), xh, yf(2000), 'stroke:var(--cyan-ink);stroke-width:1.5');
+      s += Tx(xh - 20, yf(2000) + 3, 'C7 limit 2,000', 'fill:var(--muted)', 'end');
+    }
+    s += '</g>';
+    for (const [v,l] of [[1000,'1k'],[10000,'10k'],[100000,'100k']]) s += Tx(PADL + 2, yf(v) - 2, l, 'fill:var(--faint)');
+    if (v1 >= HZ){ const b = V.summary.backlog_end; s += Tx(X(HZ) + 5, (b ? yf(b) : yb) + 3, kfmt(b), 'fill:var(--cyan-ink);font-weight:600'); }
+    o += s;
+  }
+
+  /* lane 6: agent actions */
+  { const ln = L.ag, cy = ln.y + ln.h - 18;
+    const HT = {point_read:10, write:16, broad:22, free:6};
+    let s = '<g clip-path="url(#clipPlot)">';
+    AGENT_HITS = [];
+    const labels = [];
+    for (const it of st.items){
+      if (it.end < v0 - 120 || it.at > v1 + 120) continue;
+      const ghost = it.state === 'ghost';
+      const xa1 = X(it.at), xb1 = X(it.end);
+      if (it.cls === 'wait'){
+        s += Rc(xa1 + .5, ghost ? ln.y + 4 : ln.y + 22, Math.max(1, xb1 - xa1 - 1), ghost ? 8 : ln.h - 26, `fill:var(--blue-wash);stroke:var(--blue);stroke-width:1;stroke-dasharray:2 2;opacity:${ghost?.35:.85}`, 'rx="2"');
+        const lbl = 'wait → ' + hm(it.end);
+        if (!ghost && xb1 - xa1 > tw(lbl, 9) + 8) s += Tx(xa1 + 5, cy + 3, lbl, 'fill:var(--blue-ink);font-size:9px');
+        if (!ghost) AGENT_HITS.push({it, x0:xa1, x1:xb1, wait:true});
+        continue;
+      }
+      if (ghost){
+        s += Rc(xa1, ln.y + 4, Math.max(1.5, xb1 - xa1 - 0.8), 8, `fill:var(${it.prod ? '--blue-ink' : '--blue-soft'});opacity:.38`);
+        continue;
+      }
+      const failed = !!it.error || (it.exit != null && it.exit !== 0);
+      let fill, stroke = 'none', h = HT[it.cls] || 10;
+      if (failed){ fill = null; }
+      else if (it.prod){ fill = '--blue-ink'; stroke = 'var(--blue-ink)'; h = 26; }
+      else fill = it.cls === 'point_read' ? '--blue-soft' : it.cls === 'broad' ? '--cyan' : '--blue';
+      const wpx = Math.max(1.5, xb1 - xa1 - 0.8);
+      if (failed) s += Rc(xa1 + .5, cy - h/2, Math.max(2, wpx - 1), h, 'fill:none;stroke:var(--red-ink);stroke-width:1;stroke-dasharray:2 1.5');
+      else s += Rc(xa1, cy - h/2, wpx, h, `fill:var(${fill});stroke:${stroke};stroke-width:${stroke==='none'?0:1}`);
+      AGENT_HITS.push({it, x0:xa1, x1:xb1});
+      if (it.label) labels.push({x:xa1, w:tw(it.label), l:it.label, c:'--blue-ink', bold:true, cx:xa1 + wpx/2});
+    }
+    if (cmp && REF.clock.done >= v0 && REF.clock.done <= v1){ const x = X(REF.clock.done); s += Ln(x, ln.y + 2, x, ln.y + 14, 'stroke:var(--muted);stroke-width:1.25'); labels.push({x, w:tw('ref DONE'), l:'ref DONE', c:'--muted', op:.8, dx:4, cx:x}); }
+    if (DONE && DONE >= v0 && DONE <= v1){
+      const x = X(DONE), l = 'DONE ' + hms(DONE);
+      s += Ln(x, ln.y + 20, x, ln.y + ln.h - 3, 'stroke:var(--blue-ink);stroke-width:1.5');
+      s += `<path d="M${f1(x)},${f1(ln.y+20)}h9l-3,3.5l3,3.5h-9z" style="fill:var(--blue-ink)"/>`;
+      labels.push({x, w:tw(l), l, c:'--blue-ink', bold:true, dx:12, cx:x});
+    }
+    s += '</g>';
+    const pl = placeLabels(labels, 2, PADL, PADL + W + G.PADR - 4);
+    for (const p of pl){
+      const ly = ln.y + (p.row === 0 ? 10 : 19);
+      if (p.cx >= PADL - 2 && p.cx <= PADL + W + 2) s += Ln(p.cx, ly + 1, p.cx, cy - 13, `stroke:var(${p.c});stroke-width:.75;opacity:${(p.op||1)*.6}`);
+      s += Tx(p.lx, ly, p.l, `fill:var(${p.c});opacity:${p.op||1};${p.bold?'font-weight:600':''}`);
+    }
+    o += s;
+  }
+
+  /* lane 7: people and world */
+  { const ln = L.ev, cy = ln.y + ln.h/2;
+    const evs = eventsFor(V).filter(e => e.t >= v0 - 30 && e.t <= v1 + 30);
+    MARKS = [];
+    for (const e of evs){ const x = X(e.t); const last = MARKS[MARKS.length - 1];
+      if (last && x - last.x < 13) last.list.push(e); else MARKS.push({x, list:[e]}); }
+    let s = '<g clip-path="url(#clipPlot)">';
+    for (const m of MARKS){
+      const x = m.x;
+      if (m.list.length > 1){
+        const hasPage = m.list.some(e => e.k === 'page');
+        s += `<circle cx="${f1(x)}" cy="${f1(cy)}" r="7" style="fill:var(--bg);stroke:var(${hasPage?'--red-ink':'--text2'});stroke-width:1.25"/>`;
+        s += Tx(x, cy + 3.2, String(m.list.length), 'fill:var(--ink);font-weight:600', 'middle');
+        continue;
+      }
+      const e = m.list[0];
+      if (e.k === 'npc'){
+        s += `<circle cx="${f1(x)}" cy="${f1(cy)}" r="7.5" style="fill:var(--violet-wash);stroke:var(--violet);stroke-width:1.25"/>`;
+        s += Tx(x, cy + 3, initials(e.who), 'fill:var(--violet-ink);font-size:7.5px;font-weight:600', 'middle');
+      } else if (e.k === 'page'){
+        s += `<path d="M${f1(x)},${f1(cy-7)}L${f1(x+7)},${f1(cy)}L${f1(x)},${f1(cy+7)}L${f1(x-7)},${f1(cy)}Z" style="fill:var(--red)"/>`;
+      } else {
+        s += Rc(x - 4, cy - 4, 8, 8, 'fill:var(--text2)');
+      }
+    }
+    s += '</g>';
+    o += s;
+  }
+
+  /* lane 8: checks */
+  { const ln = L.chk;
+    let s = '<g clip-path="url(#clipPlot)">';
+    const xs = X(S0);
+    for (const r of G.rows){
+      const c = CHK[r.id]; if (!c) continue;
+      const cy = ln.y + r.y + r.h/2, core = CORE.includes(r.id), bh = core ? 6 : 4;
+      const cs = checkState(V, c);
+      if (c.window) s += Rc(X(c.window[0]), ln.y + r.y + 1, X(c.window[1]) - X(c.window[0]), r.h - 2, 'fill:var(--teal-wash);opacity:.8');
+      if (c.deadline && c.deadline < HZ){ const x = X(c.deadline); s += Ln(x, ln.y + r.y, x, ln.y + r.y + r.h, 'stroke:var(--red-ink);stroke-width:1.5'); }
+      s += Rc(xs, cy - .75, X(cs.t != null ? cs.t : HZ) - xs, 1.5, 'fill:var(--line)');
+      for (const it of st.items){
+        if (it.state === 'ghost' || !(it.sat || []).includes(r.id)) continue;
+        s += Rc(X(it.at) - .9, ln.y + r.y + 1, 1.8, r.h - 2, 'fill:var(--blue)');
+      }
+      if (cs.st === 'pass'){
+        if (cs.t < HZ) s += Rc(X(cs.t), cy - bh/2, X(HZ) - X(cs.t), bh, 'fill:var(--teal)', 'rx="1"');
+        s += `<circle cx="${f1(X(cs.t))}" cy="${f1(cy)}" r="${bh/2 + 1.2}" style="fill:var(--teal);stroke:var(--panel);stroke-width:1"/>`;
+      } else if (cs.st === 'fail'){
+        if (cs.t < HZ) s += Rc(X(cs.t), cy - bh/2, X(HZ) - X(cs.t), bh, 'fill:var(--red)', 'rx="1"');
+        const x = X(cs.t), d = bh/2 + 1.8;
+        s += Ln(x - d, cy - d, x + d, cy + d, 'stroke:var(--red-ink);stroke-width:1.75') + Ln(x - d, cy + d, x + d, cy - d, 'stroke:var(--red-ink);stroke-width:1.75');
+      } else if (cs.st === 'fired'){
+        s += Rc(X(cs.t), cy - bh/2, X(HZ) - X(cs.t), bh, 'fill:var(--red)', 'rx="1"');
+        const x = X(cs.t);
+        s += `<path d="M${f1(x)},${f1(cy-5)}L${f1(x+5)},${f1(cy)}L${f1(x)},${f1(cy+5)}L${f1(x-5)},${f1(cy)}Z" style="fill:var(--red);stroke:var(--red-ink)"/>`;
+      } else if (cs.st === 'clear'){
+        s += `<circle cx="${f1(X(HZ))}" cy="${f1(cy)}" r="3" style="fill:var(--panel);stroke:var(--teal-ink);stroke-width:1.25"/>`;
+      }
+      if (st.cmp && !isRef()){
+        const rs = checkState(REF, REF.checks.find(x => x.id === r.id));
+        if (rs.t != null && (rs.st !== cs.st || rs.t !== cs.t)) s += `<circle cx="${f1(X(rs.t))}" cy="${f1(cy)}" r="3.2" style="fill:none;stroke:var(--text2);stroke-width:1;stroke-dasharray:1.5 1"/>`;
+      }
+    }
+    const c2row = G.rows.find(r => r.id === 'C2');
+    if (C2DL > v0 && C2DL < v1) s += Tx(X(C2DL) + 4, ln.y + c2row.y + c2row.h - 3, '03:20', 'fill:var(--red-ink);font-size:8.5px');
+    s += '</g>';
+    if (v1 >= HZ) s += Tx(X(HZ) + 5, ln.y + CH_HEAD - 4, 'graded', 'fill:var(--muted);font-size:8.5px');
+    o += s;
+  }
+
+  o += '<g id="ph"></g>';
+  svg.innerHTML = o;
+  renderGutter();
+  renderHeader();
+  renderSummary();
+  renderPlayhead();
+  updateScrollMask();
+}
+
+/* ---------- gutter ---------- */
+function renderGutter(){
+  const g = $('gutter'); g.style.width = G.gw + 'px'; g.style.height = G.H + 'px';
+  const L = G.L; let h = '';
+  const lane = (id, inner, cls) => `<div class="gl${cls?' '+cls:''}" style="top:${L[id].y}px;height:${L[id].h}px">${inner}</div>`;
+  const nm = id => `<div class="gl-name"><span class="n">${L[id].n}</span>${esc(G.narrow ? L[id].short : L[id].name)}</div>`;
+  h += lane('ck', nm('ck') + '<div class="gl-val" id="v-ck"></div><div class="gl-sub" id="s-ck"></div>');
+  h += lane('ld', nm('ld') + '<div class="gl-val" id="v-ld"></div><div class="gl-sub" id="s-ld"></div>');
+  h += lane('hr', nm('hr') + '<div class="gl-val" id="v-hr"></div><div class="gl-sub" id="s-hr"></div>');
+  h += lane('dns', `<div class="gl-name" style="margin-top:-1px"><span class="n">${L.dns.n}</span>${esc(G.narrow ? L.dns.short : L.dns.name)}</div><div class="gl-sub" id="v-dns" style="color:var(--ink);font-weight:500"></div>`);
+  h += lane('bl', nm('bl') + '<div class="gl-val" id="v-bl"></div><div class="gl-sub" id="s-bl"></div>');
+  h += lane('ag', nm('ag') + '<div class="gl-val" id="v-ag"></div><div class="gl-sub" id="s-ag"></div>');
+  h += lane('ev', nm('ev') + '<div class="gl-sub" id="v-ev" style="color:var(--ink)"></div>');
+  const y0 = L.chk.y;
+  h += `<div class="gl" style="top:${y0}px;height:${L.chk.h}px;padding:0"></div>`;
+  h += `<div class="gch" style="top:${y0 + 2}px;height:${CH_HEAD - 2}px"><span><span style="color:var(--faint);margin-right:5px">${L.chk.n}</span>Checks</span><span class="sum" id="v-chk"></span></div>`;
+  for (const r of G.rows){
+    const c = CHK[r.id]; if (!c) continue;
+    const core = CORE.includes(r.id);
+    const w = c.gate ? 'gate ' + c.gate : (c.w + (c.M ? ' M' : ''));
+    h += `<div class="gc${core?' core':''}" style="top:${y0 + r.y}px;height:${r.h}px" data-check="${r.id}"><span class="st" id="cs-${r.id}">·</span><b>${r.id}</b><span class="nm">${esc(SHORT[r.id] || c.name)}</span><em>${esc(w)}</em></div>`;
+  }
+  g.innerHTML = h;
+}
+
+/* ---------- header, verdict ---------- */
+function runFailed(row){ return !row.pass; }
+function renderHeader(){
+  const grp = $('scenarioGroup');
+  if (!grp.childElementCount){
+    const rows = [IDX.reference, ...IDX.runs];
+    grp.innerHTML = rows.map(r => `<button type="button" data-k="${esc(r.id)}" aria-pressed="false" title="${esc(r.label + (r.dev ? ' · development run, build ' + r.build : ' · build ' + r.build))}"><span class="d ${runFailed(r)?'fail':'pass'}" aria-hidden="true"></span>${esc(r.kind === 'reference' ? 'Reference' : r.id.replace(/-(\w+)$/, (m, s) => ' ' + s[0].toUpperCase() + s.slice(1)))}${r.dev ? '<small class="dev">dev</small>' : ''}</button>`).join('');
+    grp.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) setRun(b.dataset.k); });
+  }
+  for (const b of grp.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === st.k));
+  const cmp = $('cmp'); cmp.disabled = isRef(); cmp.checked = st.cmp && !isRef();
+  $('keyRef').hidden = !(st.cmp && !isRef());
+  $('buildTag').textContent = (isRef() ? 'scripted oracle · build ' : V.model + ' · Claude Code · build ') + V.build + (V.dev ? ' · development run' : '');
+  const fail = !V.score.pass;
+  const coreChips = CORE.map(id => { const c = CHK[id]; const bad = c && !c.result;
+    return `<span class="ck ${bad ? 'fail' : 'pass'}" title="${esc(c ? c.title || c.name : id)} · weight ${c ? c.w : ''}">${bad ? '✕' : '✓'} ${id}</span>`; }).join('');
+  const failedOther = V.checks.filter(c => !c.gate && !CORE.includes(c.id) && !c.result).map(c => `<span class="ck fail" title="${esc(c.title || c.name)}">✕ ${c.id}</span>`).join('');
+  const gateChips = ['G1','G2','G3','G4'].map(id => { const c = CHK[id]; const fired = c && c.fired;
+    return `<span class="ck ${fired?'fired':''}" title="${esc(c ? c.title || c.name : id)} · ${GATECAP[c ? c.gate : 'C']}">${fired?'◆ ':''}${id}${fired?' · '+c.gate:''}</span>`; }).join('');
+  const sc = V.score.d12 == null ? '–' : Number(V.score.d12).toFixed(2);
+  $('verdict').innerHTML = `
+    <div class="v-top"><span class="v-badge ${fail?'fail':'pass'}">${fail?'FAIL':'PASS'}</span><span class="v-score">D12<b>${esc(sc)}</b></span><span class="v-scn">${esc(V.label)}</span></div>
+    <div class="v-why">${esc(V.score.why)}${V.score.caps && V.score.caps.length ? '' : ''}</div>
+    <div class="v-row"><span class="v-k">Core</span>${coreChips}</div>
+    ${failedOther ? `<div class="v-row"><span class="v-k">Lost</span>${failedOther}</div>` : ''}
+    <div class="v-row"><span class="v-k">Gates</span>${gateChips}</div>
+    <p class="v-note">${esc(V.note || '')}</p>
+    <div class="v-src">${esc(isRef() ? 'Scripted oracle, replayed in process · ' + V.score.measured : 'Recorded run · ' + V.model + ' · build ' + V.build + ' · ' + V.score.measured)}</div>`;
+}
+
+/* ---------- summary channel ---------- */
+function renderSummary(){
+  const sm = V.summary;
+  const calls = V.clock.calls_used;
+  const restore = RESTORE ? `<span class="v">${hms(RESTORE)}</span>` : '<span class="v bad">never</span>';
+  const coll = sm.collapsed_min ? `<span class="v bad">${sm.collapsed_min} min <small>from ${esc(sm.first_collapse)}</small></span>` : '<span class="v ok">0 min</span>';
+  const stable = sm.stable_from ? `<span class="v">${esc(sm.stable_from)} <small>→ 05:10 · ${durTxt(HZ - sec(sm.stable_from))}</small></span>` : '<span class="v bad">never</span>';
+  const bl = `<span class="v ${sm.backlog_end >= 2000 || sm.outbox_end >= 500 ? 'bad' : ''}">${fmt(sm.backlog_end)} <small>outbox ${fmt(sm.outbox_end)}</small></span>`;
+  const fin = V.final ? esc(V.final.length > 520 ? V.final.slice(0, 519) + '…' : V.final) : '–';
+  const hand = V.handoff ? `<details class="hand"><summary>Handoff note on OPS-4452</summary><pre>${esc(V.handoff)}</pre></details>` : '';
+  $('summary').innerHTML = `
+    <div class="sm"><span class="k">Calls used</span><span class="v">${calls} <small>of 250 · ${V.clock.end_reason === 'done' ? 'DONE ' + hms(DONE) : 'ran to ' + esc(V.clock.end_reason || '')}</small></span></div>
+    <div class="sm"><span class="k">Restore</span>${restore}</div>
+    <div class="sm"><span class="k">Collapse</span>${coll}</div>
+    <div class="sm"><span class="k">Checkout ≥ 99 % from</span>${stable}</div>
+    <div class="sm"><span class="k">Backlog at 05:10</span>${bl}</div>
+    <div class="sm final"><span class="k">Final message</span><span class="v">${fin}${hand}</span></div>`;
+}
+
+/* ---------- playhead + readouts ---------- */
+function itemAt(t){
+  let best = null;
+  for (const it of st.items){ if (it.state === 'ghost') continue; if (t >= it.at && t < it.end){ if (!best || best.cls === 'wait') best = it; } }
+  return best;
+}
+function renderPlayhead(){
+  const t = st.t, ser = V.series, cmp = st.cmp && !isRef();
+  const ph = $('ph'); if (!ph) return;
+  const x = X(t), top = G.L.ck.y - 2, bot = G.L.chk.y + G.L.chk.h;
+  const lbl = hms(t), w = tw(lbl, 10) + 12;
+  const inView = t >= st.view[0] && t <= st.view[1];
+  ph.innerHTML = inView ? Ln(x, top, x, bot, 'stroke:var(--ink);stroke-width:1.25') +
+    Rc(Math.max(0, Math.min(G.svgW - w, x - w/2)), TOP - 19, w, 15, 'fill:var(--chip-bg)', 'rx="3"') +
+    Tx(Math.max(w/2, Math.min(G.svgW - w/2, x)), TOP - 8, lbl, 'fill:var(--chip-fg);font-size:10px;font-weight:600', 'middle') : '';
+  const ck = ckAt(ser, t), pre = t < S0;
+  $('v-ck').textContent = (ck*100).toFixed(1) + ' %';
+  let sck = pre ? 'back-filled' : `<span class="${ck >= .99 ? 'ok' : 'bad'}">${ck >= .99 ? '≥ 99 %' : 'below 99 %'}</span>`;
+  if (cmp && !pre) sck += ' · ref ' + (ckAt(REF.series, t)*100).toFixed(1) + ' %';
+  $('s-ck').innerHTML = sck;
+  if (pre){ $('v-ld').textContent = 'no data'; $('s-ld').textContent = 'series start 02:40'; }
+  else {
+    const ld = sv(ser,'ld',t), cap = sv(ser,'cap',t), rg = ser.rg[idx(t)];
+    $('v-ld').textContent = fmt(ld) + ' / ' + fmt(cap);
+    let s = `req/s · <span class="${rg === 'c' ? 'bad' : rg === 'd' ? '' : 'ok'}">${rg === 'c' ? 'collapsed' : rg === 'd' ? 'degraded' : 'healthy'}</span>`;
+    if (cmp) s += ' · ref ' + fmt(sv(REF.series,'ld',t));
+    $('s-ld').innerHTML = s;
+  }
+  const hr = hostsAt(ser, t);
+  $('v-hr').textContent = hr + ' / 30';
+  let shr = hr === 30 ? '<span class="ok">all resolve</span>' : hr === 0 ? (t >= NXD ? '<span class="bad">NXDOMAIN cached</span>' : '') : 'reconnect wave';
+  if (cmp && !pre) shr += ' · ref ' + hostsAt(REF.series, t);
+  $('s-hr').innerHTML = shr;
+  $('v-dns').textContent = dnsAt(V, t).l;
+  $('v-bl').textContent = fmt(blAt(ser, t));
+  $('s-bl').innerHTML = pre ? 'back-filled' : 'conc ' + sv(ser, 'conc', t) + (sv(ser, 'ks', t) ? ' · endpointd stopped' : '') + (cmp ? ' · ref ' + fmt(sv(REF.series, 'bl', t)) : '');
+  const it = itemAt(t);
+  if (it){ $('v-ag').textContent = '#' + it.n + ' ' + (it.cls === 'wait' ? 'wait' : it.tool);
+    $('s-ag').textContent = it.cls === 'wait' ? 'until ' + hms(it.end) : CLSNAME[it.cls] + ' · ' + it.cost + ' s' + (it.prod ? ' · prod' : '') + (it.error ? ' · error' : ''); }
+  else { $('v-ag').textContent = t < S0 ? 'not paged yet' : (DONE && t >= DONE ? 'done' : 'idle'); $('s-ag').textContent = DONE && t >= DONE ? 'DONE at ' + hms(DONE) : (t >= S0 ? 'between turns' : ''); }
+  const evs = eventsFor(V).filter(e => e.t <= t); const le = evs[evs.length - 1];
+  $('v-ev').textContent = le ? hms(le.t) + ' ' + le.who : 'none yet';
+  let np = 0, nf = 0, nq = 0;
+  for (const r of G.rows){ const c = CHK[r.id]; if (!c) continue; const s = stateAt(checkState(V, c), t); const el = $('cs-' + r.id);
+    el.className = 'st ' + (s === 'pass' ? 'pass' : s === 'fail' ? 'fail' : '');
+    el.textContent = s === 'pass' ? '✓' : s === 'fail' ? '✕' : '·';
+    if (s === 'pass') np++; else if (s === 'fail') nf++; else nq++; }
+  $('v-chk').textContent = `${np}✓ ${nf}✕ ${nq} open`;
+  $('hudTime').textContent = hms(t) + ' ET';
+  const showIt = st.pin || it;
+  $('hudStep').textContent = showIt ? stepLine(showIt) : (t < S0 ? 'before the page' : 'no call at playhead');
+  $('hudEvent').innerHTML = le ? `<b class="${le.k === 'npc' ? '' : 'w'}">${hms(le.t)} ${esc(le.who)}</b> ${esc(le.text)}` : '';
+  if (!st.pin) renderInspector(it);
+}
+function stepLine(it){
+  if (it.cls === 'wait') return `#${it.n} wait → ${hms(it.end)}`;
+  return `#${it.n} ${it.tool} · ${CLSNAME[it.cls]} ${it.cost} s${it.error ? ' · error' : ''}`;
+}
+
+/* ---------- inspector ---------- */
+function renderInspector(it){
+  const el = $('insp'); $('unpin').hidden = !st.pin;
+  if (!it){
+    el.innerHTML = `<div class="insp-head"><span class="chip">No call at ${hms(st.t)}</span></div><p class="insp-state">The agent works from the page at 02:40:00${DONE ? ' to DONE at ' + hms(DONE) : ''}. Between its turns the harness lets up to ten minutes pass. Click a bar in lane 06, or use the arrow keys, to inspect a call.</p>`;
+    return;
+  }
+  const cls = it.cls;
+  const chips = [`<span class="chip">CALL ${it.n} / ${V.clock.calls_used}</span>`];
+  chips.push(`<span class="chip c-${cls === 'point_read' ? 'read' : cls}">${CLSNAME[cls] || cls}${cls === 'wait' ? ' · ' + durTxt(it.end - it.at) : ' · ' + it.cost + ' s'}</span>`);
+  if (it.prod) chips.push('<span class="chip c-prod">production change</span>');
+  if (it.error || (it.exit != null && it.exit !== 0)) chips.push('<span class="chip c-trap">failed</span>');
+  const isText = ['chat_post','chat_dm','status_create','status_update','tickets_comment','mail_send','mail_forward','mail_reply','pager_page','pager_note'].includes(it.tool);
+  const prefix = it.tool === 'aws_cli' ? '$ ' : it.tool === 'fleet_exec' ? '$ ' : it.tool === 'aws_query' ? 'query ' : '';
+  const cmd = it.detail ? `<pre class="insp-cmd">${esc((isText ? '' : prefix) + it.detail)}</pre>` : '';
+  const res = it.error ? `<p class="insp-state trap">${esc(it.error)}</p>` : (it.result ? `<pre class="insp-cmd res">${esc(it.result)}</pre>` : '');
+  const sat = (it.sat || []).map(id => `<span class="ck pass">${id}</span>`).join(' ');
+  el.innerHTML = `<div class="insp-head">${chips.join('')}</div>
+    <div class="insp-time">${hms(it.at)} → ${hms(it.end)} ET · ${esc(it.tool)}${it.where ? ' · ' + esc(it.where) : ''}</div>
+    <p class="insp-purpose">${esc(it.purpose.charAt(0).toUpperCase() + it.purpose.slice(1))}</p>
+    ${cmd}${res}
+    <div class="insp-foot">${sat ? '<span>Bears on ' + sat + '</span>' : '<span>No check reads this call directly.</span>'}</div>`;
+}
+$('prevStep').addEventListener('click', () => stepCall(-1));
+$('nextStep').addEventListener('click', () => stepCall(1));
+$('unpin').addEventListener('click', () => { st.pin = null; renderPlayhead(); });
+const callList = () => st.items.filter(it => it.cls !== 'wait' && it.state !== 'ghost');
+function stepCall(dir){
+  const list = callList(); let i;
+  const cur = st.pin || itemAt(st.t);
+  if (cur && list.includes(cur)) i = list.indexOf(cur) + dir;
+  else { i = dir > 0 ? list.findIndex(it => it.at > st.t) : (() => { let j = -1; list.forEach((it, q) => { if (it.at < st.t) j = q; }); return j; })(); }
+  i = Math.max(0, Math.min(list.length - 1, i < 0 && dir > 0 ? list.length - 1 : i));
+  pin(list[i], true);
+}
+function pin(it, ensureVisible){
+  if (!it) return;
+  st.pin = it; st.t = it.at + Math.min(5, (it.end - it.at)/2);
+  if (ensureVisible && (st.t < st.view[0] || st.t > st.view[1])){
+    const w = st.view[1] - st.view[0]; let a = st.t - w*0.3; a = Math.max(T0, Math.min(T1 - w, a)); st.view = [a, a + w]; render();
+  }
+  renderPlayhead(); renderInspector(it); scrollToPlayhead(false);
+}
+
+/* ---------- interaction ---------- */
+function localX(e){ const r = $('svg').getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
+function setT(t){ st.t = Math.max(Math.max(T0, st.view[0]), Math.min(Math.min(T1, st.view[1]), t)); renderPlayhead(); }
+function laneAt(y){ for (const id in G.L){ const l = G.L[id]; if (y >= l.y && y <= l.y + l.h) return id; } return null; }
+function hit(p){
+  const lane = laneAt(p.y), t = Tof(p.x);
+  if (lane === 'ag'){
+    let best = null, bd = 1e9;
+    for (const h of AGENT_HITS){
+      const d = p.x < h.x0 ? h.x0 - p.x : p.x > h.x1 ? p.x - h.x1 : 0;
+      const score = d + (h.wait ? 4 : 0);
+      if (d <= 4 && score < bd){ bd = score; best = h; }
+    }
+    if (best) return {type:'step', it:best.it};
+  }
+  if (lane === 'ev'){
+    let best = null, bd = 10;
+    for (const m of MARKS){ const d = Math.abs(m.x - p.x); if (d < bd){ bd = d; best = m; } }
+    if (best) return {type:'ev', m:best};
+  }
+  if (lane === 'chk'){
+    const yy = p.y - G.L.chk.y; const r = G.rows.find(r => yy >= r.y && yy < r.y + r.h);
+    if (r) return {type:'chk', id:r.id};
+  }
+  if (lane === 'dns') return {type:'dns', seg:dnsAt(V, t)};
+  if (lane === 'ld'){ const run = collapseRuns(V).find(([a,b]) => t >= a && t <= b); if (run) return {type:'coll', run}; }
+  if (lane === 'hr'){ const c = ttlCycles(V).find(([a,b]) => t >= a && t < b); if (c && hostsAt(V.series, t) === 0) return {type:'ttl', c}; }
+  return null;
+}
+const KLABEL = {email:'email', approval:'approval', bot:'bot', page:'page', world:'world'};
+function tipHtml(h){
+  if (h.type === 'step'){ const it = h.it;
+    return `<div class="tt"><b>Call ${it.n}</b> · ${hms(it.at)} → ${hms(it.end)} · ${esc(it.tool)} · ${CLSNAME[it.cls] || it.cls}${it.error ? ' · error' : ''}</div>${esc(it.detail || it.purpose)}`; }
+  if (h.type === 'ev') return h.m.list.slice(0, 6).map(e => `<div class="row"><div class="tt"><b>${esc(e.who)}</b>${e.role ? ' · ' + esc(e.role.length > 60 ? e.role.slice(0, 59) + '…' : e.role) : ''} · ${hms(e.t)}${KLABEL[e.kind] ? '<span class="il">' + KLABEL[e.kind] + '</span>' : ''}</div>${e.k === 'npc' ? '<q>' + esc(e.text.length > 300 ? e.text.slice(0, 299) + '…' : e.text) + '</q>' : esc(e.text.length > 300 ? e.text.slice(0, 299) + '…' : e.text)}</div>`).join('') + (h.m.list.length > 6 ? `<div class="row tt">+${h.m.list.length - 6} more</div>` : '');
+  if (h.type === 'chk'){ const c = CHK[h.id]; if (!c) return ''; const cs = checkState(V, c);
+    const stTxt = cs.st === 'pass' ? (cs.t >= HZ ? 'passes when graded at 05:10' : 'evidence at ' + hms(cs.t)) : cs.st === 'fail' ? 'fails' + (cs.t < HZ ? ' (evidence at ' + hms(cs.t) + ')' : ' when graded') : cs.st === 'fired' ? 'fires at ' + hms(cs.t) : 'never fires';
+    const head = c.gate ? `${c.id} · gate ${c.gate} · ${GATECAP[c.gate]}` : `${c.id} · ${c.core ? 'core · ' : ''}weight ${c.w}${c.M ? ' · M: a failure caps the score at 0.2' : ''}`;
+    return `<div class="tt"><b>${esc(head)}</b></div>${esc(c.title || c.name)}<div class="row">${esc(stTxt)}</div>${c.detail ? '<div class="row tt">' + esc(c.detail) + '</div>' : ''}`; }
+  if (h.type === 'dns') return `<div class="tt"><b>ledger.internal.vantleaf.io</b> · ${hms(h.seg.a)} → ${hms(h.seg.b)}</div>${esc(h.seg.l)}`;
+  if (h.type === 'coll') return `<div class="tt"><b>ledger-writer collapsed</b> · ${hms(h.run[0])} → ${hms(h.run[1])}</div>${durTxt(h.run[1] - h.run[0])} with load far above capacity. C6 allows 20 min.`;
+  if (h.type === 'ttl') return `<div class="tt"><b>NXDOMAIN cached</b> · ${hms(h.c[0])} → ${hms(h.c[1])}</div>Every core host holds the negative answer for the SOA negative TTL (900 s).`;
+  return '';
+}
+function showTip(h, e){
+  const tip = $('tip'); const html = h ? tipHtml(h) : '';
+  if (!html){ tip.hidden = true; return; }
+  tip.innerHTML = html; tip.hidden = false;
+  const rr = $('rec').getBoundingClientRect();
+  let x = e.clientX - rr.left + 14, y = e.clientY - rr.top + 16;
+  const tw2 = tip.offsetWidth, th = tip.offsetHeight;
+  if (x + tw2 > rr.width - 4) x = Math.max(4, e.clientX - rr.left - tw2 - 14);
+  if (y + th > rr.height - 4) y = Math.max(4, e.clientY - rr.top - th - 12);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+let dragging = false;
+function bindPointer(){
+  const pw = $('plotwrap');
+  pw.addEventListener('pointermove', e => {
+    if (!V || (e.pointerType !== 'mouse' && !dragging)) return;
+    const p = localX(e); setT(Tof(p.x));
+    if (e.pointerType === 'mouse') showTip(hit(p), e);
+  });
+  pw.addEventListener('pointerleave', () => { if (!dragging) $('tip').hidden = true; });
+  pw.addEventListener('click', e => {
+    if (!V) return;
+    const p = localX(e); const h = hit(p);
+    if (h && h.type === 'step'){ pin(h.it, false); if (e.pointerType !== 'mouse') showTip(h, e); return; }
+    st.pin = null; setT(Tof(p.x));
+    if (e.pointerType && e.pointerType !== 'mouse') showTip(h, e);
+  });
+  const ru = $('ruler');
+  ru.addEventListener('pointerdown', e => { dragging = true; ru.setPointerCapture(e.pointerId); st.pin = null; setT(Tof(localX(e).x)); e.preventDefault(); });
+  ru.addEventListener('pointermove', e => { if (dragging) setT(Tof(localX(e).x)); });
+  const end = () => { dragging = false; };
+  ru.addEventListener('pointerup', end); ru.addEventListener('pointercancel', end);
+  $('rec').addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight'){ stepCall(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft'){ stepCall(-1); e.preventDefault(); }
+    else if (e.key === 'Escape'){ st.pin = null; $('tip').hidden = true; renderPlayhead(); }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#plotwrap')) $('tip').hidden = true; });
+}
+async function setRun(k){
+  st.k = k; st.pin = null;
+  try { V = await load(k); } catch (e) { $('summary').textContent = 'Could not load run ' + k + '.'; return; }
+  derive(); views();
+  st.view = VIEWS[st.zoom].slice();
+  st.items = buildItems();
+  try { const u = new URL(location.href); u.searchParams.set('run', k); history.replaceState(null, '', u); } catch (e) {}
+  render();
+}
+function setView(id){
+  st.zoom = id; st.view = VIEWS[id].slice();
+  for (const b of ['zoomFull','zoomAgent','zoomHerd']) $(b).setAttribute('aria-pressed', String(b === id));
+  if (st.t < st.view[0] || st.t > st.view[1]) st.t = Math.max(st.view[0], Math.min(st.view[1], HERD || sec('03:02:00')));
+  render(); scrollToPlayhead(false);
+}
+function scrollToPlayhead(force){
+  const sc = $('scroller'); if (sc.scrollWidth <= sc.clientWidth + 2) return;
+  const x = X(st.t);
+  if (force || x < sc.scrollLeft + 20 || x > sc.scrollLeft + sc.clientWidth - 30) sc.scrollLeft = Math.max(0, x - sc.clientWidth * 0.35);
+  updateScrollMask();
+}
+function updateScrollMask(){
+  const sc = $('scroller'); const can = sc.scrollWidth > sc.clientWidth + 2;
+  sc.classList.toggle('scrolls', can);
+  sc.classList.toggle('mid', can && sc.scrollLeft > 4 && sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 4);
+  sc.classList.toggle('end', can && sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 4);
+}
+let raf = null, lastTs = 0;
+function tick(ts){
+  if (!st.playing) return;
+  const dt = lastTs ? Math.min(0.1, (ts - lastTs)/1000) : 0; lastTs = ts;
+  st.t += (st.view[1] - st.view[0]) / 24 * dt; st.pin = null;
+  if (st.t >= Math.min(st.view[1], T1)){ st.t = Math.min(st.view[1], T1); togglePlay(false); }
+  renderPlayhead(); scrollToPlayhead(false);
+  if (st.playing) raf = requestAnimationFrame(tick);
+}
+function togglePlay(on){
+  st.playing = on; const b = $('play');
+  b.textContent = on ? '❚❚ Pause' : '▶ Play'; b.setAttribute('aria-label', on ? 'Pause' : 'Play the playhead forward');
+  if (on){ if (st.t >= Math.min(st.view[1], T1) - 30) st.t = st.view[0]; lastTs = 0; raf = requestAnimationFrame(tick); }
+  else if (raf) cancelAnimationFrame(raf);
+}
+
+/* ---------- boot ---------- */
+$('cmp').addEventListener('change', e => { st.cmp = e.target.checked; st.items = buildItems(); render(); });
+$('play').addEventListener('click', () => togglePlay(!st.playing));
+for (const id of ['zoomFull','zoomAgent','zoomHerd']) $(id).addEventListener('click', () => setView(id));
+$('scroller').addEventListener('scroll', updateScrollMask, {passive:true});
+bindPointer();
+(async () => {
+  try {
+    IDX = await (await fetch(new URL('index.json', BASE))).json();
+    REF = await load('reference');
+  } catch (e) { $('summary').textContent = 'Could not load the run index.'; return; }
+  const q = new URLSearchParams(location.search);
+  const want = q.get('run');
+  const first = (IDX.runs.find(r => r.id === want) || (want === 'reference' && IDX.reference) || IDX.runs.find(r => !r.dev) || IDX.runs[0]).id;
+  st.cmp = q.get('compare') !== '0';
+  await setRun(first);
+  scrollToPlayhead(true);
+  let rw = 0;
+  new ResizeObserver(() => { const w = $('rec').clientWidth; if (Math.abs(w - rw) > 1){ rw = w; render(); } }).observe($('rec'));
+})();
+})();
+
+</script>
+</body></html>

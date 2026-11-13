@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://earakely-scale-awsincidentsbench.hf.space/sitemap.xml
+LLMs-Txt: /llms.txt

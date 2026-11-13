@@ -1,0 +1,14 @@
+AwsIncidentsBench article
+
+Text, viewers and run data: Creative Commons Attribution 4.0 International (CC BY 4.0),
+https://creativecommons.org/licenses/by/4.0/
+
+The site is built from the research-article-template by Thibaud Frere
+(https://huggingface.co/spaces/tfrere/research-article-template), Copyright (c) 2024 Thibaud Frere, licensed under
+CC BY 4.0. Changes made: the template's demo content was removed; the chapters, viewers, data, styles and the Docker
+build are AwsIncidentsBench's own. The template does not endorse this article.
+
+AwsIncidentsBench is not affiliated with or endorsed by Amazon Web Services. AWS Emulator is AWS's own open-source
+emulator (CC0); it is not redistributed here. Vantleaf, its people and its systems are fictional. The code of the
+environment is Apache-2.0 (https://github.com/earakely-scale/agentenv-awsbench-plugin). Third-party libraries keep
+their own licences.

@@ -1,0 +1,53 @@
+---
+title: "AwsIncidentsBench: AWS incident response on the AWS Emulator, graded at a horizon"
+description: "An on-call agent works a payments outage against the real AWS API on AWS's open-source AWS Emulator, in a world with a clock that every call moves, failing hosts and DNS caches, colleagues who push the wrong fix, and a fixed horizon at which the end state is graded. Task T01, every recorded run, and two viewers on the runs' own data."
+seoImageAlt: "A low-poly island of Vantleaf's us-east-1: three availability zones of checkout hosts, a DNS lighthouse for ledger.internal, endpointd, ledger-writer and the webhook dispatcher, replaying a recorded agent run."
+authors:
+  - name: "Edgar Arakelyan"
+    url: "https://huggingface.co/earakely-scale"
+    affiliations: [1]
+affiliations:
+  - name: "Scale AI"
+published: "November 13, 2026"
+links:
+  - label: "GitHub"
+    url: "https://github.com/earakely-scale/agentenv-awsbench-plugin"
+    icon: "github"
+  - label: "Dataset"
+    url: "https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench"
+    icon: "hf"
+licence: >
+  Text, viewers and run data are licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, unless noted otherwise. The environment's code is Apache-2.0. AwsIncidentsBench is not affiliated with or endorsed by Amazon Web Services. Vantleaf, its people and its systems are fictional.
+tags:
+  - reinforcement learning
+  - RL environments
+  - agents
+  - tool use
+  - incident response
+  - SRE
+  - AWS
+  - AWS Emulator
+  - AgentEnv
+  - AwsIncidentsBench
+template: "article"
+tableOfContentsAutoCollapse: true
+showPdf: false
+---
+
+{/*
+  The import list is the chapter registry: the order of the elements below is the running order.
+*/}
+
+import Introduction from "./chapters/introduction.mdx";
+import World from "./chapters/world.mdx";
+import Tasks from "./chapters/tasks.mdx";
+import Grading from "./chapters/grading.mdx";
+import Results from "./chapters/results.mdx";
+import Methods from "./chapters/methods.mdx";
+
+<Introduction />
+<World />
+<Tasks />
+<Grading />
+<Results />
+<Methods />
