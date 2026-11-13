@@ -397,18 +397,20 @@ class Telemetry:
         return None
 
     # ---- logs ----
-    def lines(self, group: str, a: float, b: float) -> list[tuple[float, str, str]]:
-        """(t, stream, message) of `group` in [a, b], from the fleet's own log and the minute samples."""
+    def lines(self, group: str, a: float, b: float, host: str | None = None) -> list[tuple[float, str, str]]:
+        """(t, stream, message) of `group` in [a, b], from the fleet's own log and the minute samples; `host` keeps
+        one streamroute host's lines (its journal)."""
         f = self.m.fleet
-        out = [(t, STREAMS.get(g, host), line) for t, g, host, line in f.logs if g == group and a <= t <= b]
+        out = [(t, STREAMS.get(g, h), line) for t, g, h, line in f.logs if g == group and a <= t <= b
+               and host in (None, h)]
         if group == "/vl/prod/ledger-writer":
             out.append((self.m.at(LW_START[0]), STREAMS[group], LW_START[1]))
         for i in range(bisect_left(self.ts, a - 59), bisect_right(self.ts, b)):
             t, s = self.ts[i], self.samples[i]
             n = int(t // 60) % 1_000_000
             if group == "/vl/prod/streamroute":
-                out += [(t + 7 + 40 * unit("t03-logs", h, n), h, NO_MAP) for h in s["broken"]]
-                out += [(t + 3 + 50 * unit("t03-logs", h, n), h, RENEW_SLOW) for h in s["stale"]]
+                out += [(t + 7 + 40 * unit("t03-logs", h, n), h, NO_MAP) for h in s["broken"] if host in (None, h)]
+                out += [(t + 3 + 50 * unit("t03-logs", h, n), h, RENEW_SLOW) for h in s["stale"] if host in (None, h)]
             elif group == "/vl/prod/streamroute-gc" and s["gc"]:
                 h, u = s["gc"], unit("t03-gc", s["gc"], n)
                 used = 2250 + int(350 * u)

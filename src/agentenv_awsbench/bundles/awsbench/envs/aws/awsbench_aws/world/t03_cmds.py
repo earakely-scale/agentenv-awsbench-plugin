@@ -9,10 +9,21 @@ from .t03_fleet import ADMIN, EJECTED, ROUTING, SERVING, STALE, STATES, STOPPED,
 from .util import unit
 
 NOT_AVAILABLE = "sh: {cmd}: not available in this environment"
+NOT_FOUND = "bash: {cmd}: command not found"
+SR_ONLY, ADMIN_ONLY = {"srctl", "sr-apply-limits", "sr-metrics-agent"}, {"cmctl"}
+SYSCTL = {"kernel.threads-max": 125520, "kernel.pid_max": 4194304}
+TASKS_MAX = 18828
+CGROUP = "/sys/fs/cgroup/system.slice/{unit}.service/pids.{what}"
+DIRS = {"/etc/streamroute": "env  streamroute.conf", "/etc/systemd/system/streamroute.service.d": "10-limits.conf",
+        "/opt/streamroute": "bin  streamroute-2.3.9.jar", "/opt/streamroute/bin": "streamroute-start",
+        "/usr/local/bin": "sr-apply-limits  sr-metrics-agent  srctl",
+        "/var/log": "amazon  apt  btmp  cloud-init-output.log  cloud-init.log  dist-upgrade  journal  lastlog  private  "
+                    "unattended-upgrades  wtmp",
+        "/sys/fs/cgroup/system.slice/streamroute.service": "cgroup.procs  cgroup.threads  memory.current  memory.max  "
+                                                           "pids.current  pids.max"}
 SHELL_OPS = re.compile(r"[;|<>`]|&&|\$\(")
 SUDO = re.compile(r"^\s*sudo\s+")
 ONE_COMMAND = "one command per call: shell operators are not supported"
-PIDS = {"2214": "java", "1187": "sr-metrics-agent"}
 FILES = {
     "/etc/streamroute/streamroute.conf": (
         "# /etc/streamroute/streamroute.conf (static; runtime values come from SSM /streamroute/prod/* at process "
@@ -98,10 +109,9 @@ WantedBy=multi-user.target
 """
 MEM_TOTAL = 15690
 PS_FIELDS = {"pid": "PID", "user": "USER", "nlwp": "NLWP", "rss": "RSS", "comm": "COMMAND", "cmd": "CMD",
-             "args": "COMMAND"}
+             "args": "COMMAND", "lwp": "LWP", "tid": "TID", "spid": "SPID"}
 UNIT_DESC = "streamroute.service - streamroute (vl-payment-events -> ledger cells)"
 BOOTSTRAP = "INFO [bootstrap] bootstrap source={bootstrap_source} limit_nproc={limit_nproc} xmx={xmx}"
-BUILD_OK = "INFO [shardmap-manager] c.v.streamroute.shardmap.ShardMapBuilder - build complete: 8/8 workers started"
 
 
 class Commands:
@@ -114,6 +124,25 @@ class Commands:
 
     def mem_pct(self, h) -> float:
         return round(84.1 + 0.27 * (h.links - 119) + (xmx_gib(h.xmx) - 6) * 6.5, 1) if h.proc else 9.6
+
+    def pid(self, h, t: float | None = None) -> int:
+        """The JVM's pid at `t`: each restart starts a new process."""
+        stop = self.m.fleet.p["stop_s"]
+        k = sum(1 for r in self.m.fleet.restarts if r["host"] == h.name and (t is None or r["t"] + stop <= t))
+        return 2214 + 97 * k
+
+    def procs(self, h) -> list[dict]:
+        out = [{"pid": 1, "user": "root", "nlwp": 1, "rss": 11264, "cmd": "/sbin/init"},
+               {"pid": 742, "user": "root", "nlwp": 4, "rss": 36864, "cmd": "/usr/sbin/unbound -d"},
+               {"pid": 1187, "user": "streamroute", "nlwp": 22, "rss": 49152,
+                "cmd": "/usr/local/bin/sr-metrics-agent --config /etc/sr-metrics-agent.yaml"}]
+        if h.proc:
+            out.append({"pid": self.pid(h), "user": "streamroute", "nlwp": h.jvm_threads(self.m.fleet.p),
+                        "rss": self.rss_mib(h) * 1024, "cmd": f"/usr/lib/jvm/java-17-openjdk-amd64/bin/java "
+                        f"-Xmx{h.xmx} -XX:+UseG1GC -Xss1m -jar /opt/streamroute/streamroute-2.3.9.jar"})
+        for p in out:
+            p["args"], p["comm"] = p["cmd"], p["cmd"].split()[0].rsplit("/", 1)[-1]
+        return out
 
     def uptime(self, since: float, now: float) -> str:
         s = int(max(0, now - since))
@@ -189,8 +218,10 @@ class Commands:
                 return self.cmctl(now), 0
             if cmd in ("hostname", "date", "uptime"):
                 return self.basic(name, cmd, now), 0
-            return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
+            return (NOT_FOUND if cmd in SR_ONLY else NOT_AVAILABLE).format(cmd=cmd) + "\n", 127
         h = self.m.fleet.hosts[name]
+        if cmd in ADMIN_ONLY:
+            return NOT_FOUND.format(cmd=cmd) + "\n", 127
         if cmd == "srctl":
             return self.srctl(h, args, now)
         if cmd == "ulimit" and args in (["-a"], ["-u"], []):
@@ -205,7 +236,9 @@ class Commands:
         if cmd == "dmesg" or (cmd == "journalctl" and "-k" in args):
             return self.dmesg(h), 0
         if cmd in ("pgrep", "pidof"):
-            return ("2214\n", 0) if h.proc and ("java" in args) else ("", 1)
+            return self.pgrep(h, cmd, args)
+        if cmd in ("head", "tail", "grep", "ls"):
+            return getattr(self, cmd)(h, args, now)
         if cmd == "ps":
             return self.ps(h, args)
         if cmd == "free":
@@ -214,7 +247,7 @@ class Commands:
                     f"Mem:          {MEM_TOTAL} {used:>11}         214           2        1778 "
                     f"{MEM_TOTAL - used:>11}\nSwap:             0           0           0\n"), 0
         if cmd == "sysctl":
-            vals = {"kernel.threads-max": 125520, "kernel.pid_max": 4194304}
+            vals = SYSCTL
             keys = [a for a in args if not a.startswith("-")] or list(vals)
             return "".join(f"{k} = {vals[k]}\n" if k in vals else f"sysctl: cannot stat /proc/sys/{k.replace('.', '/')}"
                            ": No such file or directory\n" for k in keys), 0 if all(k in vals for k in keys) else 255
@@ -320,43 +353,152 @@ class Commands:
             return (f"MemTotal:       {MEM_TOTAL * 1024} kB\nMemFree:          219136 kB\n"
                     f"MemAvailable:   {(MEM_TOTAL - used) * 1024:>8} kB\nBuffers:           81920 kB\n"
                     "Cached:          1738752 kB\nSwapTotal:             0 kB\n"), 0
+        if path.startswith("/proc/sys/kernel/") and (key := "kernel." + path.rsplit("/", 1)[-1]) in SYSCTL:
+            return f"{SYSCTL[key]}\n", 0
+        for svc, tasks in (("streamroute", h.jvm_threads(self.m.fleet.p) if h.proc else None),
+                           ("sr-metrics-agent", 22)):
+            if tasks is not None and path in (CGROUP.format(unit=svc, what="max"),
+                                              CGROUP.format(unit=svc, what="current")):
+                return f"{TASKS_MAX if path.endswith('max') else tasks}\n", 0
         mm = re.fullmatch(r"/proc/(\d+|self)/(limits|status)", path)
-        if mm and mm.group(1) in PIDS and h.proc:
+        pids = {str(self.pid(h)): "java", "1187": "sr-metrics-agent"} if h.proc else {}
+        if mm and mm.group(1) in pids:
             pid, what = mm.group(1), mm.group(2)
             if what == "limits":
                 return PROC_LIMITS.format(n=h.limit), 0
-            threads = h.jvm_threads(self.m.fleet.p) if pid == "2214" else 22
-            rss = self.rss_mib(h) * 1024 if pid == "2214" else 49152
-            return (f"Name:\t{PIDS[pid]}\nState:\tS (sleeping)\nTgid:\t{pid}\nPid:\t{pid}\nPPid:\t1\n"
+            java = pids[pid] == "java"
+            threads = h.jvm_threads(self.m.fleet.p) if java else 22
+            rss = self.rss_mib(h) * 1024 if java else 49152
+            return (f"Name:\t{pids[pid]}\nState:\tS (sleeping)\nTgid:\t{pid}\nPid:\t{pid}\nPPid:\t1\n"
                     f"Uid:\t996\t996\t996\t996\nVmRSS:\t{rss} kB\nThreads:\t{threads}\n"), 0
         return f"cat: {path}: No such file or directory\n", 1
 
+    def _file_args(self, args: list[str]) -> tuple[int, list[str]]:
+        n, paths, it = 10, [], iter(args)
+        for a in it:
+            if a in ("-n", "--lines"):
+                n = int(next(it, "10").lstrip("+-") or 10)
+            elif re.fullmatch(r"-n?\d+", a):
+                n = int(a.lstrip("-n"))
+            elif not a.startswith("-"):
+                paths.append(a)
+        return n, paths
+
+    def _read(self, h, tool: str, path: str, now: float) -> tuple[str | None, str]:
+        out, code = self.cat(h, path, now)
+        if code == 0:
+            return out, ""
+        why = "Is a directory" if path.rstrip("/") in DIRS else "No such file or directory"
+        return None, (f"{tool}: cannot open '{path}' for reading: {why}\n" if tool != "grep" else
+                      f"grep: {path}: {why}\n")
+
+    def head(self, h, args: list[str], now: float, tail: bool = False) -> tuple[str, int]:
+        n, paths = self._file_args(args)
+        out, code, tool = [], 0, "tail" if tail else "head"
+        for path in paths:
+            text, err = self._read(h, tool, path, now)
+            if text is None:
+                out.append(err)
+                code = 1
+                continue
+            rows = text.splitlines(keepends=True)
+            out.append((f"==> {path} <==\n" if len(paths) > 1 else "") + "".join(rows[-n:] if tail else rows[:n]))
+        return "".join(out), code
+
+    def tail(self, h, args: list[str], now: float) -> tuple[str, int]:
+        return self.head(h, args, now, tail=True)
+
+    def grep(self, h, args: list[str], now: float) -> tuple[str, int]:
+        flags = {c for a in args if a.startswith("-") for c in a[1:]}
+        rest = [a for a in args if not a.startswith("-")]
+        if not rest:
+            return "Usage: grep [OPTION]... PATTERNS [FILE]...\n", 2
+        pat, paths, out, found, err = rest[0], rest[1:], [], 0, False
+        rx = re.compile(re.escape(pat) if "F" in flags else pat, re.IGNORECASE if "i" in flags else 0)
+        for path in paths:
+            text, msg = self._read(h, "grep", path, now)
+            if text is None:
+                out.append(msg)
+                err = True
+                continue
+            hits = [(i, x) for i, x in enumerate(text.splitlines(), 1) if bool(rx.search(x)) != ("v" in flags)]
+            found += len(hits)
+            pre = f"{path}:" if len(paths) > 1 else ""
+            out += [f"{pre}{len(hits)}\n"] if "c" in flags else [
+                f"{pre}{f'{i}:' if 'n' in flags else ''}{x}\n" for i, x in hits]
+        return "".join(out), 2 if err else 0 if found else 1
+
+    def ls(self, h, args: list[str], now: float) -> tuple[str, int]:
+        paths = [a.rstrip("/") or "/" for a in args if not a.startswith("-")] or ["/home/ssm-user"]
+        out, code = [], 0
+        for path in paths:
+            if path in DIRS:
+                out.append((f"{path}:\n" if len(paths) > 1 else "") + DIRS[path].replace("  ", "\n") + "\n")
+            elif path == "/home/ssm-user":
+                continue
+            elif self.cat(h, path, now)[1] == 0:
+                out.append(path + "\n")
+            else:
+                out.append(f"ls: cannot access '{path}': No such file or directory\n")
+                code = 2
+        return "".join(out), code
+
+    def pgrep(self, h, cmd: str, args: list[str]) -> tuple[str, int]:
+        """pgrep [-c] [-w] [-f] [-x] [-l] [-a] [-u USER] [PATTERN] and pidof NAME..., over the host's processes."""
+        procs, flags, users, pats, it = self.procs(h), set(), None, [], iter(args)
+        for a in it:
+            if a in ("-u", "-U", "--euid", "--uid"):
+                users = next(it, "").split(",")
+            elif a.startswith("-") and len(a) > 1 and not a.startswith("--"):
+                flags |= set(a[1:].rstrip("u"))
+                if a.endswith("u") and cmd == "pgrep":
+                    users = next(it, "").split(",")
+            elif not a.startswith("--"):
+                pats.append(a)
+        if cmd == "pidof":
+            pids = [str(p["pid"]) for p in reversed(procs) if p["comm"] in pats]
+            return (" ".join(pids[:1] if "s" in flags else pids) + "\n", 0) if pids else ("", 1)
+        if not pats and users is None:
+            return "pgrep: no matching criteria specified\nTry `pgrep --help' for more information.\n", 2
+        try:
+            rx = re.compile(pats[0]) if pats else None
+        except re.error as e:
+            return f"pgrep: {e}\n", 2
+        hit = [p for p in procs if (users is None or p["user"] in users) and (rx is None or (
+            rx.fullmatch if "x" in flags else rx.search)(p["args"] if "f" in flags else p["comm"]))]
+        if "w" in flags:
+            hit = [{**p, "pid": p["pid"] + k if k else p["pid"]} for p in hit for k in range(p["nlwp"])]
+        if "c" in flags:
+            return f"{len(hit)}\n", 0 if hit else 1
+        rows = [f"{p['pid']} {p['args']}" if "a" in flags else f"{p['pid']} {p['comm']}" if "l" in flags
+                else str(p["pid"]) for p in hit]
+        return "".join(r + "\n" for r in rows), 0 if hit else 1
+
     def ps(self, h, args: list[str]) -> tuple[str, int]:
         """ps over the host's processes: -e/-A/-f/aux, -u USER, -p PID, -C NAME, -o FIELDS and --no-headers."""
-        procs = [{"pid": 1, "user": "root", "nlwp": 1, "rss": 11264, "cmd": "/sbin/init"},
-                 {"pid": 742, "user": "root", "nlwp": 4, "rss": 36864, "cmd": "/usr/sbin/unbound -d"},
-                 {"pid": 1187, "user": "streamroute", "nlwp": 22, "rss": 49152,
-                  "cmd": "/usr/local/bin/sr-metrics-agent --config /etc/sr-metrics-agent.yaml"}]
-        if h.proc:
-            procs.append({"pid": 2214, "user": "streamroute", "nlwp": h.jvm_threads(self.m.fleet.p),
-                          "rss": self.rss_mib(h) * 1024, "cmd": f"/usr/lib/jvm/java-17-openjdk-amd64/bin/java "
-                          f"-Xmx{h.xmx} -XX:+UseG1GC -Xss1m -jar /opt/streamroute/streamroute-2.3.9.jar"})
-        for p in procs:
-            p["args"], p["comm"] = p["cmd"], p["cmd"].split()[0].rsplit("/", 1)[-1]
-        fields, header, it = ["pid", "user", "nlwp", "rss", "cmd"], True, iter(args)
+        procs, fields, header, threads, it = self.procs(h), None, True, False, iter(args)
         for a in it:
             if a in ("--no-headers", "--no-heading", "-h", "h"):
                 header = False
-            elif a in ("-o", "-eo", "o", "--format"):
-                fields = [f.strip().rstrip("=") for f in next(it, "").split(",") if f.strip()]
+            elif a in ("-o", "-eo", "-Lo", "o", "--format"):
+                spec = [f.strip() for f in next(it, "").split(",") if f.strip()]
+                fields, header = [f.rstrip("=") for f in spec], header and not all(f.endswith("=") for f in spec)
+                threads |= a == "-Lo"
             elif a in ("-u", "-U", "--user", "-p", "--pid", "-C"):
                 key, vals = {"-p": "pid", "--pid": "pid", "-C": "comm"}.get(a, "user"), next(it, "").split(",")
                 procs = [p for p in procs if str(p[key]) in vals]
-            elif not (a.lstrip("-") and set(a.lstrip("-")) <= set("eAfFlaux")):
+            elif a.lstrip("-") and set(a.lstrip("-")) <= set("eAfFlauxLTm"):
+                threads |= bool(set(a.lstrip("-")) & set("LTm"))
+            else:
                 return f"ps: unsupported option {a}\n", 1
+        fields = fields or (["pid", "lwp", "user", "nlwp", "cmd"] if threads else ["pid", "user", "nlwp", "rss", "cmd"])
         if bad := [f for f in fields if f not in PS_FIELDS]:
             return f'ps: unknown user-defined format specifier "{bad[0]}"\n', 1
-        width = {"pid": 7, "user": -11, "nlwp": 4, "rss": 5}
+        if threads:
+            procs = [{**p, "lwp": p["pid"] + k if k else p["pid"]} for p in procs for k in range(p["nlwp"])]
+        for p in procs:
+            p["tid"] = p["spid"] = p.setdefault("lwp", p["pid"])
+        width = {"pid": 7, "user": -11, "nlwp": 4, "rss": 5, "lwp": 7, "tid": 7, "spid": 7}
 
         def row(vals: dict) -> str:
             return " ".join(f"{vals[f]:>{width[f]}}" if width.get(f, 0) > 0 else f"{vals[f]:<{-width[f]}}"
@@ -382,12 +524,19 @@ class Commands:
         if verb == "daemon-reload":
             return "", 0
         if verb == "show":
-            props = {"LimitNPROC": h.limit, "LimitNPROCSoft": h.limit, "LimitNOFILE": 65536, "TasksMax": 18828,
-                     "TasksCurrent": h.jvm_threads(self.m.fleet.p) if h.proc else "[not set]",
+            props = {"Type": "simple", "LimitNPROC": h.limit, "LimitNPROCSoft": h.limit, "LimitNOFILE": 65536,
+                     "TasksMax": TASKS_MAX, "TasksCurrent": h.jvm_threads(self.m.fleet.p) if h.proc else "[not set]",
                      "MemoryCurrent": self.rss_mib(h) * 1048576 if h.proc else "[not set]", "NRestarts": 0,
-                     "MemoryMax": "infinity", "MainPID": 2214 if h.proc else 0,
+                     "MemoryMax": "infinity", "MainPID": self.pid(h) if h.proc else 0,
                      "ActiveState": "active" if h.proc else "inactive", "SubState": "running" if h.proc else "dead",
                      "User": "streamroute"}
+            if unit == "sr-metrics-agent":
+                props |= {"LimitNPROC": 62760, "LimitNPROCSoft": 62760, "TasksCurrent": 22, "MemoryCurrent": 50331648,
+                          "MainPID": 1187, "ActiveState": "active", "SubState": "running"}
+            elif unit == "sr-apply-limits":
+                props |= {"Type": "oneshot", "LimitNPROC": 62760, "LimitNPROCSoft": 62760, "TasksCurrent": "[not set]",
+                          "MemoryCurrent": "[not set]", "MainPID": 0, "ActiveState": "inactive", "SubState": "dead",
+                          "User": "root"}
             want = []
             for i, a in enumerate(args):
                 if a in ("-p", "--property") and i + 1 < len(args):
@@ -405,8 +554,8 @@ class Commands:
             since = self.m.iso(h.process_start) if unit == "streamroute" else self.m.iso(h.launched)
             return (f"● {unit}.service\n     Loaded: loaded (/etc/systemd/system/{unit}.service; enabled)\n"
                     f"     Active: {'active (running)' if active else 'inactive (dead)'} since {since}\n"
-                    + (f"   Main PID: 2214 (java)\n      Tasks: {h.jvm_threads(self.m.fleet.p)} (limit: 18828)\n"
-                       if unit == "streamroute" and h.proc else "")), 0 if active else 3
+                    + (f"   Main PID: {self.pid(h)} (java)\n      Tasks: {h.jvm_threads(self.m.fleet.p)} (limit: "
+                       f"{TASKS_MAX})\n" if unit == "streamroute" and h.proc else "")), 0 if active else 3
         return NOT_AVAILABLE.format(cmd=f"systemctl {verb}") + "\n", 127
 
     def journal(self, h, args: list[str], now: float) -> tuple[str, int]:
@@ -418,13 +567,11 @@ class Commands:
                 n = int(args[i + 1])
         unit = next((args[i + 1] for i, a in enumerate(args) if a == "-u" and i + 1 < len(args)), "streamroute")
         unit = unit.removesuffix(".service")
-        groups = {"streamroute": ("/vl/prod/streamroute",)}.get(unit)
-        if groups is None:
+        if unit != "streamroute":
             return "-- No entries --\n", 0
-        tag = "streamroute[2214]:"
-        lines = [(t, tag, line) for t, g, host, line in self.m.fleet.logs if host == h.name and g in groups and t <= now]
-        if unit == "streamroute":
-            lines = sorted(lines + self.lifecycle(h, now), key=lambda x: x[0])
+        lines = [(t, f"streamroute[{self.pid(h, t)}]:", line)
+                 for t, _, line in self.m.tel.lines("/vl/prod/streamroute", h.launched, now, host=h.name)]
+        lines = sorted(lines + self.lifecycle(h, now), key=lambda x: x[0])
         return "".join(f"{datetime.fromtimestamp(t, self.m.tz).strftime('%b %d %H:%M:%S')} {h.name} {who} {line}\n"
                        for t, who, line in lines[-n:]) or "-- No entries --\n", 0
 
@@ -436,16 +583,15 @@ class Commands:
             if (up := r["t"] + f.p["stop_s"]) <= now:
                 out += [(up, "systemd[1]:", "streamroute.service: Deactivated successfully."),
                         (up, "systemd[1]:", f"Started {UNIT_DESC}."),
-                        (up, "streamroute[2214]:", BOOTSTRAP.format(**r))]
+                        (up, f"streamroute[{self.pid(h, up)}]:", BOOTSTRAP.format(**r))]
         for t, g, host, line in f.logs:
             if host == h.name and g == "/vl/prod/srcoord" and t <= now and " ROUTING " in f" {line} ":
-                out += [(t, "streamroute[2214]:", BUILD_OK),
-                        (t, "streamroute[2214]:", f"INFO [srcoord] {line.removeprefix(h.name + ' ')}")]
+                out.append((t, f"streamroute[{self.pid(h, t)}]:", f"INFO [srcoord] {line.removeprefix(h.name + ' ')}"))
         return out
 
     def dmesg(self, h) -> str:
         oom = [k for k in self.m.fleet.oom_kills if k["host"] == h.name]
-        extra = "".join(f"[{int(k['t'] - h.launched):>5}.000000] Out of memory: Killed process 2214 (java) "
+        extra = "".join(f"[{int(k['t'] - h.launched):>5}.000000] Out of memory: Killed process {self.pid(h, k['t'])} (java) "
                         "total-vm:17702156kB, anon-rss:15201320kB, file-rss:0kB\n" for k in oom)
         return DMESG + extra
 

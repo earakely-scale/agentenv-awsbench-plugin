@@ -20,6 +20,10 @@ BUILD_FAIL = ("ERROR [shardmap-manager] c.v.streamroute.shardmap.ShardMapBuilder
               "{started}/8 workers started: java.lang.OutOfMemoryError: unable to create native thread: possibly out "
               "of memory or process/resource limits reached")
 NATIVE_THREAD = "OutOfMemoryError: unable to create native thread"
+BUILD_OK = ("INFO [shardmap-manager] c.v.streamroute.shardmap.ShardMapBuilder - build epoch={epoch} complete: 8/8 workers "
+            "started")
+EXPIRED = ("ERROR [shardmap-manager] ShardMapManager - shard map epoch={epoch} expired (last success {last}, ttl 45m); "
+           "state BROKEN, routing halted")
 PARAMS = {
     "jvm_fixed": 364, "sidecar": 22, "pool_min": 256, "pool_max": 384, "pool_per_2000": 128, "build_workers": 8,
     "link_retry_s": 300, "learn_after_s": 240, "learn_spread_s": 3600, "gossip_drop_s": 90,
@@ -380,6 +384,7 @@ class Fleet:
             te, h.build_until = h.build_until, None
             if h.build_workers >= p["build_workers"]:
                 h.valid_until, h.last_success, h.epoch, h.last_error = te + p["ttl_s"], te, self.epoch, None
+                self.log(te, "/vl/prod/streamroute", h.name, BUILD_OK.format(epoch=self.epoch))
                 if h.state != ROUTING:
                     self.became_routing.append(h.name)
                 h.state, h.workers_started = ROUTING, "8/8"
@@ -397,6 +402,9 @@ class Fleet:
             else:
                 h.build_until, h.build_workers = te + p["build_s"], max(0, min(p["build_workers"], rem))
         if h.stuck or h.state != ROUTING:
+            if h.state == STALE and (h.valid_until or 0) <= t and h.last_success:
+                self.log(h.valid_until, "/vl/prod/streamroute", h.name,
+                         EXPIRED.format(epoch=h.epoch, last=self.hms(h.last_success)))
             h.state = STALE if (h.valid_until or 0) > t else BROKEN
             h.routing_since = None
 
@@ -442,6 +450,7 @@ class Fleet:
                 h.valid_until, h.last_success, h.next_rebuild, h.epoch = te + p["ttl_s"], te, te + p["rebuild_s"], self.epoch
                 h.routing_since = te
                 self.became_routing.append(h.name)
+                self.log(te, "/vl/prod/streamroute", h.name, BUILD_OK.format(epoch=self.epoch))
                 self.log(te, "/vl/prod/srcoord", h.name, f"{h.name} ROUTING (bootstrap={h.bootstrap_source})")
                 if xmx_gib(h.xmx) >= p["oom_xmx_gib"] and lagging:
                     h.oom_at = te + p["oom_after_s"]

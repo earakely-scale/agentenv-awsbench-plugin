@@ -206,8 +206,11 @@ def test_limit_raise_routes_132():
     s = run(w)
     assert s["12:30:00"]["routing"] == 132 and s["16:15:00"]["routing"] == 132
     assert w.export()["t03"]["ssm_at_restart"]["sr-a-001"]["limit_nproc"] == 4096
-    out = w.fleet_exec("sr-a-001", "cat /proc/2214/limits", AGENT)["hosts"][0]["stdout"]
+    pid = w.fleet_exec("sr-a-001", "pgrep java", AGENT)["hosts"][0]["stdout"].strip()
+    assert pid == "2311"
+    out = w.fleet_exec("sr-a-001", f"cat /proc/{pid}/limits", AGENT)["hosts"][0]["stdout"]
     assert "Max processes             4096" in out
+    assert "No such file" in w.fleet_exec("sr-a-001", "cat /proc/2214/limits", AGENT)["hosts"][0]["stdout"]
 
 
 def test_half_revert_is_broken_again_after_the_14_00_hold():
