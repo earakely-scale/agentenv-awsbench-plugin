@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-PARAMS = ("env_id", "role", "done_regex", "turn_end_max_s", "chunk_s", "max_chunks")
+PARAMS = ("env_id", "role", "done_regex", "done_text", "turn_end_max_s", "chunk_s", "max_chunks")
 DONE = r"\bDONE\b[.!]?\s*$"
 DONE_FIRST = re.compile(r"^DONE(?:[.!:]|\s+[-\u2013\u2014]|$)")
 MARKDOWN = re.compile(r"^[\s>#*_`~-]+|[\s*_`~]+$")
@@ -63,10 +63,13 @@ def find_env(envs, want):
 
 
 def said_done(reply, pattern=DONE):
-    """The agent's last non-empty line, markdown stripped, ends in DONE, or its first starts with DONE standing alone
-    ("DONE." or "DONE: ..." then a summary), not "DONE with step 1"."""
+    """With the default pattern: the agent's last non-empty line, markdown stripped, ends in DONE, or its first starts
+    with DONE standing alone ("DONE." or "DONE: ..." then a summary), not "DONE with step 1". A task's own done_regex
+    (T03's "^RESULT:\\s*DONE\\b") may match any line, as its token is followed by a summary."""
     lines = [MARKDOWN.sub("", line).strip() for line in (reply or "").splitlines()]
     lines = [line for line in lines if line]
+    if pattern != DONE:
+        return any(re.search(pattern, line) for line in lines)
     return bool(lines) and (re.search(pattern, lines[-1]) is not None or DONE_FIRST.match(lines[0]) is not None)
 
 
@@ -108,10 +111,11 @@ async def wait_turn(turn, env, role, params):
         if items or result.get("ended") or result.get("reason") == "window_end" or waited >= budget - 1e-6:
             break
     turn.record({"waited_s": waited, "items": len(items), "now": result.get("now")})
-    return digest(items, result.get("now"), waited, ended=result.get("ended") or result.get("reason") == "window_end")
+    return digest(items, result.get("now"), waited, ended=result.get("ended") or result.get("reason") == "window_end",
+                  done_text=params.get("done_text", "DONE"))
 
 
-def digest(items, now, waited_s, ended=False):
+def digest(items, now, waited_s, ended=False, done_text="DONE"):
     """What arrived, one line each ("[03:02 ET] #inc-4452 hannah.becker: ..."), or that time passed quietly."""
     lines = []
     for item in items:
@@ -121,7 +125,7 @@ def digest(items, now, waited_s, ended=False):
     if lines:
         return "\n".join(lines)
     minutes = round(waited_s / 60)
-    tail = " The incident window has closed; wrap up and reply DONE." if ended else ""
+    tail = f" The incident window has closed; wrap up and reply {done_text}." if ended else ""
     return f"[{_hhmm(now)} ET] {minutes} minute{'s' if minutes != 1 else ''} passed; nothing new.{tail}"
 
 

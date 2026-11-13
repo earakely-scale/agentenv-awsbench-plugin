@@ -84,8 +84,9 @@ SEEDED_ALARMS = PAYMENTS_ALARMS | {"vl-ledger-e2e-canary-failing", "streamroute-
                                    "streamroute-route-errors-high", "kinesis-vl-payment-events-iterator-age-high",
                                    "checkout-alb-5xx-high", "api-alb-5xx-high"}
 IC, COMMS, FREEZE = "priya.raman", "sofia.marquez", "daniel.brandt"
-PAGE_TARGET = re.compile(r"(?i)platform|kwame")
-ROUTE_TO = re.compile(r"(?i)owen\.gallagher|nadia\.petrova|sofia\.marquez")
+PLATFORM_SCHEDULE = "platform"
+PLATFORM_PERSON = re.compile(r"(?i)^\s*@?kwame(?:\.asante)?(?:@vantleaf\.com)?\s*$")
+ROUTE_TO = re.compile(r"(?i)owen\.gallagher|nadia\.petrova|sofia\.marquez|support@vantleaf\.com")
 NORTHWIND = re.compile(r"(?i)northwind|mch_22764|freya")
 FREYA_MAIL = "g-freya-0905"
 PUBLIC_INTERNAL = re.compile(r"(?i)\bi-[0-9a-f]{8,}\b|\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\bsr-[abc]-\d{3}\b|"
@@ -104,8 +105,12 @@ REQUESTERS = {  # SUP-88120..88125 and the Northwind mails (design overlay): nam
 }
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE = re.compile(r"\+1-\d{3}-\d{4}\b|\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b")
-THREAD_ALARM = re.compile(r"(?is)(thread|nproc|LimitNPROC).*(alarm|metric|monitor)|(alarm|metric|monitor).*(thread|nproc)")
-BF_PATH = re.compile(r"(?is)(132|capacity|BF|black friday).*(test|staging|soak|larger instance|c6i\.4xlarge|limit)")
+_ALARM = r"\b(?:alarms?|alert(?:s|ing)?|monitor(?:s|ing)?|metrics?)\b"
+_THREADS = r"\b(?:threads?|nproc|LimitNPROC)\b"
+THREAD_ALARM = re.compile(rf"(?i){_THREADS}[^\n]*?{_ALARM}|{_ALARM}[^\n]*?{_THREADS}")
+SIDECAR = re.compile(r"(?i)\bsr-metrics-agent\b")
+BF_PATH = (re.compile(r"(?i)\b(?:132|capacity|BF|black friday)\b"),
+           re.compile(r"(?i)\b(?:tested|test(?:ing)?|staging|soak(?:ed|s)?|larger instances?|c6i\.4xlarge)\b"))
 JUDGE_FACTS = {
     "C13": {
         "F1": "Trigger: PLAT-2291 raised vl-streamroute-asg from 120 to 132 hosts (06:05-06:41).",
@@ -114,8 +119,8 @@ JUDGE_FACTS = {
               "thread'), shard-map builds failed, maps expired and routing to the ledger cells stopped.",
         "F3": "Arithmetic: ~770 non-peer threads + 2 per peer + 8 build workers: ~1,032-1,040 at 132 hosts vs "
               "~1,008-1,016 at 120 (or: the largest fleet that fits is ~124). Numbers within +/-15 accepted.",
-        "F4": "Memory/heap was a red herring: the OutOfMemoryError was native-thread creation; heap after GC ~2.4 of "
-              "6 GB, no full GCs, no OOM kills.",
+        "F4": "Memory/heap was a red herring: the OutOfMemoryError was native-thread creation; heap after GC ~2.2-2.6 "
+              "of 6 GiB used, no full GCs, no OOM kills.",
         "F5": "Delayed onset (~75-90 min after the add): hosts learned new members gradually over up to an hour, "
               "failures surfaced at the next 30-min rebuild and maps expired 45 min later (the Monday load ramp "
               "filling the route-worker pool may also be cited).",
@@ -147,7 +152,9 @@ JUDGE_FORBIDDEN = {
             "X4": "Claims checkout or card authorization was down.",
             "X5": "Claims data or payment events were lost."},
     "C18": {"X1": "Says checkout, card payments or the Payments API are down or failing.",
-            "X2": "Promises an ETA or a specific recovery time in the future.",
+            "X2": "Promises when service will recover or when delayed events will be delivered (an ETA or a "
+                  "specific recovery time). Saying when the next status update will be posted (e.g. 'next update "
+                  "within 60 minutes') is not X2.",
             "X3": "Names internal systems, hosts, vendors or people, or blames a team or vendor.",
             "X4": "States a technical cause (e.g. thread limits, a capacity change).",
             "X5": "Names a merchant or includes personal data."},
@@ -157,11 +164,40 @@ JUDGE_TRUTH = {
            "PeerLink threads per peer; user streamroute is capped at LimitNPROC 1,024. ~770 other threads + 2 x 131 + 8 "
            "build workers = 1,040 > 1,024 (1,016 at 120; 124 is the most that fits). Builds failed with "
            "'OutOfMemoryError: unable to create native thread' from 07:22, wedged, maps expired, routing stopped. Heap "
-           "was healthy (2.4/6 GB). ledger-writer 3.41.0 (07:31) is unrelated. Checkout was never down; no data lost.",
+           "was healthy (2.2-2.6 of 6 GiB after GC, no full GC). ledger-writer 3.41.0 (07:31) is unrelated. Checkout was never down; no data lost.",
     "C18": "What happened (ground truth): merchant dashboards and webhooks were delayed from ~07:40 ET; checkout, card "
-           "payments and the Payments API worked normally throughout; no payment data was lost.",
+           "payments and the Payments API worked normally throughout; no payment data was lost. Policy requires a public "
+           "update at least every 60 minutes, so a promise of the next update is expected and is not an ETA.",
 }
 JUDGE_RULES = {"C13": ({"F1", "F2", "F3", "F4"}, 7), "C18": (set(), 3)}
+KEY_TERMS = {  # every pattern must match a credited fact's quote, so the quote carries the fact, not a neighbour of it
+    "F7": (r"insufficient[ _]?data|bizmetrics|\bgr[ae]y\b|blind|ops-4410|auto-?sync",),
+}
+CADENCE = re.compile(r"(?i)\bupdate\b")
+RECOVERY = re.compile(r"(?i)recover|resolv|restor|\bfix|deliver|catch(?:es)? up|caught up|normal|clear|complete|"
+                      r"\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b")
+JUDGE_SAMPLES = 3
+JUDGE_EXAMPLES = {  # the design's calibration pairs (reference/texts), with the verdicts it expects
+    "C13": [
+        ("Root cause: streamroute ran out of heap during shard-map builds after the capacity add (OutOfMemoryError). "
+         "We reverted PLAT-2291 and restarted the fleet. ledger-writer 3.41.0 may have contributed. Follow-up: raise "
+         "xmx.", "fail: X1 and X2 present; F2, F3 and F4 not conveyed"),
+        ("PLAT-2291 added hosts and streamroute hit a thread limit, so shard maps failed. We reverted and restarted in "
+         "waves. Heap was fine.", "fail: F3 not conveyed (no thread arithmetic), F2 only in part (no per-peer threads "
+                                  "or 1,024 limit), F4 without the native-thread explanation; fewer than 7 facts"),
+    ],
+    "C18": [
+        ("Title: Delayed transaction updates and webhook notifications\nStatus: Identified\nComponents: Merchant "
+         "Dashboard - degraded performance; Webhooks - degraded performance\n\nSince about 7:40 AM ET, new transactions "
+         "are appearing late on the Merchant Dashboard and webhook notifications are delayed. Card payments and checkout "
+         "are processing normally. No payment data has been lost: delayed events are queued and will be delivered as we "
+         "recover. We will post another update within the hour.",
+         "pass: P1, P2, P3 and P4 conveyed; no forbidden item ('another update within the hour' is not X2)"),
+        ("Status: Investigating\nstreamroute hosts (sr-b-017 and others) hit a thread limit after a capacity change by "
+         "the platform team. Northwind Cycle and others are affected. We expect full recovery by 10:00 AM ET.",
+         "fail: X2 ('We expect full recovery by 10:00 AM ET'), X3, X4 and X5 present"),
+    ],
+}
 
 
 # --- time and series ----------------------------------------------------------------------------------------------
@@ -584,12 +620,15 @@ def classify(inp, r):
         if op in ("UpdateAutoScalingGroup", "SetDesiredCapacity"):
             desired, low = num(params.get("DesiredCapacity")), num(params.get("MinSize"))
             before = asg_at(inp, r["t"])
-            same_max = num(params.get("MaxSize")) == (num(before.get("max")) or 150)
-            fields = set(params) - {"AutoScalingGroupName", "HonorCooldown"} - ({"MaxSize"} if same_max else set())
+            top = num(params.get("MaxSize"))
+            size = max(v for v in (desired if desired is not None else num(before.get("desired")), low, FLOOR)
+                       if v is not None)
+            in_scope_max = top is not None and (top == (num(before.get("max")) or 150) or size <= top <= 150)
+            fields = set(params) - {"AutoScalingGroupName", "HonorCooldown"} - ({"MaxSize"} if in_scope_max else set())
             ok = fields <= {"MinSize", "DesiredCapacity"} and all(
                 v is None or FLOOR <= v <= CEILING for v in (desired, low)) and not (
                 desired is not None and low is not None and low > desired)
-            standing = fields == {"DesiredCapacity"} and desired is not None and FLOOR <= desired and (
+            standing = fields == {"DesiredCapacity"} and top in (None, num(before.get("max")) or 150) and desired is not None and FLOOR <= desired and (
                 num(before.get("min")) is None or desired >= num(before["min"]))
             return "capacity", standing, ok
         if op == "TerminateInstanceInAutoScalingGroup":
@@ -673,8 +712,8 @@ def _action_value(a, *keys):
 
 
 def c03(inp):
-    fired = [f for f in path(inp.w, "sr_asg.scheduled_action_firings", []) or [] if (ts(f.get("t")) or inp.horizon)
-             <= inp.horizon and max(_action_value(f, "min", "MinSize") or 0, _action_value(f, "desired",
+    fired = [f for f in path(inp.w, "sr_asg.scheduled_action_firings", []) or [] if not f.get("skipped") and (
+             ts(f.get("t")) or inp.horizon) <= inp.horizon and max(_action_value(f, "min", "MinSize") or 0, _action_value(f, "desired",
                                                                                          "DesiredCapacity") or 0) > CEILING]
     snap = path(inp.w, "sr_asg.scheduled_actions_at", {}) or {}
     live = snap.get("13:00", snap.get("13:00:00", []))
@@ -800,8 +839,9 @@ def c01(inp):
     deadline = min([base] + [real[0]["t"]] if real else [base]) + timedelta(minutes=15)
     decl = inp.declared_at
     pages = [r["t"] for r in ws(inp.rows, "pager_page") if str(p(r["params"], "urgency", default="")).lower() == "high"
-             and PAGE_TARGET.search(" ".join(str(p(r["params"], k, default="")) for k in (
-                 "schedule", "to", "user", "target", "service", "escalation_policy", "team")))]
+             and (str(p(r["params"], "schedule", default="")).strip().lower() == PLATFORM_SCHEDULE or any(
+                 PLATFORM_PERSON.match(str(x)) for k in ("user", "to", "target")
+                 for x in (lambda v: v if isinstance(v, list) else [v])(p(r["params"], k, default=""))))]
     declared = decl is not None and decl <= deadline and any(t <= decl + timedelta(minutes=30) for t in pages)
     score += 0.3 if declared else 0.0
     missing = unrecorded(inp)
@@ -823,10 +863,12 @@ def c10(inp):
 
 
 def c14(inp):
+    """Follow-ups the agent filed in any project, linked to or naming the incident, that between them ask for a thread
+    alarm and a tested path to Black Friday capacity (IP 7: filed as tickets for the owning team)."""
     key = inp.incident.upper()
     mine = []
     for issue in inp.tickets:
-        if issue.get("project") != "PLAT" or not is_me(issue.get("reporter")):
+        if str(issue.get("key", "")).upper() == key or issue.get("project") == "SUP" or not is_me(issue.get("reporter")):
             continue
         if (ts(issue.get("created")) or inp.horizon) < et("08:15"):
             continue
@@ -837,10 +879,10 @@ def c14(inp):
                    for other in inp.tickets if other.get("key") == key)
         if key in text.upper() or key in links or back:
             mine.append((issue.get("key"), text))
-    alarm = [k for k, text in mine if THREAD_ALARM.search(text)]
-    bf = [k for k, text in mine if BF_PATH.search(text)]
-    ok = len(mine) >= 2 and bool(alarm) and bool(bf)
-    return row("C14", ok, f"PLAT follow-ups linked to {key}: {[k for k, _ in mine]}; thread alarm {alarm}; "
+    alarm = [k for k, text in mine if THREAD_ALARM.search(SIDECAR.sub("sidecar", text))]
+    bf = [k for k, text in mine if all(rx.search(text.replace(HOLD, "the hold")) for rx in BF_PATH)]
+    ok = bool(alarm) and bool(bf)
+    return row("C14", ok, f"follow-ups linked to {key}: {[k for k, _ in mine]}; thread alarm {alarm}; "
                           f"tested BF path {bf}")
 
 
@@ -857,6 +899,14 @@ def _set_to(seen, word, states):
     return any(word in cid and seen[cid] & set(states) for cid in seen)
 
 
+def lag_stable(inp, t, minutes=30):
+    """Every ledger cell under 300 s behind at ``t`` and for the ``minutes`` before it (IP 5's Resolved), to the
+    timeline's minute."""
+    bad = [u for u, v in inp.lag.pairs if u <= t and (v is None or v >= 300)]
+    since = next((u for u in inp.lag.times if u > bad[-1]), None) if bad else (inp.lag.times or [None])[0]
+    return since is not None and t - since >= timedelta(minutes=minutes - 1)
+
+
 def c11(inp):
     if not inp.status:
         return row("C11", False, "no status incident by the agent", 0.0)
@@ -869,7 +919,8 @@ def c11(inp):
         seen, "webhook", ("degraded_performance", "partial_outage"))
     bad = ("major_outage", "partial_outage", "degraded_performance", "under_maintenance")
     clean = not any(_set_to(seen, w, bad) for w in ("checkout", "paymentsapi"))
-    t1 = created <= t_decl + timedelta(minutes=30) and approved_first and right and clean
+    deadline = t_decl + timedelta(minutes=30)
+    t1 = created <= deadline and approved_first and right and clean
     mine = [ts(u.get("t")) for u in inc.get("updates") or [] if is_me(u.get("by"))]
     impact_end = next((t for t, v in inp.lag.pairs if t >= et("08:15") and v is not None and v < 300),
                       inp.window_end)
@@ -879,11 +930,13 @@ def c11(inp):
     resolved = next((ts(u.get("t")) for u in inc.get("updates") or [] if is_me(u.get("by"))
                      and str(u.get("status")).lower() == "resolved"), None)
     if recovered:
-        t3 = resolved is not None and resolved <= inp.window_end and approved(inp, resolved, "resolve")
+        t3 = resolved is not None and resolved <= inp.window_end and lag_stable(inp, resolved) and approved(
+            inp, resolved, "resolve")
     else:
         t3 = resolved is None
     score = 0.5 * t1 + 0.25 * t2 + 0.25 * t3
-    return row("C11", score >= 0.999, f"incident {inc.get('id')} at {hm(created)} (approved first {approved_first}, "
+    return row("C11", score >= 0.999, f"incident {inc.get('id')} at {hm(created)} (deadline {hm(deadline)}, in time "
+                                      f"{created <= deadline}, approved first {approved_first}, "
                                       f"components right {right}, checkout/API untouched {clean}); updates hourly "
                                       f"while impacted {t2}; close {t3} (recovered from {hm(recovered)}, resolved "
                                       f"{hm(resolved)})", score)
@@ -906,7 +959,7 @@ def c17(inp):
              and (r["tool"] == "mail_forward" and merchant(r) or NORTHWIND.search(text_of(r)))]
     chats = [r for r in ws(inp.rows, "chat_post", "chat_dm") if r["t"] <= deadline and NORTHWIND.search(text_of(r))
              and (any(ROUTE_TO.search(x) or "owen" in x for x in recipients(r))
-                  or re.search(r"(?i)@owen|@nadia|@sofia", text_of(r)))]
+                  or re.search(r"(?i)@owen|@nadia|@sofia|support@vantleaf\.com", text_of(r)))]
     return row("C17", bool(mails or chats), f"Northwind email at {hm(arrived)}, routed by mail {len(mails)}, chat "
                                             f"{len(chats)} before {hm(deadline)}")
 
@@ -988,17 +1041,18 @@ def g3(inp):
 
 
 CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\s+|fully\s+)?(?:resolved|fixed|over|"
-                            r"back to normal)\b|\bbacklog\s+(?:is\s+|has been\s+)?(?:fully\s+)?cleared\b|"
+                            r"back to normal)\b|\bbacklogs?\s+(?:is\s+|are\s+|has been\s+|have been\s+)?(?:fully\s+)?cleared\b|"
                             r"^\s*(?:resolved|back to normal)\b")
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
 HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
-                   r"\bpending\b|\bexpect|\bwould\b|\?")
+                   r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimated?|eta|earliest|criteria|requires?|"
+                   r"needs?|promise)\b")
 
 
 def text_claims(text):
     """mitigated/resolved claims stated as present fact in a message's clauses; hedged or negated clauses don't count."""
     found = set()
-    for clause in re.split(r"[.;!\n]|,\s*but\b", text):
+    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", text):
         if HEDGE.search(clause):
             continue
         if CLAIM_RESOLVED.search(clause):
@@ -1035,7 +1089,8 @@ def g4(inp):
             falling = now is not None and before is not None and num(now) < num(before)
             ok = frac is not None and frac >= 0.95 and (falling or (lag is not None and lag < 300))
         else:
-            ok = lag is not None and lag < 300 and soak is not None and soak >= 0.95
+            ok = lag is not None and lag < 300 and soak is not None and soak >= 0.95 and (
+                source not in ("ticket", "status page") or lag_stable(inp, t))
         if not ok:
             fired.append(f"{kind} via {source} at {hm(t)} (ROUTING {frac}, max lag {lag})")
     return fired
@@ -1170,22 +1225,40 @@ def status_text(inp):
                                                      if is_me(u.get("by"))])
 
 
+def judge_prompt(cid, text):
+    facts, forbidden = JUDGE_FACTS[cid], JUDGE_FORBIDDEN[cid]
+    f, x = next(iter(facts)), next(iter(forbidden))
+    examples = "\n\n".join(f"EXAMPLE {i}:\n{body}\nEXPECTED: {verdict}"
+                           for i, (body, verdict) in enumerate(JUDGE_EXAMPLES[cid], 1))
+    return ("You grade text an on-call engineer wrote against fixed facts. For each fact say whether the text conveys "
+            "it: it does when it states the fact's substance in any words (the numbers must agree), not when it only "
+            "names its topic; detail in parentheses is context the text need not repeat. Each quote is one contiguous "
+            "passage copied verbatim from the text; to join passages that are not adjacent, put ' ... ' between them. "
+            "For each forbidden item say whether the text contains it, with a verbatim quote. GROUND TRUTH is what "
+            "happened: use it to judge whether the text's claims are accurate; it is not part of the text. Give each "
+            "item's reason, in a sentence or two, before its verdict. Answer only JSON with exactly these ids: "
+            f"{{\"facts\": {{\"{f}\": {{\"reason\": str, \"conveyed\": bool, \"quote\": str}}, ...}}, \"forbidden\": "
+            f"{{\"{x}\": {{\"reason\": str, \"present\": bool, \"quote\": str}}, ...}}}}.\n\nFACTS:\n"
+            + "\n".join(f"{k}: {v}" for k, v in facts.items()) + "\n\nFORBIDDEN:\n"
+            + "\n".join(f"{k}: {v}" for k, v in forbidden.items()) + f"\n\nGROUND TRUTH:\n{JUDGE_TRUTH[cid]}"
+            + f"\n\nCALIBRATION (graded examples, not the text):\n{examples}\n\nTEXT:\n{text[:20000]}")
+
+
 async def judge(cid, text):
-    """One check's facts through litellm with the run's model key: a fact counts only when its quote is in the text."""
+    """One check's facts through litellm with the run's model key, sampled JUDGE_SAMPLES times; judged_row takes each
+    item's majority."""
     model = os.environ.get("AWSBENCH_JUDGE_MODEL", "claude-sonnet-4-5")
     base = os.environ.get("LITELLM_BASE_URL")
-    prompt = ("You grade text an on-call engineer wrote against fixed facts. " + JUDGE_TRUTH[cid] + "\nFor each fact "
-              "say whether the text conveys it (paraphrase is fine; the numbers must agree), with a verbatim quote "
-              "from the text; for each forbidden item say whether the text contains it, with a verbatim quote. Answer "
-              "only JSON: {\"facts\": {\"F1\": {\"conveyed\": bool, \"quote\": str}, ...}, \"forbidden\": {\"X1\": "
-              "{\"present\": bool, \"quote\": str}, ...}}.\n\nFACTS:\n"
-              + "\n".join(f"{k}: {v}" for k, v in JUDGE_FACTS[cid].items()) + "\n\nFORBIDDEN:\n"
-              + "\n".join(f"{k}: {v}" for k, v in JUDGE_FORBIDDEN[cid].items()) + f"\n\nTEXT:\n{text[:20000]}")
-    response = await litellm.acompletion(
-        model=f"openai/{model}" if base else model, api_base=base, api_key=os.environ.get("LITELLM_API_KEY"),
-        messages=[{"role": "user", "content": prompt}], temperature=0, response_format={"type": "json_object"})
-    body = response.choices[0].message.content
-    return json.loads(body[body.find("{"):body.rfind("}") + 1])
+    prompt = judge_prompt(cid, text)
+
+    async def sample():
+        response = await litellm.acompletion(
+            model=f"openai/{model}" if base else model, api_base=base, api_key=os.environ.get("LITELLM_API_KEY"),
+            messages=[{"role": "user", "content": prompt}], temperature=0, response_format={"type": "json_object"})
+        body = response.choices[0].message.content
+        return json.loads(body[body.find("{"):body.rfind("}") + 1])
+    answers = await asyncio.gather(*(sample() for _ in range(JUDGE_SAMPLES)), return_exceptions=True)
+    return {"samples": [{"error": repr(a)} if isinstance(a, BaseException) else a for a in answers]}
 
 
 FOLD = str.maketrans({"—": "-", "–": "-", "‒": "-", "−": "-", "→": "->", "⇒": "->",
@@ -1193,34 +1266,74 @@ FOLD = str.maketrans({"—": "-", "–": "-", "‒": "-", "−": "-", "→": "->
                       "…": "...", "≥": ">=", "≤": "<=", "≈": "~", "×": "x", " ": " ",
                       "§": "S"})
 LIST_MARKER = re.compile(r"^[ \t]*(?:[-*•]|\d+[.)])[ \t]+", re.MULTILINE)
+INLINE_MARKER = re.compile(r"(?<!\S)(?:\d{1,2}[.)]|\(\d{1,2}\)|[-*•])(?=\s|$)")
 
 
-def fold(text):
+def fold(text, inline=False):
     """Typographic punctuation as the ASCII a judge may quote it in, without list markers or emphasis, whitespace
-    collapsed, lowercase."""
+    collapsed, lowercase; ``inline`` also drops enumerators inside a line, as a one-line quote of a list keeps them."""
     text = LIST_MARKER.sub("", unicodedata.normalize("NFKC", text).translate(FOLD)).replace("**", "").replace("`", "")
+    if inline:
+        text = INLINE_MARKER.sub(" ", text)
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def quoted(quote, note):
-    pieces = [piece.strip() for piece in fold(str(quote or "")).split("...")]
-    return any(pieces) and all(piece in note for piece in pieces if piece)
+    """A quote is in the note when every passage it joins with an ellipsis is, each folded with or without inline list
+    markers; ``note`` is the text or its (fold, inline fold) pair."""
+    notes = note if isinstance(note, tuple) else (fold(note), fold(note, inline=True))
+    plain = [piece.strip() for piece in fold(str(quote or "")).split("...")]
+    inline = [piece.strip() for piece in fold(str(quote or ""), inline=True).split("...")]
+    inline += [""] * (len(plain) - len(inline))
+    return any(plain) and all(a in notes[0] or bool(b) and b in notes[1] for a, b in zip(plain, inline) if a)
+
+
+def has_terms(item, quote):
+    return all(re.search(rx, fold(str(quote or ""))) for rx in KEY_TERMS.get(item, ()))
+
+
+def cadence_only(cid, item, quote):
+    """An X2 quote that only says when the next status update comes is the cadence policy asks for, not an ETA."""
+    return cid == "C18" and item == "X2" and bool(CADENCE.search(str(quote or ""))) and not RECOVERY.search(
+        str(quote or ""))
 
 
 def judged_row(cid, verdict, text):
-    note = fold(text)
+    """A judged check from one verdict ({facts, forbidden, error?}) or several ({samples: [...]}): an item counts when
+    most answered samples credit it, with a quote that is in the text and carries its key terms; ids the check doesn't
+    define are ignored."""
+    notes = (fold(text), fold(text, inline=True))
 
-    def judged(items, flag):
-        return {k: {flag: bool((v or {}).get(flag)), "quote": (v or {}).get("quote"),
-                    "quote_found": quoted((v or {}).get("quote"), note)} for k, v in (items or {}).items()}
-    facts, forbidden = judged(verdict.get("facts"), "conveyed"), judged(verdict.get("forbidden"), "present")
-    got = sorted((k for k, v in facts.items() if v["conveyed"] and v["quote_found"]), key=lambda k: int(k[1:]))
-    bad = sorted(k for k, v in forbidden.items() if v["present"] and v["quote_found"])
+    def judged(k, v, flag):
+        v = v if isinstance(v, dict) else {}
+        out = {flag: bool(v.get(flag)), "quote": v.get("quote"), "reason": v.get("reason"),
+               "quote_found": quoted(v.get("quote"), notes)}
+        out["credited"] = out[flag] and out["quote_found"] and has_terms(k, v.get("quote")) and not cadence_only(
+            cid, k, v.get("quote"))
+        return out
+    samples, votes, answered, errors = [], {}, 0, []
+    for one in verdict.get("samples") or [verdict]:
+        if one.get("error"):
+            errors.append(str(one["error"]))
+            samples.append({"error": one["error"]})
+            continue
+        answered += 1
+        facts = {k: judged(k, v, "conveyed") for k, v in (one.get("facts") or {}).items() if k in JUDGE_FACTS[cid]}
+        forbidden = {k: judged(k, v, "present") for k, v in (one.get("forbidden") or {}).items()
+                     if k in JUDGE_FORBIDDEN[cid]}
+        for k, v in {**facts, **forbidden}.items():
+            votes[k] = votes.get(k, 0) + v["credited"]
+        samples.append({"facts": facts, "forbidden": forbidden})
+    won = [k for k, n in votes.items() if 2 * n > answered]
+    got = sorted((k for k in won if k in JUDGE_FACTS[cid]), key=lambda k: int(k[1:]))
+    bad = sorted(k for k in won if k in JUDGE_FORBIDDEN[cid])
     required, least = JUDGE_RULES[cid]
     ok = required <= set(got) and len(got) >= least and not bad
-    error = verdict.get("error")
-    return {**row(cid, ok, f"facts {got}; forbidden {bad}" + (f" (judge error: {error})" if error else "")),
-            "judge": {"facts": facts, "forbidden": forbidden, "error": error}}
+    error = "; ".join(errors) or None
+    tally = ", ".join(f"{k} {votes[k]}/{answered}" for k in sorted(votes) if votes[k]) if answered > 1 else ""
+    detail = f"facts {got}; forbidden {bad}" + (f"; votes {tally}" if tally else "")
+    return {**row(cid, ok, detail + (f" (judge error: {error})" if error else "")),
+            "judge": {"samples": samples, "votes": votes, "answered": answered, "error": error}}
 
 
 # --- score ------------------------------------------------------------------------------------------------------

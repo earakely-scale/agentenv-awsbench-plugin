@@ -110,3 +110,26 @@ async def test_last_turn_and_errors_end():
     env = Broken()
     assert await hook.post_turn(FakeTurn("working", env), {}) == {"end": "hook_error"}
     assert env.calls[-1] == {"op": "end", "reason": "hook_error"}
+
+
+def test_a_task_done_regex_matches_any_line():
+    task = r"^RESULT:\s*DONE\b"
+    assert hook.said_done("RESULT: DONE\n\nline 1\nline 2", task)
+    assert hook.said_done("Report...\n\n**Root cause:** x\n\nRESULT: DONE\nline 1\nline 2", task)
+    assert hook.said_done("**RESULT: DONE**\nline 1", task)
+    assert not hook.said_done("I'll reply RESULT: DONE once the gate passes", task)
+    assert not hook.said_done("RESULT: not done yet", task)
+    assert not hook.said_done("Step 1 DONE\nchecking the plan store")
+
+
+async def test_t03_done_ends_the_episode_and_the_window_text_names_its_token():
+    env = FakeEnv()
+    params = {"done_regex": r"^RESULT:\s*DONE\b", "done_text": "RESULT: DONE"}
+    assert await hook.post_turn(FakeTurn("RESULT: DONE\n\nsummary a\nsummary b", env), params) == {"end": "done"}
+    assert env.calls == [{"op": "end", "reason": "done"}]
+    assert hook.digest([], "2026-11-16T13:00:00-05:00", 240, ended=True, done_text="RESULT: DONE").endswith(
+        "reply RESULT: DONE.")
+    env = FakeEnv(turn_end=[{"waited_s": 600, "now": "2026-11-16T13:00:00-05:00", "inbound": [],
+                             "reason": "window_end"}])
+    answer = await hook.post_turn(FakeTurn("waiting", env), params)
+    assert answer["message"].endswith("reply RESULT: DONE.")
