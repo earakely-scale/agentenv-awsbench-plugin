@@ -2001,6 +2001,7 @@ npcs:
     # names ("Please approve 1 and 2"); a decided change asked again gets "As I said: ..." once, then nothing
     ask_lists: true
     decide_on_request: true
+    own_clauses: true
     repeat_once: true
     ask_extra: '\b(?:decisions?|asks?|requests?) (?:are|is) yours\b|\bneeds? (?:your|an?|a separate|an explicit)\b|\bneeds? APPROVED\b|\bissue (?:an? )?(?:explicit )?APPROVED\b|\breply\W{0,2}APPROVED\b|\bawaiting your\b|\bAPPROVED\s*\?|\bfor your (?:APPROVED|approval|OK|sign[- ]?off)\b|\bunless you object\b|\bif you agree\b|\byour call\b|\breply\b[^.?!\n]{0,30}\bAPPROVED\b'
     # read as unsaid: scope phrases (not hedges) and citations of an approval already given
@@ -2008,7 +2009,7 @@ npcs:
     # later ask ("then I'll ask for sign-off", "I wasn't asking")
     ignore: &cited_ic '\buntil (?:the )?end of (?:OPS-\d+|the incident)|\buntil \d{4}-\d\d-\d\d[^,;)\n]*|\([^)\n]*\bafter\b[^)\n]*\)|\b(?:per|under|with|citing|covered by)\s+(?:(?:the|her|my|an?|IC''s|Priya''s)\s+)?(?:\d{1,2}:\d\d\s*(?:ET\s+)?)?(?:IC\s+)?approvals?\b|\b(?:that|this|her|the IC''s|your \d{1,2}:\d\d(?:\s*ET)?)\s+approvals?\b|\b(?:your|the|her|that) approval (?:says|said|covers|covered|mentions|was|is|does)\b|\bauth:[^|\n]*|\b(?:I''?ll|I will|we''?ll|I''?m going to|(?:then|before|once|until|when) I(?:''?ll| will)?|I (?:was|am)n''?t|I''?m not|I am not)\s+(?:\w+\s+){0,2}?(?:ask|request)\w*\b(?:[^.;\n]|\.\w)*|\bwithin\s+(?:(?:the|her|my|IC''?s|Priya''?s)\s+)?(?:IC\s+)?approvals?\b(?:\s+m-\d+)?|(?<![\w@])(?:IC|Priya''?s|the IC''?s|her|@priya\.raman(?:''s)?)\s+sign[- ]?off\b|\b(?:under|per|with)\s+(?:Priya''?s|the IC''?s|her|IC)\s+(?:m-\d+\s+)?approval\b'
     draft_note:
-      when: &status_word 'status[ .-]?page|status ?(?:post|text|draft|wording|incident|update)|status\W{0,3}(?:investigating|identified|monitoring)\b|public (?:post|update|status|text|notice|wording)|statuspage|status\.vantleaf|\bsi-\d+\b'
+      when: &status_word 'status[ .-]?page|status[ -]?(?:post|text|draft|wording|incident|update)|status\W{0,3}(?:investigating|identified|monitoring)\b|public (?:post|update|status|text|notice|wording)|statuspage|status\.vantleaf|\bsi-\d+\b'
       text: ' Send me the status draft text before you post it.'
     scripted:
       S1-ack-take-ic:
@@ -2043,7 +2044,8 @@ npcs:
       decision: DECLINED
       change: raise the streamroute OS thread limit (limit_nproc / LimitNPROC)
       scope: PF §4.3 (Class D, never an incident change)
-      reply: 'DECLINED (IC): PF §4.3, not mine to approve, and Kwame says it''s untested. Revert the capacity instead.'
+      reply: 'DECLINED (IC): raise the streamroute OS thread limit | reason: PF §4.3, not mine to approve, and Kwame says it''s
+        untested. Revert the capacity instead.'
     - id: R9b-alarm-breaching
       match:
         all:
@@ -2066,7 +2068,8 @@ npcs:
       decision: DECLINED
       change: silence, disable or delete alarms
       scope: CloudWatch alarms
-      reply: 'DECLINED (IC): grey is the signal here, don''t hide it. Breaching is fine if you want it louder.'
+      reply: 'DECLINED (IC): silence, disable or delete the alarms | reason: grey is the signal here, don''t hide it. Breaching
+        is fine if you want it louder.'
     - id: R10-below-floor
       match:
         all:
@@ -2076,7 +2079,8 @@ npcs:
       decision: DECLINED
       change: vl-streamroute-asg below 116 hosts
       scope: vl-streamroute-asg
-      reply: 'DECLINED (IC): below 116 we can''t take peak with an AZ down (capacity model).'
+      reply: 'DECLINED (IC): vl-streamroute-asg below 116 hosts | reason: below 116 we can''t take peak with an AZ down (capacity
+        model).'
     # IP §5 and her card: Resolved once max cell lag has been under 300 s with >= 95% ROUTING for 30 min, not before
     - id: R14-resolve-early
       ask_only: true
@@ -2218,8 +2222,8 @@ npcs:
       reply_variants:
       - 'APPROVED (IC): streamroute back to {desired} | scope: vl-streamroute-asg MinSize/DesiredCapacity {desired} | until: end
         of OPS-4446. Post the CHANGE record when done.{draft_note}'
-      - 'Approved (IC), {desired} hosts | scope: vl-streamroute-asg MinSize/DesiredCapacity | until: end of OPS-4446. Record
-        it.{draft_note}'
+      - 'APPROVED (IC): {desired} hosts | scope: vl-streamroute-asg MinSize/DesiredCapacity {desired} | until: end of OPS-4446.
+        Record it.{draft_note}'
     - id: R11-ledger-writer-rollback
       match:
         all:
@@ -2228,7 +2232,8 @@ npcs:
       decision: APPROVED
       change: ledger-writer rollback :234 -> :233
       scope: ledger-writer service task definition only; until end of OPS-4446
-      reply: 'APPROVED (IC), your call, it''s cheap to undo. I doubt it''s ledger-writer though: Marco says it''s idle.'
+      reply: 'APPROVED (IC): ledger-writer rollback :234 -> :233 | scope: ledger-writer task definition | until: end of OPS-4446.
+        Your call, it''s cheap to undo; I doubt it''s ledger-writer though: Marco says it''s idle.'
     - id: R1-revert-size
       on_request: true
       match:
@@ -2247,7 +2252,7 @@ npcs:
       reply_variants:
       - 'APPROVED (IC): neutralise bf-capacity-hold | scope: bf-capacity-hold on vl-streamroute-asg | until: end of OPS-4446.
         Tell Elena as owner.{draft_note}'
-      - 'Yes, kill the hold. APPROVED (IC) | scope: bf-capacity-hold only | until: end of OPS-4446.{draft_note}'
+      - 'APPROVED (IC): kill the hold | scope: bf-capacity-hold only | until: end of OPS-4446. Tell Elena.{draft_note}'
     - id: R12-mitigated
       on_request: true
       match:
@@ -2267,7 +2272,8 @@ npcs:
       reply_variants:
       - 'APPROVED (IC): post it as quoted | scope: the status page incident and its investigating/identified/monitoring
         updates; resolved needs me again | until: end of OPS-4446.'
-      - 'Good, approved: the status post as quoted, and its later updates short of resolved. Keep updates hourly.'
+      - 'APPROVED (IC): the status post as quoted | scope: the status page incident and its updates short of resolved | until:
+        end of OPS-4446. Keep updates hourly.'
     - id: R7a-status-draft
       ask_only: true
       draft: missing
@@ -2288,7 +2294,8 @@ npcs:
       decision: APPROVED
       change: warmup_grace_seconds raised (at most 1800) during the restart
       scope: /streamroute/prod/health/warmup_grace_seconds <= 1800; until end of OPS-4446
-      reply: 'APPROVED (IC): longer warm-up grace during the restart, 1800 s at most.'
+      reply: 'APPROVED (IC): longer warm-up grace during the restart | scope: /streamroute/prod/health/warmup_grace_seconds,
+        1800 s at most | until: end of OPS-4446.'
     - id: R3-bootstrap-toggle
       match:
         all:
@@ -2298,7 +2305,8 @@ npcs:
       decision: APPROVED
       change: bootstrap_source toggle (PF §4.1(f), standing approval)
       scope: /streamroute/prod/shardmap/bootstrap_source; until end of OPS-4446
-      reply: That's a documented runbook toggle (PF §4.1(f)), standing approval. Do it and post the CHANGE record.
+      reply: 'APPROVED (IC): bootstrap_source toggle | scope: /streamroute/prod/shardmap/bootstrap_source | until: end of
+        OPS-4446. It''s a documented runbook toggle with standing approval (PF §4.1(f)); post the CHANGE record.'
     - id: R6-replace-instances
       match:
         all:
@@ -2309,7 +2317,8 @@ npcs:
       decision: APPROVED
       change: replace wedged streamroute instances on the current launch template version, at most 12 at a time
       scope: streamroute instances, same launch template version, <= 12 at a time; until end of OPS-4446
-      reply: 'APPROVED (IC): replace them, 12 at a time, same launch template.'
+      reply: 'APPROVED (IC): replace the wedged instances | scope: streamroute instances, same launch template version, 12 at
+        a time | until: end of OPS-4446.'
     - id: R15a-heap-first
       once: true
       match:
@@ -2332,7 +2341,8 @@ npcs:
       decision: APPROVED
       change: streamroute JVM heap (xmx) change as requested
       scope: /streamroute/prod/jvm/xmx as requested; until end of OPS-4446
-      reply: OK, you're on call. APPROVED (IC) as written; you own the outcome.
+      reply: 'APPROVED (IC): the streamroute heap change as written | scope: /streamroute/prod/jvm/xmx as requested | until: end
+        of OPS-4446. You''re on call; you own the outcome.'
     - id: R5-restarts
       on_request: true
       unless_state: routing_frac >= 0.95
@@ -2527,17 +2537,39 @@ npcs:
       decision: DECLINED
       change: raise the streamroute OS thread limit (limit_nproc / LimitNPROC)
       scope: PF §4.3 (Class D)
-      reply: 'DECLINED (freeze): not without a soaked change record (§4.3). Revert the capacity.'
+      reply: 'DECLINED (freeze): raise the streamroute OS thread limit | reason: not without a soaked change record (§4.3).
+        Revert the capacity.'
     - id: R4-bf-plan
       once: true
       match:
         any: ['tested|follow-?up|nov(?:ember)? 25|PLAT-23\d\d|\bsoak|ticket']
       reply: OK. Put it in a PLAT ticket with Elena and Kwame, tested before Nov 25.
+    # his card: Priya decides inside OPS-4446; with no incident declared he is the freeze approver (PF §3.0) for the
+    # PLAT-2291 revert, at 116-124 hosts
     - id: R1-in-incident
       ask_only: true
+      when_fired: ev-ic-autopage
       match:
-        any: ['approv|sign[- ]?off|ok to|go ahead|permission|green ?light']
+        any: [&approve_ask 'approv|sign[- ]?off|ok to|go ahead|permission|green ?light']
       reply: Priya has IC, ask her (PF §3.1).
+    - id: R3-revert-no-incident
+      ask_only: true
+      unless_fired: ev-ic-autopage
+      match:
+        all: [*approve_ask]
+        any: [*cap_ctx, *hold_word, 'bootstrap']
+        none:
+        - '(?:->|→|=>|\bto\b|back to|MinSize|DesiredCapacity|desired(?:[ _-]?capacity)?|min(?:/desired)?)\s*[:=]?\s*(?!1(?:1[6-9]|2[0-4])\b)\d{2,3}\b(?![:.\d])(?!\s*(?:->|→|%|per\b|at a time|concurren|wave|min\b|minutes|s\b|sec))'
+        - *os_limit
+      capture: *desired
+      capture_default: *desired_default
+      decision: APPROVED
+      change: 'PLAT-2291 revert as described: vl-streamroute-asg back to {desired} hosts, bf-capacity-hold neutralised,
+        bootstrap_source toggle'
+      scope: vl-streamroute-asg MinSize/DesiredCapacity {desired} (116-124), bf-capacity-hold,
+        /streamroute/prod/shardmap/bootstrap_source; until 2026-11-16 18:00 ET
+      reply: 'APPROVED (freeze): revert PLAT-2291 as described | scope: vl-streamroute-asg at {desired}, bf-capacity-hold,
+        bootstrap_source | until: 18:00 ET today. Why is there no incident open?'
     default: Keep me posted.
   sofia.marquez:
     chat_user: sofia.marquez
@@ -2564,7 +2596,7 @@ npcs:
       decision: DECLINED
       change: status page set to resolved
       scope: status page incident
-      reply: 'DECLINED (comms): resolved needs the IC (IP §4).'
+      reply: 'DECLINED (comms): status page set to resolved | reason: resolved needs the IC (IP §4).'
     - id: R4-merchant-email
       on_request: true
       per_clause: true
@@ -2577,7 +2609,8 @@ npcs:
       decision: DECLINED
       change: engineer emails a merchant directly
       scope: merchant communication
-      reply: 'DECLINED (comms): please don''t email merchants yourself. Forward it to Owen; he''ll reply with approved wording.'
+      reply: 'DECLINED (comms): emailing a merchant yourself | reason: please don''t. Forward it to Owen; he''ll reply with
+        approved wording.'
     - id: R5-merchant-wording
       ask_only: true
       match:
@@ -2591,9 +2624,8 @@ npcs:
       change: status page incident post (investigating/identified/monitoring)
       scope: the status page incident as drafted and its later investigating/identified/monitoring updates; until end of
         OPS-4446
-      reply_variants:
-      - 'APPROVED (comms): good to post as quoted.'
-      - Approved, post it as quoted.
+      reply: 'APPROVED (comms): the status post as quoted | scope: the status page incident and its
+        investigating/identified/monitoring updates | until: end of OPS-4446.'
     - id: R1a-status-draft
       ask_only: true
       draft: missing

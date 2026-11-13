@@ -50,6 +50,11 @@ ASKS_NOTHING = re.compile(r"(?i)\b(?:I'?m not|I am not|I (?:was|am)n'?t|not)\s+(
                           r"\bno action (?:is )?needed\b|\bnothing (?:else )?(?:is )?(?:needed|pending)\b")
 DRAFT_LEAD = re.compile(r"(?i)(?:\b(?:post|draft|text|wording|body|update|status|notice|message|reads?|propos\w*)\b[^\"'\n]{0,40}"
                         r"|:\s*)$")
+REFERS = re.compile(r"(?i)\b(?:draft|post|wording)\b|\bm-\d+\b")
+MSG_REF = re.compile(r"\bm-\d+\b")
+LIST_HEAD = re.compile(r"(?i)^(?:(?:my|the|two|three|\d)\s+)?(?:requests?|asks?)\s*:$")
+UPCOMING = re.compile(r"(?i)\bupcoming\s+(?:\w+\s+)?$")
+CLAUSE_END = re.compile(r"(?<=[.!?;])\s+")
 
 
 def clauses(text: str) -> list[str]:
@@ -62,16 +67,18 @@ def clauses(text: str) -> list[str]:
     return out
 
 
-def request(text: str, extra: re.Pattern | None = None) -> list[str]:
+def request(text: str, extra: re.Pattern | None = None, earlier=lambda mid: "") -> list[str]:
     """An `ask_lists` NPC's request: the ask clauses (a bare "approve?" with the clause it ends, or the whole message
     when it follows a quoted draft), everything after an ask whose clause or line opens a list ("Request IC sign-off for:", "need
-    APPROVED for: (1) ..."), and the list items an ask names ("Please approve 1 and 2", "approve each")."""
+    APPROVED for: (1) ...") or after a `Requests:` line, and the list items an ask names ("Please approve 1 and 2",
+    "approve each"). An ask about a post or draft is read with its object: its whole clause and the clauses about a
+    post or draft in the message and in the earlier message it names ("the draft in m-6", `earlier` gives its text)."""
     lines = []
     for line in (text or "").replace("\u2019", "'").splitlines():
         line = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", line).strip()
         lines.append((bool(ITEM.match(line)), [(c, asks(c, extra)) for c in clauses(ITEM.sub("", line))], line))
     named = any(LIST_REF.search(x) for _, parts, _ in lines for _, a in parts for x in a)
-    out, tail, alone = [], False, False
+    out, tail, alone, refs = [], False, False, []
     for item, parts, line in lines:
         for c, a in parts:
             if tail or named and item:
@@ -79,30 +86,52 @@ def request(text: str, extra: re.Pattern | None = None) -> list[str]:
             elif a:
                 out.append(c if len(a[0].split()) <= 2 else a[0])
                 alone |= len(a[0].split()) <= 2 and bool(re.search(r'["\u201d]\s*' + re.escape(a[0]), text))
+                refs += [c] if REFERS.search(c) else []
             tail |= bool(a) and bool(OPENS_LIST.search(a[0]))
-        tail |= any(a for _, a in parts) and line.rstrip().endswith(":")
+        tail |= any(a for _, a in parts) and line.rstrip().endswith(":") or bool(LIST_HEAD.match(line))
+    if refs:
+        about = [*refs, *(c for c in context(text, extra) if REFERS.search(c))]
+        for mid in dict.fromkeys(m for c in refs for m in MSG_REF.findall(c)):
+            about += [c for c in context(earlier(mid) or "", extra) if REFERS.search(c)]
+        out += [c for c in dict.fromkeys(about) if c not in out]
     return [*context(text, extra), *out] if alone else out
 
 
-def draft(text: str) -> str:
+def to_me(text: str, names: set[str]) -> str:
+    """The message without the clauses that open with @mentions none of which is one of `names` ("@hannah.becker please
+    confirm ..." asks Hannah, not the reader)."""
+    def mine(c: str) -> bool:
+        lead = LEAD_MENTIONS.match(c)
+        return not lead or any(m.lower() in names for m in re.findall(r"@([\w.-]+)", lead.group(1)))
+    return "\n".join(" ".join(c for c in CLAUSE_END.split(line) if mine(c)) for line in (text or "").splitlines())
+
+
+def draft(text: str, earlier=None) -> str:
     """The draft a message quotes (text in quotes just after a word like "post" or "draft", or a `Body:` / `Draft:` /
-    `Text:` line) or names ("drafted in m-28"); a quoted log line is no draft."""
-    text = text or ""
-    return " ".join(g for m in DRAFT.finditer(text) if (g := next((g for g in m.groups() if g), "")) and (
-        m.group(4) or m.group(5) or len(g) >= 20 and DRAFT_LEAD.search(text[max(0, m.start() - 60):m.start()])))
+    `Text:` line) or names ("drafted in m-28": that message's draft when `earlier` knows it); a quoted log line is no
+    draft."""
+    text, out = text or "", []
+    for m in DRAFT.finditer(text):
+        g = next((g for g in m.groups() if g), "")
+        if m.group(5):
+            out.append(earlier and draft(earlier(g) or "") or g)
+        elif g and (m.group(4) or len(g) >= 20 and DRAFT_LEAD.search(text[max(0, m.start() - 60):m.start()])):
+            out.append(g)
+    return " ".join(out)
 
 
 def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
     """What the message asks for: each clause from its first unhedged ask word (ASK, or an NPC's `ask_extra`) on, or a
     whole question; an ask noun keeps the up to three words before it that name its object ("status-page approval
-    request"). A statement ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never
-    draw a decision."""
+    request"). A statement ("endpointd stays paused until Kwame approves a resume", "the only upcoming request is")
+    asks nothing, so it can never draw a decision."""
     out = []
     for c in clauses(text):
         for m in sorted([*ASK.finditer(c), *(extra.finditer(c) if extra else ())], key=lambda m: m.start()):
             before = c[:m.start()]
             if not (HEDGE & set(re.findall(r"[\w']+", before.lower())[-4:])
-                    or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)):
+                    or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)
+                    or NOUN_ASK.fullmatch(m.group(0)) and UPCOMING.search(before)):
                 head = re.split(r"[,(:]", before)[-1] if NOUN_ASK.fullmatch(m.group(0)) else ""
                 lead = [w.start() for w in re.finditer(r"\S+", head)][-3:]
                 out.append(c[len(before) - len(head) + lead[0] if lead else m.start():])
@@ -218,6 +247,7 @@ class Timeline:
         self.log: list[dict] = []
         self.fired: dict[str, list[datetime]] = {}
         self.calls: list[dict] = []
+        self.msgs: dict[str, str] = {}
         self.counts: dict[str, int] = {}
         self.page_ids: dict[str, str] = {}
         self.acked: set[str] = set()
@@ -269,6 +299,8 @@ class Timeline:
     def observe(self, call: dict) -> None:
         t = call["t"]
         self.calls.append(call)
+        if call.get("tool") in ("chat_post", "chat_dm") and (mid := text_of(dig(call, "result.id"))):
+            self.msgs[mid] = text_of(dig(call, "args.text"))
         for eid in self.order:
             ev = self.events[eid]
             spec = ev.get("after_tool")
@@ -542,7 +574,8 @@ class Timeline:
         rules answer once; a later message they match gets no reply, not the default.
         An NPC's `ignore` phrases (scope phrases, citations of an approval already given) are read as unsaid.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
-        a rule whose `unless_state` holds is skipped. The default answers requests only. A rule with `read: context`
+        a rule whose `unless_state` holds (or `unless_fired` event fired, or `when_fired` event didn't) is skipped. An
+        `own_clauses` NPC reads only the clauses not opened by others' @mentions. The default answers requests only. A rule with `read: context`
         reads every clause from the first pass on, so a bundled request whose items don't each say "approve" is
         answered whole rather than by the one item that does; an `ask_lists` NPC reads a list its ask introduces or
         names as part of the ask (`request`). A rule with `draft: required|missing` needs the message to quote a draft
@@ -554,10 +587,13 @@ class Timeline:
         c = self.npcs[npc]
         self._note_refusal(npc, text)
         extra = re.compile(c["ask_extra"], re.IGNORECASE) if c.get("ask_extra") else None
+        if c.get("own_clauses"):
+            text = to_me(text, {n.lower() for n in (npc, c.get("chat_user", npc), *c.get("aliases", []))})
         if c.get("ignore"):
             text = re.sub(c["ignore"], " ", text or "", flags=re.IGNORECASE)
-        ask_list, ask, loose = [] if fyi else (request if c.get("ask_lists") else asks)(text, extra), "", ""
-        quoted = draft(text)
+        ask_list, ask, loose = [] if fyi else request(text, extra, self.msgs.get) if c.get("ask_lists") else asks(
+            text, extra), "", ""
+        quoted = draft(text, self.msgs.get)
         waited = not fyi and npc in self.awaiting and not ASKS_NOTHING.search(text)
         if waited and not ask_list:
             ask_list = context(text, extra)
@@ -626,7 +662,9 @@ class Timeline:
 
     def _spent(self, npc: str, rule: dict, key: str) -> bool:
         if rule.get("unless_state") and self.w.eval_state(rule["unless_state"]) or self._held(rule.get("unless_held")) \
-                or rule.get("when_held") and not self._held(rule["when_held"]):
+                or rule.get("when_held") and not self._held(rule["when_held"]) \
+                or rule.get("unless_fired") and self.fired.get(rule["unless_fired"]) \
+                or rule.get("when_fired") and not self.fired.get(rule["when_fired"]):
             return True
         seen = self.replied.get((npc, rule["id"]))
         return seen is not None and (bool(rule.get("once")) or not key or key in seen)
