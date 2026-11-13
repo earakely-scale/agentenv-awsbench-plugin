@@ -330,3 +330,5 @@ plus `timeline`, `approvals`, `world_flags`, `workspace_errors` from `MechWorld`
 12. The design's account 444444444444 (the prompt, PG-77031) is the scenario's `account`; the emulator and the world
     keep `ACCOUNT` inside, and the aws server shows the scenario's id in every result and maps it back in what the agent
     sends (CONTRACTS, "Exports").
+13. The design overlay's `termination_policies = ["Default"]` in `asg.tf` is `NewestInstance` in both the IaC and the
+    live group, so scale-in visibly removes the 12 PLAT-2291 hosts and the repo agrees with DescribeAutoScalingGroups.

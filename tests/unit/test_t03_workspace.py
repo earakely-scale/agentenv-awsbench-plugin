@@ -184,3 +184,11 @@ def test_t03_timeline_texts_match_the_workspace_records():
         key = args.get("subject") if a.get("op") == "mail.deliver" else args.get("summary")
         if a.get("op") in ("mail.deliver", "tickets.create_as") and key in mine:
             assert flat(args.get("body") or args.get("description")) == flat(mine[key]), key
+
+
+def test_t03_iac_termination_policy_matches_the_live_group(ws):
+    """asg.tf says what DescribeAutoScalingGroups shows, so scale-in removes the newest (PLAT-2291) hosts in both."""
+    tf = repo.read(ws, ME, ws.clock(), "infra", "terraform/modules/streamroute/asg.tf")["content"]
+    live = (SCENARIOS.parents[2] / "aws" / "awsbench_aws" / "world" / "t03_asg.py").read_text()
+    assert 'termination_policies = ["NewestInstance"]' in tf and '"Default"' not in tf
+    assert '"TerminationPolicies": ["NewestInstance"]' in live

@@ -10,7 +10,7 @@ tree:
       desired_capacity = 120
       max_size         = 150
       launch_template { name = "vl-streamroute-lt"  version = aws_launch_template.streamroute.default_version }
-      termination_policies = ["Default"]
+      termination_policies = ["NewestInstance"]
       tag { key = "service" value = "streamroute" propagate_at_launch = true }
     }
     # bf-capacity-hold (PLAT-2291 step 2) was created by hand and is not managed here.
