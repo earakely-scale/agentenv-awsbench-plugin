@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 from awsbench_aws.errors import AwsError
 from awsbench_aws.world import load_scenario, make_world
+from awsbench_aws.world.t03_telemetry import UNITS
 from test_t03_world import AGENT, SRC, Ws, at, revert
 
 S = load_scenario("t03")
@@ -253,3 +254,34 @@ def test_too_few_datapoints_all_breaching_alarm_when_missing_data_is_missing():
                     "EvaluationPeriods": 5, "DatapointsToAlarm": 5, "Threshold": 120.0,
                     "ComparisonOperator": "GreaterThanThreshold", "TreatMissingData": "missing"}, ts)
     assert ev["state"] == "ALARM" and "not greater" not in ev["reason"] and "were greater" in ev["reason"]
+
+
+def test_metric_statistics_carry_each_metrics_unit():
+    """opus-3 CALL 74: the IteratorAgeMilliseconds datapoints carried 'Unit': 'None'; CALLs 106-121 the same for
+    LedgerFreshnessP99Seconds."""
+    w = world()
+    w.advance_to(at(w, "09:16:20"))
+    q = {"Namespace": "AWS/Kinesis", "MetricName": "GetRecords.IteratorAgeMilliseconds",
+         "Dimensions": [{"Name": "StreamName", "Value": "vl-payment-events"}],
+         "StartTime": datetime.fromisoformat("2026-11-16T13:40:00Z"),
+         "EndTime": datetime.fromisoformat("2026-11-16T14:16:00Z"), "Period": 300, "Statistics": ["Maximum"]}
+    plain = cw(w, "GetMetricStatistics", **q)["Datapoints"]
+    assert plain and {d["Unit"] for d in plain} == {"Milliseconds"}
+    assert cw(w, "GetMetricStatistics", **q, Unit="Milliseconds")["Datapoints"] == plain
+    assert cw(w, "GetMetricStatistics", **q, Unit="Seconds")["Datapoints"] == []
+    data = cw(w, "GetMetricData", StartTime=q["StartTime"], EndTime=q["EndTime"], MetricDataQueries=[
+        {"Id": "a", "MetricStat": {"Metric": {k: q[k] for k in ("Namespace", "MetricName", "Dimensions")},
+                                   "Period": 300, "Stat": "Maximum", "Unit": u}} for u in ("Milliseconds", "Seconds")])
+    assert [len(r["Values"]) for r in data["MetricDataResults"]] == [len(plain), 0]
+    cpu = cw(w, "GetMetricStatistics", Namespace="AWS/ECS", MetricName="CPUUtilization",
+             Dimensions=[{"Name": "ClusterName", "Value": "vl-prod-core"},
+                         {"Name": "ServiceName", "Value": "ledger-writer"}],
+             StartTime=w.now - timedelta(minutes=30), EndTime=w.now, Period=60, Statistics=["Average"])
+    assert cpu["Datapoints"] and {d["Unit"] for d in cpu["Datapoints"]} == {"Percent"}
+    fresh = cw(w, "GetMetricStatistics", Namespace="Vantleaf/Payments", MetricName="LedgerFreshnessP99Seconds",
+               StartTime=w.now - timedelta(minutes=120), EndTime=w.now, Period=60, Statistics=["Maximum"])
+    assert fresh["Datapoints"] and {d["Unit"] for d in fresh["Datapoints"]} == {"Seconds"}
+
+
+def test_every_published_metric_declares_its_unit(opening):
+    assert {(ns, m) for ns, m, _ in opening.mech.tel.series} <= set(UNITS)

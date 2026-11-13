@@ -37,6 +37,21 @@ NO_MAP = ("WARN [route-worker] c.v.streamroute.route.Router - route.no_shardmap:
 RENEW_SLOW = ("WARN [lease-renewer] c.v.streamroute.lease.LeaseRenewer - lease.renew_slow: renewal took 2.8s (shard map "
               "STALE, rebuild stuck)")
 PAGE = 1000
+UNITS = {("AWS/Kinesis", "IncomingRecords"): "Count", ("AWS/Kinesis", "IncomingBytes"): "Bytes",
+         ("AWS/Kinesis", "GetRecords.IteratorAgeMilliseconds"): "Milliseconds",
+         ("AWS/Kinesis", "ReadProvisionedThroughputExceeded"): "Count",
+         ("AWS/ApplicationELB", "RequestCount"): "Count", ("AWS/ApplicationELB", "HTTPCode_Target_2XX_Count"): "Count",
+         ("AWS/ApplicationELB", "HTTPCode_Target_4XX_Count"): "Count",
+         ("AWS/ApplicationELB", "HTTPCode_Target_5XX_Count"): "Count",
+         ("AWS/ApplicationELB", "TargetResponseTime"): "Seconds", ("AWS/ECS", "CPUUtilization"): "Percent",
+         ("CWAgent", "mem_used_percent"): "Percent", ("Vantleaf/Streamroute", "CellLagSeconds"): "Seconds",
+         **{("Vantleaf/Streamroute", m): "Count" for m in ("RecordsRouted", "RouteErrors", "ShardMapValid",
+                                                            "PeerCountKnown", "EjectedHosts")},
+         ("Vantleaf/Cellmap", "BootstrapConcurrent"): "Count", ("Vantleaf/Cellmap", "Throttled429"): "Count",
+         ("Vantleaf/Cellmap", "LoadShedActive"): "None", ("Vantleaf/Payments", "PaymentVolumePerMin"): "Count",
+         ("Vantleaf/Payments", "AuthSuccessRate"): "None", ("Vantleaf/Payments", "LedgerFreshnessP99Seconds"): "Seconds",
+         ("Vantleaf/Payments", "WebhookDeliveryLagP99"): "Seconds", ("Vantleaf/Canary", "LedgerE2ESuccess"): "None",
+         ("Vantleaf/Canary", "CheckoutE2ESuccess"): "None"}
 
 
 def _ms(t: float) -> int:
@@ -375,6 +390,8 @@ class Telemetry:
                 dims = {d["Name"]: d["Value"] for d in met.get("Dimensions", [])}
                 pts = self.aggregate(met.get("Namespace"), met.get("MetricName"), dims, p["StartTime"], p["EndTime"],
                                      ms.get("Period", 60), [stat], now)
+                if ms.get("Unit") and ms["Unit"] != UNITS.get((met.get("Namespace"), met.get("MetricName")), "None"):
+                    pts = []
                 pts = pts if p.get("ScanBy") == "TimestampAscending" else pts[::-1]
                 res.append({"Id": q.get("Id"), "Label": q.get("Label") or met.get("MetricName"),
                             "Timestamps": [datetime.fromtimestamp(t, UTC) for t, _ in pts],
@@ -384,11 +401,13 @@ class Telemetry:
             dims = {d["Name"]: d["Value"] for d in p.get("Dimensions", [])}
             ext = p.get("ExtendedStatistics") or []
             stats = p.get("Statistics") or ([] if ext else ["Average"])
-            pts = self.aggregate(p["Namespace"], p["MetricName"], dims, p["StartTime"], p["EndTime"],
-                                 p.get("Period", 60), stats + ext, now)
+            unit = UNITS.get((p["Namespace"], p["MetricName"]), "None")
+            pts = [] if p.get("Unit") and p["Unit"] != unit else self.aggregate(
+                p["Namespace"], p["MetricName"], dims, p["StartTime"], p["EndTime"], p.get("Period", 60), stats + ext,
+                now)
             return {"Label": p["MetricName"], "Datapoints": [
                 {"Timestamp": datetime.fromtimestamp(t, UTC), **{s: v[s] for s in stats},
-                 **({"ExtendedStatistics": {e: v[e] for e in ext}} if ext else {}), "Unit": "None"} for t, v in pts]}
+                 **({"ExtendedStatistics": {e: v[e] for e in ext}} if ext else {}), "Unit": unit} for t, v in pts]}
         if op == "ListMetrics":
             want = {d["Name"]: d.get("Value") for d in p.get("Dimensions") or []}
             return {"Metrics": [{"Namespace": ns, "MetricName": mn, "Dimensions": [{"Name": k, "Value": v}
