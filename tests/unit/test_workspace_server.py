@@ -82,6 +82,14 @@ async def test_charged_call_is_metered_and_stamped_at_t_exec():
     assert log["tool"] == "tickets_update" and log["call_no"] == 7 and log["charged"] is True
 
 
+async def test_end_carries_the_record_id_the_world_acks():
+    fake = FakeAws()
+    _, app = make(fake)
+    out = await call(app, "pager_page", {"schedule": "platform", "urgency": "high", "title": "ledger empty"})
+    summary = fake.calls[-1][1]["result_summary"]
+    assert summary["id"] == out["page"]["id"] and summary["error"] is None
+
+
 async def test_status_post_is_external_in_resolved():
     fake = FakeAws()
     _, app = make(fake)

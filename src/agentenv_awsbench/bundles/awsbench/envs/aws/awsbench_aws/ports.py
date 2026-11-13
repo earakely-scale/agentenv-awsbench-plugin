@@ -26,7 +26,8 @@ __all__ = ["AwsError", "AwsPort", "WorkspacePort"]
 
 class AwsPort:
     """Calls against the emulator. World reads are not logged (the world polls every tick); writes are, and every
-    call made on the agent's behalf (`world_made=False`) is."""
+    call made on the agent's behalf (`world_made=False`) is, under `acting` ({call_no, role}), the agent call it serves
+    (an epctl command's writes and the fleet_exec that ran it are one change)."""
 
     def __init__(self, emulator: Emulator, actionlog: ActionLog | None = None,
                  now: Callable[[], datetime | None] = lambda: None):
@@ -35,6 +36,7 @@ class AwsPort:
         self.now = now
         self._clients: dict[tuple[str, str], Any] = {}
         self._lock = threading.Lock()
+        self.acting: dict | None = None
         emulator.apply_client_env()
 
     def client(self, service: str, region: str = "us-east-1") -> Any:
@@ -71,9 +73,10 @@ class AwsPort:
             should_log = log_call if log_call is not None else (not world_made or op_class(service, operation) != "point_read")
             if self.actionlog is not None and should_log:
                 t = self.now()
+                acting = {} if world_made else (self.acting or {})
                 self.actionlog.record(t=t, t_issue=t, principal=principal, world_made=world_made, server="aws",
-                                      role="world" if world_made else None, service=service, operation=operation,
-                                      params=params, error=error)
+                                      role="world" if world_made else acting.get("role"), call_no=acting.get("call_no"),
+                                      service=service, operation=operation, params=params, error=error)
 
 
 class WorkspacePort:

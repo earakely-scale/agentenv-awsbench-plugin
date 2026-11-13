@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import json
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -104,11 +105,25 @@ def harvest(tool, result, found):
     return blob
 
 
+async def wait_through(gw, args):
+    """A wait that returns early on inbound items is repeated until its time is reached, as an agent would."""
+    target = None
+    if args.get("minutes") is not None:
+        target = (await gw.now()) + timedelta(minutes=float(args["minutes"]))
+        args = {"until": target.isoformat()}
+    for _ in range(20):
+        result = await gw.call("wait", args)
+        if not result.get("woke_early"):
+            return result
+    return result
+
+
 async def play(gw, steps, check_clock=True):
     found, problems = {}, []
     for tool, args in steps:
         before = await gw.now()
-        result = await gw.call(tool, fill(args, found))
+        args = fill(args, found)
+        result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
         after = await gw.now()
         harvest(tool, result, found)
         clock = (result.get("_clock") or {}).get("now")

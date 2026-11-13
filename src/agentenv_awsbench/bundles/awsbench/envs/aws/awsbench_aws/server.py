@@ -257,6 +257,14 @@ class AwsServer(AgentEnvEnvironment):
     async def _world_call(self, fn, *args, **kwargs):
         return await asyncio.to_thread(self._w, fn, *args, **kwargs)
 
+    def _acting(self, caller: dict, fn, *args):
+        """Run a world call made for an agent call, so the AWS writes it makes are logged under that call."""
+        self.aws_port.acting = {"call_no": caller.get("call_no"), "role": caller.get("role")}
+        try:
+            return fn(*args)
+        finally:
+            self.aws_port.acting = None
+
     def create_app(self) -> Any:
         app = super().create_app()
         app.custom_route("/awsbench/meter/begin", methods=["POST"])(self._route_begin)
@@ -412,7 +420,8 @@ class AwsServer(AgentEnvEnvironment):
 
         async def work(call: dict) -> dict:
             caller = {"role": _role(ctx), "principal": _role(ctx), "call_no": call["call_no"], "t": call["t"]}
-            return await self._world_call(self._need_world().fleet_exec, selector, command, caller)
+            world = self._need_world()
+            return await self._world_call(self._acting, caller, world.fleet_exec, selector, command, caller)
         return await self._metered(ctx, "fleet_exec", {"selector": selector, "command": command}, work, hosts=hosts)
 
     @tool(description="Restart the hosts a selector names, `batch_size` at a time, as a background job; "
@@ -420,7 +429,8 @@ class AwsServer(AgentEnvEnvironment):
     async def fleet_restart(self, selector: str, ctx: ToolContext, batch_size: int = 1) -> str:
         async def work(call: dict) -> dict:
             caller = {"role": _role(ctx), "principal": _role(ctx), "call_no": call["call_no"], "t": call["t"]}
-            return await self._world_call(self._need_world().fleet_restart, selector, batch_size, caller)
+            world = self._need_world()
+            return await self._world_call(self._acting, caller, world.fleet_restart, selector, batch_size, caller)
         return await self._metered(ctx, "fleet_restart", {"selector": selector, "batch_size": batch_size}, work)
 
     @tool(description="The state of a fleet job (a restart).", structured_output=False)

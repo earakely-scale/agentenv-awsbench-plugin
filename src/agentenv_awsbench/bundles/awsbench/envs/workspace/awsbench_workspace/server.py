@@ -42,6 +42,15 @@ def _json(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
+def result_summary(result: dict) -> dict:
+    """What the world reads of a result (`{call.result.id}` in timeline actions): the record's id, at the top level
+    or one level down (`{"page": {"id": ...}}`), its error, and the start of its text."""
+    rid = result.get("id")
+    if rid is None:
+        rid = next((v["id"] for v in result.values() if isinstance(v, dict) and v.get("id") is not None), None)
+    return {"id": rid, "error": result.get("error"), "text": _json(result)[:500]}
+
+
 def cost_class(tool_name: str) -> str:
     return "point_read" if tool_name.endswith(READ_SUFFIXES) else "write"
 
@@ -180,7 +189,7 @@ class WorkspaceEnv(AgentEnvEnvironment):
         banner = None
         if begin is not None:
             end, note = await self._meter("end", {"call_no": begin.get("call_no"), "tool": name, "args": args,
-                                                  "result_summary": _json(result)[:500], "resolved": resolved})
+                                                  "result_summary": result_summary(result), "resolved": resolved})
             banner = end.get("banner") if end else None
             if isinstance(banner, dict) and "_clock" in banner:
                 banner = banner["_clock"]
