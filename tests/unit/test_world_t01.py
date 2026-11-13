@@ -292,7 +292,7 @@ def test_serve_aws_metrics_logs_alarms(world):
                                                         "filterPattern": "UnknownHostException"})
     assert logs["events"] and "ledger.internal.vantleaf.io" in logs["events"][0]["message"]
     alarms = world.serve_aws("cloudwatch", "DescribeAlarms", {})["MetricAlarms"]
-    assert {a["AlarmName"]: a["StateValue"] for a in alarms}["CheckoutSuccessRate-critical"] == "ALARM"
+    assert {a["AlarmName"]: a["StateValue"] for a in alarms}["checkout-api-CheckoutSuccessRate-critical"] == "ALARM"
     q = world.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": "https://sqs/000000000000/vl-webhook-delivery"})
     assert int(q["Attributes"]["ApproximateNumberOfMessages"]) > 17600
     assert world.serve_aws("ec2", "DescribeInstances", {}) is None
