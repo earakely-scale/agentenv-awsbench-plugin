@@ -1,0 +1,20 @@
+name: vantleaf/checkout-api
+description: "Hosted checkout API"
+default_branch: main
+protected: [main]
+tree:
+  "RELEASE.md": |
+    ## v2026.11.17-1 (checkout-api:412) - PAY-881
+    - ledger-client circuit breaker (50 % over 20 calls, open 10 s), Retry-After honoured.
+    - Durable posting outbox (DynamoDB vl-ledger-outbox) + replayer (/vl/prod/checkout-api/outbox/replay_rate).
+    - ROLLBACK WARNING: revisions before :412 do not read the outbox; rolling back strands pending entries (authorized,
+      unposted payments) until roll-forward. Drain OutboxPending to 0 before any rollback.
+  "src/ledger/client.ts": |
+    // breaker: open at 50 % failures over 20 calls, open 10 s, half-open probes (PAY-881)
+    // on breaker open or ledger error: write the posting to the outbox (vl-ledger-outbox)
+prs:
+  - {number: 1840, title: "PAY-881 ledger-client breaker, Retry-After, posting outbox", author: marco.ferri, state: merged, created: "2026-11-12T10:00:00-05:00", merged_at: "2026-11-16T15:30:00-05:00", reviewers: [hannah.becker, sana.qureshi], files: [src/ledger/client.ts, src/outbox/replayer.ts, RELEASE.md]}
+deploys:
+  - {ts: "01:55:03", revision: "checkout-api:412", tag: v2026.11.17-1, by: deploy-checkout-api, requested_by: marco.ferri}
+commits:
+  - {sha: 9b41d27, author: marco.ferri, ts: "2026-11-16T15:30:00-05:00", message: "PAY-881 ledger-client breaker, Retry-After, posting outbox (#1840)", files: [src/ledger/client.ts, src/outbox/replayer.ts, RELEASE.md]}

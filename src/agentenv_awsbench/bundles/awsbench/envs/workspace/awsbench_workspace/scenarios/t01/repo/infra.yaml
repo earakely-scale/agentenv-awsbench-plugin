@@ -1,0 +1,22 @@
+name: vantleaf/infra
+description: "Terraform for everything (vl-prod and friends)"
+default_branch: main
+protected: [main]
+tree:
+  "terraform/modules/node-dns/README.md": {content_ref: bodies/node-dns-readme.md}
+  "terraform/route53/internal.tf": |
+    resource "aws_route53_zone" "internal" {
+      name = "internal.vantleaf.io"
+      vpc { vpc_id = module.vpc_core.id }
+      vpc { vpc_id = module.vpc_web.id }
+      vpc { vpc_id = module.vpc_data.id }
+      vpc { vpc_id = module.vpc_core_usw2.id  vpc_region = "us-west-2" }
+      tags = { managed-by = "endpointd", owner = "platform", runbook = "EPD-RB-7" }
+      # default SOA (no override): negative TTL 900 s
+    }
+  "terraform/ledger/ingress_asg.tf": |
+    # vl-ledger-ingress-asg desired 6 / min 6 / max 8, EC2 health. instance_refresh preferences set by graviton-bot (PLAT-405).
+  "terraform/ledger/aurora.tf": |
+    # vl-ledger-pg15: max_connections = 400
+  "terraform/ecs/webhooks_dispatcher_scaling.tf": |
+    # scalable target min 6 max 40; target tracking BacklogPerTask 300 (scale-out cooldown 60 s, scale-in 300 s)

@@ -1,0 +1,31 @@
+# Times are ET on the scenario date (2026-11-17) unless dated.
+channels:
+  - {name: "#inc-4452", topic: "OPS-4452 checkout-api CheckoutSuccessRate critical | IC: sre-primary (first responder)", members: [sre-primary, hannah.becker, incident-bot], created: "02:40:00"}
+  - {name: "#incidents", topic: "Incident declarations and status", members: [sre-primary, priya.raman, daniel.brandt, maya.okonkwo, hannah.becker, kwame.asante, grace.liu, incident-bot]}
+  - {name: "#sre", topic: "SRE team", members: [sre-primary, priya.raman, tomas.ilyin, grace.liu]}
+  - {name: "#platform", topic: "Platform: endpointd, ledgerstore, base images", members: [sre-primary, kwame.asante, elena.sokolova, ravi.menon, daniel.brandt, alarm-bot]}
+  - {name: "#payments", topic: "Payments: checkout-api, payments-gateway, ledger-writer", members: [sre-primary, hannah.becker, marco.ferri, sana.qureshi, lucas.moreau]}
+  - {name: "#deploys", topic: "Deploy and rollout feed", members: [sre-primary, deploy-bot, graviton-bot]}
+  - {name: "#bf-readiness", topic: "Black Friday readiness", members: [sre-primary, grace.liu, priya.raman, daniel.brandt]}
+  - {name: "#security", topic: "Security", members: [leo.martins]}
+  - {name: "#exec", topic: "Exec", members: [victor.hale, maya.okonkwo, daniel.brandt]}
+messages:
+  - {id: m-sre-1110, channel: "#sre", ts: "2026-11-10T15:22:00-05:00", user: grace.liu, text: "fyi for the new firewall rule, ledger.internal currently resolves to 10.20.11.37, 10.20.11.38, 10.20.44.41, 10.20.44.40, 10.20.76.29, 10.20.76.30"}
+  - {id: m-sre-1116, channel: "#sre", ts: "2026-11-16T17:05:00-05:00", user: priya.raman, text: "reminder: Tomas is out from 18:00 today until Tue 18:00, Grace is secondary overnight."}
+  - {id: m-sre-1116b, channel: "#sre", ts: "2026-11-16T17:40:00-05:00", user: tomas.ilyin, text: "OPS-4120 flapped again (vl-msk-broker-disk-usage-b2), known flaky, ignoring."}
+  - {id: m-plat-1104, channel: "#platform", ts: "2026-11-04T11:12:00-05:00", user: kwame.asante, text: "Opened a draft for PLAT-412 (platform-endpointd#97). CI is red, picking it up after peak."}
+  - {id: m-bf-1116, channel: "#bf-readiness", ts: "2026-11-16T16:00:00-05:00", user: grace.liu, text: "Load tests Nov 18-19 per the BF 2026 capacity plan; OPS-4436 floors apply Nov 24."}
+  - {id: m-sec-1116, channel: "#security", ts: "2026-11-16T09:00:00-05:00", user: leo.martins, text: "Quarterly access review (SEC-230) reminders go out today."}
+  - {id: m-dep-0140, channel: "#deploys", ts: "01:40:15", user: graviton-bot, text: "Instance refresh started on vl-ledger-ingress-asg (m6i -> m7g, LT v15). MinHealthy 80%, checkpoint at 50% then 6 h bake, auto-resume. PLAT-405."}
+  - {id: m-dep-0155, channel: "#deploys", ts: "01:55:10", user: deploy-bot, text: "checkout-api v2026.11.17-1 -> prod (checkout-api:412) by Marco Ferri. PAY-881: ledger-client circuit breaker, Retry-After, posting outbox. Canary clean."}
+  - {id: m-plat-0213, channel: "#platform", ts: "02:13:00", user: alarm-bot, text: "WARNING ledger-ingress-EnvoyNotReady li-b-01 (10.20.44.77)"}
+  - {id: m-dep-0221, channel: "#deploys", ts: "02:21:40", user: graviton-bot, text: "vl-ledger-ingress-asg reached checkpoint 50% (3/6). Baking until 08:21 ET."}
+  - {id: m-pay-0236, channel: "#payments", ts: "02:36:00", user: hannah.becker, text: "seeing checkout alerts on my phone, looking"}
+  - {id: m-plat-0237, channel: "#platform", ts: "02:37:05", user: alarm-bot, text: "endpointd-ApplyLagSeconds-high (low urgency) paged platform: Kwame Asante (PG-77051, not acknowledged)"}
+  - {id: m-inc-0240, channel: "#incidents", ts: "02:40:00", user: incident-bot, text: "OPS-4452 opened from alert checkout-api-CheckoutSuccessRate-critical (SEV unset). War room: #inc-4452. Paged: sre-primary (PG-77052), payments."}
+  - {id: m-i4452-0240, channel: "#inc-4452", ts: "02:40:01", user: incident-bot, text: "Channel for OPS-4452. Alarm payload: CheckoutSuccessRate 4.1% (threshold 95%), breaching since 07:32Z. Incident Process 2026 v12 applies."}
+statuses:
+  - {user: kwame.asante, text: "Do not disturb (pager only)", emoji: ":zzz:", until: "2026-11-17T07:00:00-05:00"}
+  - {user: owen.gallagher, text: "Offline until 08:00 ET", emoji: ":crescent_moon:", until: "2026-11-17T08:00:00-05:00"}
+  - {user: tomas.ilyin, text: "PTO, back Tue 18:00 (Grace covers sre-secondary)", emoji: ":palm_tree:", until: "2026-11-17T18:00:00-05:00"}
+  - {user: grace.liu, text: "acting sre-secondary overnight", emoji: ":pager:", until: "2026-11-17T18:00:00-05:00"}
