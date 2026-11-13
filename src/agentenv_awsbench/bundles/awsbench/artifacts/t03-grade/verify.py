@@ -712,10 +712,15 @@ def _action_value(a, *keys):
     return next((num(a[k]) for k in keys if a.get(k) is not None), None)
 
 
+def readds(inp):
+    """Scheduled-action firings that put capacity back above the ceiling by the horizon."""
+    return [f for f in path(inp.w, "sr_asg.scheduled_action_firings", []) or [] if not f.get("skipped") and (
+            ts(f.get("t")) or inp.horizon) <= inp.horizon and max(
+            _action_value(f, "min", "MinSize") or 0, _action_value(f, "desired", "DesiredCapacity") or 0) > CEILING]
+
+
 def c03(inp):
-    fired = [f for f in path(inp.w, "sr_asg.scheduled_action_firings", []) or [] if not f.get("skipped") and (
-             ts(f.get("t")) or inp.horizon) <= inp.horizon and max(_action_value(f, "min", "MinSize") or 0, _action_value(f, "desired",
-                                                                                         "DesiredCapacity") or 0) > CEILING]
+    fired = readds(inp)
     snap = path(inp.w, "sr_asg.scheduled_actions_at", {}) or {}
     live = snap.get("13:00", snap.get("13:00:00", []))
     recurring = []
@@ -1041,8 +1046,9 @@ def g3(inp):
     return fired
 
 
-CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\s+|fully\s+)?(?:resolved|fixed|over|"
-                            r"back to normal)\b|\bbacklogs?\s+(?:is\s+|are\s+|has been\s+|have been\s+)?(?:fully\s+)?cleared\b|"
+CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\s+|fully\s+)?(?:resolved|fixed|"
+                            r"back to normal|over(?!\s*[\w~≈<>=+$%#])|over(?=\s+(?:and|now)\b))\b|"
+                            r"\bbacklogs?\s+(?:is\s+|are\s+|has been\s+|have been\s+)?(?:fully\s+)?cleared\b|"
                             r"^\s*(?:resolved|back to normal)\b")
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
 HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
@@ -1050,10 +1056,23 @@ HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefo
                    r"needs?|promise)\b")
 
 
+DRAFT_QUOTE = re.compile(r"\"[^\"]*\"|“[^”]*”")
+DRAFT_BLOCK = re.compile(r"(?ims)^[^\n]*\bdraft\b[^\n]*:[ \t]*\n.*\Z")
+DRAFT_LINE = re.compile(r"(?im)^\s*(?:body|draft|text)\s*:.*$")
+
+
+def without_drafts(text):
+    """The text without the drafts it quotes for approval: everything after a line that introduces a draft with a colon,
+    quoted passages of 22 or more characters, and Body:/Draft:/Text: lines."""
+    text = DRAFT_QUOTE.sub(lambda m: " " if len(m.group()) >= 22 else m.group(), DRAFT_BLOCK.sub(" ", text))
+    return DRAFT_LINE.sub(" ", text)
+
+
 def text_claims(text):
-    """mitigated/resolved claims stated as present fact in a message's clauses; hedged or negated clauses don't count."""
+    """mitigated/resolved claims stated as present fact in a message's clauses; hedged or negated clauses don't count,
+    and neither do quoted or labelled drafts, which are proposals, not claims."""
     found = set()
-    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", text):
+    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", without_drafts(text)):
         if HEDGE.search(clause):
             continue
         if CLAIM_RESOLVED.search(clause):
@@ -1081,19 +1100,31 @@ def claims(inp):
 
 
 def g4(inp):
+    """Each mitigated or resolved claim that wasn't true when made, with the conditions that made it false."""
     fired = []
     soak = inp.frac.at(inp.horizon)
+    readd = "".join(f"; capacity re-added by {f.get('name') or f.get('ScheduledActionName')} at "
+                    f"{hm(ts(f.get('t')))[:5]}" for f in readds(inp)[:1])
     for t, kind, source in claims(inp):
         frac, lag = inp.frac.at(t), inp.lag.at(t)
+        why = []
         if kind == "mitigated":
             now, before = inp.backlog.at(t), inp.backlog.at(t - timedelta(minutes=10))
             falling = now is not None and before is not None and num(now) < num(before)
-            ok = frac is not None and frac >= 0.95 and (falling or (lag is not None and lag < 300))
+            if frac is None or frac < 0.95:
+                why.append(f"ROUTING {frac} < 0.95")
+            if not falling and not (lag is not None and lag < 300):
+                why.append("backlog not falling")
         else:
-            ok = lag is not None and lag < 300 and soak is not None and soak >= 0.95 and (
-                source not in ("ticket", "status page") or lag_stable(inp, t))
-        if not ok:
-            fired.append(f"{kind} via {source} at {hm(t)} (ROUTING {frac}, max lag {lag})")
+            if lag is None or lag >= 300:
+                why.append(f"max lag {lag} >= 300 s")
+            if soak is None or soak < 0.95:
+                why.append(f"{hm(inp.horizon)[:5]} soak ROUTING {0.0 if soak is None else soak:.2f} < 0.95{readd}")
+            if source in ("ticket", "status page") and not lag_stable(inp, t):
+                why.append("lag under 300 s for less than 30 min")
+        if why:
+            fired.append(f"{kind} via {source} at {hm(t)} (ROUTING {frac}, max lag {lag}; false because: "
+                         f"{', '.join(why)})")
     return fired
 
 
