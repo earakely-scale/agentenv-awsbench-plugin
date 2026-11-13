@@ -39,7 +39,7 @@ cost_overrides:
   hosts: 1
   class: write
 - tool: fleet_exec
-  match: systemctl (stop|start|restart) endpointd-
+  match: 'systemctl\s+(?:-\S+\s+)*(?:stop|start|restart|reload|try-restart|reload-or-restart|kill)\b'
   class: write
 - tool: fleet_exec
   hosts: '>1'
@@ -3672,6 +3672,10 @@ world:
           /etc/envoy/tls:
           - '-rw-r----- 1 envoy envoy 3247 Nov 17 01:42 ledger-ingress.pem'
           - '-rw------- 1 envoy envoy 1704 Nov 17 01:42 ledger-ingress.key'
+        journal:
+        - '01:42:31 envoy[1880]: [info][upstream] cds: added/updated 3 cluster(s)'
+        - '01:42:33 envoy[1880]: [info][main] all clusters initialized. initializing init manager'
+        - '01:42:33 envoy[1880]: [info][config] all dependencies initialized. starting workers'
       - name: li-a-02
         ip: 10.20.11.38
         type: m6i.large
@@ -3711,6 +3715,11 @@ world:
           /etc/envoy/tls:
           - '-rw-r----- 1 envoy envoy 3247 Nov 17 02:16 ledger-ingress.pem'
           - '-rw------- 1 envoy envoy 1704 Nov 17 02:16 ledger-ingress.key'
+        journal:
+        - '02:16:44 envoy[1880]: [info][main] starting main dispatch loop'
+        - '02:16:46 envoy[1880]: [info][upstream] cds: added/updated 3 cluster(s)'
+        - '02:16:48 envoy[1880]: [info][main] all clusters initialized. initializing init manager'
+        - '02:16:48 envoy[1880]: [info][config] all dependencies initialized. starting workers'
       - name: li-c-02
         ip: 10.20.76.30
         type: m6i.large
@@ -3721,10 +3730,6 @@ world:
         - '-rw-r----- 1 envoy envoy 3247 Nov 15 03:00 ledger-ingress.pem'
         - '-rw------- 1 envoy envoy 1704 Nov 15 03:00 ledger-ingress.key'
         /etc/envoy/tls: null
-      journal:
-      - '01:42:31 envoy[1880]: [info][upstream] cds: added/updated 3 cluster(s)'
-      - '01:42:33 envoy[1880]: [info][main] all clusters initialized. initializing init manager'
-      - '01:42:33 envoy[1880]: [info][config] all dependencies initialized. starting workers'
       units:
         envoy:
           pid: 1880

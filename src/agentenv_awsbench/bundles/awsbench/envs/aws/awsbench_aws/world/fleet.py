@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from .endpointd import COMPONENTS, host_of
-from .util import hms, iso, unit
+from .util import hms, iso, parse_time, unit
 
 NOT_AVAILABLE = "{cmd}: not available in this environment"
 SUDO = re.compile(r"^\s*sudo\s+")  # the hosts run fleet commands as root already
@@ -19,6 +19,9 @@ ONE_COMMAND = "one command per call: shell operators are not supported"
 UNBOUND = {"pid": 612, "user": "unbound", "cmd": "/usr/sbin/unbound -d -p",
            "desc": "Validating, recursive, and caching DNS resolver"}
 BOOT = "Mon 2026-10-06 23:28:11 EDT"
+BOOT_T = datetime(2026, 10, 6, 23, 28, 11, tzinfo=ZoneInfo("America/New_York"))
+UNIT_UP_S = 25  # a unit starts this long after its host boots
+DIG_SECTIONS = ("cmd", "comments", "question", "answer", "authority", "stats")
 SYSTEMCTL_VALUED = {"-n", "--lines", "-p", "--property", "-t", "--type", "-o", "--output", "-H", "--host", "-M",
                     "--machine", "--state"}
 
@@ -44,6 +47,23 @@ class Fleet:
 
     def ingress(self) -> list[dict]:
         return [h for h in self.hosts.values() if h["fleet"] == "ledger-ingress"]
+
+    def local(self, t: datetime) -> datetime:
+        return t.astimezone(ZoneInfo(self.w.scenario["timezone"]))
+
+    def booted(self, host: str) -> datetime | None:
+        """When an instance the ingress refresh launched tonight came up (its ASG "Launching" activity); None for the
+        hosts up since BOOT."""
+        acts = ((self.w.scenario.get("world") or {}).get("ingress_asg") or {}).get("activities") or []
+        a = next((a for a in acts if a["slot"] == host), None)
+        return parse_time(a["at"], self.w.start_t) + timedelta(seconds=5) if a else None
+
+    def up(self, host: str, now: datetime) -> str:
+        """uptime's 'up' field: `41 days,  4:52`, ` 1:03` or `37 min`."""
+        s = int((now - (self.booted(host) or BOOT_T)).total_seconds())
+        d, hm = s // 86400, f"{s % 86400 // 3600:2d}:{s % 3600 // 60:02d}"
+        hm = hm if s % 86400 >= 3600 else f"{s % 3600 // 60} min"
+        return f"{d} day{'s' * (d != 1)}, {hm}" if d else hm
 
     def az_names(self) -> dict[str, str]:
         """Zone id -> availability zone name, as the scenario's ingress ASG names them."""
@@ -159,8 +179,9 @@ class Fleet:
         if cmd == "ps":
             return self.ps(host, argv[1:]), 0
         if cmd in ("hostname", "uptime", "date"):
-            return {"hostname": host, "date": now.strftime("%a %b %d %H:%M:%S %Z %Y"),
-                    "uptime": f" {hms(now)} up 41 days,  3:12,  0 users,  load average: 0.31, 0.27, 0.22"}[cmd] + "\n", 0
+            return {"hostname": host, "date": self.local(now).strftime("%a %b %d %H:%M:%S %Z %Y"),
+                    "uptime": f" {hms(now)} up {self.up(host, now)},  0 users,  load average: 0.31, 0.27, 0.22"
+                    }[cmd] + "\n", 0
         if cmd == "ls":
             return self.ls(host, argv[1:])
         if cmd == "envoy-certcheck" and h["fleet"] == "ledger-ingress":
@@ -193,7 +214,14 @@ class Fleet:
         return "NOERROR", [live[-1]["Value"]], left
 
     def dig(self, host, args, now):
-        short = "+short" in args
+        """dig with its display options: +short, and +[no]cmd, comments, question, answer, authority, stats, all."""
+        short, show = "+short" in args, dict.fromkeys(DIG_SECTIONS, True)
+        for a in args:
+            opt = a[1:].lower() if a.startswith("+") else ""
+            if opt in ("all", "noall"):
+                show = dict.fromkeys(DIG_SECTIONS, opt == "all")
+            elif opt.removeprefix("no") in show:
+                show[opt.removeprefix("no")] = not opt.startswith("no")
         names = [a for a in args if not a.startswith("+") and not a.startswith("@") and a not in ("A", "IN", "-t")]
         server = next((a[1:] for a in args if a.startswith("@")), None)
         if not names:
@@ -206,16 +234,22 @@ class Fleet:
         records = self.records(name, status, ips, ttl)
         qid = int(unit(self.w.seed, "qid", host, now.timestamp()) * 65535)
         used = server or "127.0.0.1"
-        lines = [f"; <<>> DiG 9.18.28-0ubuntu0.22.04.1-Ubuntu <<>> {' '.join(args)}", ";; global options: +cmd",
-                 ";; Got answer:",
-                 f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: {qid}",
-                 f";; flags: qr rd ra; QUERY: 1, ANSWER: {len(ips)}, AUTHORITY: {0 if ips else 1}, ADDITIONAL: 1", "",
-                 ";; QUESTION SECTION:", f";{name}.\t\t\tIN\tA", ""]
-        lines += [";; ANSWER SECTION:" if ips else ";; AUTHORITY SECTION:"] + records + [""]
-        lines += [";; Query time: 0 msec" if not bypass else ";; Query time: 2 msec",
-                  f";; SERVER: {used}#53({used}) (UDP)", f";; WHEN: {now.strftime('%a %b %d %H:%M:%S %Z %Y')}",
-                  ";; MSG SIZE  rcvd: 112", ""]
-        return "\n".join(lines), 0
+        c, lines = show["comments"], []
+        if show["cmd"]:
+            lines += [f"; <<>> DiG 9.18.28-0ubuntu0.22.04.1-Ubuntu <<>> {' '.join(args)}", ";; global options: +cmd"]
+        if c:
+            lines += [";; Got answer:", f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: {qid}",
+                      f";; flags: qr rd ra; QUERY: 1, ANSWER: {len(ips)}, AUTHORITY: {0 if ips else 1}, ADDITIONAL: 1",
+                      ""]
+        if show["question"]:
+            lines += [";; QUESTION SECTION:"] * c + [f";{name}.\t\t\tIN\tA"] + [""] * c
+        if show["answer" if ips else "authority"]:
+            lines += [";; ANSWER SECTION:" if ips else ";; AUTHORITY SECTION:"] * c + records + [""] * c
+        if show["stats"]:
+            lines += [";; Query time: 0 msec" if not bypass else ";; Query time: 2 msec",
+                      f";; SERVER: {used}#53({used}) (UDP)",
+                      f";; WHEN: {self.local(now).strftime('%a %b %d %H:%M:%S %Z %Y')}", ";; MSG SIZE  rcvd: 112"]
+        return "".join(line + "\n" for line in lines), 0
 
     def records(self, name, status, ips, ttl) -> list[str]:
         """dig's answer lines, or the zone's SOA with the negative TTL left for an NXDOMAIN."""
@@ -300,12 +334,23 @@ class Fleet:
 
     def ls(self, host, args):
         """ls of the directories the scenario lists for the host (its fleet's `ls`, the host's own over it), each entry
-        in `ls -l` form; null is a directory that does not exist. Other paths are not modelled."""
+        in `ls -l` form; null is a directory that does not exist. Their parent lists those that exist; other paths are
+        not modelled."""
         h = self.hosts[host]
         dirs = {**(self.cfg[h["fleet"]].get("ls") or {}), **(h.get("ls") or {})}
+        kids: dict[str, list[str]] = {}
+        for d, entries in sorted(dirs.items()):
+            parent, _, name = d.rpartition("/")
+            if entries and parent and parent not in dirs:
+                e = entries[0].split()
+                kids.setdefault(parent, []).append(f"drwxr-x--- 2 {e[2]} {e[3]} 4096 {' '.join(e[5:8])} {name}")
+        dirs = {**kids, **dirs}
         paths = {a: a.rstrip("/") for a in args if not a.startswith("-")}
-        if not paths or any(d not in dirs for d in paths.values()):
+        if not paths:
             return NOT_AVAILABLE.format(cmd="ls") + "\n", 127
+        if unknown := [a for a, d in paths.items() if d not in dirs]:
+            return "".join(f"ls: cannot open directory '{a}': not available in this environment\n"
+                           for a in unknown), 127
         long = any(a.startswith("-") and not a.startswith("--") and "l" in a for a in args)
         out = [f"ls: cannot access '{a}': No such file or directory" for a, d in paths.items() if dirs[d] is None]
         for a, d in paths.items():
@@ -335,10 +380,13 @@ class Fleet:
         if u is None:
             return f"Unit {name}.service could not be found.\n", 4
         running = self._running(host, name)
-        since = (self.hosts[host].get("started") or {}).get(name)
+        booted = self.booted(host)
+        since = (self.hosts[host].get("started") or {}).get(name) or (
+            booted and booted + timedelta(seconds=UNIT_UP_S))
         ago = int((now - since).total_seconds()) if since else 0
-        since = (f"{since.astimezone(ZoneInfo(self.w.scenario['timezone'])):%a %Y-%m-%d %H:%M:%S %Z}; "
-                 f"{f'{ago // 60}min ' if ago >= 60 else ''}{ago % 60}s ago" if since else f"{BOOT}; 41 days ago")
+        ago = (f"{ago // 3600}h {ago % 3600 // 60}min" if ago >= 3600 else
+               f"{f'{ago // 60}min ' if ago >= 60 else ''}{ago % 60}s")
+        since = f"{self.local(since):%a %Y-%m-%d %H:%M:%S %Z}; {ago} ago" if since else f"{BOOT}; 41 days ago"
         lines = [f"\u25cf {name}.service - {u.get('desc', name)}",
                  f"     Loaded: loaded (/etc/systemd/system/{name}.service; enabled; vendor preset: enabled)",
                  f"     Active: {'active (running) since ' + since if running else 'inactive (dead)'}",
@@ -419,10 +467,11 @@ class Fleet:
                              [f"{pid:>7} ?        00:{pid % 50:02d}:{pid % 60:02d} {cmd.split()[0].rsplit('/', 1)[-1]}"
                               for pid, _, cmd in procs]) + "\n"
         rows = ["USER         PID %CPU %MEM     VSZ    RSS TTY      STAT START   TIME COMMAND"]
+        start = f"{self.local(b):%H:%M}" if (b := self.booted(host)) else "Oct06"
         for pid, user, cmd in procs:
             cpu = round(unit(self.w.seed, "cpu", host, pid) * 12, 1) if pid > 1 else 0.0
             rows.append(f"{user[:8]:<8} {pid:>7} {cpu:>4} {1.0 + pid % 7:>4.1f} {pid * 97 % 900000 + 20000:>7} "
-                        f"{pid * 31 % 200000 + 9000:>6} ?        Ssl  Oct06  {pid % 90:>3}:{pid % 60:02d} {cmd}")
+                        f"{pid * 31 % 200000 + 9000:>6} ?        Ssl  {start:<5}  {pid % 90:>3}:{pid % 60:02d} {cmd}")
         return "\n".join(rows) + "\n"
 
     def curl(self, host, args, now):
