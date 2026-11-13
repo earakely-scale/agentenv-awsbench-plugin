@@ -364,7 +364,9 @@ class Timeline:
         its ask clauses, then all its clauses (`context`); the others read the whole text. `default_once_after` caps
         the default at one more reply once a message matches it.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
-        a rule whose `unless_state` holds is skipped. The default answers requests only."""
+        a rule whose `unless_state` holds is skipped. The default answers requests only. A rule with `read: context`
+        reads every clause from the first pass on, so a bundled request whose items don't each say "approve" is
+        answered whole rather than by the one item that does."""
         c = self.npcs[npc]
         self._note_refusal(npc, text)
         ask_list = asks(text)
@@ -376,8 +378,9 @@ class Timeline:
         for i, scope in enumerate((" ".join(ask_list), ask)):
             for rule in c.get("rules", []):
                 on_request = bool(rule.get("on_request")) or "decision" in rule
-                if i and not on_request or on_request and not scope or not _matches(rule.get("match", {}),
-                                                                                    scope if on_request else text):
+                read = ask if rule.get("read") == "context" else scope
+                if i and not on_request or on_request and not read or not _matches(rule.get("match", {}),
+                                                                                   read if on_request else text):
                     continue
                 values = {}
                 if "plan_gen" in rule:

@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from awsbench_aws.bridge import iam_allows
 from awsbench_aws.world import MechWorld, load_scenario, make_world, replay_seed
 from test_world_t01 import FakeAws, FakeWs
 
@@ -120,6 +121,18 @@ def _patterns(node):
     elif isinstance(node, list):
         for v in node:
             yield from _patterns(v)
+
+
+def test_sre_on_call_may_make_every_change_the_task_grades():
+    policy = S["iam"]["SRE-OnCall"]
+    allowed = [("autoscaling", "UpdateAutoScalingGroup", {}), ("autoscaling", "DeleteScheduledAction", {}),
+               ("autoscaling", "SuspendProcesses", {}), ("autoscaling", "TerminateInstanceInAutoScalingGroup", {}),
+               ("ssm", "PutParameter", {"Name": "/streamroute/prod/shardmap/bootstrap_source"}),
+               ("ssm", "PutParameter", {"Name": "/streamroute/prod/os/limit_nproc"}),
+               ("ecs", "UpdateService", {"service": "ledger-writer"}), ("cloudwatch", "PutMetricAlarm", {}),
+               ("logs", "PutRetentionPolicy", {}), ("kinesis", "DecreaseStreamRetentionPeriod", {})]
+    assert all(iam_allows(policy, *call) for call in allowed)
+    assert not iam_allows(policy, "iam", "PutRolePolicy", {}) and not iam_allows(policy, "kms", "ScheduleKeyDeletion", {})
 
 
 def test_every_pattern_compiles():
@@ -252,6 +265,9 @@ def test_priya_answers_only_after_taking_ic_and_bundles_one_record(world):
      "R7-status-post", "APPROVED"),
     ("@priya.raman requesting approval to revert PLAT-2291: ASG back to 120 and delete bf-capacity-hold",
      "R21-revert-plat-2291", "APPROVED"),
+    ("@priya.raman requests, need your APPROVED first:\n(a) vl-streamroute-asg MinSize/DesiredCapacity 132 -> 120.\n"
+     "(b) delete scheduled action bf-capacity-hold.\n(e) approve this status page post: 'Webhooks are delayed.'",
+     "R20-revert-hold-and-status", "APPROVED"),
     ("@priya.raman can I raise /streamroute/prod/os/limit_nproc to 4096 and keep 132?", "R8-os-limit", "DECLINED"),
     ("@priya.raman approve setting vl-streamroute-asg desired capacity to 110?", "R10-below-floor", "DECLINED"),
     ("@priya.raman can I roll back ledger-writer to :233?", "R11-ledger-writer-rollback", "APPROVED"),
