@@ -959,9 +959,20 @@ FOLD = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2212": "-"
                       "\u2026": "...", "\u2265": ">=", "\u2264": "<=", "\u2248": "~", "\u00d7": "x", "\u00a0": " "})
 
 
+LIST_MARKER = re.compile(r"^[ \t]*(?:[-*\u2022]|\d+[.)])[ \t]+", re.M)
+
+
 def fold(text):
-    """Typographic punctuation as the ASCII a judge may quote it in, whitespace collapsed, lowercase."""
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).translate(FOLD)).strip().lower()
+    """Typographic punctuation as the ASCII a judge may quote it in, without list markers, whitespace collapsed,
+    lowercase."""
+    text = LIST_MARKER.sub("", unicodedata.normalize("NFKC", text).translate(FOLD))
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def quoted(quote, note):
+    """A quote is in the folded note when every passage it joins with an ellipsis is."""
+    pieces = [piece.strip() for piece in fold(str(quote or "")).split("...")]
+    return any(pieces) and all(piece in note for piece in pieces if piece)
 
 
 def c11_from(verdict, text):
@@ -969,8 +980,7 @@ def c11_from(verdict, text):
 
     def judged(items, flag):
         return {k: {flag: bool((v or {}).get(flag)), "quote": (v or {}).get("quote"),
-                    "quote_found": bool(q := fold(str((v or {}).get("quote") or ""))) and q in note}
-                for k, v in (items or {}).items()}
+                    "quote_found": quoted((v or {}).get("quote"), note)} for k, v in (items or {}).items()}
     facts, forbidden = judged(verdict.get("facts"), "conveyed"), judged(verdict.get("forbidden"), "present")
     got = sorted(k for k, v in facts.items() if v["conveyed"] and v["quote_found"])
     bad = sorted(k for k, v in forbidden.items() if v["present"] and v["quote_found"])
