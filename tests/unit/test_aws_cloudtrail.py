@@ -144,3 +144,28 @@ def test_the_cli_and_the_api_both_read_the_trail():
     assert [e["EventName"] for e in json.loads(out["stdout"])["Events"]] == ["UpdateItem", "PutItem"]
     api = bridge.call_api("cloudtrail", "LookupEvents", {"MaxResults": 1}, role="sre-primary")
     assert names(api) == ["ChangeResourceRecordSets"] and api["NextToken"] == "1"
+
+
+def test_t03_trail_has_the_pre_incident_writes():
+    """sonnet-2 CALL 20: LookupEvents with EventSource autoscaling.amazonaws.com returned [] although
+    describe-scaling-activities showed PLAT-2291's three resizes and the bf-capacity-hold was created at 06:07."""
+    t03 = load_scenario_file("t03", {})
+    trail = Trail(ActionLog(), seed_trail(t03, seed_rows(t03), {}))
+    end = datetime(2026, 11, 16, 8, 20, tzinfo=ET)
+    out = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventSource",
+                                              "AttributeValue": "autoscaling.amazonaws.com"}], "EndTime": end})
+    rows = [(e["EventName"], e["EventTime"].astimezone(ET).strftime("%H:%M")) for e in out["Events"]]
+    assert rows == [("UpdateAutoScalingGroup", "06:31"), ("UpdateAutoScalingGroup", "06:18"),
+                    ("PutScheduledUpdateGroupAction", "06:07"), ("UpdateAutoScalingGroup", "06:05")]
+    assert all(e["Username"] == "elena.sokolova" for e in out["Events"])
+    assert all({"ResourceType": "AWS::AutoScaling::AutoScalingGroup", "ResourceName": "vl-streamroute-asg"}
+               in e["Resources"] for e in out["Events"])
+    hold = json.loads(out["Events"][2]["CloudTrailEvent"])["requestParameters"]
+    assert hold["scheduledActionName"] == "bf-capacity-hold" and hold["recurrence"] == "0 14 * * 1-5"
+    ecs = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventSource", "AttributeValue": "ecs.amazonaws.com"}],
+                        "EndTime": end})["Events"]
+    assert [e["EventName"] for e in ecs] == ["UpdateService", "RegisterTaskDefinition"]
+    assert ecs[0]["EventTime"].astimezone(ET).strftime("%H:%M:%S") == "07:31:02" and ecs[0]["Username"] == \
+        "vl-ci-deployer"
+    assert json.loads(ecs[0]["CloudTrailEvent"])["requestParameters"]["taskDefinition"] == "ledger-writer:234"
+    assert "trail_history" not in load_scenario_file("t01", {})

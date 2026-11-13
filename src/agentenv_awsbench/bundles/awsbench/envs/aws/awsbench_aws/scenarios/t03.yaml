@@ -2714,3 +2714,24 @@ npcs:
       reply: "Thanks for the reply. Can you send the root cause in writing today, which of your systems failed, and confirm\
         \ the\nSLA credit for this morning? Our CFO is asking.\n\nFreya"
     default: Thank you.
+
+# Trail-only history: the pre-incident writes CloudTrail shows at their own times; never replayed, never logged.
+trail_history:
+- {t: '2026-11-16T06:05:00-05:00', principal: assumed-role/PlatformEng/elena.sokolova, service: autoscaling,
+   operation: UpdateAutoScalingGroup, params: {AutoScalingGroupName: vl-streamroute-asg, MinSize: 124,
+                                               DesiredCapacity: 124}}
+- {t: '2026-11-16T06:07:00-05:00', principal: assumed-role/PlatformEng/elena.sokolova, service: autoscaling,
+   operation: PutScheduledUpdateGroupAction, params: {AutoScalingGroupName: vl-streamroute-asg,
+   ScheduledActionName: bf-capacity-hold, Recurrence: '0 14 * * 1-5', TimeZone: America/New_York,
+   StartTime: '2026-11-16T19:00:00Z', EndTime: '2026-12-02T23:00:00Z', MinSize: 132, MaxSize: 150,
+   DesiredCapacity: 132}}
+- {t: '2026-11-16T06:18:00-05:00', principal: assumed-role/PlatformEng/elena.sokolova, service: autoscaling,
+   operation: UpdateAutoScalingGroup, params: {AutoScalingGroupName: vl-streamroute-asg, MinSize: 128,
+                                               DesiredCapacity: 128}}
+- {t: '2026-11-16T06:31:00-05:00', principal: assumed-role/PlatformEng/elena.sokolova, service: autoscaling,
+   operation: UpdateAutoScalingGroup, params: {AutoScalingGroupName: vl-streamroute-asg, MinSize: 132,
+                                               DesiredCapacity: 132}}
+- {t: '2026-11-16T07:28:10-05:00', principal: 'role:vl-ci-deployer', service: ecs, operation: RegisterTaskDefinition,
+   params: {family: ledger-writer}}
+- {t: '2026-11-16T07:31:02-05:00', principal: 'role:vl-ci-deployer', service: ecs, operation: UpdateService,
+   params: {cluster: vl-prod-core, service: ledger-writer, taskDefinition: 'ledger-writer:234'}}

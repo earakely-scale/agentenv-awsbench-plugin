@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 from awsbench_aws.errors import AwsError
+from awsbench_aws.server import load_scenario_file
 from awsbench_aws.world.t03 import PLAT_LAUNCHES
 from test_t03_world import ASG, asg, at, revert, world
 
@@ -109,3 +110,18 @@ def test_unmodelled_group_writes_are_kept_and_echoed():
     assert asg(w, "DescribePolicies") == {"ScalingPolicies": []}
     assert {c["op"] for c in w.mech.asg.calls} >= {"PutScalingPolicy", "PutLifecycleHook", "CreateOrUpdateTags"}
     assert w.mech.asg.desired == 132
+
+
+def test_the_trail_history_agrees_with_the_group():
+    """CloudTrail's PLAT-2291 resizes are the 'user request update' times DescribeScalingActivities gives, and the
+    hold's PutScheduledUpdateGroupAction is when the world says the hold was created."""
+    hist = load_scenario_file("t03", {})["trail_history"]
+    w = world()
+    causes = " ".join(a["Cause"] for a in activities(w))
+    for r in hist:
+        z = datetime.fromisoformat(r["t"]).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if r["operation"] == "UpdateAutoScalingGroup":
+            assert f"At {z} a user request update of AutoScalingGroup constraints to min: {r['params']['MinSize']}," \
+                in causes
+        elif r["operation"] == "PutScheduledUpdateGroupAction":
+            assert datetime.fromisoformat(r["t"]).timestamp() == w.mech.asg.actions["bf-capacity-hold"]["created"]

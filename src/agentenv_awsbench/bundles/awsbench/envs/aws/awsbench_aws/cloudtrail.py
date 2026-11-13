@@ -171,6 +171,9 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
                 if sets := records(fqdn, gen):
                     out.append(dns(t, newest[1], f"endpointd {newest[1]} cleanup gen={gen}", "DELETE", fqdn, sets))
             out.append(event(t, service, op, p, ENACTOR, session=newest[1], key=f"seed{len(out)}"))
+    for i, r in enumerate(scenario.get("trail_history") or []):
+        out.append(event(to_time(r["t"]), r["service"], r["operation"], r.get("params"), r.get("principal"),
+                         key=f"hist{i}"))
     return out
 
 
