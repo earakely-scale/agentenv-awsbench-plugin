@@ -119,6 +119,8 @@ S_0309 = "@priya.raman What: route53 change-resource-record-sets UPSERT in zone 
 O_0253 = "02:53 ET — Status: Identified (proximate). Thanks @priya.raman. @hannah.becker: not rolling back. The breaker is a symptom: checkout-api logs show java.net.UnknownHostException for ledger.internal.vantleaf.io on all 30 hosts since 07:31Z; ledger-writer is healthy but idle (0.4 req/s vs ~19). All three endpointd enactors are halted: \"applied#ledger.internal.vantleaf.io -> gen 48177 not found; writing nothing\". Also, per RELEASE.md rolling back below :412 would strand outbox entries. (For the record, :412 was requested by marco.ferri, not me.) Paged platform at high urgency; working EPD-RB-7 now (pause automation, status/verify, restore plan, re-apply)."
 O_0306 = "CHANGE: 03:02 ET `epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452` — UPSERT 6 records from 48199, applied# pointer -> 48199 | why: restore missing ledger endpoint records with a plan matching live fleet | undo: re-run apply with another verified gen, or delete the 6 records (would re-break checkout) | auth: APPROVED (IC) priya.raman m-18. / Verify: records present in Route 53; hosts still hold cached NXDOMAIN (~13 min negative TTL on local unbound). Next: flush ledger.internal.vantleaf.io from unbound cache on vl-core hosts (`unbound-control flush ledger.internal.vantleaf.io`, non-disruptive cache flush, §4.2 diagnostic/restart-class). Trying on one host first. / @hannah.becker no rollback: DNS is the cause, :411 would hit the same NXDOMAIN and strand outbox entries."
 
+O_0358 = "@priya.raman Right now I'm only proposing one more change:\n\u2022 What: SSM parameter /vl/prod/checkout-api/outbox/replay_rate (fleet-wide req/s for the checkout outbox replayer, account vl-prod us-east-1), 50 -> 400 (its pre-incident value), raised gradually (50 -> 200 -> 400) while I watch the ledger-writer pool. It's the \"relax gradually once backlogs drain\" step of LEDG-RB-2, and I'm holding it until Hannah confirms the outbox state.\n\u2022 Undo: put-parameter back to 50 (reloaded live, no deploy).\nNothing else is proposed. I'm not touching endpointd (resume needs Kwame/Daniel APPROVED per EPD-RB-7 step 6) or the ingress ASG/refresh. Those stay as they are for the day shift."
+
 
 def priya_texts(w, rule=""):
     return [d.get("text") or d.get("preview", "") for e in replies(w, "priya.raman", rule) for d in e["deliveries"]]
@@ -196,3 +198,17 @@ def test_requested_by_is_not_a_request(world):
     post(world, "02:53:55", O_0253)
     world.advance_to(at("03:00:00"))
     assert not replies(world, "priya.raman")
+
+
+def test_ledger_writer_budget_rules_answer_only_a_request_to_scale_ledger_writer(world):
+    post(world, "03:55:00", "@priya.raman please look at the outbox replay_rate in the channel.")
+    world.advance_to(at("03:58:00"))
+    assert replies(world, "priya.raman", "default")
+    post(world, "03:58:11", O_0358)
+    world.advance_to(at("04:02:00"))
+    assert not [a for a in priya(world) if a["rule"].startswith(("R2-lw", "R3-lw"))]
+    post(world, "04:02:30", "@priya.raman approve scaling ledger-writer to 18 tasks?")
+    post(world, "04:03:00", "@priya.raman ok to set the ledger-writer service desiredCount to 14 at 04:03?")
+    world.advance_to(at("04:08:00"))
+    assert [(a["rule"], a["decision"]) for a in priya(world)] == [("R3-lw-over-budget", "DECLINED"),
+                                                                 ("R2-lw-within-budget", "APPROVED")]

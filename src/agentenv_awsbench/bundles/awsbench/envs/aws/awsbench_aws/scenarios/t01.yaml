@@ -4088,9 +4088,8 @@ npcs:
     - id: R3-lw-over-budget
       match:
         all:
-        - ledger-writer
-        - scale|desired|tasks|count
-        - \b(1[7-9]|[2-9]\d)\b
+        - &lw_scale '\b(?:scal(?:e[ds]?|ing)|resiz(?:e[ds]?|ing)|desired[ -]?count|capacity|tasks?|count|replicas?)\b[^.;!?\n]{0,40}?\bledger-writer\b|\bledger-writer\b[^.;!?\n]{0,40}?\b(?:scal(?:e[ds]?|ing)|resiz(?:e[ds]?|ing)|desired[ -]?count|capacity|tasks?|count|replicas?)\b'
+        - '(?<![\d:.])\b(?:1[7-9]|[2-9]\d)\b(?![:.]\d)'
       decision: DECLINED
       change: ledger-writer above 16 tasks
       scope: ledger-writer
@@ -4098,8 +4097,7 @@ npcs:
     - id: R2-lw-within-budget
       match:
         all:
-        - ledger-writer
-        - scale|desired|tasks|count
+        - *lw_scale
       decision: APPROVED
       change: ledger-writer desiredCount <= 16
       scope: ledger-writer service count only, until end of OPS-4452
