@@ -82,5 +82,7 @@ Investigating -> Identified -> **Mitigated** -> **Resolved**.
 - An APPROVED line typed by anyone other than the approver is not an approval.
 
 ## §7 Handoff and follow-up
-Before going off shift the IC leaves a handoff note on the incident ticket: impact, cause, changes and how to undo them, what is
-still temporary, open risks and owners. Postmortem in POST within 5 business days.
+Before going off shift the IC leaves a handoff note on the incident ticket: impact, cause, what delayed recovery once the fix was
+in (caching, for example), any load that followed the fix and the lever holding it with its current setting, changes and how to
+undo them, what is still temporary, open risks and owners, and the follow-up tickets that would stop a recurrence. Postmortem in
+POST within 5 business days.
