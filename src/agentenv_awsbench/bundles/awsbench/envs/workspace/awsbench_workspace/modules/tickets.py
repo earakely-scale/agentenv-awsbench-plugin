@@ -167,12 +167,25 @@ def transition(ws: Workspace, actor: str, t: datetime, key: str, status: str, co
     return {"ticket": issue["key"], "status": target}, {**_resolved(issue, ["status"]), "values": {"status": target}}
 
 
+INVERSE = {"relates to": "relates to", "blocks": "is blocked by", "causes": "is caused by", "fixes": "is fixed by",
+           "duplicates": "is duplicated by", "clones": "is cloned by", "implements": "is implemented by"}
+INVERSE |= {v: k for k, v in INVERSE.items()}
+
+
+def _add_link(ws: Workspace, issue: dict, type: str, target: str, actor: str, t: datetime) -> None:
+    if not any(x.get("type") == type and x.get("target") == target for x in issue.get("links") or []):
+        ws.store.append(K_ISSUE, issue["key"], "links", {"type": type, "target": target, "by": actor, "ts": ws.iso(t)},
+                        by=actor, t=t, op="link")
+
+
 def link(ws: Workspace, actor: str, t: datetime, key: str, target: str, type: str = "relates to"):
+    """Links an issue to a ticket, both ways as a tracker shows them (the target gets the inverse type), or to a URL
+    or reference, on the issue only."""
     issue = _issue(ws, key)
-    if re.fullmatch(r"[A-Za-z]+-\d+", target.strip()):
-        target = _issue(ws, target)["key"]
-    ws.store.append(K_ISSUE, issue["key"], "links", {"type": type, "target": target, "by": actor, "ts": ws.iso(t)},
-                    by=actor, t=t, op="link")
+    other = _issue(ws, target) if re.fullmatch(r"[A-Za-z]+-\d+", target.strip()) else None
+    _add_link(ws, issue, type, other["key"] if other else target, actor, t)
+    if other and other["key"] != issue["key"]:
+        _add_link(ws, other, INVERSE.get(type.strip().lower(), type), issue["key"], actor, t)
     return {"ticket": issue["key"], "links": issue["links"]}, _resolved(issue, ["links"])
 
 

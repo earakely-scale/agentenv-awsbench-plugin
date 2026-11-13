@@ -102,6 +102,16 @@ def test_tickets_fields_workflow_comments_links_and_history(ws):
     tickets.link(ws, ME, later(ws), "OPS-4452", "PLAT-412", "is caused by")
     issue = tickets.get(ws, ME, ws.clock(), "OPS-4452")
     assert issue["issue"]["links"][-1]["target"] == "PLAT-412" and "Resolved" in issue["transitions"]
+    back = tickets.get(ws, ME, ws.clock(), "PLAT-412")["issue"]["links"]
+    assert [(x["type"], x["target"]) for x in back][-1] == ("causes", "OPS-4452")
+    tickets.link(ws, ME, later(ws), "SUP-88000", "OPS-4452")
+    tickets.link(ws, ME, later(ws), "OPS-4452", "SUP-88000")
+    pairs = [(x["type"], x["target"]) for x in tickets.get(ws, ME, ws.clock(), "OPS-4452")["issue"]["links"]]
+    assert pairs.count(("relates to", "SUP-88000")) == 1
+    before = {i["key"]: len(i.get("links") or []) for i in ws.store.items("tickets.issue")}
+    tickets.link(ws, ME, later(ws), "OPS-4452", "vantleaf/infra#1858")
+    after = {i["key"]: len(i.get("links") or []) for i in ws.store.items("tickets.issue")}
+    assert {k for k in after if after[k] != before[k]} == {"OPS-4452"}
     hist = ws.store.history("tickets.issue", "OPS-4452")
     sev = next(h for h in hist if h["op"] == "update" and "severity" in h["changes"])
     assert sev["by"] == ME and sev["changes"]["severity"] == {"from": None, "to": "SEV1"}
