@@ -98,6 +98,16 @@ def test_the_seed_leaves_the_race_in_the_trail():
     dns = trail.lookup({"LookupAttributes": [{"AttributeKey": "ResourceName",
                                               "AttributeValue": "ledger.internal.vantleaf.io"}]})["Events"]
     assert any("enactor-b gen=48177" in e["CloudTrailEvent"] for e in dns)
+    batches = {(e["EventTime"].astimezone(ET).strftime("%H:%M:%S"), e["Username"]):
+               json.loads(e["CloudTrailEvent"])["requestParameters"]["changeBatch"]["Changes"]
+               for e in dns if e["EventName"] == "ChangeResourceRecordSets"}
+    cleanup, upsert = batches[("02:31:41", "enactor-c")], batches[("02:31:31", "enactor-b")]
+    assert [c["Action"] for c in cleanup] == ["DELETE"] * 6
+    assert {c["ResourceRecordSet"]["SetIdentifier"][:7] for c in cleanup} == {"g48177-"}
+    assert [c["ResourceRecordSet"] for c in cleanup] == [c["ResourceRecordSet"] for c in upsert]
+    assert cleanup[0]["ResourceRecordSet"] == {"Name": "ledger.internal.vantleaf.io.", "Type": "A",
+                                               "SetIdentifier": "g48177-use1-az6-1", "Weight": 100, "TTL": 60,
+                                               "ResourceRecords": [{"Value": "10.20.11.152"}]}
     assert all(e["EventTime"] <= datetime.fromisoformat(scenario["start"]) for e in history)
 
 

@@ -225,9 +225,10 @@ first, at its virtual time, with `EventName`, `EventSource` (`<service>.amazonaw
 `ReadOnly: "false"` and a `CloudTrailEvent` JSON carrying `requestParameters`. It honours `StartTime`/`EndTime`, one
 `LookupAttributes` entry, `MaxResults` (at most 50) and `NextToken`. The seed's pre-incident writes are in it too, at the
 times their items record (`applied_at` by `applied_by`, else `created_at` by the planner), and a seeded delete one
-enactor step after the last apply, by the enactor of the newest generation. A world write is logged at the world's time.
-Every account id, in CloudTrail and in the world's ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they
-agree with the ARNs the emulator returns.
+enactor step after the last apply, by the enactor of the newest generation. That cleanup first deletes, in Route 53, the
+records the deleted plan carries for a name an `applied#` pointer still names (T01: the six `g48177-*` ledger records
+enactor-b had upserted). A world write is logged at the world's time. Every account id, in CloudTrail and in the world's
+ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they agree with the ARNs the emulator returns.
 
 `exit_code` is set on the rows of `fleet_exec` and `fleet_restart`: the highest exit code over the hosts (1 when the
 selector named no host), and `error` says which hosts failed when it is non-zero, so a failed command is never read as a

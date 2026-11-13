@@ -11,6 +11,7 @@ from .account import ACCOUNT
 from .actionlog import ActionLog
 from .errors import AwsError
 from .meter import is_read
+from .world.endpointd import plan_ledger
 
 READ_EXTRA = {"StartQuery", "StopQuery"}
 SOURCES = {"cloudwatch": "monitoring"}
@@ -117,9 +118,24 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
     """The writes before the episode that the seed replays without times. An item recording `applied_at` was written
     then by its `applied_by` enactor, which applied the record change it names first (`applied#<fqdn>`); one recording
     only `created_at` was written then by the planner. A seeded delete is the cleanup one enactor step after the last
-    apply, by the enactor that applied the newest generation."""
-    step = float(((scenario.get("world") or {}).get("endpointd") or {}).get("enactor_step_s", 10))
-    out, last, newest = [], None, (-1, None)
+    apply, by the enactor that applied the newest generation, which first deletes the records of the plan an
+    `applied#` pointer still names, so the trail shows why that name has none."""
+    cfg = (scenario.get("world") or {}).get("endpointd") or {}
+    step, ttl = float(cfg.get("enactor_step_s", 10)), int((cfg.get("endpoint_table") or {}).get("ttl", 60))
+    out, last, newest, plans, pointers = [], None, (-1, None), {}, {}
+
+    def records(fqdn: str, gen: int | None) -> list[dict]:
+        """The record sets a plan carries for a name: the ledger's; the other names come from the endpoint table."""
+        plan = plans.get(gen) if fqdn == cfg.get("ledger_fqdn") else None
+        return [{"Name": f"{fqdn}.", "Type": "A", "SetIdentifier": r["set_id"], "Weight": r["weight"], "TTL": ttl,
+                 "ResourceRecords": [{"Value": r["ip"]}]} for r in plan_ledger(plan or {})]
+
+    def dns(t: datetime, by: str, comment: str, action: str, fqdn: str, sets: list[dict]) -> dict:
+        zone = next((i for name, i in zone_ids.items() if fqdn.endswith(name)), None)
+        change = {**({"HostedZoneId": zone} if zone else {}), "ChangeBatch": {"Comment": comment, "Changes": [
+            {"Action": action, "ResourceRecordSet": s} for s in sets]}}
+        return event(t, "route53", "ChangeResourceRecordSets", change, ENACTOR, session=by, key=f"seed{len(out)}")
+
     for row in rows:
         service, op, p = row.get("service"), row.get("operation"), row.get("params") or {}
         if service != "dynamodb":
@@ -127,26 +143,29 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
         if op == "PutItem":
             item = {k: _plain(v) for k, v in (p.get("Item") or {}).items()}
             when, by = item.get("applied_at") or item.get("created_at"), item.get("applied_by")
+            gen, pk = int(item.get("generation") or 0), str(item.get("pk", ""))
+            if pk.startswith("plan#"):
+                plans[gen] = item
             if not when:
                 continue
             t = to_time(when)
             if item.get("applied_at"):
-                gen, pk = int(item.get("generation") or 0), str(item.get("pk", ""))
                 newest = max(newest, (gen, by), key=lambda g: g[0])
                 last = max(last or t, t)
                 if pk.startswith("applied#"):
                     fqdn = pk.removeprefix("applied#")
-                    zone = next((i for name, i in zone_ids.items() if fqdn.endswith(name)), None)
-                    change = {**({"HostedZoneId": zone} if zone else {}), "ChangeBatch": {
-                        "Comment": f"endpointd {by} gen={gen}",
-                        "Changes": [{"Action": "UPSERT", "ResourceRecordSet": {"Name": f"{fqdn}.", "Type": "A"}}]}}
-                    out.append(event(t, "route53", "ChangeResourceRecordSets", change, ENACTOR, session=by,
-                                     key=f"seed{len(out)}"))
+                    pointers[fqdn] = gen
+                    sets = records(fqdn, gen) or [{"Name": f"{fqdn}.", "Type": "A"}]
+                    out.append(dns(t, by, f"endpointd {by} gen={gen}", "UPSERT", fqdn, sets))
             out.append(event(t, service, op, p, ENACTOR if item.get("applied_at") else PLANNER,
                              session=by if item.get("applied_at") else "planner", key=f"seed{len(out)}"))
         elif op == "DeleteItem" and last is not None:
-            out.append(event(last + timedelta(seconds=step), service, op, p, ENACTOR,
-                             session=newest[1], key=f"seed{len(out)}"))
+            t, pk = last + timedelta(seconds=step), str(_plain((p.get("Key") or {}).get("pk")) or "")
+            gen = int(pk.removeprefix("plan#")) if pk.startswith("plan#") else None
+            for fqdn in [f for f, g in pointers.items() if g == gen]:
+                if sets := records(fqdn, gen):
+                    out.append(dns(t, newest[1], f"endpointd {newest[1]} cleanup gen={gen}", "DELETE", fqdn, sets))
+            out.append(event(t, service, op, p, ENACTOR, session=newest[1], key=f"seed{len(out)}"))
     return out
 
 
