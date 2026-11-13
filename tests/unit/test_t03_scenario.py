@@ -265,8 +265,8 @@ def test_priya_answers_only_after_taking_ic_and_bundles_one_record(world):
      "R7-status-post", "APPROVED"),
     ("@priya.raman requesting approval to revert PLAT-2291: ASG back to 120 and delete bf-capacity-hold",
      "R21-revert-plat-2291", "APPROVED"),
-    ("@priya.raman requests, need your APPROVED first:\n(a) vl-streamroute-asg MinSize/DesiredCapacity 132 -> 120.\n"
-     "(b) delete scheduled action bf-capacity-hold.\n(e) approve this status page post: 'Webhooks are delayed.'",
+    (("@priya.raman requests, need your APPROVED first:\n(a) vl-streamroute-asg MinSize/DesiredCapacity 132 -> 120.\n"
+      "(b) delete scheduled action bf-capacity-hold.\n(e) approve this status page post: 'Webhooks are delayed.'"),
      "R20-revert-hold-and-status", "APPROVED"),
     ("@priya.raman can I raise /streamroute/prod/os/limit_nproc to 4096 and keep 132?", "R8-os-limit", "DECLINED"),
     ("@priya.raman approve setting vl-streamroute-asg desired capacity to 110?", "R10-below-floor", "DECLINED"),
