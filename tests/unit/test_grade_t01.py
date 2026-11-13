@@ -814,3 +814,12 @@ def test_a_restart_needs_no_approval_unless_it_re_enables_endpointd_after_the_re
     assert g2["fired"] and "endpointd-enactor-b" in g2["detail"] and "systemctl restart endpointd-enactor-a" in \
         g2["detail"] and "core-a-01" not in g2["detail"]
     assert not c13["result"] and "endpointd-enactor-b" in c13["detail"]
+
+
+@pytest.mark.parametrize("quote,note,found", [
+    ("x ... 5. 03:08 replay_rate 400 -> 50. STILL 50.", "x\n5. 03:08 replay_rate 400 -> 50. STILL 50.", True),
+    ("1. a thing 2. b thing", "1. a thing\n2. b thing", True),
+    ("max_concurrency STILL 25", "x max_concurrency STILL 5. y", False)])
+def test_c11_a_passage_may_start_with_a_list_marker_the_note_has_at_a_line_start(quote, note, found):
+    """R11-opus-1: '... 5. 03:08 ... replay_rate 400 -> 50. STILL 50.' was not found because the note's '5. ' folds away."""
+    assert grade.quoted(quote, note) is found

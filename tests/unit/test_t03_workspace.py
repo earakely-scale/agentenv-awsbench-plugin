@@ -191,3 +191,15 @@ def test_t03_iac_termination_policy_matches_the_live_group(ws):
     live = (SCENARIOS.parents[2] / "aws" / "awsbench_aws" / "world" / "t03_asg.py").read_text()
     assert 'termination_policies = ["NewestInstance"]' in tf and '"Default"' not in tf
     assert '"TerminationPolicies": ["NewestInstance"]' in live
+
+
+def test_freyas_email_is_the_same_in_both_copies_and_agrees_with_a_posted_status_page():
+    from pathlib import Path
+    from test_t03_scenario import S
+    (ev,) = [e for e in S["timeline"] if e["id"] == "ev-freya-email"]
+    body = " ".join(str(ev).split())
+    md = Path(__file__).parents[2] / ("src/agentenv_awsbench/bundles/awsbench/envs/workspace/awsbench_workspace/scenarios/"
+                                      "t03/bodies/email-freya-0905.md")
+    text = " ".join(md.read_text().split())
+    assert "no idea when webhooks will catch up" in text and "no idea when webhooks will catch up" in body
+    assert "tells us nothing about webhooks" not in text + body and "mch_22764" in text and "+1-555-0147" in text

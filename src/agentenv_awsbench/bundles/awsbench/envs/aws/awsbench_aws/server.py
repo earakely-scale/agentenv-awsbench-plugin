@@ -428,14 +428,14 @@ class AwsServer(AgentEnvEnvironment):
         return await self._metered(ctx, "aws_api", args, work, logged=True)
 
     @tool(description="A broad query. `source=logs` runs the CloudWatch Logs Insights `query` over `log_groups`, e.g. "
-                      "query `fields @timestamp, @message | filter @message like /NXDOMAIN/ | limit 20`. Supported "
+                      "query `fields @timestamp, @message | filter @message like /<text>/ | limit 20`. Supported "
                       "Logs Insights subset: `fields`, `filter` with `like`/`not like` (/regex/ or \"text\") and "
                       "`=~`, joined by and/or; `sort @timestamp asc|desc` (default newest first); `limit`; and "
                       "`stats count()` by `bin(<n>m)` and/or `@log`. Log group names must exist "
                       "(`aws logs describe-log-groups`). "
                       "`source=cloudtrail` looks up CloudTrail management events, filtered on one attribute: "
-                      "`lookup_attributes` {\"EventName\": \"ChangeResourceRecordSets\"} (or {\"AttributeKey\": "
-                      "\"Username\", \"AttributeValue\": \"kwame.asante\"}); keys EventName, Username, EventSource, "
+                      "`lookup_attributes` {\"EventName\": \"<API operation>\"} (or {\"AttributeKey\": "
+                      "\"Username\", \"AttributeValue\": \"<user name>\"}); keys EventName, Username, EventSource, "
                       "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId; newest first. `start`/`end` are "
                       "RFC 3339; the default window is the last hour for logs, everything until now for cloudtrail.",
           structured_output=False)

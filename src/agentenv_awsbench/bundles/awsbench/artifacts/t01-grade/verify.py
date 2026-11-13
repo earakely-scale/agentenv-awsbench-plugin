@@ -1113,17 +1113,22 @@ FOLD = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2212": "-"
 LIST_MARKER = re.compile(r"^[ \t]*(?:[-*\u2022]|\d+[.)])[ \t]+", re.M)
 
 
-def fold(text):
-    """Typographic punctuation as the ASCII a judge may quote it in, without list markers, whitespace collapsed,
-    lowercase."""
-    text = LIST_MARKER.sub("", unicodedata.normalize("NFKC", text).translate(FOLD))
+def fold(text, keep_markers=False):
+    """Typographic punctuation as the ASCII a judge may quote it in, without list markers (unless `keep_markers`),
+    whitespace collapsed, lowercase."""
+    text = unicodedata.normalize("NFKC", text).translate(FOLD)
+    text = text if keep_markers else LIST_MARKER.sub("", text)
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def quoted(quote, note):
-    """A quote is in the folded note when every passage it joins with an ellipsis is."""
-    pieces = [piece.strip() for piece in fold(str(quote or "")).split("...")]
-    return any(pieces) and all(piece in note for piece in pieces if piece)
+    """A quote is in the note when every passage it joins with an ellipsis is, folded without list markers or with
+    them kept: a passage after "..." may start with a marker the note has at a line start. `note` is the text or its
+    pair (fold(text), fold(text, keep_markers=True))."""
+    plain, kept = (fold(note), fold(note, keep_markers=True)) if isinstance(note, str) else note
+    split = [[p.strip(" .,;:") for p in fold(str(quote or ""), keep).split("...")] for keep in (False, True)]
+    pairs = list(zip(*split)) if len(split[0]) == len(split[1]) else [(p, p) for p in split[0]]
+    return any(a for a, _ in pairs) and all(a in plain or b in kept for a, b in pairs if a or b)
 
 
 def has_terms(fact, quote):
@@ -1134,7 +1139,7 @@ def has_terms(fact, quote):
 def c11_from(verdict, text):
     """C11 from one verdict ({facts, forbidden, error?}) or several ({samples: [...]}): a fact counts when most answered
     samples convey it with a quote that is in the note and carries its key terms; a forbidden item likewise."""
-    note = fold(text)
+    note = (fold(text), fold(text, keep_markers=True))
 
     def judged(k, v, flag):
         v = v or {}

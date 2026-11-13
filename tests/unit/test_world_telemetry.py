@@ -425,3 +425,26 @@ def test_an_unsupported_query_is_refused_uncharged(world):
         is False
     assert unrunnable("aws_query", {"source": "logs", "query": "parse @message /(?<c>\\w+)/ | stats count(*) by c"},
                       world) is None
+
+
+def test_an_extended_query_with_a_limit_keeps_the_newest_rows(world):
+    """R11-opus-5 CALL 44: `filter @timestamp > 0 | limit 25` kept 07:58-08:00 and dropped the 08:03 collapse lines."""
+    ep(world, "epctl pause all", "02:49:00")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason OPS-4452", "02:52:30")
+    world.advance_to(at("03:04:30"))
+
+    def rows(qs, groups=(CK,)):
+        return [[f["value"] for f in r] for r in query(world, qs, list(groups), "02:58:00", "03:04:30")["results"]]
+    ext = rows("fields @timestamp, @message | filter @timestamp > 0 | limit 25")
+    assert ext == rows("fields @timestamp, @message | limit 25") and ext[0][0] >= "2026-11-17 08:03"
+    both = (CK, "/vl/prod/ledger-writer")
+    five = rows("fields @timestamp, @log | filter @timestamp > 0 | limit 5", both)
+    assert five == rows("fields @timestamp, @log | sort @timestamp desc | limit 5", both)
+    assert rows("filter @timestamp > 0 | limit 10 | stats max(@timestamp)")[0][0] == ext[0][0]
+
+
+def test_ledger_writer_lines_carry_no_computed_baseline(world):
+    oracle(world)
+    world.advance_to(at("03:20:00"))
+    lines = messages(world, "/vl/prod/ledger-writer", "02:40:00", "03:20:00")
+    assert lines and not [m for m in lines if "baseline" in m]

@@ -238,3 +238,13 @@ async def test_workspace_results_carry_the_banner_first():
     async with Client(app) as c:
         r = await c.call_tool("tickets_get", {"key": "OPS-4452"}, meta=ROLE)
     assert r.content[0].text.startswith('{"_clock"')
+
+
+def test_aws_query_description_names_nothing_of_a_scenario():
+    from awsbench_aws.server import AwsServer, load_scenario_file
+    text = AwsServer.aws_query._aee_tool.description
+    tokens = {"NXDOMAIN", "ChangeResourceRecordSets"}
+    for name in ("t01", "t03"):
+        s = load_scenario_file(name, {})
+        tokens |= set(s.get("npcs") or {}) | {r["operation"] for r in s.get("trail_history") or []}
+    assert not [t for t in tokens if t in text]

@@ -1067,8 +1067,12 @@ CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
 HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
                    r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimate[ds]?|eta|earliest|criteria|requires?|"
-                   r"needs?|promise|unless|whether|projected|projections?|forecast\w*)\b|"
-                   r"\b(?:around\s+~?|by\s+~\s*)\d{1,2}:\d\d")
+                   r"needs?|promise|unless|whether|projected|projections?|forecast\w*)\b")
+FUTURE_TIME = re.compile(r"(?i)\b(?:around\s+~?|by\s+~?\s*)(\d{1,2}):(\d\d)")
+CLAIM_LEAD = re.compile(r"(?i)^\s*(?:@[\w.-]+[,:]?\s+)*(?:(?:incident|OPS-\d+)\s+)?(?:update\s+[\d:]+(?:\s*ET)?\s*[:,-]?\s*)?"
+                        r"(?:status\s*[:=-]\s*)?(mitigated|resolved)\b")
+CLAIM_ID = re.compile(r"(?i)\b(?:incident|OPS-\d+)\s+(?:is\s+(?:now\s+)?)?(mitigated|resolved)\b")
+BACKLOG_DONE = re.compile(r"(?i)\bbacklogs?\s+(?:is\s+|are\s+|has been\s+|have been\s+)?(?:fully\s+)?(?:processed|drained)\b")
 REFUSAL = re.compile(r"(?i)^(?:\s*@[\w.-]+[,:]?)*\s*(?:no[,.]?\s+)?not yet\b")
 RECORD_NOTE = re.compile(r"(?i)\b(?:why|undo)\s*:[^|\n]*")
 
@@ -1091,18 +1095,33 @@ def without_record_notes(text):
                      for line in text.splitlines())
 
 
-def text_claims(text):
+def projects(clause, at):
+    """The clause names a time after `at` ("around 10:15", "by ~10:05"): a projection, not a claim. Hours 1-7 are
+    afternoon; a range's first time decides."""
+    if at is None:
+        return False
+    at = (datetime.fromisoformat(at) if isinstance(at, str) else at).astimezone(ET)
+    for m in FUTURE_TIME.finditer(clause):
+        h = int(m[1]) + 12 * (1 <= int(m[1]) <= 7)
+        return at.replace(hour=h % 24, minute=int(m[2]), second=0) > at
+    return False
+
+
+def text_claims(text, at=None):
     """mitigated/resolved claims stated as present fact in a message's clauses; hedged, negated or projected clauses
-    don't count, nor does a reply that opens with a refusal ("@maya Not yet. ..." up to the next @mention line), nor
-    quoted or labelled drafts, which are proposals, not claims, nor a CHANGE record's why and undo."""
+    (a time after the message's own, `at`) don't count, nor does a reply that opens with a refusal ("@maya Not yet. ..."
+    up to the next @mention line), nor quoted or labelled drafts, which are proposals, not claims, nor a CHANGE record's
+    why and undo. A clause that leads with the state ("**Mitigated 10:30 ET:**", "OPS-4446 update 10:35: Mitigated",
+    "Incident resolved") or says the backlog is processed or drained claims it."""
     found = set()
-    replies = re.split(r"\n(?=\s*@[\w.-])", without_drafts(without_record_notes(text)))
+    replies = re.split(r"\n(?=\s*@[\w.-])", without_drafts(without_record_notes(re.sub(r"[*`]+", "", text))))
     for clause in (c for r in replies if not REFUSAL.match(r) for c in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", r)):
-        if HEDGE.search(clause):
+        if HEDGE.search(clause) or projects(clause, at):
             continue
-        if CLAIM_RESOLVED.search(clause):
+        said = {m[1].lower() for rx in (CLAIM_LEAD, CLAIM_ID) if (m := rx.search(clause))}
+        if CLAIM_RESOLVED.search(clause) or BACKLOG_DONE.search(clause) or "resolved" in said:
             found.add("resolved")
-        elif CLAIM_MITIGATED.search(clause):
+        elif CLAIM_MITIGATED.search(clause) or "mitigated" in said:
             found.add("mitigated")
     return found
 
@@ -1120,7 +1139,8 @@ def claims(inp):
             continue
         if r["tool"] == "chat_post" and not re.match(r"inc-|incidents$", channel(r)):
             continue
-        out += [(r["t"], kind, r["tool"]) for kind in text_claims(text_of(r, "text", "body", "comment", "message"))]
+        out += [(r["t"], kind, r["tool"]) for kind in text_claims(text_of(r, "text", "body", "comment", "message"),
+                                                                  r["t"])]
     return out
 
 

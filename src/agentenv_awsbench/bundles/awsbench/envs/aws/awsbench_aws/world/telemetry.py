@@ -349,7 +349,8 @@ def _stamp(ms) -> str:
 
 def run_insights(ops: list, records: list[dict], limit: int, default_fields: list[str]) -> tuple[list, int]:
     """A parsed query (`_xplan`) over records keyed by field (`@timestamp` in epoch ms): (result rows, matched)."""
-    rows, shown, stamps, matched = records, None, {"@timestamp"}, len(records)
+    rows = sorted(records, key=lambda r: r["@timestamp"], reverse=True)
+    shown, stamps, matched = None, {"@timestamp"}, len(records)
     for op, arg in ops:
         if op == "parse":
             rows = [{**r, **_groups(arg, r["@message"])} for r in rows]
@@ -797,8 +798,8 @@ class Telemetry:
             else:
                 active = min(25, math.ceil(25 * m["offered"] / max(1.0, m["capacity"])))
                 waiting = round(m["p99"] / 1000 * max(0.0, m["offered"] - m["capacity"]) / tasks)
-                out = [f"{'WARN' if waiting else 'INFO'} inbound {m['offered'] / tasks:.1f} req/s per task (1m avg, "
-                       f"baseline ~{self.baseline_req_s() / tasks:.0f}); pool active={active} idle={25 - active} "
+                out = [f"{'WARN' if waiting else 'INFO'} inbound {m['offered'] / tasks:.1f} req/s per task (1m avg); "
+                       f"pool active={active} idle={25 - active} "
                        f"waiting={waiting}"
                        + ("" if m["recovered"] else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
             if m["rejected"] >= 0.5:
