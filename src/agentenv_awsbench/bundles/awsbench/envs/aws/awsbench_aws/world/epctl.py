@@ -256,10 +256,11 @@ class Epctl:
             recs = self._records(gen, fqdn, archive)
             if recs is None:
                 return f"plan gen={gen} not found in endpointd-plans (try --from-archive)\n", 1
+            head = f"plan {gen} vs live fleet: {fqdn}\n"
             if fqdn != ep.ledger:
-                return f"{fqdn}: plan {gen} matches the endpoint table ({len(recs)} records) OK\n", 0
+                return f"{head}{fqdn}: plan {gen} matches the endpoint table ({len(recs)} records) OK\n", 0
             fleet = {i["ip"]: i for i in ep.fleet_ready()}
-            lines, seen = [], set()
+            lines, seen = [head.rstrip("\n")], set()
             for r in recs:
                 inst = fleet.get(r["ip"])
                 seen.add(r["ip"])
@@ -275,6 +276,9 @@ class Epctl:
                 if ip not in seen and inst.get("state") == "running":
                     lines.append(f"missing from plan: {ip} ({inst['name']} running "
                                  f"{'ready' if inst.get('ready') else 'NOT READY'})")
+            if "--endpoint" not in o:
+                lines += [f"{f}: plan {gen} matches the endpoint table ({len(r)} records) OK" for f in ep.order
+                          if f != ep.ledger and (r := self._records(gen, f, archive)) is not None]
             return "\n".join(lines) + "\n", 0
         if len(pos) != 2:
             raise Usage("usage: epctl plan diff GEN1 GEN2 [--endpoint FQDN] [--from-archive]")

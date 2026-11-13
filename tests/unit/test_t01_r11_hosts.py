@@ -1,6 +1,7 @@
 """R11 host-realism fixes, replayed with the runs' exact commands: dig's display options and the EST zone (opus-2
 CALL 62, E41), each ledger-ingress host's own boot, uptime and journal (opus-5 CALL 43, E31), `ls` of the parent of the
-cert directories and an envoy restart charged as a write (opus-3 CALL 104/107, E42)."""
+cert directories and an envoy restart charged as a write (opus-3 CALL 104/107, E42), and `plan diff --live-fleet`
+naming what it diffs (opus-6 CALL 62, E43)."""
 
 import pytest
 from awsbench_aws import meter
@@ -79,3 +80,14 @@ def test_a_service_restart_is_charged_as_a_write(cmd, cls):
     assert meter.classify("fleet_exec", {"command": cmd}, SCENARIO["cost_overrides"], hosts=1) == cls
     assert meter.classify("fleet_exec", {"command": cmd}, SCENARIO["cost_overrides"], hosts=3) == "broad"
 
+
+def test_plan_diff_against_the_live_fleet_names_each_endpoint(world):  # noqa: F811
+    out = ep(world, "epctl plan diff 48199 --live-fleet", "02:49:00")
+    lines = out["stdout"].splitlines()
+    assert out["exit_code"] == 0 and lines[0] == f"plan 48199 vs live fleet: {LEDGER}"
+    others = [x for x in lines if x.endswith(" OK") and ": plan 48199 matches the endpoint table (" in x]
+    assert len(others) == 40 and not any(x.startswith(LEDGER) for x in others)
+    one = ep(world, f"epctl plan diff 48199 --live-fleet --endpoint {LEDGER}", "02:49:30")
+    assert one["exit_code"] == 0 and one["stdout"].count("vs live fleet") == 1
+    assert one["stdout"].splitlines()[1:] == lines[1:len(one["stdout"].splitlines())]
+    assert "matches the endpoint table" not in one["stdout"]
