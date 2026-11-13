@@ -126,3 +126,10 @@ def test_fleet_output_is_deterministic():
         return [w.fleet_exec(h, c, AGENT) for h in ("core-a-01", "lw-b-02", "li-c-01")
                 for c in ("ps aux", "journalctl -n 30", "systemctl status unbound", "uptime")]
     assert outs() == outs()
+
+
+def test_sudo_is_stripped_since_hosts_run_as_root(world):
+    host = next(h for h, v in world.fleet.hosts.items() if v["fleet"] == "vl-core")
+    plain = run(world, host, f"unbound-control flush {LEDGER}")
+    assert run(world, host, f"sudo unbound-control flush {LEDGER}")[1] == plain[1] == 0
+    assert "not available" not in run(world, host, f"sudo dig +short {LEDGER}")[0]

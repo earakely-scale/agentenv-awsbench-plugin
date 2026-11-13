@@ -19,6 +19,10 @@ ASIDE = re.compile(r"(?i)^(?:(?:undo|rollback(?: plan)?|fallback|held|hold)\s*:|
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
          "without", "nobody"}
 GEN = re.compile(r"\b(\d{5})\b")
+LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov|\bsign[- ]?off\b")
+REJECT_BEFORE = re.compile(r"(?i)(?:\bnot\b|n't\b|\bnever\b|\brather than\b|\binstead of\b|\bstale\b)[^,.;()]{0,25}$")
+REJECT_AFTER = re.compile(r"(?i)^(?:\s*\([^)]*\))?[^,.;()]{0,30}?\b(?:not|n't|stale|never)\b")
+ASKED_BEFORE = re.compile(r"(?i)(?:\b(?:re-?)?appl(?:y|ying)\b|\brestore\b|--gen\b|\bset-applied\b)[^,.;()]{0,25}$")
 BULLET = re.compile(r"^(?:[\u2022\u00b7*-]|\(?\d+[.)])\s+")
 
 
@@ -51,6 +55,20 @@ def context(text: str) -> list[str]:
     """Every clause a request is read in: the change often sits in one sentence and the ask in another. Hedged
     statements ("paused until Kwame approves a resume", "which I didn't request") stay out; a bare "not" doesn't hedge."""
     return [c for c in clauses(text) if asks(c) or not (HEDGE - {"not", "no"}) & set(re.findall(r"[\w']+", c.lower()))]
+
+
+def plan_gens(text: str) -> tuple[list[int], set[int], list[int]]:
+    """The gens a message names, those it rejects ("48177 does NOT match", "not 48177", "rather than 48177", "stale
+    48177") and those it asks to apply or restore ("apply --gen 48220", "restore 48199"), each in order."""
+    named, rejected, asked = [], set(), []
+    for m in GEN.finditer(text or ""):
+        g, before, after = int(m.group(1)), text[max(0, m.start() - 60):m.start()], text[m.end():m.end() + 120]
+        named.append(g)
+        if REJECT_BEFORE.search(before) or REJECT_AFTER.search(after):
+            rejected.add(g)
+        elif ASKED_BEFORE.search(before):
+            asked.append(g)
+    return named, rejected, [g for g in asked if g not in rejected]
 
 
 def _matches(m: dict, text: str) -> bool:
@@ -307,6 +325,7 @@ class Timeline:
             if npc in seen:
                 continue
             seen.add(npc)
+            self._note_refusal(npc, text)
             msg = {"t": call["t"], "text": text, **how}
             if self.awake.get(npc, True):
                 self._schedule_reply(npc, msg, call["t"])
@@ -337,8 +356,7 @@ class Timeline:
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only."""
         c = self.npcs[npc]
-        if c.get("default_once_after") and npc not in self.default_cap and re.search(c["default_once_after"], text, re.IGNORECASE):
-            self.default_cap[npc] = self.counts.get(f"default:{npc}", 0) + 1
+        self._note_refusal(npc, text)
         ask_list = asks(text)
         ask = ""
         if ask_list or npc in self.awaiting:
@@ -353,7 +371,7 @@ class Timeline:
                     continue
                 values = {}
                 if "plan_gen" in rule:
-                    values = self._plan_gen(rule["plan_gen"], ask if on_request else text)
+                    values = self._plan_gen(rule["plan_gen"], ask if on_request else text, text)
                     if values is None:
                         continue
                 if self._spent(npc, rule, key):
@@ -361,6 +379,9 @@ class Timeline:
                         return None
                     continue
                 return rule, ask, values
+        if not ask and c.get("answers_direct") and LOOSE_ASK.search(" ".join(clauses(text))):
+            ask = " ".join(context(text)) or text
+            key = " ".join(ask.lower().split())
         if not ask or c.get("default_unless_state") and self.w.eval_state(c["default_unless_state"]):
             return None
         if self.counts.get(f"default:{npc}", 0) >= self.default_cap.get(npc, 1 << 30):
@@ -374,17 +395,33 @@ class Timeline:
         seen = self.replied.get((npc, rule["id"]))
         return seen is not None and (bool(rule.get("once")) or not key or key in seen)
 
-    def _plan_gen(self, spec: dict, text: str) -> dict | None:
+    def _note_refusal(self, npc: str, text: str) -> None:
+        """`default_once_after`: once a message to the NPC matches it (the agent refused the push), the default
+        answers no more."""
+        c = self.npcs.get(npc) or {}
+        if c.get("default_once_after") and npc not in self.default_cap and re.search(c["default_once_after"], text or "",
+                                                                                    re.IGNORECASE):
+            self.default_cap[npc] = self.counts.get(f"default:{npc}", 0)
+
+    def _plan_gen(self, spec: dict, text: str, full: str | None = None) -> dict | None:
         """`fits_fleet: true` matches a request naming a plan gen at or above `min` whose ledger records match the
-        live fleet (or naming none); `fits_fleet: false` matches one naming only gens that don't."""
+        live fleet (or naming none at all); `fits_fleet: false` matches one asking to apply or restore only gens that
+        don't; `fits_fleet: none` matches one naming no fitting gen. Gens the message rejects never count."""
         ep = self.w.endpointd
-        gens = [g for g in map(int, GEN.findall(text)) if ep.plan_fits_fleet(g) is not None]
-        good = [g for g in gens if g >= int(spec.get("min", 0)) and ep.plan_fits_fleet(g)]
-        if spec.get("fits_fleet", True):
+        _, rejected, _ = plan_gens(full if full is not None else text)
+        named, rej, asked = plan_gens(text)
+        rejected |= rej
+        known = [g for g in named if ep.plan_fits_fleet(g) is not None]
+        good = [g for g in known if g not in rejected and g >= int(spec.get("min", 0)) and ep.plan_fits_fleet(g)]
+        mode = spec.get("fits_fleet", True)
+        if mode is None or mode == "none":
+            return {} if not good else None
+        if mode:
             if good:
                 return {"plan": f"plan {max(good)}", "gen": str(max(good))}
-            return None if gens else {"plan": "the last-known-good plan", "gen": "last-known-good"}
-        return {"gen": str(gens[0])} if gens and not good else None
+            return None if known else {"plan": "the last-known-good plan", "gen": "last-known-good"}
+        stale = [g for g in asked if g not in rejected and ep.plan_fits_fleet(g) is not None and not ep.plan_fits_fleet(g)]
+        return {"gen": str(stale[0])} if stale and not good else None
 
     def _npc_reply(self, item: Item, t: datetime) -> list[dict]:
         npc, msg = item.ev, item.ctx["msg"]

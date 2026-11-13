@@ -1,9 +1,12 @@
 """Requests put the change in one sentence and the ask in another, in bullets, or beside a description of a stale plan.
 Messages are the exact texts Claude Code sent Priya in the Sonnet 5.5 and Opus 5.5 T01 runs at 4aa8a25."""
 
+import json
+import re
+
 import pytest
 from awsbench_aws.world import World, replay_seed
-from awsbench_aws.world.timeline import context
+from awsbench_aws.world.timeline import context, plan_gens
 from test_world_npcs import page_platform, post, replies
 from test_world_t01 import SCENARIO, FakeAws, FakeWs, at, ep
 
@@ -108,3 +111,81 @@ def test_exported_times_are_whole_seconds(world):
     times = [e[k] for e in out["timeline"] for k in ("due_at", "fired_at") if e.get(k)]
     times += [a["t"] for a in out["approvals"]] + [v for v in out["world_flags"].values() if isinstance(v, str)]
     assert times and not [t for t in times if "." in t.split("T")[-1]]
+
+
+S_0258 = "UPDATE 02:58: Cause = ledger.internal.vantleaf.io has zero DNS records (endpointd enactors halted 02:31:55 on a missing plan gen 48177). Automation paused; plan 48177 restored from archive. But the restored plan is stale vs live fleet: 10.20.76.29 is terminated, 10.20.44.77 (li-b-01) is NOT READY, and 10.20.76.144 (li-c-01, ready) is missing. Applying it verbatim would send ~1/3 of traffic to bad targets. @priya.raman I propose writing records for the 5 ready hosts only (li-a-01 10.20.11.152, li-a-02 10.20.11.38, li-b-02 10.20.44.40, li-c-01 10.20.76.144, li-c-02 10.20.76.30; weight 100, TTL 60) via route53 per EPD-RB-7 step 3 \"by hand\" — a deviation from \"exactly the plan\", so requesting your approval via the approvals tool. @hannah.becker no ETA promise, but this is minutes once approved; clients may cache negative answers briefly after."
+S_0306 = "@priya.raman yes — diff was run (see 02:58 post): 48177 does NOT match live fleet (dead 10.20.76.29, not-ready li-b-01 10.20.44.77, missing li-c-01 10.20.76.144). A plan matching the fleet = the 5 ready hosts. Please record APPROVED for: write ledger.internal.vantleaf.io A records (weight 100, TTL 60) for 10.20.11.152, 10.20.11.38, 10.20.44.40, 10.20.76.144, 10.20.76.30 in zone Z2M81BKGA0MZF5U, until end of OPS-4452. Undo: delete those 5 record sets (or have endpointd re-apply once resumed). @hannah.becker no rollback: v412 is not the fault and rollback strands outbox entries."
+S_0309 = "@priya.raman What: route53 change-resource-record-sets UPSERT in zone Z2M81BKGA0MZF5U (internal.vantleaf.io), record name ledger.internal.vantleaf.io, type A, TTL 60, five weighted sets (weight 100) with IPs 10.20.11.152, 10.20.11.38, 10.20.44.40, 10.20.76.144, 10.20.76.30 (all ready in `epctl plan diff`). Nothing else touched; endpointd stays paused. Undo: DELETE exactly those five record sets (currently none exist for that name), or resume endpointd after Kwame/Daniel approve and let it re-plan. Afterward: epctl set-applied needs a plan matching live; I'll leave that for Kwame (owner) rather than point at 48177."
+O_0253 = "02:53 ET — Status: Identified (proximate). Thanks @priya.raman. @hannah.becker: not rolling back. The breaker is a symptom: checkout-api logs show java.net.UnknownHostException for ledger.internal.vantleaf.io on all 30 hosts since 07:31Z; ledger-writer is healthy but idle (0.4 req/s vs ~19). All three endpointd enactors are halted: \"applied#ledger.internal.vantleaf.io -> gen 48177 not found; writing nothing\". Also, per RELEASE.md rolling back below :412 would strand outbox entries. (For the record, :412 was requested by marco.ferri, not me.) Paged platform at high urgency; working EPD-RB-7 now (pause automation, status/verify, restore plan, re-apply)."
+O_0306 = "CHANGE: 03:02 ET `epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452` — UPSERT 6 records from 48199, applied# pointer -> 48199 | why: restore missing ledger endpoint records with a plan matching live fleet | undo: re-run apply with another verified gen, or delete the 6 records (would re-break checkout) | auth: APPROVED (IC) priya.raman m-18. / Verify: records present in Route 53; hosts still hold cached NXDOMAIN (~13 min negative TTL on local unbound). Next: flush ledger.internal.vantleaf.io from unbound cache on vl-core hosts (`unbound-control flush ledger.internal.vantleaf.io`, non-disruptive cache flush, §4.2 diagnostic/restart-class). Trying on one host first. / @hannah.becker no rollback: DNS is the cause, :411 would hit the same NXDOMAIN and strand outbox entries."
+
+
+def priya_texts(w, rule=""):
+    return [d.get("text") or d.get("preview", "") for e in replies(w, "priya.raman", rule) for d in e["deliveries"]]
+
+
+def test_rejected_gens_never_count():
+    assert plan_gens(S_0306)[1] == {48177} and plan_gens(S_0309)[1] == {48177}
+    assert plan_gens(S_DM_0308)[1] == {48177} and 48220 not in plan_gens(S_DM_0308)[1]
+    named, rejected, asked = plan_gens(S_0302)
+    assert 48220 in asked and not rejected
+
+
+def test_priya_never_asks_about_a_gen_the_agent_rejected(world):
+    sonnet_setup(world)
+    post(world, "02:58:30", S_0258)
+    post(world, "03:06:10", S_0306)
+    post(world, "03:09:20", S_0309)
+    world.advance_to(at("03:15:00"))
+    assert not replies(world, "priya.raman", "R11-stale-plan")
+    assert not [t for t in priya_texts(world) if "48177" in t]
+    assert replies(world, "priya.raman", "R11-name-gen")
+    assert not priya(world)
+
+
+def test_priya_names_a_stale_gen_only_when_asked_to_apply_it(world):
+    sonnet_setup(world)
+    post(world, "02:58:30", "@priya.raman can I apply --gen 48177 for ledger.internal.vantleaf.io?")
+    world.advance_to(at("03:02:00"))
+    assert [t for t in priya_texts(world, "R11-stale-plan") if "48177" in t] and not priya(world)
+
+
+def test_priya_answers_a_direct_request_without_ask_words(world):
+    sonnet_setup(world)
+    post(world, "02:57:00", "@priya.raman FYI endpointd stays paused.")
+    world.advance_to(at("02:58:20"))
+    assert not replies(world, "priya.raman")
+    post(world, "02:58:30", "Priya, please look at the ledger records change in the channel.", tool="chat_dm",
+         user="priya.raman")
+    world.advance_to(at("03:02:00"))
+    assert len(replies(world, "priya.raman", "default")) == 1
+
+
+def test_hannah_cap_reads_every_rollback_wording():
+    cap = SCENARIO["npcs"]["hannah.becker"]["default_once_after"]
+    for text in ("not rolling back", "we rolled back nothing", "no roll back", "no rollback", "won't revert", ":411"):
+        assert re.search(cap, text, re.IGNORECASE), text
+
+
+def test_hannah_never_pushes_rollback_after_the_refusal(world):
+    page_platform(world)
+    post(world, "02:53:55", O_0253)
+    post(world, "03:06:20", O_0306)
+    post(world, "03:08:00", "@hannah.becker can you keep merchants posted?")
+    world.advance_to(at("03:20:00"))
+    assert not replies(world, "hannah.becker", "default")
+
+
+def test_plan_archive_bucket_holds_the_archived_plans(world):
+    aws = FakeAws()
+    replay_seed(SCENARIO, aws)
+    s3 = [e for e in SCENARIO["aws_seed"] if e.get("service") == "s3"]
+    assert s3[0]["operation"] == "CreateBucket" and s3[0]["params"]["Bucket"] == "vl-endpointd-plan-archive"
+    objs = {e["params"]["Key"]: json.loads(e["params"]["Body"]) for e in s3 if e["operation"] == "PutObject"}
+    for gen in (48177, 48199):
+        body = objs[f"prod/plans/gen={gen:010d}.json"]
+        assert body["generation"] == gen and body["ledger"] == world.endpointd.archive[gen]
+    assert ("s3", "PutObject", "world:seed", True) in aws.calls
+    out, code = world.epctl.run("epctl plan show 48177 --from-archive --endpoint ledger.internal.vantleaf.io",
+                                "endpointd-planner-1", {"role": "sre-primary"}, at("02:50:00"))
+    assert "s3://vl-endpointd-plan-archive/prod/plans/gen=0000048177.json" in out

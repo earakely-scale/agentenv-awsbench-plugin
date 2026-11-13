@@ -12,6 +12,7 @@ from .endpointd import COMPONENTS, host_of
 from .util import hms, iso, unit
 
 NOT_AVAILABLE = "{cmd}: not available in this environment"
+SUDO = re.compile(r"^\s*sudo\s+")  # the hosts run fleet commands as root already
 SHELL_OPS = re.compile(r"[;|<>`]|&&|\$\(")
 ONE_COMMAND = "one command per call: shell operators are not supported"
 UNBOUND = {"pid": 612, "user": "unbound", "cmd": "/usr/sbin/unbound -d -p",
@@ -97,6 +98,7 @@ class Fleet:
 
     def run(self, host: str, command: str, caller: dict, now: datetime) -> tuple[str, int]:
         h = self.hosts[host]
+        command = SUDO.sub("", command or "")
         try:
             argv = shlex.split(command)
         except ValueError as e:
