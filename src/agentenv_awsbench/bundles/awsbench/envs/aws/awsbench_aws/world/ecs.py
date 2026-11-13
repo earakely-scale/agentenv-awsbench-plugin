@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from ..account import ACCOUNT
 from ..errors import AwsError
+from .asg import asg_arn
 from .fleet import instance_id
 from .util import iso, parse_time
 
@@ -305,9 +306,7 @@ class Ecs:
         asg = self.cfg["capacity_providers"][name]
         return {"capacityProviderArn": self.arn("capacity-provider", name), "name": name, "status": "ACTIVE",
                 "autoScalingGroupProvider": {
-                    "autoScalingGroupArn": f"arn:aws:autoscaling:{REGION}:{ACCOUNT}:autoScalingGroup:"
-                                           f"{_hex(asg)[:8]}-{_hex(asg)[8:12]}-{_hex(asg)[12:16]}-{_hex(asg)[16:20]}-"
-                                           f"{_hex(asg)[20:32]}:autoScalingGroupName/{asg}",
+                    "autoScalingGroupArn": asg_arn(asg),
                     "managedScaling": {"status": "ENABLED", "targetCapacity": 100, "minimumScalingStepSize": 1,
                                        "maximumScalingStepSize": 10000, "instanceWarmupPeriod": 300},
                     "managedTerminationProtection": "DISABLED"}}

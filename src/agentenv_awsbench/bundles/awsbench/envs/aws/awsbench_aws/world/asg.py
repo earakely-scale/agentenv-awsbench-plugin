@@ -5,12 +5,41 @@ it may send live here. The refresh resumes at `resumes_at` (after T01's horizon)
 graded on knowing that.
 """
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 from ..account import ACCOUNT
 from ..errors import AwsError
 from .fleet import instance_id
 from .util import iso, parse_time
+
+
+def asg_arn(name: str) -> str:
+    """An ECS-managed group's ARN, the same in DescribeAutoScalingGroups and in its capacity provider."""
+    h = hashlib.sha256(name.encode()).hexdigest()
+    return (f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:autoScalingGroup:{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-"
+            f"{h[20:32]}:autoScalingGroupName/{name}")
+
+
+def _managed(cfg: dict, lt_id: str, sizes: tuple[int, int, int], instances: list[dict], created: datetime) -> dict:
+    """An ECS capacity provider's group, as DescribeAutoScalingGroups shows it."""
+    name = cfg["name"]
+    return {
+        "AutoScalingGroupName": name, "AutoScalingGroupARN": asg_arn(name),
+        "LaunchTemplate": {"LaunchTemplateId": lt_id, "LaunchTemplateName": cfg["launch_template"],
+                           "Version": "$Latest"},
+        "MinSize": sizes[0], "MaxSize": sizes[1], "DesiredCapacity": sizes[2], "DefaultCooldown": 300,
+        "AvailabilityZones": ["us-east-1a", "us-east-1b", "us-east-1c"], "HealthCheckType": "EC2",
+        "HealthCheckGracePeriod": 300, "Instances": instances, "CreatedTime": created, "SuspendedProcesses": [],
+        "VPCZoneIdentifier": "subnet-0a6e1f2b3c4d5e601,subnet-0b7f2a3c4d5e6f702,subnet-0c8a3b4d5e6f7a803",
+        "EnabledMetrics": [], "TerminationPolicies": ["Default"], "NewInstancesProtectedFromScaleIn": False,
+        "ServiceLinkedRoleARN": f"arn:aws:iam::{ACCOUNT}:role/aws-service-role/autoscaling.amazonaws.com/"
+                                "AWSServiceRoleForAutoScaling",
+        "Tags": [{"ResourceId": name, "ResourceType": "auto-scaling-group", "Key": "AmazonECSManaged", "Value": "",
+                  "PropagateAtLaunch": True},
+                 {"ResourceId": name, "ResourceType": "auto-scaling-group", "Key": "ecs-capacity-provider",
+                  "Value": cfg["capacity_provider"], "PropagateAtLaunch": True}],
+    }
 
 
 class IngressAsg:
@@ -139,34 +168,42 @@ class LedgerWriterAsg:
         desired = min(max(self.cfg["min"], s.lw_desired), s.max_tasks)
         names = [h["name"] for h in base] + [f"lw-{'abc'[k % 3]}-{5 + k // 3:02d}" for k in range(desired - len(base))]
         azs = {"a": "us-east-1a", "b": "us-east-1b", "c": "us-east-1c"}
-        return {
-            "AutoScalingGroupName": self.name,
-            "AutoScalingGroupARN": f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:autoScalingGroup:"
-                                   f"8c1f4e2a-6d3b-4f70-9a2e-5b7c0d1e3f48:autoScalingGroupName/{self.name}",
-            "LaunchTemplate": {"LaunchTemplateId": "lt-07c3e9a1f5b2d4086", "LaunchTemplateName": self.cfg["launch_template"],
-                               "Version": "$Latest"},
-            "MinSize": self.cfg["min"], "MaxSize": s.max_tasks, "DesiredCapacity": desired, "DefaultCooldown": 300,
-            "AvailabilityZones": sorted(azs.values()), "HealthCheckType": "EC2", "HealthCheckGracePeriod": 300,
-            "Instances": [{"InstanceId": instance_id(n), "InstanceType": self.cfg["instance_type"],
-                           "AvailabilityZone": azs[n.split("-")[1]],
-                           "LifecycleState": "InService" if i < s.lw_hosts else "Pending", "HealthStatus": "Healthy",
-                           "ProtectedFromScaleIn": False} for i, n in enumerate(names)],
-            "CreatedTime": parse_time(self.cfg["created"], self.w.start_t), "SuspendedProcesses": [],
-            "VPCZoneIdentifier": "subnet-0a6e1f2b3c4d5e601,subnet-0b7f2a3c4d5e6f702,subnet-0c8a3b4d5e6f7a803",
-            "EnabledMetrics": [], "TerminationPolicies": ["Default"], "NewInstancesProtectedFromScaleIn": False,
-            "ServiceLinkedRoleARN": f"arn:aws:iam::{ACCOUNT}:role/aws-service-role/autoscaling.amazonaws.com/"
-                                    "AWSServiceRoleForAutoScaling",
-            "Tags": [{"ResourceId": self.name, "ResourceType": "auto-scaling-group", "Key": "AmazonECSManaged",
-                      "Value": "", "PropagateAtLaunch": True},
-                     {"ResourceId": self.name, "ResourceType": "auto-scaling-group", "Key": "ecs-capacity-provider",
-                      "Value": self.cfg["capacity_provider"], "PropagateAtLaunch": True}],
-        }
+        return _managed(self.cfg, "lt-07c3e9a1f5b2d4086", (self.cfg["min"], s.max_tasks, desired), [
+            {"InstanceId": instance_id(n), "InstanceType": self.cfg["instance_type"],
+             "AvailabilityZone": azs[n.split("-")[1]], "LifecycleState": "InService" if i < s.lw_hosts else "Pending",
+             "HealthStatus": "Healthy", "ProtectedFromScaleIn": False} for i, n in enumerate(names)],
+            parse_time(self.cfg["created"], self.w.start_t))
+
+    def serve(self, op: str, p: dict, now: datetime) -> dict | None:
+        return None
+
+
+class FleetAsg:
+    """A capacity provider's group whose instances are one fleet's hosts, all in service: cp-core's vl-core-asg holds
+    the vl-core hosts that ECS places checkout-api and webhooks-dispatcher on."""
+
+    def __init__(self, world, cfg: dict):
+        self.w, self.cfg, self.name = world, cfg, cfg["name"]
+
+    def group(self, now: datetime) -> dict:
+        fleet = self.w.fleet
+        hosts = [h for h in fleet.hosts.values() if h["fleet"] == self.cfg["fleet"]]
+        itype, azs = fleet.cfg[self.cfg["fleet"]].get("instance_type"), fleet.az_names()
+        lt_id = "lt-0" + hashlib.sha256(self.cfg["launch_template"].encode()).hexdigest()[:16]
+        return _managed(self.cfg, lt_id, (len(hosts),) * 3, [
+            {"InstanceId": instance_id(h["name"]), "InstanceType": h.get("type", itype),
+             "AvailabilityZone": azs.get(h["az"], h["az"]), "LifecycleState": "InService", "HealthStatus": "Healthy",
+             "ProtectedFromScaleIn": False} for h in hosts], parse_time(self.cfg["created"], self.w.start_t))
 
     def serve(self, op: str, p: dict, now: datetime) -> dict | None:
         return None
 
 
 def serve_groups(groups: list, op: str, p: dict, now: datetime) -> dict | None:
+    """The world's groups, and the static capacity-provider groups the scenario's `ecs.fleet_asgs` names."""
+    w = groups[0].w if groups else None
+    ecs = ((w.scenario.get("world") or {}).get("ecs") or {}) if w else {}
+    groups = groups + [FleetAsg(w, c) for c in ecs.get("fleet_asgs") or []]
     if op == "DescribeAutoScalingGroups":
         names = p.get("AutoScalingGroupNames")
         return {"AutoScalingGroups": [g.group(now) for g in groups if not names or g.name in names]}

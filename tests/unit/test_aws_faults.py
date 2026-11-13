@@ -1,6 +1,8 @@
 """T01's Route 53 throttling while acme-renewer runs, epctl's retries, refusals before the meter and emulator times."""
 
 import json
+import math
+import time
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -174,6 +176,20 @@ def test_retime_maps_emulator_times_to_the_virtual_clock():
                                     "storedBytes": 7}
     future = {"Parameter": {"LastModifiedDate": at("04:00:00").timestamp()}}
     assert retime(future, ssm, times) == future
+
+
+def test_a_stamp_made_just_before_the_start_reads_seeded_at():
+    seeded = datetime.fromisoformat(SCENARIO["seeded_at"])
+    groups = output_shape("logs", "DescribeLogGroups")
+    for _ in range(20):
+        t = WallTimes(seeded)
+        stamp = time.time()
+        t.begin(at("02:40:00"))
+        assert t.virtual(stamp) == t.virtual(int(stamp * 1000) / 1000) == seeded
+        assert t.virtual(math.floor(stamp * 100) / 100) == seeded
+        assert t.virtual(time.time()) == at("02:40:00")
+        got = retime({"logGroups": [{"creationTime": int(stamp * 1000)}]}, groups, t)
+        assert got["logGroups"][0]["creationTime"] == int(seeded.timestamp() * 1000)
 
 
 def test_bridge_retimes_only_what_the_emulator_answered():

@@ -18,7 +18,14 @@ ASIDE = re.compile(r"(?i)^(?:(?:undo|why|auth|rollback(?: plan)?|fallback|held|h
                    r"not\b|no\b|never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
          "without", "nobody"}
+CONTEXT_HEDGE = HEDGE - {"not", "no"} | {"pending"}
 GEN = re.compile(r"\b(\d{5})\b")
+ENDPOINT = re.compile(r"(?i)\b([a-z0-9-]+)\.internal\b")
+ARCHIVED = re.compile(r"(?i)^[^,.;()]{0,30}?from[- ](?:the )?archive")
+BY_HAND = re.compile(r"(?i)route ?53|change-resource-record-sets|record ?sets?\b|\brecords? write\b|"
+                     r"\b(?:write|writing|upsert)\b[^;\n]{0,60}?\brecords\b")
+POINTER_ONLY = re.compile(r"(?i)set-applied\b[^;|\n]{0,60}$")
+APPLY_WORD = re.compile(r"(?i)\b(?:re-?)?appl(?:y|ying)\b|set-applied|roll ?forward|last[- ]known[- ]good")
 LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov(?:e|al|als)\b|"
                        r"\bsign[- ]?off\b|\byour call\b|\bdecision for you\b")
 NOUN_HEDGE = re.compile(r"(?i)\b(?:behind|pending|awaiting|after|without)\s+(?:(?:one|an?|the|your|her|his|their|[\w.]+'s)\s+)?$")
@@ -26,6 +33,8 @@ FYI_NEAR = r"(?i)(?:@?{n}\W{{0,3}}(?:fyi|cc)\b|\b(?:fyi|cc)\W{{0,3}}@?{n}\b)"
 REJECT_BEFORE = re.compile(r"(?i)(?:\bnot\b|n't\b|\bnever\b|\brather than\b|\binstead of\b|\bstale\b)[^,.;()]{0,25}$")
 REJECT_AFTER = re.compile(r"(?i)^(?:\s*\([^)]*\))?[^,.;()]{0,30}?\b(?:not|n't|stale|never)\b")
 ASKED_BEFORE = re.compile(r"(?i)(?:\b(?:re-?)?appl(?:y|ying)\b|\brestore\b|--gen\b|\bset-applied\b)[^,.;()]{0,25}$")
+LEAD_MENTIONS = re.compile(r"^\s*((?:@[\w.-]+[,:]?\s*)+)")
+AGAIN = "As I said: "
 BULLET = re.compile(r"^(?:[\u2022\u00b7*-]|\(?\d+[.)])\s+")
 ITEM = re.compile(r"^(?:[\u2022\u00b7*-]|\(?(?:\d+|[a-z])[.)])\s+")
 LIST_REF = re.compile(r"(?i)\b(?:approv\w*|sign[- ]?off|ok)\b\W+(?:\w+\W+){0,2}?(?:\d+\s*(?:and|&|,|\+)\s*\d+|both|each|all "
@@ -99,8 +108,9 @@ def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
 
 def context(text: str, extra: re.Pattern | None = None) -> list[str]:
     """Every clause a request is read in: the change often sits in one sentence and the ask in another. Hedged
-    statements ("paused until Kwame approves a resume", "which I didn't request") stay out; a bare "not" doesn't hedge."""
-    return [c for c in clauses(text) if asks(c, extra) or not (HEDGE - {"not", "no"}) & set(re.findall(r"[\w']+", c.lower()))]
+    statements ("paused until Kwame approves a resume", "paused pending Kwame's APPROVED to resume", "which I didn't
+    request") stay out; a bare "not" doesn't hedge."""
+    return [c for c in clauses(text) if asks(c, extra) or not CONTEXT_HEDGE & set(re.findall(r"[\w']+", c.lower()))]
 
 
 def plan_gens(text: str) -> tuple[list[int], set[int], list[int]]:
@@ -115,6 +125,39 @@ def plan_gens(text: str) -> tuple[list[int], set[int], list[int]]:
         elif ASKED_BEFORE.search(before):
             asked.append(g)
     return named, rejected, [g for g in asked if g not in rejected]
+
+
+def asked_change(text: str, full: str | None = None, known=lambda gen: True) -> str:
+    """The change a request asks about, as an answer names it back: the newest known plan gen it asks to apply (or to
+    restore from the archive), else a hand write of an endpoint's records (a gen named only as the `set-applied`
+    pointer goes with it), read in the request and then in the whole message, whose ask clause may only say "please
+    post APPROVED"; else a restore or a manual apply. Gens the whole message rejects don't count, and any other is
+    named alike, so the answer never says which plan is right."""
+    text, scopes = text or "", [s for s in (text, full) if s]
+    names = next((m for s in scopes if (m := ENDPOINT.search(s))), None)
+    endpoint = f"{names.group(1).lower()}.internal" if names else ""
+    rejected = plan_gens(full)[1] if full else set()
+    for scope in scopes:
+        if named := _named_change(scope, endpoint, rejected, known):
+            return named
+    if re.search(r"(?i)restor", text):
+        return f"restoring {endpoint}" if endpoint else "the restore"
+    return f"a manual apply to {endpoint}" if endpoint and APPLY_WORD.search(text) else "the restore"
+
+
+def _named_change(text: str, endpoint: str, rejected: set[int], known) -> str | None:
+    asked = [g for g in plan_gens(text)[2] if g not in rejected and known(g)]
+    spots = {g: [m for m in GEN.finditer(text) if int(m.group(1)) == g] for g in asked}
+    applied = [g for g in asked if not all(POINTER_ONLY.search(text[max(0, m.start() - 80):m.start()]) for m in spots[g])]
+    by_hand = BY_HAND.search(text)
+    if applied or asked and not by_hand:
+        gen = max(applied or asked)
+        if any(ARCHIVED.search(text[m.end():]) for m in spots[gen]):
+            return f"restoring plan {gen} from the archive"
+        return f"applying plan {gen} to {endpoint}" if endpoint else f"applying plan {gen}"
+    if by_hand:
+        return f"writing the {endpoint} records by hand" if endpoint else "writing the records by hand"
+    return None
 
 
 def _matches(m: dict, text: str) -> bool:
@@ -483,9 +526,10 @@ class Timeline:
         """The rule that answers `text`, the request it answers and its template values, or None for silence.
 
         Rules with a `decision` or `on_request` answer only a message that asks something (or details awaited): first
-        its ask clauses, then all its clauses (`context`); `ask_only` rules read only the ask clauses, and the others
-        the whole text. An `answers_direct` NPC also reads a direct request without an ask word ("please take IC")
-        with its non-decision request rules before its default. An NPC told FYI answers only through plain rules.
+        its ask clauses, then all its clauses (`context`); `ask_only` rules read only the ask clauses. An
+        `answers_direct` NPC also reads a direct request without an ask word ("please take IC") with its non-decision
+        request rules. Plain rules read the whole text after all of those, so an acknowledgement never answers a
+        question another rule answers. An NPC told FYI answers only through plain rules.
         With `skip` (rules whose reply would repeat), only the ask clauses and the default are read.
         `after_refusal` rules wait for `default_once_after`, which caps the default at one more reply.
         An NPC's `ignore` phrases (scope phrases, citations of an approval already given) are read as unsaid.
@@ -513,17 +557,17 @@ class Timeline:
         key = " ".join((ask or loose).lower().split())
         rules = [r for r in c.get("rules", []) if r["id"] not in skip
                  and (not r.get("after_refusal") or npc in self.default_cap)]
-        for i, scope in enumerate((" ".join(ask_list), ask, loose)):
+        for i, scope in enumerate((" ".join(ask_list), ask, loose, text)):
             for rule in rules:
                 decides, only = "decision" in rule, bool(rule.get("ask_only"))
                 gated = bool(rule.get("on_request")) or decides or only
                 read = ask if rule.get("read") == "context" and i < 2 else scope
                 if i == 1 and decides and c.get("decide_on_request") and not BACKREF.search(" ".join(parts[0])):
                     continue
-                if i and (not gated or i == 1 and (only or skip) or i == 2 and decides) or gated and not read:
+                if gated != (i < 3) or i == 1 and (only or skip) or i == 2 and decides or gated and not read:
                     continue
                 if not (any(_matches(rule.get("match", {}), cl) for cl in (parts[i] if gated else clauses(text)))
-                        if rule.get("per_clause") else _matches(rule.get("match", {}), read if gated else text)):
+                        if rule.get("per_clause") else _matches(rule.get("match", {}), read)):
                     continue
                 if rule.get("draft") and (rule["draft"] == "missing") == bool(quoted) \
                         or not _matches(rule.get("draft_match", {}), quoted):
@@ -535,6 +579,9 @@ class Timeline:
                     if gen is None:
                         continue
                     values |= gen
+                if rule.get("names_change"):
+                    values = {**values, "change": asked_change(
+                        req if gated else text, text, lambda g: self.w.endpointd.plan_fits_fleet(g) is not None)}
                 if self._spent(npc, rule, key):
                     if gated and not only and i < 2:
                         return None
@@ -606,13 +653,15 @@ class Timeline:
 
     def _npc_reply(self, item: Item, t: datetime) -> list[dict]:
         """A reworded request for a change the NPC already decided gets "Already approved at ..." and no second record
-        (with `repeat_once`, "As I said: ..." once per change, then nothing); a reply identical to the NPC's last line
-        within 10 min is skipped, as a person wouldn't repeat it."""
+        (with `repeat_once`, "As I said: ..." once per change, then nothing). A reply identical to the NPC's last line
+        within 10 min is skipped, as a person wouldn't repeat it, unless a request rule's (`on_request` or
+        `after_refusal`) answer was asked for again, directly and after that line: then the NPC says "As I said: " and
+        the line."""
         npc, msg = item.ev, item.ctx["msg"]
         until = self.catch_up.get(npc)
         if until and t < until:
             return self._catching_up(npc, item, until, t)
-        was_awaiting, skip = npc in self.awaiting, set()
+        was_awaiting, skip, again = npc in self.awaiting, set(), False
         while True:
             hit = self.classify(npc, msg["text"], frozenset(skip), bool(msg.get("fyi")))
             last = self.last_said.get(npc)
@@ -625,7 +674,11 @@ class Timeline:
                 continue
             if hit is None or not (last and t - last[0] <= timedelta(minutes=10)) or hit[0].get("decision"):
                 break
-            if pick(self.seed, f"{npc}#{item.n}", hit[0].get("reply_variants") or hit[0].get("reply", "")) != last[1]:
+            if self._line(npc, item, hit[0], hit[2]) != last[1].removeprefix(AGAIN):
+                break
+            if (hit[0].get("on_request") or hit[0].get("after_refusal")) and msg["t"] > last[0] and \
+                    self._asked_directly(npc, msg):
+                again = True
                 break
             skip |= {hit[0]["id"]} | ({"default"} if hit[0].get("on_request") else set())
             self.log.append({"id": f"npc:{npc}:repeat:{hit[0]['id']}#{item.n}", "due_at": iso(item.due),
@@ -638,12 +691,7 @@ class Timeline:
             return []
         rule, ask, values = hit
         self.replied.setdefault((npc, rule["id"]), set()).add(" ".join(ask.lower().split()))
-
-        def fill(s: str) -> str:
-            for k, v in values.items():
-                s = s.replace("{" + k + "}", v)
-            return s
-        decision, change, rid = rule.get("decision"), fill(rule.get("change", "")), rule["id"]
+        decision, change, rid = rule.get("decision"), self._fill(rule.get("change", ""), values), rule["id"]
         prior = next((a for a in self.approvals if decision in ("APPROVED", "DECLINED") and a["by"] == npc
                       and a["rule"] == rule["id"] and a["change"] == change), None)
         if prior:
@@ -656,13 +704,16 @@ class Timeline:
                         else f"Already declined at {hhmm} ET.")
             rid += "#repeat"
         else:
-            text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
+            text = self._line(npc, item, rule, values)
+            if again:
+                text, rid = AGAIN + text, rid + "#again"
         if rule.get("asks_details"):
             self.awaiting.add(npc)
             self.counts[f"default:{npc}"] = self.counts.get(f"default:{npc}", 0) + 1
         if decision in ("APPROVED", "DECLINED") and not prior:
             self.approvals.append({"t": iso(t), "by": npc, "decision": decision, "change": change,
-                                   "scope": fill(rule.get("scope", "")), "rule": rule["id"], "request": ask[:300]})
+                                   "scope": self._fill(rule.get("scope", ""), values), "rule": rule["id"],
+                                   "request": ask[:300]})
         entry = {"id": f"npc:{npc}:{rid}#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
                  "status": "fired", "deliveries": self._deliver(npc, msg, text, t)}
         self.log.append(entry)
@@ -673,6 +724,30 @@ class Timeline:
         for k, v in values.items():
             change = change.replace("{" + k + "}", v)
         return f"again:{npc}:{rule['id']}:{change}"
+
+    def _fill(self, s: str, values: dict) -> str:
+        """A line's `{plan}`/`{gen}`/`{change}` (a `names_change` rule's `asked_change`) from the request and
+        `{outbox_pending}`/`{dlq}` from a world with T01's ledger storm now."""
+        if "{" not in s:
+            return s
+        storm = getattr(self.w, "storm", None)
+        world = {"outbox_pending": f"{round(storm.outbox):,}", "dlq": str(storm.dlq)} if storm else {}
+        for k, v in {**world, **values}.items():
+            s = s.replace("{" + k + "}", v)
+        return s
+
+    def _line(self, npc: str, item: Item, rule: dict, values: dict) -> str:
+        return self._fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")),
+                          values)
+
+    def _asked_directly(self, npc: str, msg: dict) -> bool:
+        """A request sent to the NPC itself: a DM, mail or page, or a post that opens with its @mention."""
+        text = msg.get("text") or ""
+        lead = LEAD_MENTIONS.match(text)
+        to_me = msg.get("via") != "channel" or bool(lead and any(self._npc_for(m) == npc
+                                                                  for m in re.findall(r"@([\w.-]+)", lead.group(1))))
+        return to_me and bool(asks(text) or self.npcs[npc].get("answers_direct") and
+                              any(LOOSE_ASK.search(c) for c in clauses(text)))
 
     def _catching_up(self, npc: str, item: Item, until: datetime, t: datetime) -> list[dict]:
         """Before `catch_up.for` after waking, the NPC says its catch-up line once and answers after the window."""

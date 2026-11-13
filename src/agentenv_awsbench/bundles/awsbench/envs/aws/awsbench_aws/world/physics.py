@@ -112,6 +112,9 @@ FAILURE = {"healthy": 0.003, "degraded": 0.03, "collapsed": 0.65}
 class Storm:
     """Ledger-writer load versus a connection-bound capacity, with hysteresis between regimes.
 
+    With admission on, ledger-writer answers the dispatcher's reads over its quota with 429 (2 % of their cost), and
+    the dispatcher nacks those messages back to the queue, so it delivers no more than its quota.
+
     checkout-api below `outbox_min_revision` (:412) neither writes nor replays the posting outbox, so pending entries
     stay stranded, and it calls ledger directly with immediate retries."""
 
@@ -142,6 +145,7 @@ class Storm:
         self.collapsed_total = 0.0
         self.regime_timeline: list[list] = [[iso(start), "healthy"]]
         self.offered = 0.0
+        self.rejected = 0.0
         self.capacity = self.capacity_now()
         self.series: list[dict] = []
 
@@ -201,14 +205,10 @@ class Storm:
         replay = lev["replay_rate"] if self.outbox > 0 and reads else 0.0
         checkout = rs * (float(self.cfg.get("checkout_req_s", 90)) + replay if reads else
                          float(self.cfg.get("checkout_pre412_req_s", 60)) * (1 + 4 * FAILURE[self.regime]))
-        if lev["consumer_paused"]:
-            dispatcher = 0.0
-        else:
-            dispatcher = rs * (running * mc / 0.4 if self.backlog > 0 else arrivals)
-        if lev["admission"]:
-            quota = lev["dispatcher_quota"]
-            dispatcher = min(dispatcher, quota) + 0.02 * max(0.0, dispatcher - quota)
-        load = checkout + dispatcher + float(self.cfg.get("other_req_s", 150))
+        raw = 0.0 if lev["consumer_paused"] else rs * (running * mc / 0.4 if self.backlog > 0 else arrivals)
+        admitted = min(raw, lev["dispatcher_quota"]) if lev["admission"] else raw
+        self.rejected = raw - admitted
+        load = checkout + admitted + 0.02 * self.rejected + float(self.cfg.get("other_req_s", 150))
         self.offered = load
         prev = self.regime
         if load > 1.3 * cap:
@@ -233,6 +233,8 @@ class Storm:
             delivered = rs * float(self.cfg.get("collapsed_webhook_per_s", 40))
         else:
             delivered = rs * running * mc / 0.4 if self.backlog > 0 else arrivals
+        if lev["admission"]:
+            delivered = min(delivered, lev["dispatcher_quota"])
         self.backlog = max(0.0, self.backlog + (arrivals - delivered) * dt)
         inflow = float(self.cfg.get("outbox_inflow_per_s", 15)) * (1 - rs) if reads else 0.0
         drain = lev["replay_rate"] * rs if self.regime != "collapsed" and reads else 0.0

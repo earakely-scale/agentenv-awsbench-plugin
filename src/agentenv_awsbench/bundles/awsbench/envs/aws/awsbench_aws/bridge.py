@@ -205,6 +205,14 @@ class WallTimes:
         if not self.marks or virtual >= self.marks[-1][1]:
             self.marks.append((math.floor(time.time() * 100) / 100, virtual))
 
+    def begin(self, virtual: datetime) -> None:
+        """Mark the episode start once the 10 ms bucket holding the last seed stamp has passed, so every seed stamp
+        reads seeded_at."""
+        edge = time.time()
+        while math.floor(time.time() * 100) / 100 <= edge:
+            time.sleep(0.001)
+        self.mark(virtual)
+
     def virtual(self, wall: float) -> datetime | None:
         i = bisect_right(self.marks, wall, key=lambda m: m[0])
         return self.marks[i - 1][1] if i else self.seeded_at

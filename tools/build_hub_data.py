@@ -3,15 +3,19 @@
     python tools/build_hub_data.py --runs RUNS_DIR [--publish]
 
 RUNS_DIR holds one folder per run (``aws-export.json``, ``workspace-export.json``, ``instance-context.json``,
-``agent-session.jsonl``, ``transcript.md``, ``BUILD``), named ``<round>-<model>`` (``R5-opus``). ``hub/runs.json``
-labels them: which are development runs on older builds, and a note for each. A folder it doesn't list is exported as a
-current run. The reference is the scripted oracle path of ``tests/e2e/driver.py``, replayed here through the world
-package in process with the unit tests' in-memory AWS and workspace fakes, so its world series are the same physics,
-timeline and colleagues an agent meets.
+``agent-session.jsonl``, ``transcript.md``, ``BUILD``), named ``<round>-<model>`` (``R8-opus-1``, ``T03R1-sonnet-2``).
+The task (T01 or T03) is the scenario the aws export's episode names. ``hub/runs.json`` labels them: which are
+development runs on older builds, a note for each, and a ``build`` where the folder's BUILD file lacks the commit. A
+folder it doesn't list is exported as a current run. Each task has a reference: the scripted oracle path
+(``tests/e2e/driver.py`` for T01, ``tests/e2e/t03_oracle.py`` for T03), replayed here through the world package in
+process with in-memory AWS and workspace fakes, so its world series are the same physics, timeline and colleagues an
+agent meets. T03 runs are also replayed in process from their own calls (``tools/t03_replay.py``), for the per-host
+states and thread counts their exports don't keep; the T03 world comes from ``--t03-root`` (this checkout once it has
+the T03 world, else the sibling ``agentenv-awsbench-plugin-t03`` worktree).
 
 Writes ``hub/space/app/public/data/`` (the viewers' ``index.json`` and ``runs/<id>.json``) and ``hub/dataset/`` (per run:
 ``viewer.json``, the scrubbed ``aws-export.json`` and ``workspace-export.json``, ``grade.json`` and ``transcript.md``;
-plus ``index.json`` and the dataset viewer's ``tables/{runs,calls,checks}.jsonl``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
+plus ``index.json`` and the dataset viewer's ``tables/<task>/{runs,calls,checks}.jsonl``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
 foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the private Hugging Face repos
 (``earakely-scale/AwsIncidentsBench``), one commit each.
 """
@@ -24,18 +28,29 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import export_run as X
+import export_t03 as X3
 
 AWS_ENV = ROOT / "src/agentenv_awsbench/bundles/awsbench/envs/aws"
 SPACE_DATA = ROOT / "hub/space/app/public/data"
 DATASET = ROOT / "hub/dataset"
 REPO = "earakely-scale/AwsIncidentsBench"
 KEEP_IN_DATASET = ("README.md", ".gitattributes")
+TASKS = {"T01": "The Empty Ledger Endpoint", "T03": "Thread Ceiling"}
+REF_ID = {"T01": "reference", "T03": "reference-t03"}
+CORE = {"T01": ("C1", "C2", "C3", "C4", "C6", "C7"), "T03": ("C02", "C03", "C04", "C05", "C06", "C15")}
+
+
+def default_t03_root() -> Path:
+    if (AWS_ENV / "awsbench_aws/scenarios/t03.yaml").exists():
+        return ROOT
+    return ROOT.parent / (ROOT.name + "-t03")
 
 
 def _load(path: Path, name: str):
@@ -191,11 +206,11 @@ def _reference_checks(steps: list[dict], series: dict, summary: dict) -> list[di
     return out
 
 
-def _head() -> str:
+def _head(root: Path = ROOT, paths=("src", "tests/e2e/driver.py", "tests/unit/test_world_t01.py")) -> str:
     """The last commit that changed what the reference replays: the env, the driver or the fakes."""
     try:
-        return subprocess.run(["git", "-C", str(ROOT), "log", "-1", "--format=%h", "--", "src", "tests/e2e/driver.py",
-                               "tests/unit/test_world_t01.py"], capture_output=True, text=True, check=True).stdout.strip()
+        return subprocess.run(["git", "-C", str(root), "log", "-1", "--format=%h", "--", *paths],
+                              capture_output=True, text=True, check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return ""
 
@@ -207,32 +222,43 @@ def run_folders(runs_dir: Path) -> list[Path]:
 
 
 def order_key(run_id: str):
-    m = re.match(r"R(\d+)-(\w+)", run_id)
+    m = re.match(r"(?:T\d+)?R(\d+)-([\w-]+)", run_id)
     return (-int(m.group(1)), m.group(2)) if m else (0, run_id)
 
 
 def index_row(v: dict) -> dict:
-    fails = [c["id"] for c in v["checks"] if not c["gate"] and not c["result"]]
+    fails = [c["id"] for c in v["checks"] if not c["gate"] and c["result"] is False]
     gates = [c["id"] for c in v["checks"] if c["gate"] and c["fired"]]
-    return {"id": v["id"], "label": v["label"], "kind": v["kind"], "model": v["model"], "build": v["build"], "dev": v["dev"],
-            "note": v["note"], "d12": v["score"]["d12"], "raw": v["score"]["raw"], "pass": v["score"]["pass"],
-            "caps": v["score"]["caps"], "failed": fails, "gates": gates,
-            "core_failed": [c for c in fails if c in ("C1", "C2", "C3", "C4", "C6", "C7")],
-            "calls": v["clock"]["calls_used"], "done": X.hms(v["clock"]["done"]), "end_reason": v["clock"]["end_reason"],
-            "collapsed_min": v["summary"]["collapsed_min"], "stable_from": v["summary"]["stable_from"]}
+    row = {"id": v["id"], "task": v.get("task", "T01"), "label": v["label"], "kind": v["kind"], "model": v["model"],
+           "build": v["build"], "dev": v["dev"], "note": v["note"], "d12": v["score"]["d12"], "raw": v["score"]["raw"],
+           "pass": v["score"]["pass"], "caps": v["score"]["caps"], "failed": fails, "gates": gates,
+           "core_failed": [c for c in fails if c in CORE[v.get("task", "T01")]],
+           "calls": v["clock"]["calls_used"], "done": X.hms(v["clock"]["done"]), "end_reason": v["clock"]["end_reason"]}
+    sm = v["summary"]
+    if v.get("task") == "T03":
+        row.update(routing_from=X.hms(sm["routing_from"]), lag_clear_at=X.hms(sm["lag_clear_at"]),
+                   settlement=sm["settlement"].get("readiness_1230"), agent_restarts=sm["agent_restarts"],
+                   peak_conc=sm["peak_conc"], ejections=sm["ejections"], hold=sm["hold"])
+    else:
+        row.update(collapsed_min=sm["collapsed_min"], stable_from=sm["stable_from"])
+    return row
 
 
 def results_table(index: dict) -> str:
-    """The dataset card's results table, from the index."""
-    rows = ["| Run | Model | Build | D12 | Pass | Checks lost | Gates fired | Calls | DONE |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-    for r in index["runs"] + [index["reference"]]:
-        d12 = "" if r["d12"] is None else f"{r['d12']:.2f}"
-        dev = " (dev)" if r["dev"] else ""
-        rows.append(f"| `{r['id']}` | {r['model']} | `{r['build']}`{dev} | {d12} | {'pass' if r['pass'] else 'fail'} | "
-                    f"{', '.join(r['failed']) or 'none'} | {', '.join(r['gates']) or 'none'} | {r['calls']} | "
-                    f"{r['done'] or r['end_reason']} |")
-    return "\n".join(rows)
+    """The dataset card's results tables, one per task, from the index."""
+    out = []
+    for task, t in index["tasks"].items():
+        out += ["", f"**{task} · {t['title']}**", "",
+                "| Run | Model | Build | D12 | Pass | Checks lost | Gates fired | Calls | End |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for r in t["runs"] + [t["reference"]]:
+            d12 = "" if r["d12"] is None else f"{r['d12']:.2f}"
+            dev = " (dev)" if r["dev"] else ""
+            end = (f"DONE {r['done']}" if r["end_reason"] == "done" and r["done"] else
+                   "13:00 window" if r["end_reason"] == "window_end" else (r["end_reason"] or ""))
+            out.append(f"| `{r['id']}` | {r['model']} | `{r['build']}`{dev} | {d12} | {'pass' if r['pass'] else 'fail'} | "
+                       f"{', '.join(r['failed']) or 'none'} | {', '.join(r['gates']) or 'none'} | {r['calls']} | {end} |")
+    return "\n".join(out[1:])
 
 
 def fill_card(index: dict) -> Path:
@@ -253,25 +279,35 @@ def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[d
     runs, calls, checks = [], [], []
     for v in views:
         row = index_row(v)
-        runs.append({"run": v["id"], "kind": v["kind"], "model": v["model"], "build": v["build"], "development_run": v["dev"],
+        sm, t03 = v["summary"], v.get("task") == "T03"
+        runs.append({"run": v["id"], "task": v.get("task", "T01"), "kind": v["kind"], "model": v["model"], "build": v["build"],
+                     "development_run": v["dev"],
                      "d12": v["score"]["d12"], "raw": v["score"]["raw"], "passed": v["score"]["pass"],
                      "caps": ", ".join(str(c) for c in v["score"]["caps"]), "checks_lost": ", ".join(row["failed"]),
                      "gates_fired": ", ".join(row["gates"]), "calls": v["clock"]["calls_used"], "done_at": _hms(v["clock"]["done"]),
-                     "end_reason": v["clock"]["end_reason"], "restore_at": _hms(v["summary"].get("restore_at")),
-                     "collapsed_min": float(v["summary"]["collapsed_min"] or 0), "checkout_stable_from": v["summary"]["stable_from"] or "",
-                     "note": v["note"], "final_message": v["final"] or "", "handoff_note": v["handoff"] or ""})
+                     "end_reason": v["clock"]["end_reason"],
+                     "restore_at": None if t03 else _hms(sm.get("restore_at")),
+                     "collapsed_min": None if t03 else float(sm["collapsed_min"] or 0),
+                     "checkout_stable_from": None if t03 else (sm["stable_from"] or ""),
+                     "routing_95_from": _hms(sm.get("routing_from")) if t03 else None,
+                     "lag_under_5min_at": _hms(sm.get("lag_clear_at")) if t03 else None,
+                     "settlement_1230": sm["settlement"].get("readiness_1230") if t03 else None,
+                     "agent_restarts": sm.get("agent_restarts") if t03 else None,
+                     "ejections": sm.get("ejections") if t03 else None,
+                     "note": v["note"], "final_message": v["final"] or "",
+                     "handoff_note": "" if t03 else (v["handoff"] or ""), "rca_comment": (v["handoff"] or "") if t03 else ""})
         for st in v["steps"]:
-            calls.append({"run": v["id"], "call": st["n"], "start": _hms(st["at"]), "end": _hms(st["end"]), "tool": st["tool"],
+            calls.append({"run": v["id"], "task": v.get("task", "T01"), "call": st["n"], "start": _hms(st["at"]), "end": _hms(st["end"]), "tool": st["tool"],
                           "server": st["server"], "cost_class": st["cls"], "cost_s": st["cost"], "detail": st["detail"] or "",
                           "result": st["result"] or "", "error": st["error"] or "", "production_change": bool(st["prod"]),
                           "label": st["label"] or "", "bears_on": ", ".join(st["sat"])})
         rows = {r.get("id"): r for r in grades.get(v["id"], [])}
         for c in v["checks"]:
             g = rows.get(c["id"], {})
-            checks.append({"run": v["id"], "check": c["id"], "name": c["name"], "bucket": g.get("bucket") or c.get("bucket") or "",
+            checks.append({"run": v["id"], "task": v.get("task", "T01"), "check": c["id"], "name": c["name"], "bucket": g.get("bucket") or c.get("bucket") or "",
                            "points": c["w"], "core": bool(c["core"]), "gate_cap": X.GATE_CAP.get(c["gate"]) if c["gate"] else None,
                            "passed": bool(c["result"]), "fired": bool(c["fired"]), "detail": g.get("detail") or c.get("detail") or "",
-                           "graded": "grader" if g else "scripted"})
+                           "graded": "grader" if g else ("grader rule on the replay" if c.get("graded") else "scripted")})
     return {"runs": runs, "calls": calls, "checks": checks}
 
 
@@ -293,23 +329,34 @@ def write_json(path: Path, obj) -> Path:
     return path
 
 
-def build(runs_dir: Path) -> list[Path]:
+def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
     manifest = json.loads((ROOT / "hub/runs.json").read_text())
-    for folder in run_folders(runs_dir):
-        build_id = (folder / "BUILD").read_text().strip() if (folder / "BUILD").exists() else ""
+    t03_root = t03_root or default_t03_root()
+    folders = run_folders(runs_dir)
+    builds = {}
+    for folder in folders:
+        meta = manifest.get("runs", {}).get(folder.name, {})
+        build_id = meta.get("build") or ((folder / "BUILD").read_text().strip() if (folder / "BUILD").exists() else "")
         if not re.fullmatch(r"[0-9a-f]{7,40}", build_id):
-            raise SystemExit(f"{folder.name}: BUILD holds {build_id!r}, not the commit the env was built from")
+            raise SystemExit(f"{folder.name}: BUILD holds {build_id!r}, not the commit the env was built from; write it "
+                             f"there or as \"build\" in hub/runs.json")
+        builds[folder.name] = build_id
+    tasks = {f.name: X.task_of(f) for f in folders}
+    if "T03" in tasks.values() and not (t03_root / AWS_ENV.relative_to(ROOT) / "awsbench_aws/scenarios/t03.yaml").exists():
+        raise SystemExit(f"T03 runs need a checkout with the T03 world: {t03_root} has none (--t03-root)")
     if SPACE_DATA.exists():
         shutil.rmtree(SPACE_DATA)
     for child in DATASET.iterdir() if DATASET.exists() else []:
         if child.name not in KEEP_IN_DATASET:
             shutil.rmtree(child) if child.is_dir() else child.unlink()
+    work = Path(tempfile.mkdtemp(prefix="awsbench-hub-"))
     written: list[Path] = []
     views = []
     grades: dict[str, list[dict]] = {}
-    for folder in sorted(run_folders(runs_dir), key=lambda p: order_key(p.name)):
+    for folder in sorted(folders, key=lambda p: (tasks[p.name], order_key(p.name))):
         meta = manifest.get("runs", {}).get(folder.name, {})
-        view = X.export_run(folder, folder.name, meta.get("label"), bool(meta.get("dev")), meta.get("note", ""))
+        view = X.export_run(folder, folder.name, meta.get("label"), bool(meta.get("dev")), meta.get("note", ""),
+                            build=builds[folder.name], t03_root=t03_root, work=work)
         views.append(view)
         written.append(write_json(SPACE_DATA / "runs" / f"{view['id']}.json", view))
         out = DATASET / "runs" / view["id"]
@@ -325,26 +372,40 @@ def build(runs_dir: Path) -> list[Path]:
             p = out / "transcript.md"
             p.write_text(X.scrub((folder / "transcript.md").read_text()))
             written.append(p)
-        print(f"  {view['id']:10} {view['model']:18} build {view['build']}  D12 {view['score']['d12']}  "
+        print(f"  {view['task']} {view['id']:15} {view['model']:18} build {view['build']}  D12 {view['score']['d12']}  "
               f"{'pass' if view['score']['pass'] else 'FAIL'}  calls {view['clock']['calls_used']}")
-    folders = run_folders(runs_dir)
-    ws0 = json.loads((folders[-1] / "workspace-export.json").read_text()) if folders else {}
-    ref = reference_view(X.people(ws0))
-    written.append(write_json(SPACE_DATA / "runs" / "reference.json", ref))
-    written.append(write_json(DATASET / "reference" / "viewer.json", ref))
-    print(f"  reference  scripted oracle    build {ref['build']}  calls {ref['clock']['calls_used']}  "
-          f"done {X.hms(ref['clock']['done'])}  collapsed {ref['summary']['collapsed_min']} min")
-    index = {"schema": "awsincidentsbench.index/v1", "task": "T01", "generated_from": [v["id"] for v in views],
-             "reference": index_row(ref), "runs": [index_row(v) for v in views]}
+    refs = {}
+    for task in sorted(set(tasks.values()) | {"T01"}):
+        same = [f for f in folders if tasks[f.name] == task]
+        ws0 = json.loads((same[-1] / "workspace-export.json").read_text()) if same else {}
+        if task == "T01":
+            ref = reference_view(X.people(ws0))
+        else:
+            ref = X3.reference_t03(t03_root, work, X.people(ws0),
+                                   _head(t03_root, ("src", "tests/e2e/t03_oracle.py")))
+        refs[task] = ref
+        written.append(write_json(SPACE_DATA / "runs" / f"{ref['id']}.json", ref))
+        written.append(write_json(DATASET / ref["id"] / "viewer.json", ref))
+        print(f"  {task} {ref['id']:15} scripted oracle    build {ref['build']}  calls {ref['clock']['calls_used']}  "
+              f"done {X.hms(ref['clock']['done'])}")
+    by_task = {task: {"title": TASKS[task], "reference": index_row(refs[task]),
+                      "runs": [index_row(v) for v in views if v.get("task", "T01") == task]} for task in sorted(refs)}
+    index = {"schema": "awsincidentsbench.index/v2", "generated_from": [v["id"] for v in views], "tasks": by_task,
+             "task": "T01", "reference": by_task["T01"]["reference"], "runs": by_task["T01"]["runs"]}
     written.append(write_json(SPACE_DATA / "index.json", index))
     written.append(write_json(DATASET / "index.json", index))
-    for name, rows in tables(views + [ref], grades).items():
-        written.append(write_jsonl(DATASET / "tables" / f"{name}.jsonl", rows))
+    for name, rows in tables(views + list(refs.values()), grades).items():
+        for task in sorted(refs):
+            mine = [r for r in rows if r["task"] == task]
+            keep = [k for k in (mine[0] if mine else {}) if any(r.get(k) is not None for r in mine)]
+            written.append(write_jsonl(DATASET / "tables" / task.lower() / f"{name}.jsonl",
+                                       [{k: r.get(k) for k in keep} for r in mine]))
     written.append(fill_card(index))
     X.check_clean(written)
     for p in written:
         if X.KEY_FRAGMENT in p.read_text(errors="ignore"):
             raise SystemExit(f"key fragment in {p}")
+    shutil.rmtree(work, ignore_errors=True)
     print(f"wrote {len(written)} files; scrub check clean")
     return written
 
@@ -360,7 +421,7 @@ def publish() -> None:
                         **({"space_sdk": "docker"} if kind == "space" else {}))
         api.upload_folder(repo_id=REPO, repo_type=kind, folder_path=str(path), commit_message="Update AwsIncidentsBench data",
                           ignore_patterns=["app/node_modules/**", "app/dist/**", "app/.astro/**", "**/.DS_Store"],
-                          delete_patterns=["runs/**", "reference/**", "tables/**", "app/public/data/**"])
+                          delete_patterns=["runs/**", "reference/**", "reference-*/**", "tables/**", "app/public/data/**"])
         print(f"published {kind} {REPO}")
 
 
@@ -368,8 +429,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--runs", type=Path, required=True, help="folder of run folders")
     ap.add_argument("--publish", action="store_true", help="upload the Space and the dataset (private), one commit each")
+    ap.add_argument("--t03-root", type=Path, help="a checkout with the T03 world (default: this one if it has it, else "
+                                                   "the sibling agentenv-awsbench-plugin-t03 worktree)")
     a = ap.parse_args(argv)
-    build(a.runs)
+    build(a.runs, a.t03_root)
     if a.publish:
         publish()
 

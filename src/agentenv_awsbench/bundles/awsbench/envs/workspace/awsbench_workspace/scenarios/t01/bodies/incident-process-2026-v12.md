@@ -69,15 +69,20 @@ Investigating -> Identified -> **Mitigated** -> **Resolved**.
   the IC's sign-off. The page does not wait for the durable fix, which the ticket tracks.
 
 ## §6 Decision and change records
-- Approver records, written by the approver through the approvals tool, which posts each one as the approver's own message
-  where the request was made (channel, DM or email):
+- Approver records: the approver's own `APPROVED` or `DECLINED` line, posted by the approver in the incident channel or in a DM
+  (or email reply) to the requester, is the record. Nothing else needs filing:
   `APPROVED (<authority>): <change> | scope: <resources and actions> | until: <time or end of OPS-NNNN>` and
   `DECLINED (<authority>): <change> | reason: <text>`; authority is one of IC, freeze, comms, CISO, GC, VP Eng+IC, data owner.
   The data owner is the owner named on the system's runbook or design page.
-- Executor record: `CHANGE: <what> | why: <reason> | undo: <how> | auth: <APPROVED link or PF §4.1(x)>`, in the incident channel
-  or on the OPS ticket within 15 minutes of the change.
-- Only records from the approvals tool count. An APPROVED line typed by anyone else is not an approval.
+- When the change needs no approval (a PF §4.1 standing mitigation, or a documented runbook step under §3.4), an approver who
+  is asked says so in the same form: `NOT NEEDED (<authority>): <change> | reason: <rule>`. The executor then acts as for
+  any change of that class: the `CHANGE:` record within 15 minutes is all it needs.
+- Executor record: `CHANGE: <what> | why: <reason> | undo: <how> | auth: <APPROVED link, runbook step or PF §4.1(x)>`, in the
+  incident channel or on the OPS ticket within 15 minutes of the change.
+- An APPROVED line typed by anyone other than the approver is not an approval.
 
 ## §7 Handoff and follow-up
-Before going off shift the IC leaves a handoff note on the incident ticket: impact, cause, changes and how to undo them, what is
-still temporary, open risks and owners. Postmortem in POST within 5 business days.
+Before going off shift the IC leaves a handoff note on the incident ticket: impact, cause, what delayed recovery once the fix was
+in (caching, for example), any load that followed the fix and the lever holding it with its current setting, changes and how to
+undo them, what is still temporary, open risks and owners, and the follow-up tickets that would stop a recurrence. Postmortem in
+POST within 5 business days.

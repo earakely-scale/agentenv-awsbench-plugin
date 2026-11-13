@@ -584,8 +584,9 @@ def test_handoff_text_is_what_the_calls_wrote_not_their_keys_or_fields():
 
 def test_c11_folds_typographic_punctuation_and_keeps_the_verdict():
     aws, ws = base_exports(Log(), done="04:30")
-    note = "Refresh held — before 08:21 → day shift; li-b-01 arm64"
-    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "Refresh held - before 08:21 -> day shift; li-b-01"}
+    note = "Refresh held — before 08:21 → day shift; li-b-01 arm64 → retry storm"
+    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "Refresh held - before 08:21 -> day shift; li-b-01 arm64 -> "
+                                                              "retry storm"}
                          for i in range(1, 6)}, "forbidden": {}}
     c11 = grade.c11_from(verdict, note)
     assert c11["result"] and c11["judge"]["samples"][0]["facts"]["F4"]["quote_found"] and c11["judge"]["error"] is None
@@ -637,6 +638,32 @@ def test_c11_credits_a_fact_only_when_its_quote_carries_the_key_terms():
     assert found == {"F1": True, "F2": True, "F3": True, "F4": False, "F5": True, "F6": False, "F7": False}
 
 
+@pytest.mark.parametrize(("fact", "quote", "credited"), [
+    ("F5", "max_concurrency 25 -> 4 (03:10), replay_rate 400 -> 100", False),
+    ("F5", "max_concurrency 25 -> 4 to pre-empt the reconnect storm", True),
+    ("F5", "the outbox replay plus webhook retries exhausted the DB pool; max_concurrency 5", True),
+    ("F5", "DNS recovery caused a thundering herd that exhausted the ledger-writer DB pool", True),
+    ("F6", "negative cache", False),
+    ("F6", "Checkout success 99.7% continuously (>15 min)", False),
+    ("F6", "held NXDOMAIN for the SOA negative TTL (900s)", True),
+    ("F6", "unbound-control flush ledger.internal on all hosts (negative cache)", True),
+    ("F6", "clients kept the cached NXDOMAIN until it expired", True),
+    ("F6", "Clients held cached negative answers (enactors showed NXDOMAIN cached up to ~80 s).", True),
+    ("F6", "clients kept the NXDOMAIN answer for up to the SOA negative TTL, about a minute after the 03:00 re-apply",
+     True),
+    ("F6", "resolver negative caching delayed recovery by ~2 min after the records were written", True),
+    ("F6", "after DNS returned (03:28 apply; ~03:33 negative-cache expiry)", True),
+    ("F6", "ledger.internal negative cache", False),
+    ("F7", "Follow-ups: PR #97 / PLAT-412", False),
+    ("F7", "land PLAT-412 fix (PR platform-endpointd#97); alerting on endpoint-with-zero-records", True),
+    ("F7", "PAY-702 backoff on ledger errors; OPS-4398 spread acme-renewer batches", True),
+    ("F7", "PLAT-413: fix the cleanup/stale-apply race ... dispatcher immediate retry should get backoff/jitter", True),
+])
+def test_c11_key_terms(fact, quote, credited):
+    c11 = grade.c11_from({"facts": {fact: {"conveyed": True, "quote": quote}}}, quote)
+    assert c11["judge"]["samples"][0]["facts"][fact]["credited"] is credited
+
+
 def test_c11_takes_each_items_majority_over_the_samples():
     full = {k: {"conveyed": True, "quote": q} for k, q in HANDOFF_QUOTES.items()}
     no_f6 = {**full, "F6": {"conveyed": False, "quote": ""}}
@@ -667,6 +694,21 @@ def test_judge_truth_names_the_plans_identical_to_48199_and_the_impact():
     assert "plans 48177, 48188 give different, stale records" in truth
     assert "below 0.95 over 02:31:42-03:19:00" in truth and "lowest 1-minute value was 0.04 (4%)" in truth
     assert "about 0.35 (35%) while ledger-writer was collapsed" in truth
+    assert "In this run the hosts recovered from 03:05:00 to 03:05:00, 750-750 s after the records returned." in truth
+
+
+def test_judge_truth_gives_the_runs_own_recovery_lag_not_only_the_ttl():
+    """R9-sonnet-2 wrote "~2 min" for a lag of 176-234 s and the judge, told only 900 s, called it wrong."""
+    aws, ws = base_exports(oracle_log(), done="04:30", ledger_ok_at="03:28:46", checkout_ok_at="03:33")
+    aws["world"]["dns"] = {"per_host_recovered_at": {"core-a-01": t("03:31:42"), "core-b-10": t("03:32:40"),
+                                                     "core-c-02": None},
+                           "flushes": {"core-a-01": [t("03:31:42")]},
+                           "ledger_nonempty_history": [[t("02:31:41"), False], [t("03:28:46"), True]]}
+    truth = grade.judge_truth(grade.Inputs(aws, ws))
+    assert ("ledger.internal had records again at 03:28:46" in truth and "anything up to 900 s" in truth
+            and "recovered from 03:31:42 to 03:32:40, 176-234 s after the records returned, 1 of them flushed." in truth)
+    aws["world"]["dns"]["per_host_recovered_at"] = {"core-a-01": None}
+    assert "recovered from" not in grade.judge_truth(grade.Inputs(aws, ws))
 
 
 def test_judge_c11_samples_three_times_with_the_ground_truth(monkeypatch):

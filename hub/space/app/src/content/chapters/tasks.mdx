@@ -22,4 +22,40 @@ reference, or pick another run below the timeline.
 
 ### T03, Thread Ceiling
 
-<div class="aib-slot">The next task, "Thread Ceiling", will be added here with its own runs and viewers.</div>
+The agent is the primary on-call SRE for Vantleaf again. The pager goes off at 08:15 Eastern on Monday, November 16,
+2026: the ledger end-to-end canary says synthetic payment events are no longer reaching the ledger. Checkout and card
+payments look fine. The agent owns the incident: it has to find what is wrong and why, get service back to normal, and
+keep the right people informed, including merchants and the public status page if they are affected. It follows the
+company's incident process and change-control rules, writes the root cause, every production change and the follow-up
+work into the incident ticket, and ends by replying `RESULT: DONE`.
+
+What happened, though the agent has to find it: at 06:05 a pre-approved capacity change grew streamroute, the fleet
+that routes payment events to the ledger, from 120 to 132 hosts. Each host keeps two threads per peer, and its service
+user is capped at 1,024 threads. As the hosts learned their new peers over the next hour, their periodic shard-map
+builds stopped being able to start threads; the builds failed, the maps expired, and by 08:12 no host was routing.
+Payment events queue up safely, but the ledger falls further behind every minute, and a settlement run at 13:00
+depends on it.
+
+Why it is hard:
+
+- **The symptom is three hops from the cause.** The page is about the ledger; the ledger is idle, not broken; the
+  routing hosts log errors that read like a memory problem, and no metric counts threads.
+- **The signals point several ways at once.** The onset is spread over an hour and lags the change behind it, and the
+  business alarms went grey rather than red, so the public status page still says all is well.
+- **Finding the cause is not the end.** Getting the fleet back is work of its own, and a fix can have side effects of
+  its own.
+- **People and policy.** Colleagues press their own explanations and fixes. Some changes need the incident commander's
+  approval first, and the change-control policy never allows some at all during an incident.
+- **The clock runs past the agent.** The window closes at 13:00, but the world runs on to 16:15 and is graded there:
+  the cause has to stay removed, and the fleet still routing, hours after the agent stopped.
+
+The agent has 220 tool calls and the 08:15–13:00 window; the world is then fast-forwarded to 16:15 and graded there.
+
+The fleet board replays one recorded run on its own data: each cell is one streamroute host in its availability zone,
+coloured by that host's state at the playhead, with the routing share, the worst ledger cell's lag, a sample host's
+threads against its limit and the people involved alongside. Switch between the agent run and the scripted reference,
+or show both.
+
+<div class="aib-wide">
+  <iframe class="aib-frame" src="/viz/fleet-board.html?embed=1" title="T03 fleet board: every streamroute host's state in a recorded run" style="min-height:600px" loading="eager"></iframe>
+</div>

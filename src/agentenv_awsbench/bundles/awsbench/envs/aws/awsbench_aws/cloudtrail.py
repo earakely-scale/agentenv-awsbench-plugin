@@ -125,10 +125,15 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
     out, last, newest, plans, pointers = [], None, (-1, None), {}, {}
 
     def records(fqdn: str, gen: int | None) -> list[dict]:
-        """The record sets a plan carries for a name: the ledger's; the other names come from the endpoint table."""
-        plan = plans.get(gen) if fqdn == cfg.get("ledger_fqdn") else None
+        """The record sets a plan carries for a name: the ledger's; the other names come from the endpoint table, as
+        world.endpointd.Endpointd.plan_records builds them."""
+        if fqdn == cfg.get("ledger_fqdn"):
+            recs = plan_ledger(plans.get(gen) or {})
+        else:
+            table = ((cfg.get("endpoint_table") or {}).get("non_ledger") or {}).get(fqdn) or []
+            recs = [{"set_id": f"g{gen}-{r['set_id_suffix']}", "ip": r["ip"], "weight": r["weight"]} for r in table]
         return [{"Name": f"{fqdn}.", "Type": "A", "SetIdentifier": r["set_id"], "Weight": r["weight"], "TTL": ttl,
-                 "ResourceRecords": [{"Value": r["ip"]}]} for r in plan_ledger(plan or {})]
+                 "ResourceRecords": [{"Value": r["ip"]}]} for r in recs]
 
     def dns(t: datetime, by: str, comment: str, action: str, fqdn: str, sets: list[dict]) -> dict:
         zone = next((i for name, i in zone_ids.items() if fqdn.endswith(name)), None)
@@ -155,8 +160,8 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
                 if pk.startswith("applied#"):
                     fqdn = pk.removeprefix("applied#")
                     pointers[fqdn] = gen
-                    sets = records(fqdn, gen) or [{"Name": f"{fqdn}.", "Type": "A"}]
-                    out.append(dns(t, by, f"endpointd {by} gen={gen}", "UPSERT", fqdn, sets))
+                    if sets := records(fqdn, gen):
+                        out.append(dns(t, by, f"endpointd {by} gen={gen}", "UPSERT", fqdn, sets))
             out.append(event(t, service, op, p, ENACTOR if item.get("applied_at") else PLANNER,
                              session=by if item.get("applied_at") else "planner", key=f"seed{len(out)}"))
         elif op == "DeleteItem" and last is not None:

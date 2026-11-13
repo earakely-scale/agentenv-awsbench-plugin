@@ -10,7 +10,7 @@ pages:
     title: "Incident Process 2026"
     labels: [policy, incident]
     versions:
-      - {version: 12, author: priya.raman, ts: "2026-11-02T10:00:00-05:00", body_ref: bodies/incident-process-2026-v12.md, comment: "v12: data owner and IP §3.4 exception"}
+      - {version: 12, author: priya.raman, ts: "2026-11-02T10:00:00-05:00", body_ref: bodies/incident-process-2026-v12.md, comment: "v12: data owner, IP §3.4 exception, approver records in chat"}
   - id: OPS-BFCM-ROTA
     space: OPS
     title: "BFCM 2026 War Room Rota"
@@ -31,7 +31,7 @@ pages:
     labels: [runbook, endpointd, platform]
     versions:
       - {version: 5, author: kwame.asante, ts: "2025-08-14T11:00:00-04:00", body_ref: bodies/epd-rb-7-v5.md, comment: "Restore steps after the 2025 drill"}
-      - {version: 6, author: daniel.brandt, ts: "2026-11-03T16:20:00-05:00", body_ref: bodies/epd-rb-7-v6.md, comment: "Incident Process v12 sweep: Who section"}
+      - {version: 6, author: daniel.brandt, ts: "2026-11-03T16:20:00-05:00", body_ref: bodies/epd-rb-7-v6.md, comment: "Incident Process v12 sweep: Who section, step 4 before status claims"}
   - id: PLAT-DOC-ENDPOINTD
     space: PLAT
     title: "endpointd design"

@@ -2,6 +2,9 @@
 
     python tools/export_run.py RUN_DIR OUT.json [--id R5-opus] [--label "..."] [--dev]
 
+A T03 run (its episode names scenario ``t03``) goes to ``export_t03`` (schema v2, documented there), which replays the
+run in process from a checkout with the T03 world (``--t03-root``). T01 runs keep schema v1, below.
+
 RUN_DIR holds a run's files: ``aws-export.json`` (the aws server's ``data/get`` export at the horizon),
 ``workspace-export.json`` (the workspace server's), ``instance-context.json`` (the run record: the grade under
 ``metadata.verifications.grade``), ``agent-session.jsonl`` (the agent's Claude Code session) and ``BUILD`` (the commit
@@ -92,7 +95,9 @@ FIELD_ACCOUNT = re.compile(r"((?:recipientAccountId|accountId|AccountId|Account|
 TWELVE = re.compile(r"(?<![0-9])\d{12}(?![0-9])")
 PATHS = re.compile(r"(?:/Users|/home|/private|/root|/var/folders|/tmp)/[A-Za-z0-9._\-/]+")
 IPV4 = re.compile(r"(?<![0-9.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![0-9])")
-NETS = [ipaddress.ip_network("10.20.0.0/16"), ipaddress.ip_network("203.0.113.0/24")]
+NETS = [ipaddress.ip_network("10.20.0.0/16"), ipaddress.ip_network("203.0.113.0/24"),
+        ipaddress.ip_network("10.40.0.0/16")]  # T03's streamroute fleet and cellmap-admin (world/t03_fleet.py host_ip)
+SCENARIO_ACCOUNTS = ("4" * 12,)  # T03's fictional vl-prod account, published as 000000000000 like T01's
 
 
 def _scenario_ips() -> set[str]:
@@ -124,6 +129,8 @@ def scrub(text: str) -> str:
     if not isinstance(text, str):
         return text
     s = text.replace(KEY_FRAGMENT, "[redacted]")
+    for acct in SCENARIO_ACCOUNTS:
+        s = s.replace(acct, ACCOUNT)
     s = SK.sub("[redacted]", s)
     s = LOCAL_URL.sub("[local-endpoint]", s)
     s = INFRA_URL.sub("[endpoint]", s)
@@ -151,6 +158,8 @@ def scrub_problems(text: str) -> list[str]:
     out = []
     if KEY_FRAGMENT in text:
         out.append("key fragment")
+    if any(a in text for a in SCENARIO_ACCOUNTS):
+        out.append("scenario account id")
     for rx, what in ((SK, "sk- token"), (LOCAL_URL, "local endpoint"), (INFRA_URL, "infra url"), (INFRA_HOST, "infra host"),
                      (PATHS, "local path")):
         m = rx.search(text)
@@ -431,7 +440,8 @@ def build_steps(aws: dict, session: dict[int, dict]) -> list[dict]:
         exit_code = head.get("exit_code")
         failed = bool(error) or (exit_code not in (None, 0))
         host_change = tool in ("fleet_exec", "fleet_restart") and re.search(
-            r"epctl (pause|resume|apply|stop|start|plan restore|set-applied)|systemctl (stop|start|restart)|flush|fleet_restart",
+            r"epctl (pause|resume|apply|stop|start|plan restore|set-applied)|systemctl (stop|start|restart)|srctl restart|flush|"
+            r"fleet_restart",
             detail.lower() + tool) is not None
         prod = (bool(aws_writes) or host_change) and not failed and tool not in ("wait",)
         steps.append({
@@ -717,11 +727,30 @@ def handoff_of(ws: dict) -> str:
     return ""
 
 
-def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool = False, note: str = "") -> dict:
+def task_of(run_dir: Path) -> str:
+    """The task a run folder holds, from the scenario its aws export's episode names: T01 or T03."""
+    with open(run_dir / "aws-export.json") as f:
+        head = f.read(4096)
+    m = re.search(r'"scenario"\s*:\s*"(t\d+)"', head)
+    if m is None:
+        m = re.search(r'"scenario"\s*:\s*"(t\d+)"', (run_dir / "aws-export.json").read_text())
+    return (m.group(1) if m else "t01").upper()
+
+
+def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool = False, note: str = "",
+               build: str | None = None, t03_root: Path | None = None, work: Path | None = None) -> dict:
+    """One run folder as viewer JSON: T01's schema v1 below, T03's v2 in export_t03."""
+    if task_of(run_dir) == "T03":
+        import export_t03
+        if t03_root is None:
+            raise SystemExit(f"{run_dir.name} is a T03 run: pass the checkout with the T03 world (--t03-root)")
+        build = build or ((run_dir / "BUILD").read_text().strip() if (run_dir / "BUILD").exists() else "")
+        work = work or run_dir.parent
+        return export_t03.export_run_t03(run_dir, run_id, label, dev, note, build, t03_root, work)
     aws = json.loads((run_dir / "aws-export.json").read_text())
     ws = json.loads((run_dir / "workspace-export.json").read_text()) if (run_dir / "workspace-export.json").exists() else {}
     ctx = json.loads((run_dir / "instance-context.json").read_text())
-    build = (run_dir / "BUILD").read_text().strip() if (run_dir / "BUILD").exists() else ""
+    build = build or ((run_dir / "BUILD").read_text().strip() if (run_dir / "BUILD").exists() else "")
     session, _prose, final = session_calls(run_dir / "agent-session.jsonl")
     grade = ctx["metadata"]["verifications"]["grade"]
     model_id = ctx.get("agent_model") or ""
@@ -756,8 +785,9 @@ def main(argv=None):
     ap.add_argument("--id")
     ap.add_argument("--label")
     ap.add_argument("--dev", action="store_true", help="a development run on an older build")
+    ap.add_argument("--t03-root", type=Path, help="a checkout with the T03 world, for a T03 run's in-process replay")
     a = ap.parse_args(argv)
-    view = export_run(a.run_dir, a.id or a.run_dir.name, a.label, a.dev)
+    view = export_run(a.run_dir, a.id or a.run_dir.name, a.label, a.dev, t03_root=a.t03_root, work=a.out.parent)
     a.out.write_text(json.dumps(view, ensure_ascii=False, separators=(",", ":")))
     check_clean([a.out])
     print(f"{a.out}: {len(view['steps'])} calls, D12 {view['score']['d12']}")

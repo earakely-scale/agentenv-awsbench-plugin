@@ -16,6 +16,7 @@ from awsbench_aws.server import (
     profiles_of,
 )
 from awsbench_aws.world import World, replay_seed
+from awsbench_aws.world.fleet import SHELL_OPS
 from fastmcp import Client
 from test_workspace_server import ROLE, make
 from test_world_t01 import SCENARIO, FakeAws, FakeWs
@@ -67,6 +68,13 @@ def test_cloudtrail_lookup_attributes_refuse_more_than_one_and_non_objects():
         lookup_attributes_of({"EventName": "PutParameter", "Username": "kwame.asante"})
     with pytest.raises(TypeError, match="an object"):
         lookup_attributes_of(["EventName=PutParameter"])
+
+
+def test_fleet_exec_says_which_syntax_it_refuses():
+    text = AwsServer.fleet_exec._aee_tool.description
+    ops = [";", "|", "&&", "<", ">", "`", "$("]
+    assert f"One command per call: shell operators ({' '.join(ops)} )) are refused, uncharged" in text
+    assert all(SHELL_OPS.search(f"epctl status {op} epctl verify") for op in ops)
 
 
 def test_fleet_outcome():

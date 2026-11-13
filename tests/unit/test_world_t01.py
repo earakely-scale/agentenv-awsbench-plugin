@@ -406,3 +406,24 @@ def test_hannah_storm_is_cancelled_only_by_explaining_the_herd(world, text, stat
 def test_hannah_says_we_shipped_the_deploy():
     text = next(e for e in SCENARIO["timeline"] if e["id"] == "ev-hannah-1")["actions"][0]["args"]["text"]
     assert "We shipped checkout-api v2026.11.17-1" in text and "You shipped" not in text
+
+
+def admit(w, quota, when):
+    for name, value in (("enabled", "true"), ("quota/webhooks-dispatcher", quota)):
+        w.aws.call("ssm", "PutParameter", {"Name": f"/vl/prod/ledger-writer/admission/{name}", "Value": value,
+                                           "Type": "String", "Overwrite": True}, principal="sre-primary", world_made=False)
+    w.advance_to(at(when))
+    w.observe({"t": at(when), "tool": "aws_cli", "role": "sre-primary", "server": "aws", "service": "ssm",
+               "operation": "PutParameter", "args": {"cmd": "ssm put-parameter"}})
+
+
+@pytest.mark.parametrize("quota", ["1", "300"])
+def test_admission_caps_deliveries_at_the_quota_and_rejected_messages_stay_queued(world, quota):
+    ep(world, "epctl pause all", "02:49:00")
+    admit(world, quota, "02:50:00")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason OPS-4452", "02:52:30")
+    world.advance_to(at("03:03:00"))
+    before = world.storm.backlog
+    world.advance_to(at("03:04:00"))
+    assert world.storm.collapsed_total == 0 and world.storm.rejected > 0
+    assert before - world.storm.backlog == pytest.approx((float(quota) - 35) * 60, abs=1)

@@ -1,0 +1,559 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%9A%A8%3C/text%3E%3C/svg%3E" />
+<title>AwsIncidentsBench · T03 fleet board</title>
+<meta name="description" content="AwsIncidentsBench T03 Thread Ceiling: every streamroute host's state over time, on real run data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the T01 diorama's language in 2D. The board is the hero: one cell per streamroute host, three AZs, coloured by
+   the host's state at the playhead; the world-state HUD above it, the agent's console and the people feed beside it,
+   check chips and a fleet-shaded timeline underneath. Teal = routing/pass, red = broken/fail, blue = agent,
+   cyan = restarting, violet = people, amber = stale or at risk. */
+:root{
+  --bg:#ffffff; --surface:#fafafa; --surface-2:#f5f5f5; --line:#e5e5e5; --line-2:#d9d9d9;
+  --ink:#111111; --ink-2:#333333; --muted:#525252; --faint:#a3a3a3;
+  --teal:#65c2b9; --teal-ink:#21655f; --teal-soft:#e2f3f0; --on-teal:#0e2f2c;
+  --red:#e27553; --red-ink:#b8492a; --red-soft:#fbe7df; --on-red:#2b0d04;
+  --blue:#598dd2; --blue-ink:#2f5d9c; --blue-text:#2f5d9c; --blue-soft:#e5edf8; --on-blue:#ffffff;
+  --cyan:#6fcbef; --cyan-ink:#1a7194;
+  --violet:#6e56cf; --violet-ink:#5a43b8; --violet-soft:#ede9fb; --on-violet:#ffffff;
+  --amber:#d9a441; --amber-ink:#875d10; --amber-soft:#f8eed8;
+  --hud-bg:rgba(255,255,255,.9); --bubble-bg:#ffffff; --shadow:rgba(17,17,17,.10);
+  --hatch:rgba(17,17,17,.06); --cell-off:#eceef1;
+  --font-text:Inter,-apple-system,Arial,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111111; --surface:#1a1a1a; --surface-2:#202020; --line:#2c2c2c; --line-2:#3d3d3d;
+    --ink:#f5f5f5; --ink-2:#d9d9d9; --muted:#a3a3a3; --faint:#737373;
+    --teal-ink:#8fd8cf; --teal-soft:rgba(101,194,185,.16); --red-ink:#f0a083; --red-soft:rgba(226,117,83,.17);
+    --blue-ink:#2f5d9c; --blue-text:#93b6e6; --blue-soft:rgba(89,141,210,.18); --cyan-ink:#a3def5;
+    --violet-ink:#b6a8f2; --violet-soft:rgba(110,86,207,.22); --amber-ink:#e8c277; --amber-soft:rgba(217,164,65,.17);
+    --hud-bg:rgba(22,22,22,.88); --bubble-bg:#1c1c1c; --shadow:rgba(0,0,0,.45); --hatch:rgba(255,255,255,.06);
+    --cell-off:#262626;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111111; --surface:#1a1a1a; --surface-2:#202020; --line:#2c2c2c; --line-2:#3d3d3d;
+  --ink:#f5f5f5; --ink-2:#d9d9d9; --muted:#a3a3a3; --faint:#737373;
+  --teal-ink:#8fd8cf; --teal-soft:rgba(101,194,185,.16); --red-ink:#f0a083; --red-soft:rgba(226,117,83,.17);
+  --blue-ink:#2f5d9c; --blue-text:#93b6e6; --blue-soft:rgba(89,141,210,.18); --cyan-ink:#a3def5;
+  --violet-ink:#b6a8f2; --violet-soft:rgba(110,86,207,.22); --amber-ink:#e8c277; --amber-soft:rgba(217,164,65,.17);
+  --hud-bg:rgba(22,22,22,.88); --bubble-bg:#1c1c1c; --shadow:rgba(0,0,0,.45); --hatch:rgba(255,255,255,.06);
+  --cell-off:#262626;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--font-text);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px;display:flex;flex-direction:column;gap:12px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+.head .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kicker{margin:0;font:600 11px/1.3 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{margin:0;font:600 22px/1.2 var(--font-text);letter-spacing:-.01em;text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:62ch;font-size:13.5px}
+
+/* HUD: the diorama's */
+.hud{background:var(--hud-bg);border:1px solid var(--line);border-radius:12px;padding:8px 14px 7px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 1px 3px var(--shadow);align-self:center;max-width:100%}
+.hud-main{display:flex;align-items:baseline;justify-content:center;gap:6px 18px;flex-wrap:wrap}
+.metric{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono);white-space:nowrap}
+.metric .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.metric b{font-weight:600;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.metric.small b{font-size:13px;color:var(--ink-2)}
+.pill{padding:0 7px;border-radius:5px}
+.pill.bad{background:var(--red);color:var(--on-red)} .pill.warn{background:var(--amber);color:var(--on-red)} .pill.ok{background:var(--teal);color:var(--on-teal)}
+.hud-phase{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 8px;font:500 12px/1.35 var(--font-mono);color:var(--ink-2);text-align:center}
+.hud-phase .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.dot.bad{background:var(--red)} .dot.warn{background:var(--amber)} .dot.ok{background:var(--teal)} .dot.agent{background:var(--blue)}
+.cd{font:600 11px var(--font-mono);padding:1px 6px;border-radius:4px;background:var(--red-soft);color:var(--red-ink);white-space:nowrap}
+.cd.ok{background:var(--teal-soft);color:var(--teal-ink)} .cd.ff{background:var(--blue-soft);color:var(--blue-text)}
+
+/* stage */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.boards{display:flex;flex-direction:column;gap:10px;min-width:0}
+.boards.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.board{position:relative;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 12px 10px;min-width:0}
+.bhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 11px/1.3 var(--font-mono);color:var(--muted);margin-bottom:6px}
+.bhead .nm{color:var(--ink);font-weight:600;letter-spacing:.02em}
+.bhead .vt{margin-left:auto;font:600 10.5px var(--font-mono);padding:1px 6px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--muted)}
+.bhead .vt.pass{background:var(--teal);color:var(--on-teal);border-color:var(--teal)} .bhead .vt.fail{background:var(--red);color:var(--on-red);border-color:var(--red)}
+.board svg{display:block;width:100%;height:auto;overflow:visible}
+.board svg text{font-family:var(--font-mono);font-size:9.5px;fill:var(--muted)}
+.cells{display:flex;gap:4px;align-items:center;margin-top:6px;font:500 10px var(--font-mono);color:var(--muted);flex-wrap:wrap}
+.cells .lc{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1 1 0;min-width:0;max-width:44px}
+.cells .bar{width:100%;height:22px;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;position:relative;overflow:hidden}
+.cells .bar i{position:absolute;left:0;right:0;bottom:0;background:var(--red)}
+.cells .bar i.ok{background:var(--teal)}
+.cells{flex-wrap:nowrap}
+.cells .k{flex:none;margin-right:4px;text-transform:uppercase;letter-spacing:.06em}
+
+.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.console{background:var(--hud-bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:12px/1.4 var(--font-text);box-shadow:0 1px 3px var(--shadow);min-width:0}
+.console .row1{display:flex;align-items:center;gap:8px;font:600 11px var(--font-mono);color:var(--muted);flex-wrap:wrap}
+.chipname{display:inline-block;font:600 10px/1.5 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;padding:0 5px;border-radius:3px;white-space:nowrap}
+.chipname.agent{background:var(--blue-ink);color:var(--on-blue)}
+.chipname.npc{background:var(--violet);color:var(--on-violet)}
+.chipname.world{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-2)}
+.chipname.page{background:var(--red);color:var(--on-red)}
+.console .calls b{color:var(--ink);font-variant-numeric:tabular-nums}
+.console .tool{color:var(--blue-text);font:600 12.5px var(--font-mono);margin-top:3px}
+.console .cls{font:500 10px var(--font-mono);color:var(--muted);border:1px solid var(--line-2);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
+.console .cls.prod{background:var(--blue-ink);color:var(--on-blue);border-color:transparent}
+.console .purpose{color:var(--ink);margin-top:1px}
+.console .cmd{font:11px/1.4 var(--font-mono);color:var(--muted);margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word}
+.feed{display:flex;flex-direction:column;gap:6px;min-width:0}
+.feed .ttl{font:600 10.5px var(--font-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.bubble{position:relative;display:flex;gap:8px;align-items:flex-start;background:var(--bubble-bg);border:1px solid var(--line);border-radius:10px;padding:6px 9px 7px;font:500 11.5px/1.38 var(--font-text);box-shadow:0 3px 10px var(--shadow);animation:pop .28s ease-out;min-width:0}
+.bubble .av{flex:none;width:22px;height:22px;border-radius:50%;background:var(--violet-soft);color:var(--violet-ink);border:1px solid var(--violet);font:600 9px/20px var(--font-mono);text-align:center}
+.bubble.world .av{background:var(--surface-2);color:var(--ink-2);border-color:var(--line-2);border-radius:5px}
+.bubble.page .av{background:var(--red);color:var(--on-red);border-color:var(--red);border-radius:5px}
+.bubble.world{background:var(--surface-2)}
+.bubble.page{border-color:var(--red)}
+.bubble .bd{min-width:0;flex:1}
+.bubble .who{font:600 10.5px var(--font-mono);color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bubble .tx{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.bubble.old{opacity:.55;box-shadow:none}
+@keyframes pop{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font:500 11px/1.3 var(--font-mono);color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.legend i{width:10px;height:10px;border-radius:2px;flex:none;display:inline-block}
+
+.verdict{position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;background:var(--hud-bg);border:1px solid var(--line);border-radius:12px;padding:10px 16px;box-shadow:0 6px 24px var(--shadow);max-width:min(380px,calc(100% - 24px));backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.verdict b{display:block;font:650 19px/1.2 var(--font-mono);letter-spacing:.02em}
+.verdict.pass b{color:var(--teal-ink)} .verdict.fail b{color:var(--red-ink)}
+.verdict p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+
+/* checks: the diorama's chips */
+.checks{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:var(--font-mono)}
+.grp{font:600 10.5px var(--font-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.grp.g2{margin-left:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--font-mono);padding:5px 7px;border-radius:6px;border:1px solid var(--line-2);color:var(--faint);background:var(--bg);white-space:nowrap;transition:background .35s,color .35s,border-color .35s}
+.chip i{width:7px;height:7px;border-radius:50%;border:1.5px solid currentColor;display:inline-block;flex:none}
+.chip.pass{background:var(--teal);border-color:var(--teal);color:var(--on-teal)} .chip.pass i{background:currentColor}
+.chip.fail{background:var(--red);border-color:var(--red);color:var(--on-red)} .chip.fail i{background:currentColor}
+.chip.gate{border-style:dashed}
+.chip.skip{border-style:dotted}
+.vchip{margin-left:auto;font:600 12px var(--font-mono);padding:5px 10px;border-radius:6px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2);white-space:nowrap}
+.vchip.pass{background:var(--teal);color:var(--on-teal);border-color:var(--teal)} .vchip.fail{background:var(--red);color:var(--on-red);border-color:var(--red)}
+
+/* timeline: the diorama's scrubber, its track shaded by the fleet */
+.tl{display:flex;flex-direction:column;gap:6px}
+.scrub{position:relative;height:74px;user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;border-radius:6px}
+.scrub .ev{position:absolute;left:0;right:0;top:0;height:14px}
+.scrub .trk{position:absolute;left:0;right:0;top:17px;height:36px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.scrub .trk svg{position:absolute;inset:0;width:100%;height:100%}
+.scrub .ff{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,var(--hatch) 0 4px,transparent 4px 8px)}
+.scrub .tick{position:absolute;top:5px;width:2px;height:13px;margin-left:-1px;background:var(--blue);opacity:.6;border-radius:1px}
+.scrub .tick.write{top:2px;height:19px;opacity:1}
+.scrub .mk{position:absolute;top:3px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--faint)}
+.mk.npc{background:var(--violet)} .mk.page{background:var(--red)} .mk.world{background:var(--muted);border-radius:2px}
+.scrub .axis{position:absolute;left:0;right:0;top:57px;height:16px;font:500 10.5px var(--font-mono);color:var(--muted)}
+.axis span{position:absolute;transform:translateX(-50%);white-space:nowrap;font-variant-numeric:tabular-nums}
+.axis span.l{transform:none} .axis span.r{transform:translateX(-100%)}
+.scrub .head{position:absolute;top:0;height:55px;width:2px;margin-left:-1px;background:var(--ink);pointer-events:none}
+.scrub .head::after{content:"";position:absolute;left:-4px;top:30px;width:10px;height:10px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
+.scrub .gl{position:absolute;top:15px;height:40px;width:0;border-left:1px dashed var(--muted);opacity:.7;pointer-events:none}
+.scrub .gl span{position:absolute;top:-1px;left:3px;font:500 9px var(--font-mono);color:var(--muted);white-space:nowrap;background:var(--surface-2);padding:0 2px;border-radius:2px}
+.tip{position:absolute;top:-24px;transform:translateX(-50%);font:500 11px var(--font-mono);background:var(--ink);color:var(--bg);padding:2px 6px;border-radius:4px;white-space:nowrap;pointer-events:none;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 11px;font:500 12.5px var(--font-text);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--faint)}
+.btn svg{width:13px;height:13px;fill:currentColor}
+.btn.primary{background:var(--blue-ink);color:var(--on-blue);border-color:transparent;min-width:92px;justify-content:center}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;max-width:100%}
+.seg button{border:0;background:var(--bg);color:var(--muted);padding:6px 10px;font:500 12px var(--font-mono);cursor:pointer;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg.scn button{font-family:var(--font-text)}
+.hint{font:500 11px var(--font-mono);color:var(--faint);margin-left:auto}
+.scnote{font-size:12.5px;color:var(--muted);margin:0}
+.scnote b{color:var(--ink-2);font-weight:600}
+.pick{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);max-width:100%}
+.pick select{font:inherit;font-size:12.5px;padding:5px 8px;border-radius:8px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);min-width:0;flex:0 1 auto;max-width:100%}
+.srcnote{display:none;margin:4px 0 0;font-size:11.5px;line-height:1.45;color:var(--muted)}
+.embed .srcnote{display:block}
+.foot{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+.foot p{margin:0;font-size:12px;color:var(--muted);max-width:110ch}
+.embed .head,.embed .foot{display:none!important}
+.embed .wrap{padding-top:4px}
+
+@media (max-width:900px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .side{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .boards.two{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .side{grid-template-columns:1fr}
+  .metric b{font-size:16px}
+  .hud{align-self:stretch}
+  .hint{display:none}
+  .vchip{margin-left:0}
+  .axis span.mn{display:none}
+  h1{font-size:19px}
+  .feed .bubble:nth-child(n+4){display:none}
+  .cells .k{display:none}
+}
+@media (prefers-reduced-motion: reduce){ .bubble{animation:none} .chip{transition:none} }
+html{overflow-x:hidden}
+</style></head><body>
+<div class="wrap" id="app">
+  <header class="head">
+    <div class="t">
+      <p class="kicker">AwsIncidentsBench · T03 · Fleet board</p>
+      <h1>Thread Ceiling</h1>
+    </div>
+    <p class="lede">At 06:05 a capacity change took the streamroute fleet from 120 to 132 hosts. Each host keeps two threads per peer, and at 132 the next shard-map build can't start its threads under the 1,024-thread limit. Replay a recorded agent run, or the scripted reference: each cell is one host, coloured by its state at that moment in that run.</p>
+  </header>
+
+  <div class="hud" id="hud">
+    <div class="hud-main">
+      <div class="metric"><span class="k">ET</span><b id="clock">08:15:00</b></div>
+      <div class="metric"><span class="k">routing</span><b id="rfv" class="pill bad">0 %</b></div>
+      <div class="metric small"><span class="k">worst cell lag</span><b id="lagv">0</b></div>
+      <div class="metric small"><span class="k" id="thrk">threads sr-b-017</span><b id="thrv">0 / 1,024</b></div>
+    </div>
+    <div class="hud-phase"><span class="dot" id="phDot"></span><span id="phase">Loading</span><span class="cd" id="cd" hidden></span></div>
+  </div>
+
+  <section class="stage" aria-label="The streamroute fleet">
+    <div class="boards" id="boards"></div>
+    <aside class="side">
+      <div class="console" id="console" aria-live="off">
+        <div class="row1"><span class="chipname agent">Agent</span><span class="calls">calls <b id="calls">0</b> of 220</span><span id="stepNo"></span></div>
+        <div class="tool" id="stool">not paged yet</div>
+        <div class="purpose" id="spurp">The page fires at 08:15.</div>
+        <div class="cmd" id="scmd" hidden></div>
+      </div>
+      <div class="feed" id="feed" aria-live="polite"><span class="ttl">People and world</span></div>
+    </aside>
+  </section>
+
+  <div class="legend" aria-label="Host states">
+    <span><i style="background:var(--teal)"></i>routing</span>
+    <span><i style="background:var(--amber)"></i>stale map, still routing</span>
+    <span><i style="background:var(--red)"></i>broken</span>
+    <span><i style="background:var(--cyan)"></i>restarting</span>
+    <span><i style="background:var(--red-ink)"></i>ejected</span>
+    <span><i style="background:repeating-linear-gradient(135deg,var(--red-ink) 0 2px,transparent 2px 4px);border:1px solid var(--red-ink)"></i>quarantined</span>
+    <span><i style="background:var(--faint)"></i>stopped</span>
+    <span><i style="border:1px dashed var(--faint)"></i>removed from the group</span>
+    <span><i style="box-shadow:inset 0 0 0 1.5px var(--violet)"></i>added by PLAT-2291</span>
+  </div>
+
+  <div class="checks" id="checks" role="list" aria-label="Checks graded at the 16:15 horizon"></div>
+
+  <div class="tl">
+    <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Replay time (ET)" aria-valuemin="21600" aria-valuemax="58500" aria-valuenow="29700" aria-valuetext="08:15:00">
+      <div class="ev" id="evLane"></div>
+      <div class="trk" id="trk"><svg id="trkSvg" preserveAspectRatio="none" aria-hidden="true"></svg><div class="ff" id="ffZone"></div></div>
+      <div id="glines"></div>
+      <div class="axis" id="axis"></div>
+      <div class="head" id="head"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <div class="ctrl">
+      <button class="btn primary" id="play" type="button" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" id="playIcon"><path d="M3 1.8v12.4L14 8z"/></svg><span id="playLabel">Play</span></button>
+      <button class="btn" id="restart" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.4.5A4 4 0 1 0 8 4v2.2L4.6 3.3 8 .4z"/></svg>From 06:00</button>
+      <div class="seg" role="group" aria-label="Playback speed">
+        <button type="button" id="sp1" aria-pressed="true">1×</button><button type="button" id="sp2" aria-pressed="false">2×</button><button type="button" id="sp4" aria-pressed="false">4×</button>
+      </div>
+      <div class="seg scn" role="group" aria-label="Which run">
+        <button type="button" id="scRun" aria-pressed="true">Agent run</button><button type="button" id="scRef" aria-pressed="false">Reference</button><button type="button" id="scBoth" aria-pressed="false">Both</button>
+      </div>
+      <span class="hint">space play · ←/→ 5 min · shift 30 min</span>
+    </div>
+    <p class="scnote" id="scnote"></p>
+    <label class="pick" for="runPick"><span>Agent run</span><select id="runPick" aria-label="Agent run to replay"></select></label>
+    <p class="srcnote">Replayed from the run's own exports and calls, not a simulation: each host's state every 30 s from the run's calls played through the world package in process, checked minute by minute against the run's own host counts; lag, ASG, canary and settlement from the world's exported series; colleagues' lines from the workspace; checks from the grader's rows.</p>
+  </div>
+
+  <footer class="foot">
+    <p><b>About this data.</b> Every cell is a streamroute host of a recorded AwsBench T03 run. The world export keeps per-minute host counts, not each host's state, so each run's own calls (the aws server's action log at the times the meter charged them) are replayed through the world package in process, with in-memory AWS and workspace fakes; the replay's per-minute counts match the run's export at every minute, and the board shows the replay's per-host states every 30 s. The sample host's thread count against its limit comes from the same replay. Lag, backlog, the ASG, the canary and settlement come from the world's exported series; colleagues, pages and approvals from the workspace export; checks from the grader's rows. The reference is the scripted oracle path, replayed the same way; its process and communication marks are the ones it is built to pass. The T03 runs shown are development runs on a build whose env bugs are still being fixed.</p>
+  </footer>
+</div>
+
+<script>
+(async function(){
+'use strict';
+const $ = id => document.getElementById(id);
+(function bridge(){
+  let host = null;
+  try { host = window.frameElement && window.parent.document.documentElement; } catch (e) { host = null; }
+  const q = new URLSearchParams(location.search).get('theme');
+  if (new URLSearchParams(location.search).get('embed')) document.documentElement.classList.add('embed');
+  const apply = th => { if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); };
+  if (host){ apply(host.getAttribute('data-theme')); new MutationObserver(() => apply(host.getAttribute('data-theme'))).observe(host, {attributes:true, attributeFilter:['data-theme']}); }
+  else if (q) apply(q);
+  const fit = () => { try { if (window.frameElement) { const b = document.body; window.frameElement.style.height = Math.ceil(b.getBoundingClientRect().height) + 'px'; } } catch (e) {} };
+  new ResizeObserver(fit).observe(document.body); window.addEventListener('load', fit);
+})();
+
+const T0 = 21600, S0 = 29700, R1230 = 45000, WE = 46800, H14 = 50400, HZ = 58500;
+const DATA = new URL('../data/', location.href);
+const getJ = p => fetch(new URL(p, DATA)).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const hms = s => { s = Math.round(s); return pad(Math.floor(s/3600)) + ':' + pad(Math.floor(s%3600/60)) + ':' + pad(s%60); };
+const hm = s => { s = Math.round(s); return pad(Math.floor(s/3600)) + ':' + pad(Math.floor(s%3600/60)); };
+const nf = new Intl.NumberFormat('en-US');
+const dur = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h ? h + ' h ' + pad(m) + ' min' : m ? m + ' min' : s + ' s'; };
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const initials = n => String(n || '?').split(/[\s.\-]+/).filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join('');
+
+let IDX, T3;
+try {
+  IDX = await getJ('index.json');
+  T3 = IDX.tasks && IDX.tasks.T03;
+  if (!T3) throw new Error('no T03');
+} catch (e) { $('phase').textContent = 'Could not load the run data.'; return; }
+const want = new URLSearchParams(location.search).get('run');
+let runRow = T3.runs.find(r => r.id === want) || T3.runs.find(r => !r.dev) || T3.runs.find(r => r.pass) || T3.runs[0];
+const cache = {};
+const load = id => cache[id] || (cache[id] = getJ('runs/' + id + '.json').then(prep));
+
+function expand(rle){ let out = ''; const re = /([A-Z.])(\d+)/g; let m; while ((m = re.exec(rle))) out += m[1].repeat(+m[2]); return out; }
+function prep(V){
+  const F = V.fleet;
+  for (const h of F.hosts) h.x = expand(h.s);
+  V.cx = Object.fromEntries(V.checks.map(c => [c.id, c]));
+  V.evs = V.events.filter(e => e.kind !== 'horizon').map(e => Object.assign({}, e, {k: e.kind === 'email' || e.kind === 'approval' || e.kind === 'npc' ? 'npc' : e.kind === 'page' ? 'page' : 'world'}));
+  return V;
+}
+let REF, RUN;
+try { [REF, RUN] = await Promise.all([load(T3.reference.id), load(runRow.id)]); }
+catch (e) { $('phase').textContent = 'Could not load the run data.'; return; }
+
+/* ---------- state ---------- */
+let mode = 'run', t = S0, playing = false, speed = 1, scrubbing = false;
+const cur = () => mode === 'ref' ? REF : RUN;
+const SI = (V, t) => clamp(Math.floor((t - V.series.t0) / V.series.dt), 0, V.series.n - 1);
+const FI = (V, t) => clamp(Math.floor((t - V.fleet.t0) / V.fleet.dt), 0, V.fleet.n - 1);
+
+/* ---------- board ---------- */
+const COL = {R:'var(--teal)', S:'var(--amber)', B:'var(--red)', W:'var(--cyan)', E:'var(--red-ink)', Q:'url(#qhatch)', X:'var(--faint)', T:'none', '.':'none'};
+const NAME = {R:'routing', S:'stale map, still routing', B:'broken', W:'restarting', E:'ejected', Q:'quarantined', X:'stopped', T:'removed from the group', '.':'not launched yet'};
+const AZGAP = 18, TOPY = 16;
+function boardSvg(V, key){
+  const azs = ['a','b','c'];
+  const big = !(mode === 'both' || innerWidth < 640);
+  const COLS = big ? 8 : 11, ROWS = Math.ceil(44 / COLS), CW = big ? 30 : 16, GAP = big ? 5 : 3, AZW = COLS * (CW + GAP) - GAP;
+  const W = 3 * AZW + 2 * AZGAP, H = TOPY + ROWS * (CW + GAP) + 2;
+  let s = `<svg viewBox="-1 0 ${W + 2} ${H}" role="img" aria-label="${esc(key)}"><defs><pattern id="qhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" style="fill:var(--red-soft)"/><rect width="1.6" height="4" style="fill:var(--red-ink)"/></pattern></defs>`;
+  azs.forEach((az, k) => {
+    const x0 = k * (AZW + AZGAP);
+    s += `<text x="${x0}" y="10">us-east-1${az}</text>`;
+    const hosts = V.fleet.hosts.filter(h => h.az === az).sort((a, b) => a.name.localeCompare(b.name));
+    hosts.slice(0, ROWS * COLS).forEach((h, i) => {
+      const x = x0 + (i % COLS) * (CW + GAP), y = TOPY + Math.floor(i / COLS) * (CW + GAP);
+      s += `<rect class="hc" data-h="${esc(h.name)}" x="${x}" y="${y}" width="${CW}" height="${CW}" rx="2.5"/>`;
+      if (h.plat) s += `<rect x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CW - 2}" rx="2" style="fill:none;stroke:var(--violet);stroke-width:1.3" pointer-events="none"/>`;
+    });
+  });
+  return s + '</svg>';
+}
+function renderBoards(){
+  const list = mode === 'both' ? [['run', RUN], ['ref', REF]] : [[mode, cur()]];
+  $('boards').className = 'boards' + (mode === 'both' ? ' two' : '');
+  $('boards').innerHTML = list.map(([k, V]) => `<div class="board" data-k="${k}">
+    <div class="bhead"><span class="nm">${esc(V.kind === 'reference' ? 'Reference · scripted oracle' : V.model + ' · ' + V.id)}</span><span class="cnt"></span><span class="vt"></span></div>
+    ${boardSvg(V, k)}
+    <div class="cells"><span class="k">ledger cells</span>${V.series.cell_names.map(n => `<span class="lc"><span class="bar"><i></i></span><span>${esc(n.replace('lc-', ''))}</span></span>`).join('')}</div>
+    <div class="verdict" hidden><b></b><p></p></div></div>`).join('');
+  for (const b of document.querySelectorAll('.board')){
+    const V = b.dataset.k === 'ref' ? REF : RUN;
+    b._cells = [...b.querySelectorAll('rect.hc')].map(r => ({r, h: V.fleet.hosts.find(h => h.name === r.dataset.h)}));
+    b._bars = [...b.querySelectorAll('.cells .bar i')];
+    b._V = V;
+    b.addEventListener('pointermove', e => { const r = e.target.closest && e.target.closest('rect.hc'); if (r) r.setAttribute('title', ''); });
+  }
+}
+function paintBoard(b){
+  const V = b._V, j = FI(V, t), i = SI(V, t), S = V.series;
+  const n = {R:0, W:0, B:0};
+  for (const {r, h} of b._cells){
+    const c = h.x[j] || '.';
+    if (r._c !== c){
+      r._c = c;
+      r.style.fill = COL[c];
+      r.style.stroke = c === 'T' || c === '.' ? 'var(--faint)' : 'none';
+      r.style.strokeDasharray = c === 'T' ? '2 2' : '';
+      r.style.strokeWidth = c === 'T' || c === '.' ? 1 : 0;
+      r.innerHTML = `<title>${esc(h.name)}: ${esc(NAME[c])}${h.plat ? ' · added by PLAT-2291' : ''}</title>`;
+    }
+    if (c === 'R' || c === 'S') n.R++; else if (c === 'W') n.W++; else if (c === 'B' || c === 'E' || c === 'Q') n.B++;
+  }
+  b.querySelector('.cnt').textContent = `${n.R} routing · ${n.W} restarting · ${n.B} broken · ASG ${S.des[i]}`;
+  S.cells.forEach((arr, k) => { const v = arr[i]; const bar = b._bars[k]; if (!bar) return;
+    bar.style.height = clamp(v / 9000 * 100, v > 0 ? 3 : 0, 100) + '%'; bar.className = v < 300 ? 'ok' : ''; bar.parentNode.title = S.cell_names[k] + ': ' + dur(v) + ' behind'; });
+  const vt = b.querySelector('.vt'), vd = b.querySelector('.verdict');
+  vt.textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2);
+  vt.className = 'vt' + (t >= HZ - 1 ? (V.score.pass ? ' pass' : ' fail') : '');
+  if (t >= HZ - 1){
+    vd.hidden = false; vd.className = 'verdict ' + (V.score.pass ? 'pass' : 'fail');
+    const lost = V.checks.filter(c => !c.gate && c.result === false).map(c => c.id), fired = V.checks.filter(c => c.gate && c.fired).map(c => c.id);
+    vd.querySelector('b').textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2);
+    vd.querySelector('p').textContent = (lost.length ? 'Missed ' + lost.join(', ') : 'Every check held') + (fired.length ? '; gate ' + fired.join(', ') + ' fired' : '') + '. Graded at 16:15.';
+  } else vd.hidden = true;
+}
+
+/* ---------- HUD, console, feed, checks ---------- */
+function holdState(V){
+  const i = SI(V, t), armed = V.series.hold[i];
+  const log = V.t03.hold_log.filter(e => e.t <= t);
+  const last = log[log.length - 1];
+  if (t >= H14){ const f = V.t03.hold_log.find(e => e.t === H14 || /14:00/.test(e.what));
+    return f ? {txt: 'hold ' + f.what.replace(/ at 14:00/, ''), bad: V.series.des[i] > 124} : {txt: 'hold gone at 14:00', bad:false}; }
+  if (armed) return {txt: 'hold re-adds 132 at 14:00 · in ' + dur(H14 - t), bad:true};
+  return {txt: 'hold neutralised' + (last && last.by === 'agent' ? ' ' + hm(last.t) + ' (' + last.what.split(':')[0] + ')' : ''), bad:false};
+}
+function phaseOf(V){
+  const i = SI(V, t), S = V.series, ff = V.fleet.first_failure, R = S.R[i] + S.S[i], ins = S.ins[i];
+  if (t < 22020) return ['ok', 'Healthy: 120 hosts routing'];
+  if (ff && t < ff[0]) return ['warn', 'PLAT-2291 adds 12 hosts; each host learns its new peers and opens two threads per peer'];
+  if (t < S0 && R > 0) return ['bad', 'Shard-map builds fail: no thread left under the 1,024 limit; maps expire one by one'];
+  if (t < S0) return ['bad', 'No host is routing; the ledger canary pages at 08:09'];
+  if (S.W[i] > 0) return ['agent', S.W[i] + ' hosts restarting · ' + R + ' of ' + ins + ' routing'];
+  if (R === 0) return ['bad', 'Fleet wedged: no host routing, ledger lag growing a minute a minute'];
+  if (S.lag[i] >= 300) return [R >= 0.95 * ins ? 'warn' : 'bad', R + ' of ' + ins + ' routing · ledger catching up'];
+  return ['ok', R + ' of ' + ins + ' routing · every ledger cell under 5 min'];
+}
+function renderHud(){
+  const V = mode === 'ref' ? REF : RUN, i = SI(V, t), S = V.series;
+  $('clock').textContent = hms(t);
+  const rf = S.rf[i] / 10, rfe = $('rfv');
+  rfe.textContent = rf.toFixed(rf >= 99.95 || rf === 0 ? 0 : 1) + ' %';
+  rfe.className = 'pill ' + (rf >= 95 ? 'ok' : rf >= 50 ? 'warn' : 'bad');
+  const lag = S.lag[i]; $('lagv').textContent = lag >= 60 ? dur(lag) : lag + ' s';
+  $('thrk').textContent = 'threads ' + S.sample_host;
+  $('thrv').textContent = nf.format(S.thr[i]) + ' / ' + nf.format(S.lim[i]);
+  $('thrv').style.color = S.thr[i] >= S.lim[i] ? 'var(--red-ink)' : '';
+  const [cls, txt] = phaseOf(V); $('phDot').className = 'dot ' + cls; $('phase').textContent = txt;
+  const hs = holdState(V), cd = $('cd'); cd.hidden = false; cd.textContent = hs.txt; cd.className = 'cd' + (hs.bad ? '' : ' ok');
+}
+function stepAt(V){ let best = null; for (const s of V.steps){ if (s.at <= t && t < s.end){ if (!best || best.cls === 'wait') best = s; } } return best; }
+function renderConsole(){
+  const V = mode === 'ref' ? REF : RUN;
+  const done = V.steps.filter(s => s.end <= t).length;
+  $('calls').textContent = done;
+  const s = stepAt(V) || [...V.steps].reverse().find(x => x.end <= t);
+  if (t < S0){ $('stool').textContent = 'not paged yet'; $('spurp').textContent = 'The page fires at 08:15.'; $('scmd').hidden = true; $('stepNo').textContent = ''; return; }
+  if (!s){ $('stool').textContent = 'idle'; $('spurp').textContent = ''; $('scmd').hidden = true; return; }
+  const live = s.at <= t && t < s.end;
+  $('stepNo').textContent = '#' + s.n + (live ? '' : ' · last');
+  $('stool').innerHTML = esc(s.cls === 'wait' ? 'wait → ' + hm(s.end) : s.tool) + `<span class="cls${s.prod ? ' prod' : ''}">${esc(s.prod ? (s.label || 'change') : s.cls === 'point_read' ? 'read' : s.cls)}</span>`;
+  $('spurp').textContent = s.purpose.charAt(0).toUpperCase() + s.purpose.slice(1) + (s.error ? ' (failed)' : '');
+  const cmd = s.detail || ''; $('scmd').hidden = !cmd || s.cls === 'wait'; $('scmd').textContent = (s.tool === 'aws_cli' || s.tool === 'fleet_exec' ? '$ ' : '') + cmd;
+}
+let lastFeedKey = '';
+function renderFeed(){
+  const V = mode === 'ref' ? REF : RUN;
+  const evs = V.evs.filter(e => e.t <= t && e.t >= t - 3600 && e.kind !== 'bot').slice(mode === 'both' ? -4 : -3).reverse();
+  const key = mode + evs.map(e => e.t + e.who).join('|');
+  if (key === lastFeedKey) return; lastFeedKey = key;
+  $('feed').innerHTML = '<span class="ttl">People and world</span>' + (evs.length ? evs.map((e, k) => `<div class="bubble ${e.k}${k ? ' old' : ''}"><span class="av">${e.k === 'page' ? '!' : e.k === 'world' ? '◆' : esc(initials(e.who))}</span><span class="bd"><span class="who">${esc(hm(e.t) + ' · ' + e.who + (e.role ? ' · ' + e.role : ''))}</span><span class="tx">${esc(e.text)}</span></span></div>`).join('') : '<div class="bubble world old"><span class="av">◆</span><span class="bd"><span class="tx">Nothing yet in the last hour.</span></span></div>');
+}
+const CORE = ['C02','C03','C04','C05','C06','C15'], MORE = ['C01','C10','C14','C16','C11','C17','C13','C18'], GATES = ['G1','G2','G3','G4','G5','G6'];
+function renderChecks(){
+  const V = mode === 'ref' ? REF : RUN;
+  const chip = id => { const c = V.cx[id]; if (!c) return '';
+    let st = '', mark = '<i></i>';
+    if (c.gate){ if (c.fired && c.at != null && t >= c.at){ st = 'fail'; } }
+    else if (c.skipped) st = 'skip';
+    else if (c.at != null && t >= c.at) st = c.result ? 'pass' : 'fail';
+    return `<span class="chip${c.gate ? ' gate' : ''} ${st}" role="listitem" title="${esc(c.id + ' · ' + (c.title || c.name) + (c.gate ? ' · gate ' + c.gate : ' · ' + c.w + ' pts') + ' — ' + c.detail)}">${mark}<b>${id}</b> ${esc(c.short)}</span>`; };
+  const end = t >= HZ - 1;
+  $('checks').innerHTML = `<span class="grp">Core</span>${CORE.map(chip).join('')}<span class="grp g2">Process · comms</span>${MORE.map(chip).join('')}<span class="grp g2">Gates</span>${GATES.map(chip).join('')}<span class="vchip ${end ? (V.score.pass ? 'pass' : 'fail') : ''}">${end ? (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2) : 'graded at 16:15'}</span>`;
+}
+
+/* ---------- timeline ---------- */
+const X = tt => (tt - T0) / (HZ - T0) * 100;
+function renderTrack(){
+  const V = mode === 'ref' ? REF : RUN, S = V.series, n = S.n;
+  const W = 1000, H = 36, x = i => i / (n - 1) * W;
+  const tot = i => Math.max(1, S.R[i] + S.S[i] + S.B[i] + S.W[i] + S.E[i] + S.Q[i] + S.X[i]);
+  const band = (f, color) => { let d = 'M0,' + H; for (let i = 0; i < n; i++) d += 'L' + x(i).toFixed(1) + ',' + (H - f(i) * H).toFixed(1); return `<path d="${d}L${W},${H}Z" style="fill:${color}"/>`; };
+  const up = i => (S.R[i] + S.S[i]) / tot(i), up2 = i => (S.R[i] + S.S[i] + S.W[i]) / tot(i);
+  let s = band(() => 1, 'var(--red-soft)') + band(up2, 'var(--cyan)') + band(up, 'var(--teal)');
+  if (mode !== 'ref'){ const R = REF.series; let d = ''; for (let i = 0; i < R.n; i++) d += (i ? 'L' : 'M') + (i / (R.n - 1) * W).toFixed(1) + ',' + (H - R.rf[i] / 1000 * H * 0.98 - 0.5).toFixed(1);
+    s += `<path d="${d}" style="fill:none;stroke:var(--ink);stroke-width:1.4;stroke-dasharray:1 3;stroke-linecap:round;opacity:.7" vector-effect="non-scaling-stroke"/>`; }
+  $('trkSvg').setAttribute('viewBox', `0 0 ${W} ${H}`); $('trkSvg').innerHTML = s;
+  $('ffZone').style.left = X(V.clock.window_end) + '%';
+  $('ffZone').title = 'after 13:00 the world is fast-forwarded to the 16:15 horizon';
+  let ev = '';
+  for (const st of V.steps){ if (st.cls === 'wait') continue; ev += `<span class="tick${st.prod ? ' write' : ''}" style="left:${X(st.at).toFixed(2)}%"></span>`; }
+  for (const e of V.evs){ if (e.kind === 'bot') continue; ev += `<span class="mk ${e.k}" style="left:${X(e.t).toFixed(2)}%" title="${esc(hm(e.t) + ' ' + e.who + ': ' + e.text.slice(0, 120))}"></span>`; }
+  $('evLane').innerHTML = ev;
+  const G = [[S0, 'page'], [R1230, '12:30 gate'], [WE, '13:00'], [H14, '14:00 hold']];
+  $('glines').innerHTML = G.map(([tt, l]) => `<span class="gl" style="left:${X(tt)}%"><span>${l}</span></span>`).join('');
+  let ax = ''; for (let h = 6; h <= 15; h++){ const tt = h * 3600; if (tt < T0) continue; const cls = h === 6 ? 'l' : (h % 2 ? 'mn' : ''); ax += `<span class="${cls}" style="left:${X(tt)}%">${pad(h)}:00</span>`; }
+  ax += `<span class="r" style="left:100%">16:15</span>`;
+  $('axis').innerHTML = ax;
+  $('scnote').innerHTML = V.kind === 'reference' ? '<b>Reference.</b> ' + esc(V.note) : `<b>${esc(V.model)} · ${esc(V.id)}.</b> ${esc(V.label)} on build ${esc(V.build)}${V.dev ? ' (development run)' : ''}. ${esc(V.score.why)}. ` + (V.t03.replay_check ? `Replay matches the run's host counts at ${V.t03.replay_check.minutes - V.t03.replay_check.mismatched} of ${V.t03.replay_check.minutes} minutes. ` : '') + (mode !== 'ref' ? 'Dotted line on the track: the reference\'s routing share.' : '');
+}
+function renderHead(){
+  $('head').style.left = X(t) + '%';
+  const sc = $('scrub'); sc.setAttribute('aria-valuenow', Math.round(t)); sc.setAttribute('aria-valuetext', hms(t));
+}
+function frame(){
+  for (const b of document.querySelectorAll('.board')) paintBoard(b);
+  renderHud(); renderConsole(); renderFeed(); renderChecks(); renderHead();
+}
+
+/* ---------- interaction ---------- */
+function tOf(e){ const r = $('scrub').getBoundingClientRect(); return T0 + clamp((e.clientX - r.left) / r.width, 0, 1) * (HZ - T0); }
+const sc = $('scrub');
+sc.addEventListener('pointerdown', e => { scrubbing = true; sc.setPointerCapture(e.pointerId); setPlaying(false); t = tOf(e); frame(); });
+sc.addEventListener('pointermove', e => { const tt = tOf(e); const tip = $('tip'); tip.hidden = false; tip.style.left = X(tt) + '%'; tip.textContent = hms(tt); if (scrubbing){ t = tt; frame(); } });
+sc.addEventListener('pointerleave', () => { $('tip').hidden = true; });
+const endScrub = () => { scrubbing = false; };
+sc.addEventListener('pointerup', endScrub); sc.addEventListener('pointercancel', endScrub);
+sc.addEventListener('keydown', e => {
+  const k = e.shiftKey ? 1800 : 300;
+  if (e.key === 'ArrowRight'){ t = Math.min(HZ, t + k); frame(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft'){ t = Math.max(T0, t - k); frame(); e.preventDefault(); }
+});
+document.addEventListener('keydown', e => { if (e.key === ' ' && !e.target.closest('select,button')){ setPlaying(!playing); e.preventDefault(); } });
+let raf = null, last = 0;
+function loop(ts){
+  if (!playing) return;
+  const dt = last ? Math.min(0.1, (ts - last) / 1000) : 0; last = ts;
+  t = Math.min(HZ, t + dt * 600 * speed);
+  frame();
+  if (t >= HZ){ setPlaying(false); return; }
+  raf = requestAnimationFrame(loop);
+}
+function setPlaying(on){
+  playing = on; last = 0;
+  $('play').setAttribute('aria-pressed', String(on)); $('playLabel').textContent = on ? 'Pause' : 'Play';
+  $('playIcon').innerHTML = on ? '<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>' : '<path d="M3 1.8v12.4L14 8z"/>';
+  if (on){ if (t >= HZ - 1) t = T0; raf = requestAnimationFrame(loop); } else if (raf) cancelAnimationFrame(raf);
+}
+$('play').addEventListener('click', () => setPlaying(!playing));
+$('restart').addEventListener('click', () => { t = T0; frame(); setPlaying(true); });
+for (const [id, v] of [['sp1', 1], ['sp2', 2], ['sp4', 4]]) $(id).addEventListener('click', () => { speed = v; for (const b of ['sp1','sp2','sp4']) $(b).setAttribute('aria-pressed', String(b === id)); });
+function setMode(m){ mode = m; for (const [id, k] of [['scRun','run'],['scRef','ref'],['scBoth','both']]) $(id).setAttribute('aria-pressed', String(k === m)); lastFeedKey = ''; renderBoards(); renderTrack(); frame(); }
+$('scRun').addEventListener('click', () => setMode('run'));
+$('scRef').addEventListener('click', () => setMode('ref'));
+$('scBoth').addEventListener('click', () => setMode('both'));
+const sel = $('runPick');
+sel.innerHTML = T3.runs.map(r => `<option value="${esc(r.id)}"${r.id === runRow.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + Number(r.d12).toFixed(2))}</option>`).join('');
+sel.addEventListener('change', async () => {
+  runRow = T3.runs.find(r => r.id === sel.value) || runRow;
+  try { RUN = await load(runRow.id); } catch (e) { return; }
+  try { const u = new URL(location.href); u.searchParams.set('run', runRow.id); history.replaceState(null, '', u); } catch (e) {}
+  if (mode === 'ref') mode = 'run';
+  setMode(mode);
+});
+setMode('run');
+let lastW = innerWidth;
+addEventListener('resize', () => { if ((innerWidth < 640) !== (lastW < 640)){ renderBoards(); frame(); } lastW = innerWidth; });
+})();
+</script>
+</body></html>
