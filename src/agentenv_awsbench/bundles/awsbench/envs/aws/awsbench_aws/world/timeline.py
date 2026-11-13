@@ -11,7 +11,45 @@ from datetime import datetime, timedelta
 
 from .util import dig, glob_match, iso, jitter, parse_time, pick, seconds, text_of, unit
 
-APPROVAL_ASK = re.compile(r"(?i)\bapprov|sign[- ]?off|\bok(ay)? to\b|go ahead|permission|second approver|\+1|\bconfirm")
+ASK = re.compile(r"(?i)\b(?:ask(?:ing)?|approve|approvals?|permission|ok(?:ay)? to|can i|may i|please confirm|"
+                 r"requesting|request (?:your |an? )?(?:approval|sign[- ]?off|decision)|sign[- ]?off|need your)\b")
+CLAUSE = re.compile(r"(?<=[.!?])\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
+ASIDE = re.compile(r"(?i)^(?:(?:undo|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|not\b|no\b|"
+                   r"never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
+HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
+         "without", "nobody"}
+GEN = re.compile(r"\b(\d{5})\b")
+
+
+def clauses(text: str) -> list[str]:
+    """The message's clauses without leading @mentions, minus asides (undo plans, holds, negations)."""
+    out = []
+    for c in CLAUSE.split((text or "").replace("\u2019", "'")):
+        c = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", c).strip()
+        if c and not ASIDE.match(c):
+            out.append(c)
+    return out
+
+
+def asks(text: str) -> list[str]:
+    """What the message asks for: each clause from its first unhedged ask word on, or a whole question. A statement
+    ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never draw a decision."""
+    out = []
+    for c in clauses(text):
+        for m in ASK.finditer(c):
+            if not HEDGE & set(re.findall(r"[\w']+", c[:m.start()].lower())[-4:]):
+                out.append(c[m.start():])
+                break
+        else:
+            if c.endswith("?"):
+                out.append(c)
+    return out
+
+
+def _matches(m: dict, text: str) -> bool:
+    return not (m.get("all") and not all(re.search(p, text, re.IGNORECASE) for p in m["all"])
+                or m.get("any") and not any(re.search(p, text, re.IGNORECASE) for p in m["any"])
+                or m.get("none") and any(re.search(p, text, re.IGNORECASE) for p in m["none"]))
 
 
 def match_call(spec: dict, call: dict) -> bool:
@@ -65,6 +103,8 @@ class Timeline:
         self.state_done: set[str] = set()
         self.approvals: list[dict] = []
         self.awake = {n: bool(c.get("awake", True)) for n, c in self.npcs.items()}
+        self.replied: dict[tuple[str, str], set[str]] = {}
+        self.awaiting: set[str] = set()
         self.waiting: dict[str, list[dict]] = {n: [] for n in self.npcs}
         self.world_flags: dict[str, bool] = {}
 
@@ -280,26 +320,77 @@ class Timeline:
             self._schedule_reply(npc, msg, t)
         self.waiting[npc] = []
 
-    def classify(self, npc: str, text: str) -> dict:
-        for rule in self.npcs[npc].get("rules", []):
-            m = rule.get("match", {})
-            if m.get("all") and not all(re.search(p, text, re.IGNORECASE) for p in m["all"]):
+    def classify(self, npc: str, text: str) -> tuple[dict, str, dict] | None:
+        """The rule that answers `text`, the request it answers and its template values, or None for silence.
+
+        Rules with a `decision` or `on_request` read only what the message asks for; the others read the whole text.
+        Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
+        a rule whose `unless_state` holds is skipped. The default answers requests only."""
+        c = self.npcs[npc]
+        ask_list = asks(text)
+        if npc in self.awaiting:
+            self.awaiting.discard(npc)
+            ask_list = ask_list or clauses(text)
+        ask = " ".join(ask_list)
+        key = " ".join(ask.lower().split())
+        for rule in c.get("rules", []):
+            on_request = bool(rule.get("on_request")) or "decision" in rule
+            if on_request and not ask or not _matches(rule.get("match", {}), ask if on_request else text):
                 continue
-            if m.get("any") and not any(re.search(p, text, re.IGNORECASE) for p in m["any"]):
+            values = {}
+            if "plan_gen" in rule:
+                values = self._plan_gen(rule["plan_gen"], ask if on_request else text)
+                if values is None:
+                    continue
+            if self._spent(npc, rule, key):
+                if on_request:
+                    return None
                 continue
-            if m.get("none") and any(re.search(p, text, re.IGNORECASE) for p in m["none"]):
-                continue
-            return rule
-        return {"id": "default", "reply": self.npcs[npc].get("default", "Noted.")}
+            return rule, ask, values
+        if not ask or c.get("default_unless_state") and self.w.eval_state(c["default_unless_state"]):
+            return None
+        rule = {"id": "default", "reply": c.get("default", "Noted."), "asks_details": True}
+        return None if self._spent(npc, rule, key) else (rule, ask, {})
+
+    def _spent(self, npc: str, rule: dict, key: str) -> bool:
+        if rule.get("unless_state") and self.w.eval_state(rule["unless_state"]):
+            return True
+        seen = self.replied.get((npc, rule["id"]))
+        return seen is not None and (bool(rule.get("once")) or not key or key in seen)
+
+    def _plan_gen(self, spec: dict, text: str) -> dict | None:
+        """`fits_fleet: true` matches a request naming a plan gen at or above `min` whose ledger records match the
+        live fleet (or naming none); `fits_fleet: false` matches one naming only gens that don't."""
+        ep = self.w.endpointd
+        gens = [g for g in map(int, GEN.findall(text)) if ep.plan_fits_fleet(g) is not None]
+        good = [g for g in gens if g >= int(spec.get("min", 0)) and ep.plan_fits_fleet(g)]
+        if spec.get("fits_fleet", True):
+            if good:
+                return {"plan": f"plan {max(good)}", "gen": str(max(good))}
+            return None if gens else {"plan": "the last-known-good plan", "gen": "last-known-good"}
+        return {"gen": str(gens[0])} if gens and not good else None
 
     def _npc_reply(self, item: Item, t: datetime) -> list[dict]:
         npc, msg = item.ev, item.ctx["msg"]
-        rule = self.classify(npc, msg["text"])
-        text = pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted."))
-        decision = rule.get("decision")
-        if decision in ("APPROVED", "DECLINED") and (rule.get("always_record") or APPROVAL_ASK.search(msg["text"])):
-            self.approvals.append({"t": iso(t), "by": npc, "decision": decision, "change": rule.get("change", ""),
-                                   "scope": rule.get("scope", ""), "rule": rule["id"], "request": msg["text"][:300]})
+        hit = self.classify(npc, msg["text"])
+        if hit is None:
+            self.log.append({"id": f"npc:{npc}:silent#{item.n}", "due_at": iso(item.due), "fired_at": None,
+                             "status": "skipped", "deliveries": []})
+            return []
+        rule, ask, values = hit
+        self.replied.setdefault((npc, rule["id"]), set()).add(" ".join(ask.lower().split()))
+        if rule.get("asks_details"):
+            self.awaiting.add(npc)
+
+        def fill(s: str) -> str:
+            for k, v in values.items():
+                s = s.replace("{" + k + "}", v)
+            return s
+        text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
+        if rule.get("decision") in ("APPROVED", "DECLINED"):
+            self.approvals.append({"t": iso(t), "by": npc, "decision": rule["decision"],
+                                   "change": fill(rule.get("change", "")), "scope": fill(rule.get("scope", "")),
+                                   "rule": rule["id"], "request": ask[:300]})
         entry = {"id": f"npc:{npc}:{rule['id']}#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
                  "status": "fired", "deliveries": self._deliver(npc, msg, text, t)}
         self.log.append(entry)

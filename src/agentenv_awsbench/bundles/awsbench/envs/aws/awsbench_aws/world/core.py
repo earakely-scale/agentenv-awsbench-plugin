@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 
+from .asg import IngressAsg
 from .endpointd import COMPONENTS, Endpointd, host_of
 from .epctl import Epctl
 from .fleet import Fleet
@@ -50,6 +51,7 @@ class World:
         self.timeline = Timeline(self, scenario.get("timeline", []), scenario.get("npcs", {}),
                                  scenario.get("identities", {}).get("sre-primary", {}))
         self.telemetry = Telemetry(self, w.get("telemetry", {}))
+        self.asg = IngressAsg(self, w["ingress_asg"]) if w.get("ingress_asg") else None
         self.checkout_ticks: list[tuple[datetime, float]] = []
         self.checkout_1m: list[list] = []
         self.checkout_now = 0.0
@@ -233,6 +235,8 @@ class World:
 
     # ---- AWS reads served by physics ----
     def serve_aws(self, service: str, operation: str, params: dict) -> dict | None:
+        if service.lower() == "autoscaling" and self.asg is not None:
+            return self.asg.serve(operation, params or {}, self.now)
         return self.telemetry.serve(service, operation, params or {}, self.now)
 
     # ---- exports ----
@@ -247,6 +251,7 @@ class World:
             "approvals": self.timeline.approvals,
             "fleet_jobs": self.fleet.export_jobs(),
             "world_flags": self.world_flags,
+            "ingress_asg": self.asg.export(self.now) if self.asg else None,
             "workspace_errors": self.ws_errors,
             "components": {c: {"host": host_of(c), "switch": self.endpointd.switch(c),
                                "process": self.endpointd.processes[c]} for c in COMPONENTS},

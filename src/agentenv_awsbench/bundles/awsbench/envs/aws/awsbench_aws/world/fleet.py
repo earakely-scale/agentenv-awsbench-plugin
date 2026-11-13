@@ -1,7 +1,10 @@
-"""Fleets of hosts: listing, inspection, allowlisted exec (dig, getent, unbound-control, systemctl, epctl, ...) and
-rolling restart jobs."""
+"""Fleets of hosts: listing, inspection, allowlisted exec (dig, getent, unbound-control, systemctl, journalctl, ps,
+curl, epctl, ...) and rolling restart jobs."""
 
 import fnmatch
+import hashlib
+import json
+import re
 import shlex
 from datetime import datetime, timedelta
 
@@ -9,6 +12,15 @@ from .endpointd import COMPONENTS, host_of
 from .util import hms, iso, unit
 
 NOT_AVAILABLE = "{cmd}: not available in this environment"
+SHELL_OPS = re.compile(r"[;|<>`]|&&|\$\(")
+ONE_COMMAND = "one command per call: shell operators are not supported"
+UNBOUND = {"pid": 612, "user": "unbound", "cmd": "/usr/sbin/unbound -d -p",
+           "desc": "Validating, recursive, and caching DNS resolver"}
+BOOT = "Mon 2026-10-06 23:28:11 EDT"
+
+
+def instance_id(host: str) -> str:
+    return "i-0" + hashlib.sha256(host.encode()).hexdigest()[:16]
 
 
 class Fleet:
@@ -54,7 +66,8 @@ class Fleet:
         h = self.hosts.get(host)
         if h is None:
             return {"error": f"unknown host {host}"}
-        out = {"host": host, "fleet": h["fleet"], "az": h["az"], "ip": h.get("ip"), "state": h["state"],
+        out = {"host": host, "instance_id": instance_id(host), "fleet": h["fleet"], "az": h["az"], "ip": h.get("ip"),
+               "state": h["state"],
                "os": h.get("os", self.cfg[h["fleet"]].get("os", "Ubuntu 22.04.4 LTS")),
                "instance_type": h.get("type", self.cfg[h["fleet"]].get("instance_type"))}
         if host in self.w.dns.hosts:
@@ -71,6 +84,8 @@ class Fleet:
 
     # ---- exec ----
     def exec(self, selector: str, command: str, caller: dict, now: datetime) -> dict:
+        if SHELL_OPS.search(command or ""):
+            return {"hosts": [], "exit_code": 2, "error": ONE_COMMAND}
         hosts = self.select(selector)
         if not hosts:
             return {"hosts": [], "error": f"no hosts match {selector!r}"}
@@ -95,8 +110,12 @@ class Fleet:
             return self.getent(host, argv[2], now)
         if cmd == "unbound-control" and len(argv) >= 2 and argv[1] in ("flush", "flush_zone", "flush_negative"):
             return self.flush(host, argv, now)
-        if cmd == "systemctl" and len(argv) == 3 and h["fleet"] == "endpointd":
+        if cmd == "systemctl" and len(argv) == 3 and h["fleet"] == "endpointd" and argv[1] != "status":
             return self.systemctl(host, argv[1], argv[2], now)
+        if cmd == "systemctl" and len(argv) >= 3 and argv[1] == "status":
+            return self.status(host, argv[-1], now)
+        if cmd == "curl":
+            return self.curl(host, argv[1:], now)
         if cmd == "epctl" and h["fleet"] == "endpointd":
             return self.w.epctl.run(command, host, caller, now)
         if cmd == "cat" and len(argv) == 2:
@@ -106,7 +125,7 @@ class Fleet:
         if cmd == "journalctl":
             return self.journal(host, argv, now)
         if cmd == "ps":
-            return self.ps(host), 0
+            return self.ps(host, argv[1:]), 0
         if cmd in ("hostname", "uptime", "date"):
             return {"hostname": host, "date": now.strftime("%a %b %d %H:%M:%S %Z %Y"),
                     "uptime": f" {hms(now)} up 41 days,  3:12,  0 users,  load average: 0.31, 0.27, 0.22"}[cmd] + "\n", 0
@@ -184,53 +203,175 @@ class Fleet:
         comp = next((c for c in COMPONENTS if host_of(c) == host), None)
         if unit_name.removesuffix(".service") != f"endpointd-{comp}":
             return f"Unit {unit_name} could not be found.\n", 4
-        ep = self.w.endpointd
-        if verb == "status":
-            running = ep.processes[comp]
-            state = "active (running)" if running else "inactive (dead)"
-            return (f"● endpointd-{comp}.service - endpointd {comp}\n"
-                    f"     Loaded: loaded (/etc/systemd/system/endpointd-{comp}.service; enabled)\n"
-                    f"     Active: {state}\n"
-                    f"   Main PID: {'2147 (endpointd)' if running else '-'}\n"
-                    f"     Status: \"kill switch {'on' if ep.switch(comp) else 'off'}"
-                    f"{'; HALTED: ' + ep.latch_reasons()[0] if running and comp != 'planner' and ep.engaged() else ''}\"\n"
-                    ), (0 if running else 3)
         if verb in ("stop", "start", "restart"):
             self.w.set_process(comp, verb != "stop", now)
             return "", 0
         return NOT_AVAILABLE.format(cmd=f"systemctl {verb}") + "\n", 127
 
-    def journal(self, host, argv, now):
+    # ---- units: systemctl status, journalctl, ps, curl ----
+    def units(self, host: str) -> dict[str, dict]:
+        """The host's systemd units: unbound everywhere, endpointd's component on its host, the fleet's `units`."""
         h = self.hosts[host]
-        lines = list(h.get("journal") or self.cfg[h["fleet"]].get("journal") or [])
-        if h["fleet"] == "endpointd":
-            comp = next(c for c in COMPONENTS if host_of(c) == host)
+        out = {"unbound": UNBOUND}
+        comp = next((c for c in COMPONENTS if host_of(c) == host), None)
+        if comp:
+            out[f"endpointd-{comp}"] = {"pid": 2147, "cmd": f"/usr/local/bin/endpointd --component {comp}",
+                                        "desc": f"endpointd {comp}", "port": 9100, "health": "endpointd"}
+        out.update(self.cfg[h["fleet"]].get("units") or {})
+        return out
+
+    def _running(self, host: str, name: str) -> bool:
+        return not name.startswith("endpointd-") or self.w.endpointd.processes[name.removeprefix("endpointd-")]
+
+    def status(self, host, unit_name, now):
+        name = unit_name.removesuffix(".service")
+        u = self.units(host).get(name)
+        if u is None:
+            return f"Unit {name}.service could not be found.\n", 4
+        running = self._running(host, name)
+        lines = [f"\u25cf {name}.service - {u.get('desc', name)}",
+                 f"     Loaded: loaded (/etc/systemd/system/{name}.service; enabled; vendor preset: enabled)",
+                 f"     Active: {'active (running) since ' + BOOT + '; 41 days ago' if running else 'inactive (dead)'}",
+                 f"   Main PID: {str(u['pid']) + ' (' + u['cmd'].split()[0].rsplit('/', 1)[-1] + ')' if running else '-'}"]
+        if name.startswith("endpointd-"):
+            comp, ep = name.removeprefix("endpointd-"), self.w.endpointd
+            halted = running and comp != "planner" and ep.engaged()
+            lines.append(f"     Status: \"kill switch {'on' if ep.switch(comp) else 'off'}"
+                         f"{'; HALTED: ' + ep.latch_reasons()[0] if halted else ''}\"")
+        elif name == "envoy" and not self.hosts[host].get("ready"):
+            lines.append('     Status: "listener ledger_https NOT READY (sds secret ingress-tls not loaded)"')
+        lines += [""] + self.journal_lines(host, name, now)[-5:]
+        return "\n".join(lines) + "\n", (0 if running else 3)
+
+    def journal_lines(self, host: str, unit_name: str | None, now: datetime) -> list[str]:
+        """journalctl lines up to `now`: the scenario's own, endpointd's halt and apply events, and per minute the app
+        log lines the unit's `log_group` writes as this host sees the outage."""
+        h, units = self.hosts[host], self.units(host)
+        rows: list[tuple[str, str]] = []
+        for line in h.get("journal") or self.cfg[h["fleet"]].get("journal") or []:
+            ts, rest = line.split(" ", 1)
+            rows.append((ts, rest))
+        comp = next((c for c in COMPONENTS if host_of(c) == host), None)
+        if comp:
             ep = self.w.endpointd
             if comp != "planner" and ep.engaged() and ep.processes[comp]:
-                lines.append(f"{hms(now)} endpointd[2147]: WARN halt latch engaged: {ep.latch_reasons()[0]}; "
-                             "writing nothing")
-            for ev in ep.apply_events[-5:]:
-                if ev["enactor"] == comp:
-                    lines.append(f"{ev['t'][11:19]} endpointd[2147]: INFO batch gen {ev['gen']} {ev['event']}")
+                why = ep.latch_reasons()[0]
+                rows.append((hms(now), f"endpointd[2147]: WARN halt latch engaged: {why}; writing nothing"))
+            rows += [(ev["t"][11:19], f"endpointd[2147]: INFO batch gen {ev['gen']} {ev['event']}")
+                     for ev in ep.apply_events[-5:] if ev["enactor"] == comp]
+        tz = self.w.start_t.tzinfo
+        off = int(unit(self.w.seed, "journal", host) * 15)
+        for name, u in units.items():
+            if not u.get("log_group") or unit_name and name != unit_name:
+                continue
+            t = (now - timedelta(minutes=30)).replace(second=42 - off, microsecond=0)
+            while t <= now:
+                rows += [(hms(t.astimezone(tz)), f"{name}[{u['pid']}]: {line}")
+                         for line in self.w.telemetry.lines(u["log_group"], t, host)]
+                t += timedelta(minutes=1)
+
+        def owner(rest: str) -> str:
+            proc = rest.split("[", 1)[0]
+            return proc if proc in units else next((n for n in units if n.startswith(proc)), proc)
+        day = now.strftime("%b %d")
+        return [f"{day} {ts} {host} {rest}" for ts, rest in sorted(rows, key=lambda r: r[0])
+                if ts <= hms(now) and (not unit_name or owner(rest) == unit_name)]
+
+    def journal(self, host, argv, now):
+        unit_name, n = None, 20
+        for i, a in enumerate(argv):
+            nxt = argv[i + 1] if i + 1 < len(argv) else ""
+            if a in ("-u", "--unit"):
+                unit_name = nxt
+            elif a.startswith("--unit="):
+                unit_name = a.split("=", 1)[1]
+            elif a in ("-n", "--lines") and nxt.isdigit():
+                n = int(nxt)
+            elif a.startswith("--lines=") and a[8:].isdigit():
+                n = int(a[8:])
+        if unit_name is not None:
+            unit_name = unit_name.removesuffix(".service")
+            if unit_name not in self.units(host):
+                return "-- No entries --\n", 0
+        lines = self.journal_lines(host, unit_name, now)
         if not lines:
             return "-- No entries --\n", 0
-        n = 20
-        if "-n" in argv:
-            try:
-                n = int(argv[argv.index("-n") + 1])
-            except (ValueError, IndexError):
-                pass
         return "\n".join(lines[-n:]) + "\n", 0
 
-    def ps(self, host):
-        h = self.hosts[host]
-        rows = ["  PID TTY          TIME CMD", "    1 ?        00:01:12 systemd", "  612 ?        00:00:41 unbound"]
-        if h["fleet"] == "endpointd":
-            comp = next(c for c in COMPONENTS if host_of(c) == host)
-            if self.w.endpointd.processes[comp]:
-                rows.append(f" 2147 ?        00:03:09 endpointd --component {comp}")
-        rows += self.cfg[h["fleet"]].get("processes", [])
+    def ps(self, host, args=()):
+        procs = [(1, "root", "/sbin/init")] + [(u["pid"], u.get("user", "root"), u["cmd"])
+                                              for name, u in self.units(host).items() if self._running(host, name)]
+        procs.sort()
+        if not any(set(a.lstrip("-")) & set("aexuf") for a in args):
+            return "\n".join(["    PID TTY          TIME CMD"] +
+                             [f"{pid:>7} ?        00:{pid % 50:02d}:{pid % 60:02d} {cmd.split()[0].rsplit('/', 1)[-1]}"
+                              for pid, _, cmd in procs]) + "\n"
+        rows = ["USER         PID %CPU %MEM     VSZ    RSS TTY      STAT START   TIME COMMAND"]
+        for pid, user, cmd in procs:
+            cpu = round(unit(self.w.seed, "cpu", host, pid) * 12, 1) if pid > 1 else 0.0
+            rows.append(f"{user[:8]:<8} {pid:>7} {cpu:>4} {1.0 + pid % 7:>4.1f} {pid * 97 % 900000 + 20000:>7} "
+                        f"{pid * 31 % 200000 + 9000:>6} ?        Ssl  Oct06  {pid % 90:>3}:{pid % 60:02d} {cmd}")
         return "\n".join(rows) + "\n"
+
+    def curl(self, host, args, now):
+        flags = {a for a in args if a.startswith("-")}
+        skip = {"-o", "-H", "-X", "-w", "-m", "-d", "--max-time", "--connect-timeout", "--output", "--header"}
+        url = next((a for i, a in enumerate(args) if not a.startswith("-") and (i == 0 or args[i - 1] not in skip)),
+                   None)
+        if url is None:
+            return "curl: no URL specified!\n", 2
+        m = re.match(r"^(?:\w+://)?([^/:]+)(?::(\d+))?(/.*)?$", url)
+        if not m:
+            return f"curl: (3) URL using bad/illegal format or missing URL: {url}\n", 3
+        name, port, path = m.group(1), int(m.group(2) or (443 if url.startswith("https") else 80)), m.group(3) or "/"
+        if name in ("localhost", "127.0.0.1"):
+            u = next(((n, u) for n, u in self.units(host).items() if u.get("port") == port and self._running(host, n)),
+                     None)
+            if u is None:
+                return (f"curl: (7) Failed to connect to {name} port {port} after 0 ms: Couldn't connect to server\n",
+                        7)
+            code, body = self.health(host, u[0], u[1], path, now)
+        else:
+            _, ips, _ = self._ns_answer(host, name.rstrip("."), now, False)
+            if not ips:
+                return f"curl: (6) Could not resolve host: {name}\n", 6
+            code, body = self.health(host, "ledger-writer", {"health": "ledger-writer"}, path, now) \
+                if name == self.w.dns.name else (200, {"status": "UP"})
+        if code >= 400 and flags & {"-f", "-sf", "-fs", "--fail", "-fsS", "-sSf"}:
+            return f"curl: (22) The requested URL returned error: {code}\n", 22
+        text = body if isinstance(body, str) else json.dumps(body, separators=(",", ":"))
+        return text + "\n", 0
+
+    def health(self, host, name, u, path, now) -> tuple[int, dict | str]:
+        """What a unit's local health endpoint answers right now."""
+        kind, w = u.get("health"), self.w
+        regime = w.storm.regime
+        if kind == "envoy":
+            return (200, "LIVE") if self.hosts[host].get("ready") else (503, "PRE_INITIALIZING")
+        if kind == "endpointd":
+            comp, ep = name.removeprefix("endpointd-"), w.endpointd
+            reasons = ep.latch_reasons()
+            state = "PAUSED" if not ep.switch(comp) else ("HALTED: " + reasons[0] if reasons and comp != "planner"
+                                                          else "RUNNING")
+            return 200, {"component": comp, "kill_switch": "on" if ep.switch(comp) else "off", "state": state}
+        if kind == "ledger-writer":
+            if regime == "collapsed":
+                return 503, {"status": "DEGRADED", "db_pool": {"active": 25, "idle": 0, "waiting": 212}}
+            busy = 18 if regime == "degraded" else 4
+            return 200, {"status": "UP", "db_pool": {"active": busy, "idle": 25 - busy, "waiting": 0}}
+        resolves = host not in w.dns.hosts or w.dns.resolves(host, now)
+        ledger = ({"status": "DOWN", "error": "java.net.UnknownHostException: ledger.internal.vantleaf.io"}
+                  if not resolves else {"status": "DOWN", "error": "SocketTimeoutException: Read timed out after 2000ms"}
+                  if regime == "collapsed" else {"status": "UP"})
+        if kind == "checkout":
+            up = ledger["status"] == "UP"
+            return (200 if up else 503), {"status": "UP" if up else "DOWN", "components": {
+                "ledger": ledger, "ledgerClientBreaker": {"status": "CLOSED" if up else "OPEN"}}}
+        if kind == "dispatcher":
+            lev = w.levers()
+            return 200, {"status": "UP", "consumer_paused": lev["consumer_paused"],
+                         "max_concurrency": int(lev["max_concurrency"]), "ledger": ledger["status"]}
+        return 200, {"status": "UP"}
 
     # ---- restart jobs ----
     def restart(self, selector, batch_size, caller, now):

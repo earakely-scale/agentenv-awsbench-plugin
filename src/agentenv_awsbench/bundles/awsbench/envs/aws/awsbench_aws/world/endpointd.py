@@ -81,6 +81,15 @@ class Endpointd:
             return False
         return {r["Value"] for r in live if r["Weight"] > 0} == self.healthy(fqdn) and all(r["TTL"] <= 300 for r in live)
 
+    def plan_fits_fleet(self, gen: int) -> bool | None:
+        """Whether gen's ledger records (plan store, else archive) weight exactly the ready ingress hosts; None for an
+        unknown gen."""
+        item = self.m.plan(gen)
+        recs = plan_ledger(item) if item else self.archive.get(gen)
+        if recs is None:
+            return None
+        return {r["ip"] for r in recs if int(r["weight"]) > 0} == self.healthy(self.ledger)
+
     def latch_reasons(self) -> list[str]:
         out = []
         for fqdn, ptr in sorted(self.m.pointers().items()):

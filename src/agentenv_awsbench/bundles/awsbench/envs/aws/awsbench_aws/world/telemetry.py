@@ -193,17 +193,21 @@ class Telemetry:
         return None
 
     # ---- logs ----
-    def _lines(self, group: str, t: datetime) -> list[str]:
+    def lines(self, group: str, t: datetime, host: str | None = None) -> list[str]:
+        """The app log lines `group` writes in the minute of `t`, across the fleet or, given `host`, on that host."""
         w = self.w
         if t < self.outage_start:
             return []
         m = self._minute(t) or {"recovered": [], "regime": "healthy"}
         n_unrec = len(w.core_hosts) - len(m["recovered"])
+        if host is not None and host in w.core_hosts:
+            n_unrec = int(host not in m["recovered"])
         if group.endswith("checkout-api"):
             out = []
             if n_unrec:
-                out.append(f"ERROR c.v.ledger.LedgerClient - post failed: java.net.UnknownHostException: "
-                           f"ledger.internal.vantleaf.io: Name or service not known ({n_unrec} hosts)")
+                out.append("ERROR c.v.ledger.LedgerClient - post failed: java.net.UnknownHostException: "
+                           "ledger.internal.vantleaf.io: Name or service not known"
+                           + ("" if host else f" ({n_unrec} hosts)"))
                 out.append("WARN c.v.ledger.LedgerClient - CircuitBreakerOpenException: ledger-client breaker OPEN "
                            "(failure rate 100.0% > 50.0%)")
             if m["regime"] == "collapsed":
@@ -223,6 +227,9 @@ class Telemetry:
             if m["regime"] == "collapsed":
                 return ["WARN db pool exhausted: waited 1500ms for connection (active=25 idle=0 waiting=212)",
                         "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
+            if len(m["recovered"]) < len(w.core_hosts):
+                rate = max(0.4, round(19 * len(m["recovered"]) / max(1, len(w.core_hosts)), 1))
+                return [f"INFO inbound {rate} req/s (1m avg, baseline ~19 req/s); pool active=1 idle=24 waiting=0"]
             return []
         if "/endpointd/" in group:
             comp = group.rsplit("/", 1)[-1]
@@ -242,7 +249,7 @@ class Telemetry:
         if t < start_t:
             t += timedelta(minutes=1)
         while t <= end_t and len(out) < limit:
-            for i, line in enumerate(self._lines(group, t)):
+            for i, line in enumerate(self.lines(group, t)):
                 if needle and needle.lower() not in line.lower():
                     continue
                 ms = int(t.timestamp() * 1000) + i
