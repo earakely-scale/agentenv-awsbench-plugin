@@ -6,6 +6,8 @@ meter"). The workspace server meters its own calls through the internal /awsbenc
 import asyncio
 import base64
 import fnmatch
+import functools
+import inspect
 import json
 import logging
 import os
@@ -567,13 +569,21 @@ class AwsServer(AgentEnvEnvironment):
         return await self._metered(ctx, "fleet_exec", {"selector": selector, "command": command}, work, hosts=hosts)
 
     @tool(description="Restart the hosts a selector names, `batch_size` at a time, as a background job; "
-                      "fleet_job_status follows it.", structured_output=False)
-    async def fleet_restart(self, selector: str, ctx: ToolContext, batch_size: int = 1) -> str:
+                      "fleet_job_status follows it. The next batch starts `pause_seconds` (default 0) after every host "
+                      "of the previous one meets `wait_for`: `ready` (the default: in service, or failed its readiness "
+                      "for good) or `process_up` (its process has started).", structured_output=False)
+    async def fleet_restart(self, selector: str, ctx: ToolContext, batch_size: int = 1, wait_for: str | None = None,
+                            pause_seconds: int | None = None) -> str:
+        opts = {k: v for k, v in (("wait_for", wait_for), ("pause_seconds", pause_seconds)) if v is not None}
+
         async def work(call: dict) -> dict:
             caller = self._fleet_caller(ctx, call)
             world = self._need_world()
-            return await self._world_call(self._acting, caller, world.fleet_restart, selector, batch_size, caller)
-        return await self._metered(ctx, "fleet_restart", {"selector": selector, "batch_size": batch_size}, work)
+            if opts and "wait_for" not in inspect.signature(world.fleet_restart).parameters:
+                return {"error": "this fleet's restart jobs take no wait_for or pause_seconds"}
+            return await self._world_call(self._acting, caller, functools.partial(world.fleet_restart, **opts),
+                                          selector, batch_size, caller)
+        return await self._metered(ctx, "fleet_restart", {"selector": selector, "batch_size": batch_size, **opts}, work)
 
     @tool(description="The state of a fleet job (a restart).", structured_output=False)
     async def fleet_job_status(self, job_id: str, ctx: ToolContext) -> str:

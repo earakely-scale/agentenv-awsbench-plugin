@@ -166,3 +166,17 @@ def test_proc_limits_answer_as_linux_does(opening):
     assert "Max processes             62760" in sh(opening, "cat /proc/1187/limits")[0]
     assert sh(opening, "cat /proc/1/limits")[1] == 0
     assert sh(opening, "cat /proc/2215/limits") == ("cat: /proc/2215/limits: No such file or directory\n", 1)
+
+
+def test_host_outputs_carry_only_the_design_templates_fields():
+    w = world()
+    revert(w)
+    w.mech.ssm[SRC] = "authoritative"
+    assert set(w.fleet_inspect_host("sr-b-017")["shard_map"]) == {"state", "epoch", "last_success", "last_error"}
+    status, _ = sh(w, "srctl host status", "sr-b-017")
+    assert "last_error" not in status and "rebuild skipped" in status
+    w.fleet_restart("sr-a-00*", 12, AGENT)
+    w.advance_to(at(w, "08:17:00"))
+    fleet, _ = sh(w, "srctl fleet status", "sr-a-001")
+    assert "  sr-a-001 WARMING\n" in fleet and "(jvm)" not in fleet and "(bootstrap" not in fleet
+    assert sh(w, "systemctl stop streamroute", "sr-b-017") == ("systemctl stop streamroute: refused by srcoord fencing\n", 1)

@@ -25,7 +25,7 @@ SNAPSHOTS = ("13:00", "16:15")
 LW_EDIT = re.compile(r"\becs\s+update-service\b.*\bledger-writer\b", re.DOTALL)
 SSM_WRITE = re.compile(r"\bssm\s+(put-parameter|delete-parameters?|label-parameter-version)\b")
 CW_WRITE = re.compile(r"\bcloudwatch\s+(put-metric-alarm|delete-alarms)\b")
-BATCH_ETA_S = 220
+BATCH_ETA_S = {"ready": 220, "process_up": 50}
 
 
 class Mechanics:
@@ -230,11 +230,16 @@ class Mechanics:
             self.ssm_at_restart[name] = {k: r[k] for k in ("bootstrap_source", "warmup_grace", "xmx", "limit_nproc")}
         return err
 
-    def fleet_restart(self, selector: str, batch_size: int, caller: dict, now: datetime) -> dict:
+    def fleet_restart(self, selector: str, batch_size: int, caller: dict, now: datetime, wait_for: str = "ready",
+                      pause_seconds: float = 0) -> dict:
+        """Batches of `batch_size`; the next starts `pause_seconds` after every host of the last is ROUTING or EJECTED
+        (`wait_for` ready) or past its JVM start (`process_up`), so process_up batches overlap their bootstraps."""
+        if wait_for not in BATCH_ETA_S:
+            return {"error": f"wait_for must be one of {', '.join(BATCH_ETA_S)}"}
         names = [n for n in self.fleet.select(selector) if n in self.fleet.hosts and not self.fleet.hosts[n].terminated]
         if not names:
             return {"error": f"no streamroute hosts match {selector!r}"}
-        ts, size = now.timestamp(), max(1, int(batch_size or 1))
+        ts, size, pause = now.timestamp(), max(1, int(batch_size or 1)), max(0, int(pause_seconds or 0))
         jid = f"job-{len(self.jobs) + 1:04d}"
         skipped = {n: f"quarantined by srcoord until {self.fleet.hms(h.quarantined_until)}"
                    for n in names if (h := self.fleet.hosts[n]).quarantined_until and ts < h.quarantined_until}
@@ -242,11 +247,17 @@ class Mechanics:
         todo = [n for n in names if n not in skipped]
         j = {"job_id": jid, "selector": selector, "hosts": todo, "skipped": skipped, "batch_size": size,
              "batches": [todo[i:i + size] for i in range(0, len(todo), size)], "current": -1, "started_at": ts,
-             "status": "running", "by": caller.get("role"), "errors": {}, "finished_at": None}
+             "status": "running", "by": caller.get("role"), "errors": {}, "finished_at": None, "wait_for": wait_for,
+             "pause_seconds": pause, "next_at": None}
         self.jobs[jid] = j
         self._next_batch(j, ts)
-        return {"job_id": jid, "hosts": len(todo), "batches": len(j["batches"]), "batch_size": size,
-                "eta": self.iso(ts + len(j["batches"]) * BATCH_ETA_S), **({"skipped": skipped} if skipped else {})}
+        return {"job_id": jid, "hosts": len(todo), "batches": len(j["batches"]), "batch_size": size, "wait_for": wait_for,
+                "pause_seconds": pause, "eta": self.iso(ts + self._eta_s(j, len(j["batches"]))),
+                **({"skipped": skipped} if skipped else {})}
+
+    @staticmethod
+    def _eta_s(j: dict, batches: int) -> float:
+        return batches * BATCH_ETA_S[j["wait_for"]] + max(0, batches - 1) * j["pause_seconds"]
 
     def _next_batch(self, j: dict, ts: float) -> None:
         j["current"] += 1
@@ -259,14 +270,19 @@ class Mechanics:
                 j["errors"][n] = err
 
     def _batch_settled(self, j: dict) -> bool:
-        hosts = self.fleet.hosts
-        return all(n in j["errors"] or hosts[n].terminated or hosts[n].state in (ROUTING, EJECTED)
-                   for n in j["batches"][j["current"]])
+        hosts, up = self.fleet.hosts, j["wait_for"] == "process_up"
+        return all(n in j["errors"] or hosts[n].terminated or hosts[n].state in (ROUTING, EJECTED) or
+                   up and hosts[n].proc and hosts[n].phase != "jvm" for n in j["batches"][j["current"]])
 
     def _advance_jobs(self, ts: float) -> list[dict]:
         out = []
         for j in self.jobs.values():
             while j["status"] == "running" and self._batch_settled(j):
+                if j["pause_seconds"] and j["current"] + 1 < len(j["batches"]):
+                    j["next_at"] = j["next_at"] or ts + j["pause_seconds"]
+                    if ts < j["next_at"]:
+                        break
+                j["next_at"] = None
                 self._next_batch(j, ts)
                 if j["status"] == "done":
                     st = self.job_counts(j)
@@ -290,9 +306,10 @@ class Mechanics:
         done = sum(len(b) for b in j["batches"][:j["current"]]) if running else len(j["hosts"])
         left = len(j["batches"]) - j["current"] if running else 0
         return {"job_id": job_id, "status": j["status"], "hosts": len(j["hosts"]), "batch_size": j["batch_size"],
+                "wait_for": j["wait_for"], "pause_seconds": j["pause_seconds"],
                 "done": done, **self.job_counts(j), "current_batch": j["current"] + 1 if running else None,
                 "started_at": self.iso(j["started_at"]),
-                "eta": self.iso(j["finished_at"] or now.timestamp() + BATCH_ETA_S * left),
+                "eta": self.iso(j["finished_at"] or now.timestamp() + self._eta_s(j, left)),
                 **({"skipped": j["skipped"]} if j["skipped"] else {}), **({"errors": j["errors"]} if j["errors"] else {})}
 
     # ---- export ----
@@ -321,7 +338,8 @@ class Mechanics:
             "payments": {"ledger_writer_capacity_timeline": [[iso(t), v] for t, v in self.capacity]},
             "ssm_at_restart": self.ssm_at_restart,
             "fleet_jobs": [{"job_id": j["job_id"], "selector": j["selector"], "status": j["status"], "by": j["by"],
-                            "batch_size": j["batch_size"], "started_at": iso(j["started_at"]),
+                            "batch_size": j["batch_size"], "wait_for": j["wait_for"],
+                            "pause_seconds": j["pause_seconds"], "started_at": iso(j["started_at"]),
                             "finished_at": iso(j["finished_at"]) if j["finished_at"] else None, "hosts": j["hosts"]}
                            for j in self.jobs.values()],
         }}

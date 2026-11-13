@@ -106,7 +106,7 @@ def oracle_steps():
         (*cli("autoscaling describe-auto-scaling-groups --auto-scaling-group-names vl-streamroute-asg"), None),
         ("wait", {"minutes": 1}, None),
         (*sh("sr-a-001", "srctl membership"), None),
-        ("fleet_restart", {"host": "streamroute", "batch_size": 12}, "restart"),
+        ("fleet_restart", {"host": "streamroute", "batch_size": 12, "wait_for": "ready"}, "restart"),
         (*say("CHANGE records (IP 6):\n- vl-streamroute-asg MinSize/DesiredCapacity 132 -> 120 | why: revert PLAT-2291 "
               "(thread limit) | undo: set 132 | auth: APPROVED (IC) priya.raman\n- deleted scheduled action "
               "bf-capacity-hold | why: it re-adds 132 at 14:00 | undo: re-create per PLAT-2291 | auth: APPROVED (IC) "
@@ -187,7 +187,7 @@ def steps_for(mode):
             out.append(("wait", {"minutes": 1}))
         if mode == "bounce" and tool == "chat_post" and args["text"].startswith("Update: restart waves"):
             out.append(("fleet_list_hosts", {"fleet": "streamroute"}))
-            out.append(("fleet_restart", {"host": "{not_routing}", "batch_size": 12}))
+            out.append(("fleet_restart", {"host": "{not_routing}", "batch_size": 12, "wait_for": "ready"}))
         if mode == "heap" and tag == "revert":
             for _ in range(2):
                 out.append(("chat_post", {"channel": CH, "text": "@priya.raman please approve raising "

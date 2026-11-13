@@ -11,7 +11,7 @@ A Mechanics class is built as `Mechanics(world, cfg)` (`cfg` = the scenario's `w
   state() -> dict                                   names for timeline `state`/`unless_state` expressions
   serve_aws(service, operation, params, now) -> dict | None
   fleet_list_hosts(fleet, az) / fleet_inspect_host(host, now) / fleet_exec(selector, command, caller, now) /
-  fleet_restart(selector, batch_size, caller, now) / fleet_job_status(job_id, now)
+  fleet_restart(selector, batch_size, caller, now, wait_for, pause_seconds) / fleet_job_status(job_id, now)
   export() -> dict                                  merged into the world export
 and may expose `fleet` with `select(selector) -> list[str]`, which the meter uses to count a command's hosts.
 """
@@ -109,8 +109,9 @@ class MechWorld:
     def fleet_exec(self, selector: str, command: str, caller: dict) -> dict:
         return self.mech.fleet_exec(selector, command, caller, self.now)
 
-    def fleet_restart(self, selector: str, batch_size: int, caller: dict) -> dict:
-        return self.mech.fleet_restart(selector, batch_size, caller, self.now)
+    def fleet_restart(self, selector: str, batch_size: int, caller: dict, wait_for: str = "ready",
+                      pause_seconds: float = 0) -> dict:
+        return self.mech.fleet_restart(selector, batch_size, caller, self.now, wait_for, pause_seconds)
 
     def fleet_job_status(self, job_id: str) -> dict:
         return self.mech.fleet_job_status(job_id, self.now)

@@ -13,8 +13,7 @@ step 2 is a documented bootstrap parameter (Peak Freeze §4.1(f)): act, then pos
    2 min trigger cellmap load-shed, which also delays ledger storage heartbeats. The value is read at process start.
 3. **Waves.** Restart in waves of at most 10% of the fleet (12 hosts at 120). Start the next wave only when the
    previous one is ROUTING in `srctl fleet status` (~2-3 min authoritative, ~6 min peers).
-   Tip: `fleet_restart` with `batch_size` 12 runs the waves for you: it starts the next batch only when every host of
-   the previous one is ROUTING (or EJECTED). A submitted job cannot be cancelled, so do steps 1 and 2 first.
+   Tip: `fleet_restart` with `batch_size 12` and `wait_for ready`.
 4. **Warm-up.** Hosts not ROUTING within the warm-up grace (`health/warmup_grace_seconds`, 600 s) are ejected by
    srcoord and quarantined for 15 min (restarts refused until then).
 5. **Afterwards** set `bootstrap_source` back to `peers` once the fleet is ROUTING and stable.

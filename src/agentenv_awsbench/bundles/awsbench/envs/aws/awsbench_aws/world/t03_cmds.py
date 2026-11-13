@@ -153,11 +153,8 @@ class Commands:
     def shard_map(self, h, now: float) -> dict:
         st = "VALID" if h.state == ROUTING else "FAILED" if h.stuck else "STALE" if h.state == STALE else (
             "BUILDING" if h.state == WARMING else "NONE")
-        out = {"state": st, "epoch": h.epoch, "last_success": self.m.fleet.hms(h.last_success) if h.last_success
-               else None, "last_error": h.last_error, "workers_started": h.workers_started}
-        if h.valid_until:
-            out["expires"] = self.m.fleet.hms(h.valid_until)
-        return out
+        return {"state": st, "epoch": h.epoch, "last_success": self.m.fleet.hms(h.last_success) if h.last_success
+                else None, "last_error": h.last_error}
 
     def leases_of(self, name: str) -> list[int]:
         return [s for s, o in enumerate(self.m.flow.owner) if o == name]
@@ -302,7 +299,7 @@ class Commands:
                 if x.state == STALE:
                     lines.append(f"  {x.name} STALE (map expires {f.hms(x.valid_until)})")
                 elif x.state == WARMING:
-                    lines.append(f"  {x.name} WARMING ({x.phase})")
+                    lines.append(f"  {x.name} WARMING")
                 elif x.state == EJECTED:
                     lines.append(f"  {x.name} EJECTED (quarantined until {f.hms(x.quarantined_until)})")
             return "\n".join(lines) + "\n", 0
@@ -310,8 +307,7 @@ class Commands:
             sm = self.shard_map(h, now)
             skipped = "; rebuild skipped: build already in progress" if h.stuck else ""
             return (f"host {h.name} state={h.state} uptime={self.uptime(h.process_start, now)}\n"
-                    f"shardmap {sm['state']} epoch={sm['epoch']}; last_success={sm['last_success']}{skipped}"
-                    + (f"; last_error={sm['last_error']}" if sm["last_error"] else "") + "\n"
+                    f"shardmap {sm['state']} epoch={sm['epoch']}; last_success={sm['last_success']}{skipped}\n"
                     f"peers known={h.known} connected={h.links}; leases "
                     f"{','.join(str(s) for s in self.leases_of(h.name)) or '-'}\n"), 0
         if sub == "lag":
@@ -523,7 +519,7 @@ class Commands:
             return f"Unit {unit}.service could not be found.\n", 4
         if verb in ("restart", "start", "stop") and unit == "streamroute":
             if verb == "stop":
-                return "systemctl stop streamroute: refused by srcoord fencing; use srctl restart\n", 1
+                return "systemctl stop streamroute: refused by srcoord fencing\n", 1
             limit_before = h.limit
             err = self.m.restart_host(h.name, now)
             if err:

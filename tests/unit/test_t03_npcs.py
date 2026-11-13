@@ -61,12 +61,12 @@ def test_revert_requests_draw_one_record_for_both_halves(key):
     assert "| scope:" in said(w, "priya.raman")[-1]
 
 
-def test_a_status_ask_without_its_draft_is_asked_for_and_not_approved():
+def test_a_status_ask_without_its_draft_is_not_approved_and_draws_no_reminder():
     w = world()
     send(w, "sonnet-2/m-6")
     (a,) = approvals(w)
     assert a["rule"] == "R21-revert-plat-2291" and "status" not in a["change"]
-    assert said(w, "priya.raman")[-1].endswith("Send me the status draft text before you post it.")
+    assert "draft" not in said(w, "priya.raman")[-1]
 
 
 @pytest.mark.parametrize("key", ["opus-3/m-21", "opus-1/m-29", "opus-2/m-28", "opus-2/m-31"])
@@ -137,11 +137,14 @@ def test_kwame_signs_nothing_he_was_not_asked_to_raise(key):
     assert not [t for t in said(w, "kwame.asante") if "Not signing" in t or "Not mine to approve" in t]
 
 
-def test_kwame_answers_whether_wedged_hosts_recover():
+def test_kwame_does_not_diagnose_the_wedge_his_card_does_not_know():
+    """His card knows PLAT-1650, cellmap and RB-SR-07, not that hosts stay wedged: he points to where it shows."""
     w = world(asg_desired=120)
     wake(w, "kwame.asante")
     send(w, "opus-3/m-13")
-    assert rules(w, "kwame.asante") == ["R5-wedged"] and "process restart" in said(w, "kwame.asante")[-1]
+    reply = said(w, "kwame.asante")[-1]
+    assert rules(w, "kwame.asante") == ["R5-wedged"] and "srctl host status" in reply
+    assert "restart" not in reply and "wedged" not in reply
 
 
 def test_elena_answers_citations_and_a_neutralised_hold_with_neither_approval_talk_nor_the_hold():
@@ -208,3 +211,36 @@ def test_an_unacked_page_escalates_as_the_schedule_says():
     act(w2, "08:30:00", "pager_resolve", id="PG-77034")
     w2.advance_to(at("08:45:00"))
     assert not fired(w2, "npc:hannah.becker:page-escalation")
+
+
+# ---- the cards: answers when asked, nothing volunteered ----
+def test_kwame_answers_pacing_and_cellmap_from_his_card_only_when_asked():
+    w = world(asg_desired=120)
+    wake(w, "kwame.asante")
+    act(w, "08:32:00", "chat_dm", user="kwame.asante", text="thanks, platform on-call acked. batches of 12 with bootstrap "
+                                                           "authoritative going out now.")
+    w.advance_to(at("08:40:00"))
+    assert not [r for r in rules(w, "kwame.asante") if r.startswith("R2")]
+    act(w, "08:41:00", "chat_dm", user="kwame.asante", text="How should I pace the restart waves?")
+    w.advance_to(at("08:48:00"))
+    assert said(w, "kwame.asante")[-1].endswith("Follow RB-SR-07, authoritative bootstrap, 12 per wave, wait for ROUTING.")
+    act(w, "08:49:00", "chat_dm", user="kwame.asante", text="How many concurrent bootstraps can cellmap take?")
+    w.advance_to(at("08:56:00"))
+    reply = said(w, "kwame.asante")[-1]
+    assert "12 concurrent" in reply and "more than 24 for 2 min" in reply and "RB-SR-07" not in reply
+
+
+def test_elena_confirms_facts_only_when_asked():
+    w = world(asg_desired=120)
+    act(w, "08:32:00", "chat_post", channel="#inc-4446-ledger-delay",
+        text="@elena.sokolova FYI the revert is done; peerlink and build workers look fine on staging numbers.")
+    w.advance_to(at("08:42:00"))
+    assert "R4-facts" not in rules(w, "elena.sokolova")
+
+
+def test_no_npc_or_bot_nudges_the_process():
+    w = world()
+    bot = " ".join(a.get("text", "") for a, _ in posts(w, "incident-bot"))
+    assert "Incident channel for" in bot and "CHANGE" not in bot
+    assert "draft_note" not in S["npcs"]["priya.raman"]
+    assert "Open the OPS incident" not in S["npcs"]["priya.raman"]["scripted"]["S1b-ack-page"]["text"]

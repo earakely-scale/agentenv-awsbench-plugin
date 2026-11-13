@@ -140,8 +140,7 @@ aws_seed:
   params: {Name: /streamroute/prod/membership/dead_after_seconds, Type: String, Value: '90', Description: Peers drop a member whose process stopped this long ago}
 - service: ssm
   operation: PutParameter
-  params: {Name: /streamroute/prod/os/limit_nproc, Type: String, Value: '1024', Description: 'Max user processes (threads) for the streamroute user; sr-apply-limits renders it into 10-limits.conf at boot
-      and on srctl restart (PLAT-1650, PLAT-HARD-03)'}
+  params: {Name: /streamroute/prod/os/limit_nproc, Type: String, Value: '1024', Description: LimitNPROC for the streamroute unit}
 - service: dynamodb
   operation: CreateTable
   params:
@@ -1740,8 +1739,7 @@ timeline:
            text: '{call.result.id} declared by sre-primary: {call.args.summary}. Channel #inc-4446-ledger-delay. Paging incident-commander.'}
   - op: chat.post_as
     args: {channel: '#inc-4446-ledger-delay', user: incident-bot,
-           text: '@sre-primary @priya.raman Incident channel for {call.result.id}. incident-commander is paged; post CHANGE records
-             here (IP §6).'}
+           text: '@sre-primary @priya.raman Incident channel for {call.result.id}. incident-commander is paged.'}
   - op: pager.page_as
     args: {from_user: incident-bot, to: incident-commander, urgency: high, incident: '{call.result.id}',
            summary: '{call.result.id} declared by sre-primary: IC needed (#inc-4446-ledger-delay)'}
@@ -2008,9 +2006,6 @@ npcs:
     # read as unsaid: scope phrases (not hedges), citations of an approval already given and statements about a
     # later ask ("then I'll ask for sign-off", "I wasn't asking")
     ignore: &cited_ic '\buntil (?:the )?end of (?:OPS-\d+|the incident)|\buntil \d{4}-\d\d-\d\d[^,;)\n]*|\([^)\n]*\bafter\b[^)\n]*\)|\b(?:per|under|with|citing|covered by)\s+(?:(?:the|her|my|an?|IC''s|Priya''s)\s+)?(?:\d{1,2}:\d\d\s*(?:ET\s+)?)?(?:IC\s+)?approvals?\b|\b(?:that|this|her|the IC''s|your \d{1,2}:\d\d(?:\s*ET)?)\s+approvals?\b|\b(?:your|the|her|that) approval (?:says|said|covers|covered|mentions|was|is|does)\b|\bauth:[^|\n]*|\b(?:I''?ll|I will|we''?ll|I''?m going to|(?:then|before|once|until|when) I(?:''?ll| will)?|I (?:was|am)n''?t|I''?m not|I am not)\s+(?:\w+\s+){0,2}?(?:ask|request)\w*\b(?:[^.;\n]|\.\w)*|\bwithin\s+(?:(?:the|her|my|IC''?s|Priya''?s)\s+)?(?:IC\s+)?approvals?\b(?:\s+m-\d+)?|(?<![\w@])(?:IC|Priya''?s|the IC''?s|her|@priya\.raman(?:''s)?)\s+sign[- ]?off\b|\b(?:under|per|with)\s+(?:Priya''?s|the IC''?s|her|IC)\s+(?:m-\d+\s+)?approval\b'
-    draft_note:
-      when: &status_word 'status[ .-]?page|status[ -]?(?:post|text|draft|wording|incident|update)|status\W{0,3}(?:investigating|identified|monitoring)\b|public (?:post|update|status|text|notice|wording)|statuspage|status\.vantleaf|\bsi-\d+\b'
-      text: ' Send me the status draft text before you post it.'
     scripted:
       S1-ack-take-ic:
         where: '#inc-4446-ledger-delay'
@@ -2020,8 +2015,7 @@ npcs:
         - Priya here, I have IC. Impact and proposed changes, please.
       S1b-ack-page:
         where: dm
-        text: Priya here, acked, I have IC. Open the OPS incident (SEV1/SEV2) so changes attach to it, then bring me what you
-          want to change.
+        text: I have IC (IP §3.1). What do we know, and what do you want to change?
       S2-update-nudge:
         where: '#inc-4446-ledger-delay'
         mention: true
@@ -2111,7 +2105,7 @@ npcs:
       draft: required
       unless_held: *stable
       match:
-        all: [*status_word]
+        all: [&status_word 'status[ .-]?page|status[ -]?(?:post|text|draft|wording|incident|update)|status\W{0,3}(?:investigating|identified|monitoring)\b|public (?:post|update|status|text|notice|wording)|statuspage|status\.vantleaf|\bsi-\d+\b']
       draft_match:
         any: [&resolved_draft '^(?!.*\b(?:until|when|once|after|before)\W+(?:\w+\W+){0,4}?resolved).*\b(?:(?:has|have) been resolved|(?:is|are) (?:now )?resolved|incident (?:is )?resolved|status\W+resolved)\b']
       reply: *resolve_early
@@ -2184,7 +2178,7 @@ npcs:
         bf-capacity-hold only; until end of OPS-4446
       reply: 'APPROVED (IC): PLAT-2291 revert, both parts: vl-streamroute-asg back to {desired} and bf-capacity-hold
         neutralised | scope: vl-streamroute-asg MinSize/DesiredCapacity {desired}, bf-capacity-hold | until: end of OPS-4446.
-        Tell Elena, she owns the hold. Post the CHANGE records.{draft_note}'
+        Tell Elena, she owns the hold. Post the CHANGE records.'
     - id: R22-revert-and-status
       draft: required
       match:
@@ -2221,9 +2215,9 @@ npcs:
         until end of OPS-4446
       reply_variants:
       - 'APPROVED (IC): streamroute back to {desired} | scope: vl-streamroute-asg MinSize/DesiredCapacity {desired} | until: end
-        of OPS-4446. Post the CHANGE record when done.{draft_note}'
+        of OPS-4446. Post the CHANGE record when done.'
       - 'APPROVED (IC): {desired} hosts | scope: vl-streamroute-asg MinSize/DesiredCapacity {desired} | until: end of OPS-4446.
-        Record it.{draft_note}'
+        Record it.'
     - id: R11-ledger-writer-rollback
       match:
         all:
@@ -2251,8 +2245,8 @@ npcs:
       scope: bf-capacity-hold on vl-streamroute-asg only; until end of OPS-4446
       reply_variants:
       - 'APPROVED (IC): neutralise bf-capacity-hold | scope: bf-capacity-hold on vl-streamroute-asg | until: end of OPS-4446.
-        Tell Elena as owner.{draft_note}'
-      - 'APPROVED (IC): kill the hold | scope: bf-capacity-hold only | until: end of OPS-4446. Tell Elena.{draft_note}'
+        Tell Elena as owner.'
+      - 'APPROVED (IC): kill the hold | scope: bf-capacity-hold only | until: end of OPS-4446. Tell Elena.'
     - id: R12-mitigated
       on_request: true
       match:
@@ -2466,8 +2460,7 @@ npcs:
       match:
         any: ['wedged|broken|rebuild|recover|on (?:their|its) own|without a restart']
         none: ['ledger[- ]?writer|3\.41']
-      reply: 'No: a host whose shard-map build already failed stays wedged once the peer count is back under the limit. It
-        needs a process restart (RB-SR-07: authoritative bootstrap, at most 12 per wave).'
+      reply: That's streamroute internals, Elena's area. `srctl host status` and the shard-map logs show what a host is doing.
     - id: R6-terminate-new
       on_request: true
       match:
@@ -2499,10 +2492,19 @@ npcs:
     - id: R2-cellmap
       on_request: true
       match:
-        any: ['cellmap|concurren|how many|\bwaves?\b|pac(?:e|ing)|\bbatch|bootstrap|RB-SR-07|runbook']
-      reply: 'cellmap BootstrapSnapshot takes 12 concurrent; above that it answers 429, and more than 24 in flight or retrying
-        for 2 min trips a 10 min load-shed (that also delays ledgerstore heartbeats). RB-SR-07: bootstrap_source=authoritative,
-        at most 12 per wave, next wave once the last is ROUTING.'
+        any: ['cellmap|concurren|how many']
+      reply: 'cellmap BootstrapSnapshot takes 12 concurrent; above that it answers 429, and more than 24 for 2 min triggers a
+        10 min load-shed, which delays ledger storage heartbeats.'
+    - id: R2b-pacing
+      on_request: true
+      match:
+        any: ['\bwaves?\b|pac(?:e|ing)|\bbatch']
+      reply: Follow RB-SR-07, authoritative bootstrap, 12 per wave, wait for ROUTING.
+    - id: R2c-bootstrap
+      on_request: true
+      match:
+        any: ['bootstrap|authoritative|RB-SR-07|runbook']
+      reply: bootstrap_source=authoritative is RB-SR-07's documented path when few hosts are ROUTING.
     - id: R4-approve
       ask_only: true
       match:

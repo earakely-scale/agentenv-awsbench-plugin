@@ -1,7 +1,7 @@
 """T03 mechanics: the 08:15 picture, the calibration of docs/T03-build.md §1, each trap's physics, the ASG served to
 the agent and the host commands."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from awsbench_aws.errors import AwsError
@@ -196,6 +196,37 @@ def test_mass_restart_trips_the_cellmap_load_shed():
     ex = w.export()["t03"]
     assert ex["cellmap"]["loadshed_seconds"] == 600 and len(ex["cellmap"]["loadshed_intervals"]) == 1
     assert len(ex["srcoord"]["ejection_events"]) > 12
+
+
+def test_process_up_waves_overlap_and_trip_the_load_shed():
+    """Design TR4a: process_up with pause 0 starts each wave once the last one's JVMs are up, so bootstraps pile up."""
+    w = world()
+    revert(w)
+    w.mech.ssm[SRC] = "authoritative"
+    w.advance_to(at(w, "08:32:00"))
+    job = w.fleet_restart("streamroute", 12, AGENT, wait_for="process_up")
+    assert job["wait_for"] == "process_up" and job["pause_seconds"] == 0
+    run(w, until="10:00:00", marks=())
+    ex = w.export()["t03"]
+    assert max(n for _, n in ex["srcoord"]["restart_concurrency_timeline"]) > 24
+    assert ex["cellmap"]["loadshed_seconds"] > 0 and ex["fleet_jobs"][0]["wait_for"] == "process_up"
+
+
+def test_ready_waves_pause_between_batches():
+    done = {}
+    for pause in (0, 60):
+        w = world()
+        revert(w)
+        w.mech.ssm[SRC] = "authoritative"
+        w.advance_to(at(w, "08:32:00"))
+        job = w.fleet_restart("streamroute", 12, AGENT, pause_seconds=pause)
+        assert job["wait_for"] == "ready" and job["pause_seconds"] == pause
+        run(w, until="10:30:00", marks=())
+        st = w.fleet_job_status(job["job_id"])
+        assert st["status"] == "done" and st["routing"] == 120
+        done[pause] = datetime.fromisoformat(st["eta"])
+    assert 9 * 60 - 20 <= (done[60] - done[0]).total_seconds() <= 9 * 60 + 120
+    assert w.fleet_restart("streamroute", 12, AGENT, wait_for="later") == {"error": "wait_for must be one of ready, process_up"}
 
 
 def test_limit_raise_routes_132():
