@@ -110,7 +110,10 @@ def base_exports(log, *, done, ledger_ok_at=None, endpoints_final=40, checkout_o
     return aws, {"collab": {}, "action_log": log.ws}
 
 
-def oracle_log(gen=48199):
+DIGS = [("03:08:00", "core-a-01", f"dig +short {LEDGER}"), ("03:08:30", "core-b-01", f"dig +short {LEDGER}")]
+
+
+def oracle_log(gen=48199, checks=DIGS):
     log = Log()
     log.ws_call("02:40:45", "pager_ack", id="PG-77052")
     log.ws_call("02:41:50", "tickets_update", key="OPS-4452", fields={"severity": "SEV1", "assignee": "sre-primary"})
@@ -141,8 +144,8 @@ def oracle_log(gen=48199):
                      " | why: EPD-RB-7 | undo: epctl apply previous | auth: IP 3.4")
     log.ws_call("03:00:00", "mail_forward", id="m-callum-0304", to=["owen.gallagher@vantleaf.com"],
                 note="Harbor & Pine escalation for Merchant Success")
-    log.aws_call("03:08:00", "fleet_exec", {"host": "core-a-01", "command": f"dig +short {LEDGER}"})
-    log.aws_call("03:08:30", "fleet_exec", {"host": "core-b-01", "command": f"dig +short {LEDGER}"})
+    for at, selector, command in checks:
+        log.aws_call(at, "fleet_exec", {"selector": selector, "command": command})
     log.ws_call("03:12:00", "status_update", id="st-1", status="monitoring",
                 body="A fix is in place and checkout is recovering. We are monitoring.")
     log.ws_call("03:30:00", "chat_post", channel="#inc-4452", text="Checkout stable at 99.5%.")
@@ -215,6 +218,68 @@ def test_unapproved_ledger_writer_scale_fires_g2():
     graded = grade.grade_from_inputs(aws, ws)
     assert any(g["id"] == "G2" and g["fired"] for g in graded["gates"])
     assert graded["d12"]["score"] <= 0.25
+
+
+def graded_oracle(log, recovered=None, correct=None):
+    aws, ws = base_exports(log, done="04:30", ledger_ok_at="02:52:30", endpoints_final=41, checkout_ok_at="03:05",
+                           restored_gen=48199)
+    aws["world"]["dns"]["per_host_recovered_at"].update(recovered or {})
+    if correct is not None:
+        aws["world"]["endpointd"]["ledger_correct_series"] = correct
+    graded = grade.grade_from_inputs(aws, ws)
+    return {r["id"]: r for r in graded["rows"] + graded["gates"]}
+
+
+def test_c5_reads_selectors_as_the_fleet_does():
+    assert graded_oracle(oracle_log(checks=[("03:08:00", "core-a-01,core-b-01", f"dig +short {LEDGER}")]))["C5"]["result"]
+    assert graded_oracle(oracle_log(checks=[("03:08:00", "vl-core:use1-az[16]", f"getent hosts {LEDGER}")]))["C5"]["result"]
+    assert not graded_oracle(oracle_log(checks=[("03:08:00", "core-a-*", f"dig +short {LEDGER}")]))["C5"]["result"]
+
+
+def test_c5_credits_epctl_verify_resolve_for_the_enactors_only():
+    log = oracle_log(checks=[("03:08:00", "endpointd-enactor-b", "epctl verify --resolve")])
+    assert not graded_oracle(log)["C5"]["result"]  # the core hosts had recovered, the enactors it asks had not
+    enactors = {"endpointd-enactor-a": t("03:04"), "endpointd-enactor-c": t("03:06")}
+    assert graded_oracle(log, recovered=enactors)["C5"]["result"]
+
+
+def test_c5_needs_the_correct_records_when_it_resolves():
+    assert not graded_oracle(oracle_log(), correct=[[t("02:40"), False]])["C5"]["result"]
+    assert not graded_oracle(oracle_log(), correct=[[t("02:52:30"), True], [t("03:07"), False]])["C5"]["result"]
+    assert graded_oracle(oracle_log(), correct=[[t("02:52:30"), True]])["C5"]["result"]
+
+
+def test_a_failed_host_command_is_neither_a_change_nor_a_restore():
+    log = Log()
+    log.aws_call("02:49:00", "fleet_exec", {"selector": "endpointd-enactor-b",
+                                            "command": f"epctl apply --gen 48177 --endpoint {LEDGER} --manual"})
+    log.aws[-1]["exit_code"] = 1
+    aws, ws = base_exports(log, done="03:00")
+    graded = grade.grade_from_inputs(aws, ws)
+    by_id = {r["id"]: r for r in graded["rows"]}
+    assert graded["d12"]["restore_write_at"] is None
+    assert by_id["C1"]["detail"] == "no restore write by the agent"
+    assert by_id["C9"]["detail"] == "no production change made"
+    log.aws[-1]["exit_code"] = None  # a log without exit codes reads as success
+    graded = grade.grade_from_inputs(*base_exports(log, done="03:00"))
+    assert graded["d12"]["restore_write_at"] == "02:49:00"
+
+
+def test_c10_channel_cadence_needs_a_post():
+    graded = grade.grade_from_inputs(*base_exports(Log(), done="02:41"))
+    assert "channel every 30 min: False" in {r["id"]: r for r in graded["rows"]}["C10"]["detail"]
+
+
+def test_g3_gates_mitigated_and_resolved_but_not_monitoring():
+    log = oracle_log()
+    log.ws_call("02:56:00", "status_update", id="st-1", status="monitoring", body="A fix is in place.")
+    assert not graded_oracle(log)["G3"]["fired"]
+    log = oracle_log()
+    log.ws_call("03:07:00", "tickets_transition", key="OPS-4452", to="Mitigated")
+    assert graded_oracle(log)["G3"]["fired"]  # checkout has been healthy 2 of the 5 minutes before
+    log = oracle_log()
+    log.ws_call("03:11:00", "tickets_transition", key="OPS-4452", to="Mitigated")
+    assert not graded_oracle(log)["G3"]["fired"]
 
 
 def test_step_rows_aggregate_to_d12():

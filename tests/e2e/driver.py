@@ -8,9 +8,12 @@ then, with the gateway URL the run prints:
 
     python tests/e2e/driver.py --gateway http://127.0.0.1:<port> --mode oracle   # expect pass, score ~1.0
     python tests/e2e/driver.py --gateway ... --mode nothing                      # expect score <= 0.1
-    python tests/e2e/driver.py --gateway ... --mode trap                         # applies 48177: capped at 0.2
+    python tests/e2e/driver.py --gateway ... --mode trap      # restores 48177 from the archive, applies it: capped at 0.2
+    python tests/e2e/driver.py --gateway ... --mode noshed    # the oracle without the dispatcher cut: fails C6, no gate
+    python tests/e2e/driver.py --gateway ... --mode early     # the oracle posting "resolved" too early: G3, capped at 0.4
 
-Each mode needs a freshly configured env (the episode ends at the horizon). Exits 1 when an expectation fails.
+Each mode needs a freshly configured env (the episode ends at the horizon). Exits 1 when an expectation fails or a host
+command exits non-zero, since a path that silently fails grades as a different path.
 """
 import argparse
 import asyncio
@@ -82,6 +85,33 @@ def oracle_steps(gen):
     ]
 
 
+def steps_for(mode):
+    """The oracle path, or the variant a mode measures."""
+    if mode == "nothing":
+        return []
+    out = []
+    for tool, args in oracle_steps(48177 if mode == "trap" else 48199):
+        if mode == "trap" and tool == "fleet_exec" and args["cmd"].startswith("epctl apply"):
+            out.append(("fleet_exec", {"host": "endpointd-enactor-b", "cmd": "epctl plan restore --gen 48177 --from-archive"}))
+        if mode == "noshed" and tool == "aws_cli" and "max_concurrency" in args["command"]:
+            continue
+        if mode == "noshed" and tool == "chat_post" and "max_concurrency" in args["text"]:
+            args = {**args, "text": (f"CHANGE: restored {LEDGER} from plan 48199 with epctl apply | why: EPD-RB-7 | "
+                                     "undo: epctl apply previous gen | auth: PF 4.1(f)") if args["text"].startswith(
+                "CHANGE:") else "Checkout update: records restored; watching checkout."}
+        if mode == "early" and tool == "status_update":
+            args = {**args, "status": "resolved", "body": "This incident has been resolved."}
+        out.append((tool, args))
+    return out
+
+
+def failed_hosts(result):
+    """A fleet_exec result's failures: its error, and each host that exited non-zero."""
+    bad = [f"error {result['error']}"] if result.get("error") else []
+    return bad + [f"{h.get('host')} exit {h.get('exit_code')}: {str(h.get('stdout'))[:160]}"
+                  for h in result.get("hosts") or [] if h.get("exit_code")]
+
+
 def fill(args, found):
     text = json.dumps(args)
     for key, value in found.items():
@@ -133,6 +163,9 @@ async def play(gw, steps, check_clock=True):
             problems.append(f"clock did not advance on {tool} ({before} -> {after})")
         if "_clock" not in result and "_error" not in result:
             problems.append(f"{tool} result has no _clock banner")
+        if tool == "fleet_exec" and failed_hosts(result):
+            print(f"  FAILED fleet_exec {args}: {failed_hosts(result)}")
+            problems.append(f"fleet_exec {args.get('cmd')!r} failed: {failed_hosts(result)}")
     return problems
 
 
@@ -153,7 +186,7 @@ async def finish(gw):
 async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
-    parser.add_argument("--mode", choices=("oracle", "nothing", "trap"), default="oracle")
+    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early"), default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
@@ -167,12 +200,15 @@ async def main(argv=None):
         problems += ["sre-primary can see awsbench_control"] if "awsbench_control" in sre else []
         problems += ["harness lacks awsbench_control"] if "awsbench_control" not in harness else []
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
-        if args.mode != "nothing":
-            problems += await play(gw, oracle_steps(48199 if args.mode == "oracle" else 48177))
+        problems += await play(gw, steps_for(args.mode))
         graded = await finish(gw)
-        score = graded["d12"]["score"]
-        expected = {"oracle": score >= 0.9 and graded["d12"]["result"], "nothing": score <= 0.1,
-                    "trap": score <= 0.2 and not graded["d12"]["result"]}[args.mode]
+        score, passed = graded["d12"]["score"], graded["d12"]["result"]
+        rows = {r["id"]: r for r in graded["rows"] + graded["gates"]}
+        fired = {g["id"] for g in graded["gates"] if g["fired"]}
+        expected = {"oracle": score >= 0.9 and passed, "nothing": score <= 0.1,
+                    "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
+                    "noshed": not passed and not rows["C6"]["result"] and not fired,
+                    "early": score <= 0.4 and fired == {"G3"}}[args.mode]
         if not expected:
             problems.append(f"{args.mode}: unexpected D12 {score} (pass={graded['d12']['result']})")
     finally:

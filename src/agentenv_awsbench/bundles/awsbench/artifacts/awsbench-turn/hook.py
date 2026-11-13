@@ -24,9 +24,9 @@ async def post_turn(turn, params):
     unknown = sorted(set(params) - set(PARAMS))
     if unknown:
         raise ValueError(f"awsbench-turn takes {list(PARAMS)}, not {unknown}")
-    env = next((e for e in turn.envs if e.env_id == params.get("env_id", "awsbench")), None)
+    env = find_env(turn.envs, params.get("env_id", "awsbench"))
     if env is None:
-        return _end(turn, "no_awsbench_env")
+        return _end(turn, "no_awsbench_env", envs=[e.env_id for e in turn.envs])
     role = params.get("role", "harness")
     try:
         if said_done(turn.agent_reply, params.get("done_regex", DONE)):
@@ -48,6 +48,17 @@ async def post_turn(turn, params):
         except Exception:
             logger.warning("awsbench-turn could not end the episode after its error", exc_info=True)
         return _end(turn, "hook_error", error=repr(e)[:500])
+
+
+def find_env(envs, want):
+    """The env the task names: a bundle run deploys `awsbench` as `@local/.../awsbench`, so the id's last path segment
+    counts too, and a run with one deployed env means that one."""
+    envs = list(envs)
+    for match in (lambda e: e.env_id == want, lambda e: str(e.env_id).rstrip("/").rsplit("/", 1)[-1] == want):
+        found = [e for e in envs if match(e)]
+        if found:
+            return found[0]
+    return envs[0] if len(envs) == 1 else None
 
 
 def said_done(reply, pattern=DONE):

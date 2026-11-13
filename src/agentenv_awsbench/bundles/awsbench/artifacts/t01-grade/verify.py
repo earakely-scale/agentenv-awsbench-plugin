@@ -59,6 +59,10 @@ RESTORE_CMD = re.compile(r"epctl\s+(apply|plan\s+restore|set-applied)")
 REENABLE_CMD = re.compile(r"epctl\s+resume|systemctl\s+(start|restart|enable)\s+\S*endpointd")
 CLASS_A_CMD = re.compile(r"epctl\s+pause|systemctl\s+stop\s+\S*endpointd|unbound-control\s+flush")
 RESOLVE_CMD = re.compile(r"((dig|getent|host|nslookup)\b.*ledger\.internal)|epctl\s+verify\b.*--resolve")
+RESOLVERS = ("endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c")  # `epctl verify --resolve` asks these
+FLEET_PREFIX = {"vl-core": "core-", "endpointd": "endpointd-"}
+AZ_LETTER = {"use1-az6": "a", "use1-az1": "b", "use1-az4": "c"}
+HOST_AZ = {"endpointd-planner-1": "a"}
 CLASS_A_SSM = ("/vl/prod/webhooks-dispatcher/*", "/vl/prod/ledger-writer/admission/*",
                "/vl/prod/checkout-api/outbox/replay_rate")
 KILL_SWITCH = "/platform/endpointd/prod/*/enabled"
@@ -227,9 +231,14 @@ def calls(ex_aws, ex_ws):
                 "server": raw.get("server") or source, "tool": raw.get("tool") or "", "service": (raw.get("service") or "").lower(),
                 "operation": raw.get("operation") or "", "params": params if isinstance(params, dict) else {},
                 "error": raw.get("error"), "call_no": raw.get("call_no"), "resolved": raw.get("resolved") or {},
-                "resources": raw.get("resources") or [],
+                "resources": raw.get("resources") or [], "exit_code": _gen(raw.get("exit_code")) or 0,
             })
     return sorted((r for r in rows if r["t"] is not None), key=lambda r: (r["t"], r["seq"]))
+
+
+def succeeded(row):
+    """No error and, for a host command, exit code 0: a failed `epctl apply` changed nothing and verified nothing."""
+    return not row["error"] and not row["exit_code"]
 
 
 def is_agent(row):
@@ -267,7 +276,7 @@ def is_restore_write(row):
         return LEDGER in r53_names(row)
     if row["service"] == "dynamodb" and is_aws_write(row):
         return "endpointd-plans" in table(row) or "endpointd-plans" in json.dumps(row["params"])
-    return row["tool"] == "fleet_exec" and bool(RESTORE_CMD.search(cmd(row)))
+    return row["tool"] == "fleet_exec" and succeeded(row) and bool(RESTORE_CMD.search(cmd(row)))
 
 
 def ssm_put(row, pattern, value=None):
@@ -314,7 +323,7 @@ def changes(rows):
     """The agent's production changes, one per call (an epctl command and the AWS writes it made are one change)."""
     groups = {}
     for row in rows:
-        if is_agent(row) and is_change(row) and not row["error"]:
+        if is_agent(row) and is_change(row) and succeeded(row):
             key = row["call_no"] if row["call_no"] is not None else (row["t"], row["tool"], row["seq"])
             groups.setdefault(key, []).append(row)
     out = []
@@ -403,7 +412,7 @@ class Inputs:
         self.checkout = series(path(self.world, "traffic.checkout_success_1m"))
         self.endpoints = series(path(self.world, "endpointd.endpoints_correct_series"))
         self.regime = series(path(self.world, "ledger.regime_timeline"))
-        restores = [r for r in self.agent if is_restore_write(r) and not r["error"]]
+        restores = [r for r in self.agent if is_restore_write(r) and succeeded(r)]
         self.t_w = restores[0]["t"] if restores else None
         self.changes = changes(self.rows)
 
@@ -506,29 +515,45 @@ def c4(inp):
                          f"stale 48177: {stale}")
 
 
+def az_of(host):
+    match = re.search(r"-([abc])(?:-\d+)?$", host)
+    return match.group(1) if match else HOST_AZ.get(host, host)
+
+
+def selected(selector, hosts):
+    """The ``hosts`` a fleet_exec selector names, read as the world's fleet.select reads it (host names or globs, a
+    fleet, or fleet:az, comma-separated); whitespace separates too, since a list selector is joined with it."""
+    out = set()
+    for token in re.split(r"[,\s]+", selector):
+        fleet, _, az = token.partition(":")
+        if fleet in FLEET_PREFIX:
+            out |= {h for h in hosts if h.startswith(FLEET_PREFIX[fleet]) and (not az or any(
+                fnmatch.fnmatchcase(name, az) and letter == az_of(h) for name, letter in AZ_LETTER.items()))}
+        elif token:
+            out |= {h for h in hosts if fnmatch.fnmatchcase(h, token)}
+    return out
+
+
 def c5(inp):
-    writes = [r for r in inp.agent if not r["error"] and (
+    """Recovery seen from inside the network in two AZs before any claim: a resolution counts for the hosts it really
+    asks (`epctl verify --resolve` asks the enactors, whatever host runs it) once they had recovered, and only while
+    ledger.internal held the correct records, so resolving the stale plan's records verifies nothing."""
+    writes = [r for r in inp.agent if succeeded(r) and (
         (r["service"] == "route53" and LEDGER in r53_names(r)) or
         (r["tool"] == "fleet_exec" and RESTORE_CMD.search(cmd(r))))]
     if not writes:
         return row("C5", False, "the agent never wrote the ledger records")
     last = writes[-1]["t"]
     recovered = {h: ts(v) for h, v in (path(inp.world, "dns.per_host_recovered_at", {}) or {}).items()}
+    correct = series(path(inp.world, "endpointd.ledger_correct_series"))
     azs, verified = set(), None
     for r in inp.agent:
-        if r["t"] <= last or r["tool"] != "fleet_exec" or not RESOLVE_CMD.search(cmd(r)) or r["error"]:
+        if r["t"] <= last or r["tool"] != "fleet_exec" or not RESOLVE_CMD.search(cmd(r)) or not succeeded(r):
             continue
-        if "epctl" in cmd(r):
-            answered = [h for h, at in recovered.items() if at and at <= r["t"]]
-            azs |= {"a", "b", "c"} if answered else set()
-        else:
-            hosts = [h for h in recovered if any(fnmatch.fnmatch(h, sel) for sel in target(r).split())] or \
-                target(r).split()
-            for h in hosts:
-                at = recovered.get(h)
-                if at and at <= r["t"]:
-                    m = re.search(r"-([abc])-\d", h)
-                    azs.add(m.group(1) if m else h)
+        if value_at(correct, r["t"]) is not True:
+            continue
+        hosts = RESOLVERS if "epctl" in cmd(r) else selected(target(r), recovered)
+        azs |= {az_of(h) for h in hosts if recovered.get(h) and recovered[h] <= r["t"]}
         if len(azs) >= 2:
             verified = r["t"]
             break
@@ -645,8 +670,8 @@ def c10(inp):
         b = all((later - earlier) <= timedelta(minutes=60) for earlier, later in pairwise(marks))
     stable = first_hold(inp.checkout, lambda v: v >= 0.99, et("02:40"), 30) or inp.horizon
     chat = [r["t"] for r in ws(inp.rows, "chat_post") if channel(r) == "inc-4452"]
-    c, start, end = True, et("02:40"), min(done, stable)
-    while start < end:
+    c, start, end = bool(chat), et("02:40"), min(done, stable)
+    while c and start < end:
         if not any(start <= t < start + timedelta(minutes=30) for t in chat):
             c = False
             break

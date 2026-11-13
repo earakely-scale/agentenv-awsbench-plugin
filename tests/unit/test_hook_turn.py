@@ -10,9 +10,8 @@ spec.loader.exec_module(hook)
 
 
 class FakeEnv:
-    env_id = "awsbench"
-
-    def __init__(self, status=None, turn_end=None):
+    def __init__(self, status=None, turn_end=None, env_id="awsbench"):
+        self.env_id = env_id
         self.calls = []
         self.status = status or {"now": "2026-11-17T03:00:00-05:00", "ended": False, "calls_left": 100,
                                  "window_end": "2026-11-17T05:10:00-05:00"}
@@ -29,7 +28,7 @@ class FakeEnv:
 
 class FakeTurn:
     def __init__(self, reply, env, last=False):
-        self.agent_reply, self.envs, self.last, self.recorded = reply, [env], last, []
+        self.agent_reply, self.envs, self.last, self.recorded = reply, env if isinstance(env, list) else [env], last, []
 
     def record(self, entry):
         self.recorded.append(entry)
@@ -51,6 +50,21 @@ async def test_done_ends_the_episode():
     env = FakeEnv()
     assert await hook.post_turn(FakeTurn("Handoff written.\nDONE", env), {}) == {"end": "done"}
     assert env.calls == [{"op": "end", "reason": "done"}]
+
+
+async def test_finds_the_env_a_bundle_run_deploys():
+    bundled = FakeEnv(env_id="@local/~/awsbench/src/agentenv_awsbench/bundles/awsbench/awsbench")
+    assert await hook.post_turn(FakeTurn("Handoff written.\nDONE", bundled), {"env_id": "awsbench"}) == {"end": "done"}
+    assert bundled.calls == [{"op": "end", "reason": "done"}]
+
+    other, mine = FakeEnv(env_id="@local/x/mail"), FakeEnv(env_id="@local/x/awsbench")
+    assert hook.find_env([other, mine], "awsbench") is mine
+    assert hook.find_env([FakeEnv(env_id="@local/x/renamed")], "awsbench").env_id == "@local/x/renamed"
+    assert hook.find_env([other, FakeEnv(env_id="@local/x/renamed")], "awsbench") is None
+
+    turn = FakeTurn("DONE", [other, FakeEnv(env_id="@local/x/renamed")])
+    assert await hook.post_turn(turn, {}) == {"end": "no_awsbench_env"}
+    assert turn.recorded[-1]["envs"] == ["@local/x/mail", "@local/x/renamed"]
 
 
 async def test_budget_and_window_end():
