@@ -6,6 +6,8 @@ timezone: America/New_York
 start: '2026-11-17T02:40:00-05:00'
 window_end: '2026-11-17T05:10:00-05:00'
 horizon: '2026-11-17T05:10:00-05:00'
+# What the emulator's own times read for what the seed made (tables, queues, log groups, parameters).
+seeded_at: '2026-10-06T23:28:11-04:00'
 tick_s: 10
 max_calls: 250
 charged_roles:
@@ -2583,6 +2585,32 @@ aws_seed:
   operation: CreateLogGroup
   params:
     logGroupName: /vl/platform/endpointd/enactor-c
+# Route 53 throttling while tonight's acme-renewer run lasts (OPS-4398, SRE-RB-14): from 02:05 until the run completes
+# (ev-acme-done) or is stopped (ecs stop-task). Counters cover the agent's calls, direct or through epctl, whose apply
+# retries them (epctl --help).
+faults:
+- id: r53-change-throttle
+  service: route53
+  operation: ChangeResourceRecordSets
+  from: '2026-11-17T02:05:00-05:00'
+  until_flag: acme_complete
+  every_nth: 3
+  error: Throttling
+- id: r53-prior-request
+  service: route53
+  operation: ChangeResourceRecordSets
+  from: '2026-11-17T02:05:00-05:00'
+  until_flag: acme_complete
+  per: HostedZoneId
+  min_interval_s: 2
+  error: PriorRequestNotComplete
+- id: r53-list-throttle
+  service: route53
+  operation: ListResourceRecordSets
+  from: '2026-11-17T02:05:00-05:00'
+  until_flag: acme_complete
+  every_nth: 5
+  error: Throttling
 world:
   endpointd:
     zone: internal.vantleaf.io

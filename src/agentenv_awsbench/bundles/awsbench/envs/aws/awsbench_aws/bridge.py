@@ -7,11 +7,16 @@ import copy
 import fnmatch
 import hashlib
 import io
+import math
+import re
 import shlex
 import threading
+import time
+from bisect import bisect_right
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -21,12 +26,14 @@ from awscli.clidriver import create_clidriver
 from awscli.paramfile import register_uri_param_handler
 from botocore import xform_name
 from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
+from botocore.utils import parse_timestamp
 
 from .actionlog import ActionLog
 from .cloudtrail import Trail
 from .emulator import ACCESS_KEY, SECRET_KEY, Emulator
 from .errors import AwsError
 from .meter import is_read
+from .ports import AwsPort
 
 urllib3.disable_warnings()
 
@@ -58,6 +65,7 @@ FAULT_MESSAGES = {
     "ServiceUnavailable": "Service is unavailable. Please try again later.",
     "InternalError": "We encountered an internal error. Please try again.",
 }
+TIME_LONG = re.compile(r"(?i)(time|timestamp)$")
 
 
 class CommandError(ValueError):
@@ -132,16 +140,22 @@ def iam_allows(policy: dict, service: str, operation: str, params: dict) -> bool
 
 
 class Faults:
-    """Scenario fault rules: the first rule matching a call by service, operation, params, time window, rate and
-    count raises its error. Draws are seeded, so a replay sees the same faults."""
+    """Scenario fault rules: the first rule matching a call by service, operation, params and window (`from`, `until`,
+    and `until_flag`, the world flag that ends it) raises its error, on a seeded `rate` of calls, on every
+    `every_nth` one, or, with `min_interval_s`, on one that follows the last accepted call with the same `per`
+    parameter (a zone) by less than that. Counters cover every caller and draws are seeded, so a replay sees the
+    same faults."""
 
-    def __init__(self, rules: list[dict] | None, seed: str):
+    def __init__(self, rules: list[dict] | None, seed: str, flags: Callable[[], dict] = dict):
         self.rules = list(rules or [])
         self.seed = seed
+        self.flags = flags
         self.seen = [0] * len(self.rules)
         self.fired = [0] * len(self.rules)
+        self.last: list[dict[str, datetime]] = [{} for _ in self.rules]
 
     def check(self, service: str, operation: str, params: dict, t: datetime | None, who: str = "agent") -> None:
+        accepted = []
         for i, rule in enumerate(self.rules):
             if not _matches(rule.get("service", "*"), service) or not _matches(rule.get("operation", "*"), operation):
                 continue
@@ -152,18 +166,110 @@ class Faults:
             if t is not None and ((rule.get("from") and t < _time(rule["from"])) or
                                   (rule.get("until") and t >= _time(rule["until"]))):
                 continue
+            if rule.get("until_flag") and self.flags().get(rule["until_flag"]):
+                continue
             if rule.get("times") is not None and self.fired[i] >= int(rule["times"]):
                 continue
-            self.seen[i] += 1
-            rate = float(rule.get("rate", 1.0))
-            draw = int(hashlib.sha256(f"{self.seed}|fault|{i}|{self.seen[i]}".encode()).hexdigest()[:16], 16) / 2**64
-            if draw >= rate:
-                continue
+            if rule.get("min_interval_s") is not None:
+                key = str(params.get(rule.get("per", "HostedZoneId"), "")).rsplit("/", 1)[-1]
+                last = self.last[i].get(key)
+                if t is None or last is None or (t - last).total_seconds() >= float(rule["min_interval_s"]):
+                    accepted.append((i, key))
+                    continue
+            else:
+                self.seen[i] += 1
+                if rule.get("every_nth"):
+                    if self.seen[i] % int(rule["every_nth"]):
+                        continue
+                elif int(hashlib.sha256(f"{self.seed}|fault|{i}|{self.seen[i]}".encode()).hexdigest()[:16],
+                         16) / 2**64 >= float(rule.get("rate", 1.0)):
+                    continue
             self.fired[i] += 1
             err = rule.get("error", "Throttling")
             code = err if isinstance(err, str) else err.get("code", "Throttling")
             message = FAULT_MESSAGES.get(code, "") if isinstance(err, str) else err.get("message", "")
             raise AwsError(code, message, int(rule.get("status", 400)))
+        for i, key in accepted:
+            self.last[i][key] = t
+
+
+class WallTimes:
+    """Wall-clock times the emulator stamps, as virtual times: a time up to the end of seeding reads `seeded_at`;
+    a later one reads the virtual time of the last call made at or before it, as each call marks."""
+
+    def __init__(self, seeded_at: datetime | None):
+        self.seeded_at = seeded_at
+        self.marks: list[tuple[float, datetime]] = []
+
+    def mark(self, virtual: datetime) -> None:
+        if not self.marks or virtual >= self.marks[-1][1]:
+            self.marks.append((math.floor(time.time() * 100) / 100, virtual))
+
+    def virtual(self, wall: float) -> datetime | None:
+        i = bisect_right(self.marks, wall, key=lambda m: m[0])
+        return self.marks[i - 1][1] if i else self.seeded_at
+
+
+def retime(value: Any, shape: Any, times: WallTimes, name: str = "") -> Any:
+    """An emulator response with each time it stamped moved to virtual time, in the form it came: a datetime, epoch
+    seconds (the CLI prints JSON protocols' times raw), an ISO 8601 or RFC 822 string, or epoch milliseconds in a
+    long named like a time (CloudWatch Logs' creationTime). A time later than the wall clock is already virtual."""
+    kind = getattr(shape, "type_name", None)
+    if value is None or kind is None:
+        return value
+    if kind == "structure" and isinstance(value, dict):
+        return {k: retime(v, shape.members.get(k), times, k) for k, v in value.items()}
+    if kind == "list" and isinstance(value, list):
+        return [retime(v, shape.member, times, name) for v in value]
+    if kind == "map" and isinstance(value, dict):
+        return {k: retime(v, shape.value, times, k) for k, v in value.items()}
+    ms = kind == "long" and isinstance(value, int) and not isinstance(value, bool) and TIME_LONG.search(name) \
+        and value > 10**11
+    if kind != "timestamp" and not ms:
+        return value
+    try:
+        wall = value / 1000 if ms else (value if isinstance(value, datetime) else parse_timestamp(value)).timestamp()
+    except (TypeError, ValueError):
+        return value
+    v = times.virtual(wall) if wall <= time.time() + 1 else None
+    if v is None:
+        return value
+    if ms:
+        return int(v.timestamp() * 1000)
+    if isinstance(value, datetime):
+        return v.astimezone(UTC)
+    if isinstance(value, (int, float)):
+        return type(value)(v.timestamp())
+    if "," in value:
+        return format_datetime(v.astimezone(UTC), usegmt=True)
+    return v.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z" if "." in value else "%Y-%m-%dT%H:%M:%SZ")
+
+
+class WorldPort(AwsPort):
+    """The world's AwsPort, marking each call's virtual time for the emulator's stamps and applying the scenario's
+    faults to the calls made for the agent (epctl's writes), at the call's time plus the backoff its retries took."""
+
+    faults: Faults | None = None
+    times: WallTimes | None = None
+
+    def call(self, service: str, operation: str, params: dict, *, principal: str, world_made: bool,
+             region: str | None = None, log_call: bool | None = None) -> dict:
+        t = self.now()
+        if self.times is not None and t is not None:
+            self.times.mark(t)
+        if not world_made and self.faults is not None:
+            acting = self.acting or {}
+            try:
+                self.faults.check(service, operation, params,
+                                  t and t + timedelta(seconds=float(acting.get("retry_s") or 0)))
+            except AwsError as e:
+                if self.actionlog is not None:
+                    self.actionlog.record(t=t, t_issue=t, principal=principal, world_made=False, server="aws",
+                                          role=acting.get("role"), call_no=acting.get("call_no"), service=service,
+                                          operation=operation, params=params, error=e.as_dict())
+                raise
+        return super().call(service, operation, params, principal=principal, world_made=world_made, region=region,
+                            log_call=log_call)
 
 
 def _time(value: Any) -> datetime:
@@ -194,6 +300,7 @@ class Bridge:
         self.profiles = profiles or {}
         self.policies = policies or {}
         self.faults = Faults(faults, seed)
+        self.times: WallTimes | None = None
         self.trail = Trail(actionlog)
         self.world = world
         self.world_lock = world_lock or threading.RLock()
@@ -237,6 +344,7 @@ class Bridge:
                                                f"{service}:{operation} because no identity-based policy allows the "
                                                f"{service}:{operation} action", 403)
             self.faults.check(service, operation, params, ctx.get("t"))
+            info["served"] = True
             if (service, operation) == ("cloudtrail", "LookupEvents"):
                 return _http(200), {**_utc(self.trail.lookup(params)), "ResponseMetadata": {"HTTPStatusCode": 200}}
             world = self.world()
@@ -246,13 +354,17 @@ class Bridge:
                 if served is not None:
                     return _http(200), {**_utc(served), "ResponseMetadata": {"HTTPStatusCode": 200,
                                                                             "RequestId": "awsbench"}}
+            info["served"] = False
         except AwsError as e:
             return _http(e.status), {"Error": e.as_dict(), "ResponseMetadata": {"HTTPStatusCode": e.status}}
         return None
 
     def _after(self, http_response: Any, parsed: dict, model: Any, context: dict, **_: Any) -> None:
+        """Logs the call; an answer the emulator gave carries its times in virtual time."""
         info = context.get("awsbench") or {}
         error = parsed.get("Error") if getattr(http_response, "status_code", 200) >= 300 else None
+        if error is None and not info.get("served") and self.times is not None:
+            parsed.update(retime(parsed, model.output_shape, self.times))
         self._log(info, error)
 
     def _log(self, info: dict, error: dict | None) -> None:
@@ -272,6 +384,8 @@ class Bridge:
                      "principal": self.principal(role, prof), "region": region or "us-east-1",
                      "call_no": call.get("call_no"), "t": call.get("t"), "t_issue": call.get("t_issue"),
                      "tool": call.get("tool"), "open": []}
+        if self.times is not None and call.get("t") is not None:
+            self.times.mark(call["t"])
         return self._ctx
 
     def _finish(self, fallback_error: str) -> None:
