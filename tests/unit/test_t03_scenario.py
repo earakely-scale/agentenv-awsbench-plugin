@@ -158,7 +158,7 @@ def test_timeline_references_resolve():
                 assert a["world"] in {"settlement_readiness", "settlement_run", "hold_fire", "ledger_writer_redeploy"}
     assert set(S["npcs"]) == {"priya.raman", "elena.sokolova", "kwame.asante", "sofia.marquez", "owen.gallagher",
                               "daniel.brandt", "hannah.becker", "marco.ferri", "maya.okonkwo", "tomas.ilyin",
-                              "freya.lindqvist"}
+                              "freya.lindqvist", "jun.park"}
     for name, npc in S["npcs"].items():
         rule_ids = [r["id"] for r in npc.get("rules", [])]
         assert len(rule_ids) == len(set(rule_ids)), name

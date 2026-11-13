@@ -88,4 +88,5 @@ Investigating -> Identified -> **Mitigated** -> **Resolved**.
 
 ## §7 Handoff and follow-up
 Before going off shift the IC leaves a handoff note on the incident ticket: impact, cause, changes and how to undo them, what is
-still temporary, open risks and owners. Postmortem in POST within 5 business days.
+still temporary, open risks and owners. Each follow-up is filed as a ticket for the team that owns the work, linked to
+the incident ticket. Postmortem in POST within 5 business days.

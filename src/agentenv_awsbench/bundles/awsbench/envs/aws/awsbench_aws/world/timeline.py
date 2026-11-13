@@ -27,6 +27,17 @@ REJECT_BEFORE = re.compile(r"(?i)(?:\bnot\b|n't\b|\bnever\b|\brather than\b|\bin
 REJECT_AFTER = re.compile(r"(?i)^(?:\s*\([^)]*\))?[^,.;()]{0,30}?\b(?:not|n't|stale|never)\b")
 ASKED_BEFORE = re.compile(r"(?i)(?:\b(?:re-?)?appl(?:y|ying)\b|\brestore\b|--gen\b|\bset-applied\b)[^,.;()]{0,25}$")
 BULLET = re.compile(r"^(?:[\u2022\u00b7*-]|\(?\d+[.)])\s+")
+ITEM = re.compile(r"^(?:[\u2022\u00b7*-]|\(?(?:\d+|[a-z])[.)])\s+")
+LIST_REF = re.compile(r"(?i)\b(?:approv\w*|sign[- ]?off|ok)\b\W+(?:\w+\W+){0,2}?(?:\d+\s*(?:and|&|,|\+)\s*\d+|both|each|all "
+                      r"(?:of )?(?:them|these|items)|these|them|the above|items?)\b")
+DRAFT = re.compile(r"\"([^\"]*)\"|\u201c([^\u201d]*)\u201d|(?<!\w)'([^'\n]*)'(?!\w)|"
+                   r"^\s*(?:body|draft|text)\s*:\s*(\S[^\n]{19,})$|\b(?:draft(?:ed)?|text) (?:in|at|from) (m-\d+)\b", re.I | re.M)
+OPENS_LIST = re.compile(r":\s*(?:\(?(?:1|a)[.)]\s.*)?$")
+BACKREF = re.compile(r"(?i)\b(?:that|this|the|these) (?:class [a-d] )?changes?\b|\bthe above\b|"
+                     r"\b(?:delet|remov|suspend|approv|chang)\w* (?:it|them)\b|\b(?:ok|okay|fine) to (?:post|publish)\b|"
+                     r"\bpost (?:it|this)\b|\bas drafted\b")
+DRAFT_LEAD = re.compile(r"(?i)(?:\b(?:post|draft|text|wording|body|update|status|notice|message|reads?|propos\w*)\b[^\"'\n]{0,40}"
+                        r"|:\s*)$")
 
 
 def clauses(text: str) -> list[str]:
@@ -39,12 +50,42 @@ def clauses(text: str) -> list[str]:
     return out
 
 
-def asks(text: str) -> list[str]:
-    """What the message asks for: each clause from its first unhedged ask word on, or a whole question. A statement
-    ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never draw a decision."""
+def request(text: str, extra: re.Pattern | None = None) -> list[str]:
+    """An `ask_lists` NPC's request: the ask clauses (a bare "approve?" with the clause it ends), everything after an
+    ask whose clause or line opens a list ("Request IC sign-off for:", "need APPROVED for: (1) ..."), and the list
+    items an ask names ("Please approve 1 and 2", "approve each")."""
+    lines = []
+    for line in (text or "").replace("\u2019", "'").splitlines():
+        line = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", line).strip()
+        lines.append((bool(ITEM.match(line)), [(c, asks(c, extra)) for c in clauses(ITEM.sub("", line))], line))
+    named = any(LIST_REF.search(x) for _, parts, _ in lines for _, a in parts for x in a)
+    out, tail = [], False
+    for item, parts, line in lines:
+        for c, a in parts:
+            if tail or named and item:
+                out.append(c)
+            elif a:
+                out.append(c if len(a[0].split()) <= 2 else a[0])
+            tail |= bool(a) and bool(OPENS_LIST.search(a[0]))
+        tail |= any(a for _, a in parts) and line.rstrip().endswith(":")
+    return out
+
+
+def draft(text: str) -> str:
+    """The draft a message quotes (text in quotes just after a word like "post" or "draft", or a `Body:` / `Draft:` /
+    `Text:` line) or names ("drafted in m-28"); a quoted log line is no draft."""
+    text = text or ""
+    return " ".join(g for m in DRAFT.finditer(text) if (g := next((g for g in m.groups() if g), "")) and (
+        m.group(4) or m.group(5) or len(g) >= 20 and DRAFT_LEAD.search(text[max(0, m.start() - 60):m.start()])))
+
+
+def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
+    """What the message asks for: each clause from its first unhedged ask word (ASK, or an NPC's `ask_extra`) on, or a
+    whole question. A statement ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never
+    draw a decision."""
     out = []
     for c in clauses(text):
-        for m in ASK.finditer(c):
+        for m in sorted([*ASK.finditer(c), *(extra.finditer(c) if extra else ())], key=lambda m: m.start()):
             before = c[:m.start()]
             if not (HEDGE & set(re.findall(r"[\w']+", before.lower())[-4:])
                     or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)):
@@ -56,10 +97,10 @@ def asks(text: str) -> list[str]:
     return out
 
 
-def context(text: str) -> list[str]:
+def context(text: str, extra: re.Pattern | None = None) -> list[str]:
     """Every clause a request is read in: the change often sits in one sentence and the ask in another. Hedged
     statements ("paused until Kwame approves a resume", "which I didn't request") stay out; a bare "not" doesn't hedge."""
-    return [c for c in clauses(text) if asks(c) or not (HEDGE - {"not", "no"}) & set(re.findall(r"[\w']+", c.lower()))]
+    return [c for c in clauses(text) if asks(c, extra) or not (HEDGE - {"not", "no"}) & set(re.findall(r"[\w']+", c.lower()))]
 
 
 def plan_gens(text: str) -> tuple[list[int], set[int], list[int]]:
@@ -129,6 +170,7 @@ class Timeline:
         self.calls: list[dict] = []
         self.counts: dict[str, int] = {}
         self.page_ids: dict[str, str] = {}
+        self.acked: set[str] = set()
         self.state_seen: dict[str, bool] = {}
         self.state_done: set[str] = set()
         self.approvals: list[dict] = []
@@ -140,6 +182,10 @@ class Timeline:
         self.world_flags: dict[str, bool] = {}
         self.last_said: dict[str, tuple[datetime, str]] = {}
         self.catch_up: dict[str, datetime] = {}
+        self.now: datetime | None = None
+        self.held_since: dict[str, datetime | None] = {r[k]["state"]: None for c in self.npcs.values()
+                                                       for r in c.get("rules", []) for k in ("when_held", "unless_held")
+                                                       if r.get(k)}
 
     # ---- scheduling ----
     def arm(self, start: datetime, horizon: datetime) -> None:
@@ -202,6 +248,8 @@ class Timeline:
             return self._npc_reply(item, t)
         if item.kind == "page_ack":
             return self._page_ack(item, t)
+        if item.kind == "page_escalate":
+            return self._page_escalate(item, t)
         ev = self.events[item.ev]
         entry = {"id": item.ev if item.n <= 1 else f"{item.ev}#{item.n}",
                  "due_at": iso(item.due), "fired_at": None, "status": "fired", "deliveries": []}
@@ -232,6 +280,8 @@ class Timeline:
                 ctx["result"] = res.get("id", "")
                 if a["op"] == "pager.page_as" and res.get("id"):
                     self.page_ids.setdefault(eid, res["id"])
+                if a["op"] == "pager.ack_as":
+                    self.acked.add(str(args.get("page_id", "")).upper())
                 out += res.get("deliveries", [])
             elif "npc" in a:
                 if a.get("wake"):
@@ -276,6 +326,9 @@ class Timeline:
 
     # ---- state predicates ----
     def check_state(self, t: datetime) -> list[dict]:
+        self.now = t
+        for s, since in self.held_since.items():
+            self.held_since[s] = (since or t) if self.w.eval_state(s) else None
         out = []
         for eid in self.order:
             ev = self.events[eid]
@@ -335,11 +388,15 @@ class Timeline:
                                                           resolved.get("subject") or ""}))
         if tool == "pager_page" and str(args.get("urgency", "high")) == "high":
             npc = self._npc_for(str(args.get("user") or args.get("schedule") or args.get("to") or ""))
-            if npc and self.awake.get(npc, True) and self.npcs[npc].get("page_ack"):
-                body = " ".join(text_of(args.get(k)) for k in ("title", "summary", "details") if args.get(k))
-                self.items.append(Item(call["t"] + timedelta(seconds=seconds(self.npcs[npc]["page_ack"])), "page_ack", npc,
-                                       0, {"msg": {"t": call["t"], "text": body, "via": "dm"},
-                                           "page_id": text_of(dig(call, "result.id") or dig(call, "result.page.id"))},
+            body = " ".join(text_of(args.get(k)) for k in ("title", "summary", "details") if args.get(k))
+            ctx = {"msg": {"t": call["t"], "text": body, "via": "dm"},
+                   "page_id": text_of(dig(call, "result.id") or dig(call, "result.page.id")), "title": body}
+            ack = npc and self.awake.get(npc, True) and self.npcs[npc].get("page_ack")
+            if ack:
+                self.items.append(Item(call["t"] + timedelta(seconds=seconds(ack)), "page_ack", npc, 0, ctx, call["t"]))
+            esc = npc and self.npcs[npc].get("page_escalation")
+            if esc and not (ack and seconds(ack) < seconds(esc["after"])):
+                self.items.append(Item(call["t"] + timedelta(seconds=seconds(esc["after"])), "page_escalate", npc, 0, ctx,
                                        call["t"]))
         seen = set()
         for npc, how in targets:
@@ -360,15 +417,43 @@ class Timeline:
         return any(re.search(FYI_NEAR.format(n=re.escape(n)), text or "") for n in names)
 
     def _page_ack(self, item: Item, t: datetime) -> list[dict]:
-        """An awake NPC acks a high page after their `page_ack` delay and answers it like a DM."""
-        npc = item.ev
+        """An awake NPC acks a high page after their `page_ack` delay, says their `page_ack_line` if they have one, and
+        answers it like a DM."""
+        npc, out = item.ev, []
         if item.ctx.get("page_id"):
+            self.acked.add(item.ctx["page_id"].upper())
             self.w.ws_apply("pager.ack_as", {"page_id": item.ctx["page_id"], "user": self.npcs[npc].get("chat_user", npc),
                                              "if_open": True}, t)
+        if self.npcs[npc].get("page_ack_line"):
+            out = self._deliver(npc, {"via": "dm"}, self.npcs[npc]["page_ack_line"], t)
         self.log.append({"id": f"npc:{npc}:page-ack", "due_at": iso(item.due), "fired_at": iso(t), "status": "fired",
-                         "deliveries": []})
+                         "deliveries": out})
         self._schedule_reply(npc, item.ctx["msg"], t)
-        return []
+        return out
+
+    def _page_escalate(self, item: Item, t: datetime) -> list[dict]:
+        """`page_escalation` {after, to}: a high page to the NPC that nobody acked or resolved within `after` pages
+        `to` as the schedule says, and the NPC behind `to` wakes and acks it."""
+        npc, pid = item.ev, item.ctx.get("page_id", "").upper()
+        esc = self.npcs[npc]["page_escalation"]
+        done = pid in self.acked or any(c.get("tool") in ("pager_ack", "pager_resolve") and c["t"] >= item.trigger_t
+                                        and text_of(dig(c, "args.id")).upper() == pid for c in self.calls)
+        entry = {"id": f"npc:{npc}:page-escalation", "due_at": iso(item.due), "fired_at": None if done else iso(t),
+                 "status": "cancelled" if done else "fired", "deliveries": []}
+        self.log.append(entry)
+        if done:
+            return []
+        mins = int(seconds(esc["after"]) // 60)
+        res = self.w.ws_apply("pager.page_as", {"from_user": "pagerbot", "to": esc["to"], "urgency": "high",
+                                                "incident": pid or None, "summary": f"Escalation: {pid} unacknowledged "
+                                                f"for {mins} min ({item.ctx.get('title', '')[:80]})"}, t)
+        entry["deliveries"] = res.get("deliveries", [])
+        if (to := self._npc_for(esc["to"])) and res.get("id"):
+            self._wake(to, t)
+            ack = self.npcs[to].get("page_ack", "PT3M")
+            self.items.append(Item(t + timedelta(seconds=seconds(ack)), "page_ack", to, 0,
+                                   {**item.ctx, "page_id": res["id"]}, t))
+        return entry["deliveries"]
 
     def _schedule_reply(self, npc: str, msg: dict, t: datetime, not_before: datetime | None = None) -> datetime:
         c = self.npcs[npc]
@@ -403,18 +488,28 @@ class Timeline:
         with its non-decision request rules before its default. An NPC told FYI answers only through plain rules.
         With `skip` (rules whose reply would repeat), only the ask clauses and the default are read.
         `after_refusal` rules wait for `default_once_after`, which caps the default at one more reply.
+        An NPC's `ignore` phrases (scope phrases, citations of an approval already given) are read as unsaid.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only. A rule with `read: context`
         reads every clause from the first pass on, so a bundled request whose items don't each say "approve" is
-        answered whole rather than by the one item that does."""
+        answered whole rather than by the one item that does; an `ask_lists` NPC reads a list its ask introduces or
+        names as part of the ask (`request`). A rule with `draft: required|missing` needs the message to quote a draft
+        (or not), and `draft_match` reads that draft alone; `capture` names values the reply and change fill in. A
+        `per_clause` rule matches when one clause of what it reads does. A `decide_on_request` NPC decides on the
+        request alone, reading its context only for a request that points back ("approve that change", "deleting it")."""
         c = self.npcs[npc]
         self._note_refusal(npc, text)
-        ask_list, ask, loose = [] if fyi else asks(text), "", ""
+        extra = re.compile(c["ask_extra"], re.IGNORECASE) if c.get("ask_extra") else None
+        if c.get("ignore"):
+            text = re.sub(c["ignore"], " ", text or "", flags=re.IGNORECASE)
+        ask_list, ask, loose = [] if fyi else (request if c.get("ask_lists") else asks)(text, extra), "", ""
+        quoted = draft(text)
         if not fyi and (ask_list or npc in self.awaiting):
             self.awaiting.discard(npc)
-            ask = " ".join(context(text))
+            ask = " ".join(context(text, extra))
         if not (fyi or ask) and c.get("answers_direct"):
             loose = " ".join(cl for cl in clauses(text) if LOOSE_ASK.search(cl))
+        parts = (ask_list, context(text, extra) if ask else [], [cl for cl in clauses(text) if loose and LOOSE_ASK.search(cl)])
         key = " ".join((ask or loose).lower().split())
         rules = [r for r in c.get("rules", []) if r["id"] not in skip
                  and (not r.get("after_refusal") or npc in self.default_cap)]
@@ -423,16 +518,23 @@ class Timeline:
                 decides, only = "decision" in rule, bool(rule.get("ask_only"))
                 gated = bool(rule.get("on_request")) or decides or only
                 read = ask if rule.get("read") == "context" and i < 2 else scope
+                if i == 1 and decides and c.get("decide_on_request") and not BACKREF.search(" ".join(parts[0])):
+                    continue
                 if i and (not gated or i == 1 and (only or skip) or i == 2 and decides) or gated and not read:
                     continue
-                if not _matches(rule.get("match", {}), read if gated else text):
+                if not (any(_matches(rule.get("match", {}), cl) for cl in (parts[i] if gated else clauses(text)))
+                        if rule.get("per_clause") else _matches(rule.get("match", {}), read if gated else text)):
+                    continue
+                if rule.get("draft") and (rule["draft"] == "missing") == bool(quoted) \
+                        or not _matches(rule.get("draft_match", {}), quoted):
                     continue
                 req = loose if i == 2 else ask
-                values = {}
+                values = self._captures(c, rule, read if gated else text, quoted)
                 if "plan_gen" in rule:
-                    values = self._plan_gen(rule["plan_gen"], req if gated else text, text)
-                    if values is None:
+                    gen = self._plan_gen(rule["plan_gen"], req if gated else text, text)
+                    if gen is None:
                         continue
+                    values |= gen
                 if self._spent(npc, rule, key):
                     if gated and not only and i < 2:
                         return None
@@ -441,7 +543,7 @@ class Timeline:
         if fyi:
             return None
         if not ask and loose:
-            ask = " ".join(context(text)) or text
+            ask = " ".join(context(text, extra)) or text
             key = " ".join(ask.lower().split())
         if not ask or c.get("default_unless_state") and self.w.eval_state(c["default_unless_state"]):
             return None
@@ -450,11 +552,29 @@ class Timeline:
         rule = {"id": "default", "reply": c.get("default", "Noted."), "asks_details": True}
         return None if self._spent(npc, rule, key) else (rule, ask, {})
 
+    @staticmethod
+    def _captures(c: dict, rule: dict, text: str, quoted: str) -> dict:
+        """A rule's `capture` {name: pattern with one group} from the request, else its `capture_default`, and the
+        NPC's `draft_note` {when, text}: its text when the request matches `when` but quotes no draft."""
+        values = {}
+        for k, p in (rule.get("capture") or {}).items():
+            m = re.search(p, text or "", re.IGNORECASE)
+            values[k] = m.group(1) if m else (rule.get("capture_default") or {}).get(k, "")
+        if note := c.get("draft_note"):
+            values["draft_note"] = note["text"] if not quoted and re.search(note["when"], text or "", re.IGNORECASE) else ""
+        return values
+
     def _spent(self, npc: str, rule: dict, key: str) -> bool:
-        if rule.get("unless_state") and self.w.eval_state(rule["unless_state"]):
+        if rule.get("unless_state") and self.w.eval_state(rule["unless_state"]) or self._held(rule.get("unless_held")) \
+                or rule.get("when_held") and not self._held(rule["when_held"]):
             return True
         seen = self.replied.get((npc, rule["id"]))
         return seen is not None and (bool(rule.get("once")) or not key or key in seen)
+
+    def _held(self, spec: dict | None) -> bool:
+        """`when_held` / `unless_held` {state, for}: whether `state` has held at every tick for at least `for`."""
+        since = spec and self.held_since.get(spec["state"])
+        return bool(since) and self.now - since >= timedelta(seconds=seconds(spec["for"]))
 
     def _note_refusal(self, npc: str, text: str) -> None:
         """`default_once_after`: once a message to the NPC matches it (the agent refused the push), the default
@@ -485,8 +605,9 @@ class Timeline:
         return {"gen": str(stale[0])} if stale and not good else None
 
     def _npc_reply(self, item: Item, t: datetime) -> list[dict]:
-        """A reworded request for a change the NPC already decided gets "Already approved at ..." and no second record;
-        a reply identical to the NPC's last line within 10 min is skipped, as a person wouldn't repeat it."""
+        """A reworded request for a change the NPC already decided gets "Already approved at ..." and no second record
+        (with `repeat_once`, "As I said: ..." once per change, then nothing); a reply identical to the NPC's last line
+        within 10 min is skipped, as a person wouldn't repeat it."""
         npc, msg = item.ev, item.ctx["msg"]
         until = self.catch_up.get(npc)
         if until and t < until:
@@ -495,6 +616,13 @@ class Timeline:
         while True:
             hit = self.classify(npc, msg["text"], frozenset(skip), bool(msg.get("fyi")))
             last = self.last_said.get(npc)
+            if hit and self.npcs[npc].get("repeat_once") and self.counts.get(self._again_key(npc, *hit[::2])):
+                skip |= {hit[0]["id"], "default"}
+                self.log.append({"id": f"npc:{npc}:repeat:{hit[0]['id']}#{item.n}", "due_at": iso(item.due),
+                                 "fired_at": None, "status": "skipped", "deliveries": []})
+                if was_awaiting:
+                    self.awaiting.add(npc)
+                continue
             if hit is None or not (last and t - last[0] <= timedelta(minutes=10)) or hit[0].get("decision"):
                 break
             if pick(self.seed, f"{npc}#{item.n}", hit[0].get("reply_variants") or hit[0].get("reply", "")) != last[1]:
@@ -520,8 +648,12 @@ class Timeline:
                       and a["rule"] == rule["id"] and a["change"] == change), None)
         if prior:
             hhmm = datetime.fromisoformat(prior["t"]).strftime("%H:%M")
-            text = (f"Already approved at {hhmm} ET: {change}. Post the CHANGE record." if decision == "APPROVED"
-                    else f"Already declined at {hhmm} ET.")
+            if self.npcs[npc].get("repeat_once"):
+                self.counts[self._again_key(npc, rule, values)] = 1
+                text = f"As I said: {decision} at {hhmm} ET: {change}."
+            else:
+                text = (f"Already approved at {hhmm} ET: {change}. Post the CHANGE record." if decision == "APPROVED"
+                        else f"Already declined at {hhmm} ET.")
             rid += "#repeat"
         else:
             text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
@@ -535,6 +667,12 @@ class Timeline:
                  "status": "fired", "deliveries": self._deliver(npc, msg, text, t)}
         self.log.append(entry)
         return entry["deliveries"]
+
+    def _again_key(self, npc: str, rule: dict, values: dict) -> str:
+        change = rule.get("change", "")
+        for k, v in values.items():
+            change = change.replace("{" + k + "}", v)
+        return f"again:{npc}:{rule['id']}:{change}"
 
     def _catching_up(self, npc: str, item: Item, until: datetime, t: datetime) -> list[dict]:
         """Before `catch_up.for` after waking, the NPC says its catch-up line once and answers after the window."""
