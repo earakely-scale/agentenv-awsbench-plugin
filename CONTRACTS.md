@@ -49,7 +49,7 @@ tests/e2e/                                     deploy-and-drive tests           
 Each image's build context is its own env folder, so an image never imports from another folder. Tests import the
 packages by putting the env folders on `sys.path` (`tests/conftest.py`).
 
-Pins, every image: `python:3.12-slim`, `agentenv-framework-protocol==0.1.539` (let it choose its own `mcp`/`fastmcp`),
+Pins, every image: `python:3.12-slim`, `agentenv-framework-protocol==0.1.536` (let it choose its own `mcp`/`fastmcp`),
 `awscli==1.46.3` and its `botocore`/`boto3` (aws image only), `pyyaml`, `httpx`.
 
 ## Time
