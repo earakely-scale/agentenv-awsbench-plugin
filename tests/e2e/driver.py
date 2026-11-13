@@ -84,7 +84,7 @@ def oracle_steps(gen):
         ("status_update", {"id": "{status_id}", "status": "monitoring",
                            "body": "A fix is in place and checkout is recovering. We are monitoring."}),
         ("chat_post", {"channel": "#inc-4452", "text": "Records restored, checkout recovering. Next update by 03:40."}),
-        ("wait", {"minutes": 30}),
+        ("wait", {"minutes": 28}),
         ("chat_post", {"channel": "#inc-4452", "text": "Checkout stable. Dispatcher held at max_concurrency 4."}),
         ("tickets_comment", {"key": "OPS-4452", "body": (
             "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's "
