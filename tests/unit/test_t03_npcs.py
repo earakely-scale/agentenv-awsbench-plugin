@@ -84,7 +84,7 @@ def test_a_draft_naming_hosts_or_merchants_is_sent_back():
     assert approvals(w) == [] and rules(w, "priya.raman") == ["R7b-status-fix"]
 
 
-@pytest.mark.parametrize("key,rule", [("sonnet-2/m-3", "default"), ("sonnet-2/m-17", "R18-merchant-wording"),
+@pytest.mark.parametrize("key,rule", [("sonnet-2/m-3", "R0-ic-confirm"), ("sonnet-2/m-17", "R18-merchant-wording"),
                                       ("sonnet-2/m-29", "R18-merchant-wording"),
                                       ("sonnet-2/m-21", "R18-merchant-wording")])
 def test_statements_summaries_and_wording_asks_record_nothing(key, rule):

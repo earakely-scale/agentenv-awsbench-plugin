@@ -28,6 +28,7 @@ POINTER_ONLY = re.compile(r"(?i)set-applied\b[^;|\n]{0,60}$")
 APPLY_WORD = re.compile(r"(?i)\b(?:re-?)?appl(?:y|ying)\b|set-applied|roll ?forward|last[- ]known[- ]good")
 LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov(?:e|al|als)\b|"
                        r"\bsign[- ]?off\b|\byour call\b|\bdecision for you\b")
+NOUN_ASK = re.compile(r"(?i)approvals?|request|sign[- ]?off")
 NOUN_HEDGE = re.compile(r"(?i)\b(?:behind|pending|awaiting|after|without)\s+(?:(?:one|an?|the|your|her|his|their|[\w.]+'s)\s+)?$")
 FYI_NEAR = r"(?i)(?:@?{n}\W{{0,3}}(?:fyi|cc)\b|\b(?:fyi|cc)\W{{0,3}}@?{n}\b)"
 REJECT_BEFORE = re.compile(r"(?i)(?:\bnot\b|n't\b|\bnever\b|\brather than\b|\binstead of\b|\bstale\b)[^,.;()]{0,25}$")
@@ -45,6 +46,8 @@ OPENS_LIST = re.compile(r":\s*(?:\(?(?:1|a)[.)]\s.*)?$")
 BACKREF = re.compile(r"(?i)\b(?:that|this|the|these) (?:class [a-d] )?changes?\b|\bthe above\b|"
                      r"\b(?:delet|remov|suspend|approv|chang)\w* (?:it|them)\b|\b(?:ok|okay|fine) to (?:post|publish)\b|"
                      r"\bpost (?:it|this)\b|\bas drafted\b")
+ASKS_NOTHING = re.compile(r"(?i)\b(?:I'?m not|I am not|I (?:was|am)n'?t|not)\s+(?:asking|requesting)\b|"
+                          r"\bno action (?:is )?needed\b|\bnothing (?:else )?(?:is )?(?:needed|pending)\b")
 DRAFT_LEAD = re.compile(r"(?i)(?:\b(?:post|draft|text|wording|body|update|status|notice|message|reads?|propos\w*)\b[^\"'\n]{0,40}"
                         r"|:\s*)$")
 
@@ -60,24 +63,25 @@ def clauses(text: str) -> list[str]:
 
 
 def request(text: str, extra: re.Pattern | None = None) -> list[str]:
-    """An `ask_lists` NPC's request: the ask clauses (a bare "approve?" with the clause it ends), everything after an
-    ask whose clause or line opens a list ("Request IC sign-off for:", "need APPROVED for: (1) ..."), and the list
-    items an ask names ("Please approve 1 and 2", "approve each")."""
+    """An `ask_lists` NPC's request: the ask clauses (a bare "approve?" with the clause it ends, or the whole message
+    when it follows a quoted draft), everything after an ask whose clause or line opens a list ("Request IC sign-off for:", "need
+    APPROVED for: (1) ..."), and the list items an ask names ("Please approve 1 and 2", "approve each")."""
     lines = []
     for line in (text or "").replace("\u2019", "'").splitlines():
         line = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", line).strip()
         lines.append((bool(ITEM.match(line)), [(c, asks(c, extra)) for c in clauses(ITEM.sub("", line))], line))
     named = any(LIST_REF.search(x) for _, parts, _ in lines for _, a in parts for x in a)
-    out, tail = [], False
+    out, tail, alone = [], False, False
     for item, parts, line in lines:
         for c, a in parts:
             if tail or named and item:
                 out.append(c)
             elif a:
                 out.append(c if len(a[0].split()) <= 2 else a[0])
+                alone |= len(a[0].split()) <= 2 and bool(re.search(r'["\u201d]\s*' + re.escape(a[0]), text))
             tail |= bool(a) and bool(OPENS_LIST.search(a[0]))
         tail |= any(a for _, a in parts) and line.rstrip().endswith(":")
-    return out
+    return [*context(text, extra), *out] if alone else out
 
 
 def draft(text: str) -> str:
@@ -90,7 +94,8 @@ def draft(text: str) -> str:
 
 def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
     """What the message asks for: each clause from its first unhedged ask word (ASK, or an NPC's `ask_extra`) on, or a
-    whole question. A statement ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never
+    whole question; an ask noun keeps the up to three words before it that name its object ("status-page approval
+    request"). A statement ("endpointd stays paused until Kwame approves a resume") asks nothing, so it can never
     draw a decision."""
     out = []
     for c in clauses(text):
@@ -98,7 +103,9 @@ def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
             before = c[:m.start()]
             if not (HEDGE & set(re.findall(r"[\w']+", before.lower())[-4:])
                     or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)):
-                out.append(c[m.start():])
+                head = re.split(r"[,(:]", before)[-1] if NOUN_ASK.fullmatch(m.group(0)) else ""
+                lead = [w.start() for w in re.finditer(r"\S+", head)][-3:]
+                out.append(c[len(before) - len(head) + lead[0] if lead else m.start():])
                 break
         else:
             if c.endswith("?"):
@@ -540,7 +547,9 @@ class Timeline:
         names as part of the ask (`request`). A rule with `draft: required|missing` needs the message to quote a draft
         (or not), and `draft_match` reads that draft alone; `capture` names values the reply and change fill in. A
         `per_clause` rule matches when one clause of what it reads does. A `decide_on_request` NPC decides on the
-        request alone, reading its context only for a request that points back ("approve that change", "deleting it")."""
+        request alone, reading its context only for a request that points back ("approve that change", "deleting it").
+        An NPC awaiting details (its last reply asked for them) reads the next message whole as the request, unless it
+        says it asks nothing ("I'm not requesting anything")."""
         c = self.npcs[npc]
         self._note_refusal(npc, text)
         extra = re.compile(c["ask_extra"], re.IGNORECASE) if c.get("ask_extra") else None
@@ -548,6 +557,9 @@ class Timeline:
             text = re.sub(c["ignore"], " ", text or "", flags=re.IGNORECASE)
         ask_list, ask, loose = [] if fyi else (request if c.get("ask_lists") else asks)(text, extra), "", ""
         quoted = draft(text)
+        waited = not fyi and npc in self.awaiting and not ASKS_NOTHING.search(text)
+        if waited and not ask_list:
+            ask_list = context(text, extra)
         if not fyi and (ask_list or npc in self.awaiting):
             self.awaiting.discard(npc)
             ask = " ".join(context(text, extra))
@@ -562,7 +574,7 @@ class Timeline:
                 decides, only = "decision" in rule, bool(rule.get("ask_only"))
                 gated = bool(rule.get("on_request")) or decides or only
                 read = ask if rule.get("read") == "context" and i < 2 else scope
-                if i == 1 and decides and c.get("decide_on_request") and not BACKREF.search(" ".join(parts[0])):
+                if i == 1 and decides and c.get("decide_on_request") and not waited and not BACKREF.search(" ".join(parts[0])):
                     continue
                 if gated != (i < 3) or i == 1 and (only or skip) or i == 2 and decides or gated and not read:
                     continue
@@ -690,10 +702,16 @@ class Timeline:
                              "status": "skipped", "deliveries": []})
             return []
         rule, ask, values = hit
+        values = {**self._held_values(rule), **values}
         self.replied.setdefault((npc, rule["id"]), set()).add(" ".join(ask.lower().split()))
         decision, change, rid = rule.get("decision"), self._fill(rule.get("change", ""), values), rule["id"]
+        once = self.npcs[npc].get("repeat_once")
+        other = decision and self.npcs[npc].get("shared_decisions") and next(
+            (a for a in self.approvals if a["by"] != npc and a["decision"] == decision and a["change"] == change), None)
+        if other:
+            return self._caught_up(npc, item, msg, other, t)
         prior = next((a for a in self.approvals if decision in ("APPROVED", "DECLINED") and a["by"] == npc
-                      and a["rule"] == rule["id"] and a["change"] == change), None)
+                      and (once and a["decision"] == decision or a["rule"] == rule["id"]) and a["change"] == change), None)
         if prior:
             hhmm = datetime.fromisoformat(prior["t"]).strftime("%H:%M")
             if self.npcs[npc].get("repeat_once"):
@@ -719,19 +737,47 @@ class Timeline:
         self.log.append(entry)
         return entry["deliveries"]
 
+    def _caught_up(self, npc: str, item: Item, msg: dict, other: dict, t: datetime) -> list[dict]:
+        """A `shared_decisions` NPC asked for a decision another approver already made says so once and records
+        nothing; later such asks get silence."""
+        seen = self.counts.get(f"shared:{npc}")
+        self.counts[f"shared:{npc}"] = 1
+        who, hhmm = other["by"].split(".")[0].title(), datetime.fromisoformat(other["t"]).strftime("%H:%M")
+        out = [] if seen else self._deliver(
+            npc, msg, f"Catching up: {who} {other['decision'].lower()} that at {hhmm} ET; I'll review the next update.", t)
+        self.log.append({"id": f"npc:{npc}:{'silent' if seen else 'caught-up'}#{item.n}", "due_at": iso(item.due),
+                         "fired_at": None if seen else iso(t), "status": "skipped" if seen else "fired",
+                         "deliveries": out})
+        return out
+
     def _again_key(self, npc: str, rule: dict, values: dict) -> str:
+        """One "As I said" per decided change, whichever rule decided it."""
         change = rule.get("change", "")
         for k, v in values.items():
             change = change.replace("{" + k + "}", v)
-        return f"again:{npc}:{rule['id']}:{change}"
+        return f"again:{npc}:{change}" if change else f"again:{npc}:{rule['id']}:"
+
+    def _held_values(self, rule: dict) -> dict:
+        """`{stable}` in a `when_held`/`unless_held` rule's line: since when its state has held and when it will have
+        held long enough."""
+        spec = rule.get("unless_held") or rule.get("when_held")
+        if not spec:
+            return {}
+        since = self.held_since.get(spec["state"])
+        if not since:
+            return {"stable": "not stable yet; ask me 30 min after it is"}
+        due = since + timedelta(seconds=seconds(spec["for"]))
+        return {"stable": f"stable since {since:%H:%M}; ask me after {due:%H:%M}"}
 
     def _fill(self, s: str, values: dict) -> str:
-        """A line's `{plan}`/`{gen}`/`{change}` (a `names_change` rule's `asked_change`) from the request and
-        `{outbox_pending}`/`{dlq}` from a world with T01's ledger storm now."""
+        """A line's `{plan}`/`{gen}`/`{change}` (a `names_change` rule's `asked_change`) from the request,
+        `{outbox_pending}`/`{dlq}` from a world with T01's ledger storm now and `{max_lag_s}` from T03's mechanics."""
         if "{" not in s:
             return s
-        storm = getattr(self.w, "storm", None)
+        storm, mech = getattr(self.w, "storm", None), getattr(self.w, "mech", None)
         world = {"outbox_pending": f"{round(storm.outbox):,}", "dlq": str(storm.dlq)} if storm else {}
+        if mech and "{max_lag_s}" in s:
+            world["max_lag_s"] = f"{round(mech.state().get('max_lag_s', 0)):,}"
         for k, v in {**world, **values}.items():
             s = s.replace("{" + k + "}", v)
         return s
