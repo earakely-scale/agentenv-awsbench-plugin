@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentenv-awsbench"
+version = "0.1.0"
+description = "AwsBench: AWS incident-response environments for AgentEnv, built on AWS Emulator"
+requires-python = ">=3.11.4"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = [
+    "agentenv-framework>=0.9.1521",
+    "agentenv-framework-protocol>=0.1.539",
+    "pyyaml>=6",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "boto3>=1.40", "awscli==1.46.3"]
+
+[project.urls]
+Source = "https://github.com/earakely-scale/agentenv-awsbench-plugin"
+
+[project.entry-points."agent_env.bundles"]
+awsbench = "agentenv_awsbench.bundles"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentenv_awsbench"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
