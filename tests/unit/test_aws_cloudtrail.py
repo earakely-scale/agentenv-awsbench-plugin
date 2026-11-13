@@ -109,6 +109,20 @@ def test_the_seed_leaves_the_race_in_the_trail():
                                                "SetIdentifier": "g48177-use1-az6-1", "Weight": 100, "TTL": 60,
                                                "ResourceRecords": [{"Value": "10.20.11.152"}]}
     assert all(e["EventTime"] <= datetime.fromisoformat(scenario["start"]) for e in history)
+    changes = [(e, c) for e in history if e["EventName"] == "ChangeResourceRecordSets"
+               for c in json.loads(e["CloudTrailEvent"])["requestParameters"]["changeBatch"]["Changes"]]
+    assert len({c["ResourceRecordSet"]["Name"] for _, c in changes}) == 41
+    assert all("TTL" in c["ResourceRecordSet"] and ("ResourceRecords" in c["ResourceRecordSet"]
+                                                    or "AliasTarget" in c["ResourceRecordSet"]) for _, c in changes)
+    name = "checkout-int.internal.vantleaf.io."
+    checkout = [c["ResourceRecordSet"] for e, c in changes
+                if c["ResourceRecordSet"]["Name"] == name and e["Username"] == "enactor-c"]
+    assert {s["SetIdentifier"] for s in checkout} == {"g48199-use1-az6-1", "g48199-use1-az1-1", "g48199-use1-az4-1",
+                                                      "g48199-use1-az6-2"}
+    seeded = [c["ResourceRecordSet"] for r in seed_rows(scenario) if r.get("operation") == "ChangeResourceRecordSets"
+              for c in r["params"]["ChangeBatch"]["Changes"] if c["ResourceRecordSet"]["Name"].rstrip(".") == name[:-1]]
+    assert sorted(s["ResourceRecords"][0]["Value"] for s in checkout) == \
+        sorted(s["ResourceRecords"][0]["Value"] for s in seeded)
 
 
 def test_one_account_in_the_trail_and_the_world():

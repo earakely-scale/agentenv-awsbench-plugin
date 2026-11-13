@@ -508,8 +508,10 @@ class AwsServer(AgentEnvEnvironment):
         return {"role": role, "principal": self.bridge.principal(role, self.bridge.profile(role, None)),
                 "call_no": call["call_no"], "t": call["t"]}
 
-    @tool(description="Run a shell command on the hosts a selector names (a host, a glob, a fleet group or an AZ; "
-                      "comma-separated). Each host answers with its stdout and exit code.", structured_output=False)
+    @tool(description="Run one command on the hosts a selector names (a host, a glob, a fleet group or an AZ; "
+                      "comma-separated). Each host answers with its stdout and exit code. One command per call: shell "
+                      "operators (; | && < > ` $( )) are refused, uncharged; commands already run as root, so no sudo.",
+          structured_output=False)
     async def fleet_exec(self, selector: str, command: str, ctx: ToolContext) -> str:
         world = self.world
         hosts = await self._world_call(count_hosts, world, selector) if world is not None else None
@@ -648,7 +650,7 @@ class AwsServer(AgentEnvEnvironment):
         self.bridge.faults = self.aws_port.faults = Faults(data.get("faults"), seed, flags=self._flags)
         self.bridge.times = self.aws_port.times = WallTimes(parse_time(data["seeded_at"]) if data.get("seeded_at")
                                                             else None)
-        self.bridge.times.mark(cfg.start)
+        await asyncio.to_thread(self.bridge.times.begin, cfg.start)
         try:
             from .world import World
             self.world = await asyncio.to_thread(self._w, lambda: World(data, seed, self.aws_port, self.ws_port))
