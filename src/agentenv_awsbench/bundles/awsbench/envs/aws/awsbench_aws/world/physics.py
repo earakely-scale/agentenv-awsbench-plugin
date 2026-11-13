@@ -106,8 +106,14 @@ class Dns:
                 "ledger_nonempty_history": [[iso(t), ne] for t, ne in self.history]}
 
 
+FAILURE = {"healthy": 0.003, "degraded": 0.03, "collapsed": 0.65}
+
+
 class Storm:
-    """Ledger-writer load versus a connection-bound capacity, with hysteresis between regimes."""
+    """Ledger-writer load versus a connection-bound capacity, with hysteresis between regimes.
+
+    checkout-api below `outbox_min_revision` (:412) neither writes nor replays the posting outbox, so pending entries
+    stay stranded, and it calls ledger directly with immediate retries."""
 
     def __init__(self, cfg: dict, start: datetime):
         self.cfg = cfg
@@ -115,10 +121,15 @@ class Storm:
         self.task_budget = int(cfg.get("task_budget", 16))
         self.over_budget_capacity = float(cfg.get("over_budget_capacity", 1000))
         self.max_tasks = int(cfg.get("max_tasks", 18))
-        self.lw_running = int(cfg.get("ledger_writer_tasks", 12))
+        self.lw_running = self.lw_desired = self.lw_hosts = int(cfg.get("ledger_writer_tasks", 12))
         self.lw_pending: tuple[datetime, int] | None = None
+        self.lw_hosts_pending: tuple[datetime, int] | None = None
+        self.checkout_rev = int(cfg.get("checkout_revision", 412))
+        self.checkout_pending: tuple[datetime, int] | None = None
         self.disp_desired = int(cfg.get("dispatcher_tasks", 40))
+        self.disp_min = int(cfg.get("dispatcher_min", 6))
         self.disp_max = int(cfg.get("dispatcher_max", 40))
+        self.disp_events: list[tuple[datetime, int, int, str]] = []
         self.disp_base = self.disp_desired
         self.disp_revert_at: datetime | None = None
         self.disp_suspended = False
@@ -138,28 +149,58 @@ class Storm:
         n = self.lw_running
         return self.per_task * n if n <= self.task_budget else self.over_budget_capacity
 
+    def dispatcher_desired(self) -> int:
+        return min(max(self.disp_desired, self.disp_min), self.disp_max)
+
     def dispatcher_running(self) -> int:
-        return min(self.disp_desired, self.disp_max)
+        return self.dispatcher_desired()
+
+    def outbox_read(self) -> bool:
+        return self.checkout_rev >= int(self.cfg.get("outbox_min_revision", 412))
 
     def set_dispatcher_desired(self, n: int, t: datetime) -> None:
         self.disp_desired = n
         self.disp_revert_at = None if self.disp_suspended else t + timedelta(
             seconds=float(self.cfg.get("manual_desired_reverted_after_s", 120)))
 
+    def set_autoscaled(self, on: bool, t: datetime) -> None:
+        """Dynamic scaling on or off (suspended, or its policy deleted); off keeps the desired count it finds."""
+        self.disp_suspended = not on
+        if not on:
+            self.disp_revert_at, self.disp_base = None, self.disp_desired
+
     def set_ledger_writer_desired(self, n: int, t: datetime) -> None:
-        self.lw_pending = (t + timedelta(seconds=float(self.cfg.get("task_start_s", 90))), min(n, self.max_tasks))
+        """One task per cp-ledger host: tasks beyond the hosts wait for the ASG to launch more (up to max_tasks)."""
+        self.lw_desired, want = n, min(n, self.max_tasks)
+        delay = float(self.cfg.get("task_start_s", 90))
+        if want > self.lw_hosts:
+            launch = float(self.cfg.get("launch_to_ready_s", 240))
+            self.lw_hosts_pending = (t + timedelta(seconds=launch), want)
+            delay += launch
+        self.lw_pending = (t + timedelta(seconds=delay), want)
+
+    def set_checkout_revision(self, rev: int, at: datetime) -> None:
+        self.checkout_pending = (at, rev)
 
     def tick(self, t: datetime, dt: float, rs: float, lev: dict) -> None:
         if self.disp_revert_at and t >= self.disp_revert_at:
+            before = self.dispatcher_desired()
             self.disp_desired, self.disp_revert_at = self.disp_base, None
+            self.disp_events.append((t, before, self.dispatcher_desired(), "alarm"))
+        if self.lw_hosts_pending and t >= self.lw_hosts_pending[0]:
+            self.lw_hosts, self.lw_hosts_pending = max(self.lw_hosts, self.lw_hosts_pending[1]), None
         if self.lw_pending and t >= self.lw_pending[0]:
             self.lw_running, self.lw_pending = self.lw_pending[1], None
+        if self.checkout_pending and t >= self.checkout_pending[0]:
+            self.checkout_rev, self.checkout_pending = self.checkout_pending[1], None
+        reads = self.outbox_read()
         cap = self.capacity = self.capacity_now()
         mc = lev["max_concurrency"]
         running = self.dispatcher_running()
         arrivals = float(self.cfg.get("webhook_arrivals_per_s", 35))
-        replay = lev["replay_rate"] if self.outbox > 0 else 0.0
-        checkout = rs * (float(self.cfg.get("checkout_req_s", 90)) + replay)
+        replay = lev["replay_rate"] if self.outbox > 0 and reads else 0.0
+        checkout = rs * (float(self.cfg.get("checkout_req_s", 90)) + replay if reads else
+                         float(self.cfg.get("checkout_pre412_req_s", 60)) * (1 + 4 * FAILURE[self.regime]))
         if lev["consumer_paused"]:
             dispatcher = 0.0
         else:
@@ -193,8 +234,8 @@ class Storm:
         else:
             delivered = rs * running * mc / 0.4 if self.backlog > 0 else arrivals
         self.backlog = max(0.0, self.backlog + (arrivals - delivered) * dt)
-        inflow = float(self.cfg.get("outbox_inflow_per_s", 15)) * (1 - rs)
-        drain = lev["replay_rate"] * rs if self.regime != "collapsed" else 0.0
+        inflow = float(self.cfg.get("outbox_inflow_per_s", 15)) * (1 - rs) if reads else 0.0
+        drain = lev["replay_rate"] * rs if self.regime != "collapsed" and reads else 0.0
         self.outbox = max(0.0, self.outbox + (inflow - drain) * dt)
 
     def latency_ms(self) -> float:
@@ -203,8 +244,9 @@ class Storm:
     def export(self) -> dict:
         return {"collapsed_seconds_total": self.collapsed_total, "regime_timeline": self.regime_timeline,
                 "regime": self.regime, "ledger_writer_tasks": self.lw_running,
-                "dispatcher_desired": self.disp_desired, "webhook_backlog": round(self.backlog),
-                "outbox_pending": round(self.outbox), "series": self.series}
+                "dispatcher_desired": self.dispatcher_desired(), "webhook_backlog": round(self.backlog),
+                "outbox_pending": round(self.outbox), "checkout_revision": self.checkout_rev,
+                "outbox_frozen": not self.outbox_read() and round(self.outbox) > 0, "series": self.series}
 
 
 def checkout_success(recovered: list[bool], regime: str, bad_share: float, cfg: dict) -> float:

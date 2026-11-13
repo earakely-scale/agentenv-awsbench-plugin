@@ -243,6 +243,8 @@ class Telemetry:
             return 4.0 if pre or m["ledger_correct"] else (t - self.outage_start).total_seconds()
         if key == ("AWS/ECS", "RunningTaskCount"):
             svc = dims.get("ServiceName", "")
+            if self.w.ecs is not None:
+                return float(self.w.ecs.counts(svc)[1]) if svc in self.w.ecs.services else None
             return float(self.w.storm.lw_running if "ledger-writer" in svc else
                          self.w.storm.dispatcher_running() if "webhooks" in svc else 18)
         return None

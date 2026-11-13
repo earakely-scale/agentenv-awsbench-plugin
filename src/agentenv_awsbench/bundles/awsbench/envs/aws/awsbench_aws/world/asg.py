@@ -90,11 +90,8 @@ class IngressAsg:
 
     # ---- dispatch ----
     def serve(self, op: str, p: dict, now: datetime) -> dict | None:
-        names = p.get("AutoScalingGroupNames")
         if op == "DescribeScheduledActions":
             return {"ScheduledUpdateGroupActions": []}
-        if op == "DescribeAutoScalingGroups":
-            return {"AutoScalingGroups": [self.group(now)] if not names or self.name in names else []}
         if op == "DescribeInstanceRefreshes":
             if p.get("AutoScalingGroupName") != self.name:
                 return {"InstanceRefreshes": []}
@@ -127,3 +124,53 @@ class IngressAsg:
                 "cancelled_at": iso(self.cancelled_at), "resumes_at": iso(self.resumes_at),
                 "held": self.cancelled_at is not None or "InstanceRefresh" in self.suspended,
                 "suspended_processes": {k: iso(v) for k, v in sorted(self.suspended.items())}, "calls": self.calls}
+
+
+class LedgerWriterAsg:
+    """cp-ledger's group: one ledger-writer task per host, so managed scaling launches a host for each task above the
+    running hosts, up to MaxSize."""
+
+    def __init__(self, world, cfg: dict):
+        self.w, self.cfg, self.name = world, cfg, cfg["name"]
+
+    def group(self, now: datetime) -> dict:
+        s = self.w.storm
+        base = [h for h in self.w.fleet.hosts.values() if h["fleet"] == "ledger-writer"]
+        desired = min(max(self.cfg["min"], s.lw_desired), s.max_tasks)
+        names = [h["name"] for h in base] + [f"lw-{'abc'[k % 3]}-{5 + k // 3:02d}" for k in range(desired - len(base))]
+        azs = {"a": "us-east-1a", "b": "us-east-1b", "c": "us-east-1c"}
+        return {
+            "AutoScalingGroupName": self.name,
+            "AutoScalingGroupARN": f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:autoScalingGroup:"
+                                   f"8c1f4e2a-6d3b-4f70-9a2e-5b7c0d1e3f48:autoScalingGroupName/{self.name}",
+            "LaunchTemplate": {"LaunchTemplateId": "lt-07c3e9a1f5b2d4086", "LaunchTemplateName": self.cfg["launch_template"],
+                               "Version": "$Latest"},
+            "MinSize": self.cfg["min"], "MaxSize": s.max_tasks, "DesiredCapacity": desired, "DefaultCooldown": 300,
+            "AvailabilityZones": sorted(azs.values()), "HealthCheckType": "EC2", "HealthCheckGracePeriod": 300,
+            "Instances": [{"InstanceId": instance_id(n), "InstanceType": self.cfg["instance_type"],
+                           "AvailabilityZone": azs[n.split("-")[1]],
+                           "LifecycleState": "InService" if i < s.lw_hosts else "Pending", "HealthStatus": "Healthy",
+                           "ProtectedFromScaleIn": False} for i, n in enumerate(names)],
+            "CreatedTime": parse_time(self.cfg["created"], self.w.start_t), "SuspendedProcesses": [],
+            "VPCZoneIdentifier": "subnet-0a6e1f2b3c4d5e601,subnet-0b7f2a3c4d5e6f702,subnet-0c8a3b4d5e6f7a803",
+            "EnabledMetrics": [], "TerminationPolicies": ["Default"], "NewInstancesProtectedFromScaleIn": False,
+            "ServiceLinkedRoleARN": f"arn:aws:iam::{ACCOUNT}:role/aws-service-role/autoscaling.amazonaws.com/"
+                                    "AWSServiceRoleForAutoScaling",
+            "Tags": [{"ResourceId": self.name, "ResourceType": "auto-scaling-group", "Key": "AmazonECSManaged",
+                      "Value": "", "PropagateAtLaunch": True},
+                     {"ResourceId": self.name, "ResourceType": "auto-scaling-group", "Key": "ecs-capacity-provider",
+                      "Value": self.cfg["capacity_provider"], "PropagateAtLaunch": True}],
+        }
+
+    def serve(self, op: str, p: dict, now: datetime) -> dict | None:
+        return None
+
+
+def serve_groups(groups: list, op: str, p: dict, now: datetime) -> dict | None:
+    if op == "DescribeAutoScalingGroups":
+        names = p.get("AutoScalingGroupNames")
+        return {"AutoScalingGroups": [g.group(now) for g in groups if not names or g.name in names]}
+    for g in groups:
+        if (out := g.serve(op, p, now)) is not None:
+            return out
+    return None

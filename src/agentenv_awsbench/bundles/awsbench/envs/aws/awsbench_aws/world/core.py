@@ -3,7 +3,8 @@
 from datetime import datetime, timedelta
 
 from .archive import PlanArchive
-from .asg import IngressAsg
+from .asg import IngressAsg, LedgerWriterAsg, serve_groups
+from .ecs import Ecs
 from .endpointd import COMPONENTS, Endpointd, host_of
 from .epctl import Epctl
 from .fleet import Fleet
@@ -54,6 +55,8 @@ class World:
                                  scenario.get("identities", {}).get("sre-primary", {}))
         self.telemetry = Telemetry(self, w.get("telemetry", {}))
         self.asg = IngressAsg(self, w["ingress_asg"]) if w.get("ingress_asg") else None
+        self.ecs = Ecs(self, w["ecs"]) if w.get("ecs") else None
+        self.lw_asg = LedgerWriterAsg(self, w["ecs"]["ledger_writer_asg"]) if self.ecs else None
         self.checkout_ticks: list[tuple[datetime, float]] = []
         self.checkout_1m: list[list] = []
         self.checkout_now = 0.0
@@ -100,13 +103,16 @@ class World:
         return {"now": self.now, "woke": woke, "fired": fired, "delivered": delivered}
 
     def observe(self, call: dict) -> None:
+        """An agent call at call["t"]. Its `ops` are the AWS operations it made ({service, operation, params, error}),
+        as the meter reads them from the action log; only the ones without an error move the world."""
         call = dict(call)
         call["t"] = self._time(call.get("t") or self.now)
         call.setdefault("args", {})
         if self._writes_aws(call):
             self.mirror.sync()
             self.on_records_changed(call["t"])
-        self.storm_levers_from_call(call)
+        call["effects"] = [e for op in call.get("ops") or [] if not op.get("error")
+                           for e in self.storm_levers_from_call(op, call["t"])]
         self.timeline.observe(call)
 
     def _time(self, t) -> datetime:
@@ -116,6 +122,9 @@ class World:
         if call.get("server") == "workspace" or str(call.get("tool", "")).split("_")[0] in (
                 "chat", "tickets", "wiki", "repo", "mail", "pager", "status"):
             return False
+        if call.get("ops") is not None and call.get("tool") in ("aws_cli", "aws_api"):
+            return any(not o.get("error") and not str(o.get("operation")).startswith(READ_PREFIXES)
+                       for o in call["ops"])
         op = call.get("operation") or ""
         if op:
             return not op.startswith(READ_PREFIXES)
@@ -183,27 +192,9 @@ class World:
               "alarm": self.telemetry.alarm_state, "flag": lambda k: bool(self.world_flags.get(k))}
         return bool(eval(expr, {"__builtins__": {}}, ns))
 
-    def storm_levers_from_call(self, call: dict) -> None:
-        """ECS and Application Auto Scaling writes the emulator stores but physics owns."""
-        op, p = call.get("operation") or "", call.get("params") or {}
-        svc = str(p.get("service") or p.get("ResourceId") or "")
-        if op == "UpdateService" and p.get("desiredCount") is not None:
-            if "webhooks-dispatcher" in svc:
-                self.storm.set_dispatcher_desired(int(p["desiredCount"]), call["t"])
-            elif "ledger-writer" in svc:
-                self.storm.set_ledger_writer_desired(int(p["desiredCount"]), call["t"])
-        elif op == "RegisterScalableTarget" and "webhooks-dispatcher" in svc:
-            if p.get("MaxCapacity") is not None:
-                self.storm.disp_max = int(p["MaxCapacity"])
-            susp = p.get("SuspendedState") or {}
-            if susp:
-                self.storm.disp_suspended = bool(susp.get("DynamicScalingInSuspended") or
-                                                 susp.get("DynamicScalingOutSuspended"))
-                if self.storm.disp_suspended:
-                    self.storm.disp_revert_at = None
-                    self.storm.disp_base = self.storm.disp_desired
-        elif op == "StopTask" and "acme" in str(p.get("task", "")) + str(p.get("reason", "")):
-            self.world_effect("acme_complete", {"stopped_by": "agent"}, call["t"])
+    def storm_levers_from_call(self, op: dict, t: datetime) -> list[str]:
+        """ECS and Application Auto Scaling writes the world serves and physics owns; returns the effects."""
+        return self.ecs.apply(op, t) if self.ecs is not None else []
 
     def world_effect(self, name: str, args: dict, t: datetime) -> None:
         self.world_flags[name] = iso(t)
@@ -238,8 +229,11 @@ class World:
 
     # ---- AWS reads served by physics ----
     def serve_aws(self, service: str, operation: str, params: dict) -> dict | None:
-        if service.lower() == "autoscaling" and self.asg is not None:
-            return self.asg.serve(operation, params or {}, self.now)
+        if service.lower() == "autoscaling":
+            return serve_groups([g for g in (self.asg, self.lw_asg) if g], operation, params or {}, self.now)
+        if self.ecs is not None and (out := self.ecs.serve(service.lower(), operation, params or {},
+                                                           self.now)) is not None:
+            return out
         if service.lower() == "s3":
             return self.archive.serve(operation, params or {}, self.now)
         return self.telemetry.serve(service, operation, params or {}, self.now)
@@ -257,6 +251,7 @@ class World:
             "fleet_jobs": self.fleet.export_jobs(),
             "world_flags": self.world_flags,
             "ingress_asg": self.asg.export(self.now) if self.asg else None,
+            "ecs": self.ecs.export(self.now) if self.ecs else None,
             "workspace_errors": self.ws_errors,
             "components": {c: {"host": host_of(c), "switch": self.endpointd.switch(c),
                                "process": self.endpointd.processes[c]} for c in COMPONENTS},

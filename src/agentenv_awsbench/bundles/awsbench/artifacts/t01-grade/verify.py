@@ -619,8 +619,10 @@ def c7(inp):
     outbox = inp.world.get("outbox") or inp.world.get("checkout-outbox")
     if "webhook_backlog" in storm and "outbox_pending" in storm:
         depth, pending = float(storm["webhook_backlog"]), float(storm["outbox_pending"])
-        caught_up = depth < 2000 and pending < 500
-        how = f"backlog {depth:.0f}, outbox pending {pending:.0f} at the export"
+        frozen = bool(storm.get("outbox_frozen"))
+        caught_up = depth < 2000 and pending < 500 and not frozen
+        how = f"backlog {depth:.0f}, outbox pending {pending:.0f} at the export" + (
+            f"; outbox stranded: checkout-api:{storm.get('checkout_revision')} does not read it" if frozen else "")
     elif backlog is not None or outbox is not None:
         last = value_at(series(backlog), inp.horizon) if backlog is not None else None
         depth = (last.get("visible", 0) + last.get("in_flight", 0)) if isinstance(last, dict) else (last or 0)
