@@ -82,3 +82,12 @@ issues:
     priority: Low
     reporter: tomas.ilyin
     created: "2026-09-14T09:00:00-04:00"
+  - key: SUP-88000
+    type: Ticket
+    summary: "How do I export last month's payouts as CSV?"
+    status: Solved
+    priority: Low
+    reporter: support-desk
+    created: "2026-11-16T14:05:00-05:00"
+    updated: "2026-11-16T14:40:00-05:00"
+    description: "Merchant asks where the payouts CSV export lives; pointed to Dashboard > Payouts > Export."

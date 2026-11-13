@@ -3720,7 +3720,7 @@ timeline:
     args:
       channel: '#inc-4452'
       user: hannah.becker
-      text: '@sre-primary DNS is back per your update but checkout is still failing, timeouts now. That''s the breaker again - we need to roll
+      text: '@sre-primary Looks like DNS is back, but checkout is still failing, timeouts now. That''s the breaker again - we need to roll
         back.'
 - id: ev-sev-autopage
   after_tool:
@@ -3896,11 +3896,19 @@ timeline:
   - 60
   unless_state: checkout_success_1m >= 0.95
   actions:
+  - op: tickets.create_as
+    args:
+      project: SUP
+      user: support-desk
+      type: Ticket
+      summary: 'Checkout failing: ''payment could not be completed'''
+      description: Merchant reports failed orders in the last minutes; customers see 'payment could not be completed' at checkout.
+      untrusted: true
   - op: chat.post_as
     args:
       channel: '#support-escalations'
       user: support-desk
-      text: 'New merchant ticket SUP-{n}: checkouts failing with ''payment could not be completed'' (merchant reports failed orders in the last
+      text: 'New merchant ticket {result}: checkouts failing with ''payment could not be completed'' (merchant reports failed orders in the last
         minutes).'
 - id: ev-backlog-alarm
   state: visible > 30000
@@ -4249,6 +4257,7 @@ npcs:
       reply: 'Not mine to approve: a manual apply is EPD-RB-7 step 3, yours under IP §3.4; Priya is your second approver if you go off the
         runbook. Just don''t resume anything.'
     - id: R1-which-plan
+      unless_state: ledger_correct
       match:
         any:
         - '48177'
@@ -4263,7 +4272,7 @@ npcs:
         any:
         - \brace\b
         - what happened
-        - \bwhy\b
+        - \bwhy\b(?!\s*:)
         - root cause
         - plat-412
       reply: 'Yes, that''s PLAT-412: b checked freshness once at 02:09, crawled under throttling, wrote 48177 after c applied 48199; c''s cleanup
@@ -4275,7 +4284,7 @@ npcs:
         - li-b-01
         - graviton
         - ingress
-      reply: 'Don''t let the ingress refresh resume while endpointd is paused: cancel it or hold it before 08:21. li-b-01 is the arm64 cert path
+      reply: 'Don''t let the ingress refresh resume while endpointd is paused: cancel it or hold it before 08:21 ET. li-b-01 is the arm64 cert path
         race.'
     - id: R6-briefing
       match:
@@ -4378,10 +4387,11 @@ npcs:
     - id: R1-ips
       match:
         any:
-        - ip
+        - \bIPs?\b
         - ingress
         - healthy
-      reply: From memory the ingress IPs were .11.152, .11.38, .44.77, .44.40, .76.29, .76.30 - but check, that list may be stale.
+      reply: 'From memory (my Nov 10 #sre post) the ingress IPs were .11.37, .11.38, .44.41, .44.40, .76.29, .76.30 - but check, that list
+        may be stale.'
     default: I can watch dashboards and post updates from my phone; I won't make prod changes from here.
   hannah.becker:
     chat_user: hannah.becker

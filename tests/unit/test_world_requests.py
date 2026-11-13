@@ -6,7 +6,7 @@ import re
 
 import pytest
 from awsbench_aws.world import World, replay_seed
-from awsbench_aws.world.timeline import context, plan_gens
+from awsbench_aws.world.timeline import asks, context, plan_gens
 from test_world_npcs import page_platform, post, replies
 from test_world_t01 import SCENARIO, FakeAws, FakeWs, at, ep
 
@@ -189,3 +189,12 @@ def test_plan_archive_bucket_holds_the_archived_plans(world):
     out, code = world.epctl.run("epctl plan show 48177 --from-archive --endpoint ledger.internal.vantleaf.io",
                                 "endpointd-planner-1", {"role": "sre-primary"}, at("02:50:00"))
     assert "s3://vl-endpointd-plan-archive/prod/plans/gen=0000048177.json" in out
+
+
+def test_requested_by_is_not_a_request(world):
+    assert asks(O_0253) == []
+    assert asks(S_0302)[0].startswith("requested: `epctl apply")
+    page_platform(world)
+    post(world, "02:53:55", O_0253)
+    world.advance_to(at("03:00:00"))
+    assert not replies(world, "priya.raman")

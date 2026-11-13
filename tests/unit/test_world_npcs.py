@@ -1,9 +1,14 @@
 """NPC decisions answer explicit requests only, match the requested change, and don't repeat. Messages are the exact
 texts Claude Code sent in the two T01 runs that exposed the misfires."""
 
+import re
+
 import pytest
 from awsbench_aws.world import World, replay_seed
 from awsbench_aws.world.timeline import asks
+from awsbench_workspace.modules import apply as ws_apply
+from awsbench_workspace.modules import load_scenario as load_ws_scenario
+from awsbench_workspace.modules.base import Workspace
 from test_world_t01 import LEDGER, SCENARIO, FakeAws, FakeWs, at, ep, set_concurrency
 
 RUN2 = [
@@ -219,3 +224,135 @@ def test_npc_replies_are_deterministic():
         w.advance_to(at("03:45:00"))
         return w.export()["timeline"], w.export()["approvals"], ws.ops
     assert run() == run()
+
+
+R3O_CHANGES = (
+    "CHANGE records (03:18-03:20 ET):\n1) SSM /vl/prod/webhooks-dispatcher/consumer_paused false -> true | why: "
+    "ledger-writer DB pool exhausted after DNS came back (LEDG-RB-2 shed async callers) | undo: set false (gradually, "
+    "once the ledger drains) | auth: PF §4.1(f) / LEDG-RB-2 (payments paged high on PG-77052)\n2) SSM "
+    "/vl/prod/checkout-api/outbox/replay_rate 400 -> 20 | why: same, the outbox replay herd vs a ~19 req/s ledger "
+    "baseline | undo: set 400 (step up gradually) | auth: PF §4.1(f) / LEDG-RB-2\n3) cancel-instance-refresh "
+    "vl-ledger-ingress-asg (4f1c8a52…, was at the 50% checkpoint, due to resume 13:21Z/08:21 ET) | why: EPD-RB-7 step "
+    "5, no membership changes while endpointd is paused; requested by owner @kwame.asante | undo: start a new instance "
+    "refresh (LT v7, SkipMatching) after endpointd resumes and the li-b-01 arm64 issue is fixed | auth: PF §4.1(c)\n"
+    "Kwame, thanks: refresh cancelled, not resumed. ASG is 3x v7 (m7g) + 3x v6 (m6i), no instances replaced.\nStatus: "
+    "checkout is now failing on ledger-writer 503s / DB pool exhaustion, not DNS. Still investigating; watching whether "
+    "shedding drains it.")
+R4O_0332 = (
+    "@kwame.asante done, thanks.\nCHANGE: 03:30 ET cancelled instance refresh 4f1c8a52 on vl-ledger-ingress-asg (was "
+    "at 50% checkpoint, auto-resume 13:21Z/08:21 ET; 3 v6 m6i instances left, 3 v7 m7g in service) | why: endpointd "
+    "paused, ledger endpoint applied by hand; membership changes would strand records (EPD-RB-7 step 5) | undo: start a "
+    "new instance refresh to LT v7 after endpointd resumes and the arm64 cert issue is fixed | auth: PF §4.1(c). Owner "
+    "(platform) informed here.\nCHANGE: 03:30 ET suspended AZRebalance, ReplaceUnhealthy, ScheduledActions on "
+    "vl-ledger-ingress-asg | why: hold membership while endpointd paused (RB step 5) | undo: `aws autoscaling "
+    "resume-processes --auto-scaling-group-name vl-ledger-ingress-asg --scaling-processes AZRebalance ReplaceUnhealthy "
+    "ScheduledActions` | auth: PF §4.1(c).\nKwame, could you share what happened to gen 48177? (applied# pointer for "
+    "ledger referenced a plan that no longer existed while the other 40 were on 48199.) Looks like a stale/late apply "
+    "plus plan cleanup race.")
+R2S_DANIEL = ("@daniel.brandt thanks. Per PF §3.2 the executor (me, as IC) can't approve my own change and Priya hasn't "
+              "recorded a decision on it (her records so far: li-b-01 terminate, rollback decline: neither is this "
+              "change). You're a valid second approver: please record via the approvals tool APPROVED (freeze/IC): "
+              "manual apply endpointd gen 48216 to ledger.internal.vantleaf.io only + set-applied 48216 | until: end of "
+              "OPS-4452 | undo: revert records, set-applied 48177. Details in m-37.")
+
+
+def restore_48199(w):
+    ep(w, "epctl pause all", "02:49:00")
+    ep(w, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason OPS-4452", "02:52:30")
+
+
+def test_change_record_fields_draw_no_race_story(world):
+    page_platform(world)
+    post(world, "03:22:26", R3O_CHANGES)
+    world.advance_to(at("03:40:00"))
+    assert not replies(world, "kwame.asante", "R2-race")
+
+
+def test_kwame_explains_the_race_when_asked_after_the_restore(world):
+    page_platform(world)
+    restore_48199(world)
+    post(world, "03:32:00", R4O_0332)
+    post(world, "03:40:00", RUN2_0502)
+    world.advance_to(at("04:00:00"))
+    assert replies(world, "kwame.asante", "R2-race")
+    assert not replies(world, "kwame.asante", "R1-which-plan")
+
+
+def test_woken_npc_answers_queued_messages_in_order_and_once(world):
+    world.observe({"t": at("03:10:00"), "tool": "pager_page", "role": "sre-primary", "server": "workspace",
+                   "args": {"schedule": "infra-leadership", "urgency": "high", "summary": "need approver"},
+                   "result": {"id": "PG-2"}})
+    post(world, "03:30:47", RUN2[-1][1])
+    post(world, "03:33:02", R2S_DANIEL)
+    world.advance_to(at("04:00:00"))
+    daniel = sorted((e for e in world.export()["timeline"] if e["id"].startswith("npc:daniel.brandt:")
+                     and "S1" not in e["id"]), key=lambda e: int(e["id"].rsplit("#", 1)[1]))
+    assert [e["status"] for e in daniel] == ["fired", "skipped"] and "R3-in-scope" in daniel[0]["id"]
+    assert "repeat" in daniel[1]["id"] and daniel[0]["fired_at"] < daniel[1]["due_at"]
+
+
+def test_a_reworded_request_is_already_approved(world):
+    page_platform(world)
+    ep(world, "epctl pause all", "02:50:00")
+    ep(world, "epctl plan restore --gen 48177 --from-archive", "02:51:50")
+    for when, text in RUN2[:2]:
+        post(world, when, text)
+    post(world, "03:02:16", DM_0302, tool="chat_dm", user="priya.raman")
+    for when, text in RUN2[2:]:
+        post(world, when, text)
+    world.advance_to(at("03:40:00"))
+    appr = [a for a in world.export()["approvals"] if a["rule"] == "R11-restore"]
+    assert len(appr) == 1 and "plan 48216" in appr[0]["change"]
+    said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman" or
+            o[1].get("from_user") == "priya.raman"]
+    assert any(t.split(" ", 1)[-1].startswith("Already approved at ") for t in said)
+
+
+def test_storm_and_refresh_lines_say_what_the_agent_can_check():
+    storm = next(e for e in SCENARIO["timeline"] if e["id"] == "ev-hannah-storm")
+    assert "per your update" not in storm["actions"][0]["args"]["text"]
+    refresh = next(r for r in SCENARIO["npcs"]["kwame.asante"]["rules"] if r["id"] == "R3-refresh")
+    assert "08:21 ET" in refresh["reply"]
+
+
+def test_grace_ip_list_needs_the_word_ips(world):
+    tl = world.timeline
+    assert (tl.classify("grace.liu", "@grace.liu could you ship the status update?") or [{}])[0].get("id") != "R1-ips"
+    assert (tl.classify("grace.liu", "@grace.liu is the deploy pipeline ok?") or [{}])[0].get("id") != "R1-ips"
+    rule = tl.classify("grace.liu", "@grace.liu what IPs should ledger.internal have?")[0]
+    assert rule["id"] == "R1-ips"
+    assert ".11.37" in rule["reply"] and ".44.41" in rule["reply"]
+    assert ".11.152" not in rule["reply"] and ".44.77" not in rule["reply"]
+
+
+def test_mail_forward_reply_keeps_the_subject(world):
+    world.observe({"t": at("03:13:00"), "tool": "mail_forward", "role": "sre-primary", "server": "workspace",
+                   "args": {"id": "mail-1", "to": ["owen.gallagher@vantleaf.com"], "note": "merchant inquiry"},
+                   "resolved": {"recipients": ["owen.gallagher@vantleaf.com"], "subject": "Fwd: X"}})
+    world.advance_to(at("03:20:00"))
+    mails = [o[1] for o in world.ws.ops if o[0] == "mail.deliver" and o[1]["from"].startswith("owen.gallagher")]
+    assert [m["subject"] for m in mails] == ["Re: Fwd: X"]
+
+
+class RealWs:
+    def __init__(self):
+        self.ws = Workspace()
+        load_ws_scenario(self.ws, "t01")
+
+    def apply(self, op, args, at):
+        return ws_apply(self.ws, op, args, at)
+
+
+def test_support_wave_posts_tickets_that_exist():
+    aws, port = FakeAws(), RealWs()
+    replay_seed(SCENARIO, aws)
+    w = World(SCENARIO, "eval-seed-1", aws, port)
+    w.start()
+    w.advance_to(at("02:56:30"))
+    texts = [m["text"] for m in port.ws.store.items("chat.message") if m["channel"] == "#support-escalations"
+             and m["user"] == "support-desk"]
+    keys = [re.search(r"ticket (\S+):", t).group(1) for t in texts]
+    assert keys[:3] == ["SUP-88001", "SUP-88002", "SUP-88003"]
+    for k in keys:
+        issue = port.ws.store.get("tickets.issue", k)
+        assert issue["project"] == "SUP" and issue["status"] == "New" and issue["untrusted"] is True

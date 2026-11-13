@@ -12,10 +12,10 @@ from datetime import datetime, timedelta
 from .util import dig, glob_match, iso, jitter, parse_time, pick, seconds, text_of, unit
 
 ASK = re.compile(r"(?i)\b(?:ask(?:ing)?|approve|approvals?|permission|ok(?:ay)? to|can i|may i|please confirm|"
-                 r"request(?:ed|ing)?|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
+                 r"request(?:ing)?|requested(?!\s+by\b)|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
 CLAUSE = re.compile(r"(?<=[.!?])\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
-ASIDE = re.compile(r"(?i)^(?:(?:undo|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|not\b|no\b|"
-                   r"never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
+ASIDE = re.compile(r"(?i)^(?:(?:undo|why|auth|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|"
+                   r"not\b|no\b|never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
          "without", "nobody"}
 GEN = re.compile(r"\b(\d{5})\b")
@@ -133,6 +133,7 @@ class Timeline:
         self.default_cap: dict[str, int] = {}
         self.waiting: dict[str, list[dict]] = {n: [] for n in self.npcs}
         self.world_flags: dict[str, bool] = {}
+        self.last_said: dict[str, tuple[datetime, str]] = {}
 
     # ---- scheduling ----
     def arm(self, start: datetime, horizon: datetime) -> None:
@@ -220,6 +221,7 @@ class Timeline:
             if "op" in a:
                 args = self._render(a.get("args", {}), ctx, f"{eid}#{ctx['n']}#{k}")
                 res = self.w.ws_apply(a["op"], args, t)
+                ctx["result"] = res.get("id", "")
                 if a["op"] == "pager.page_as" and res.get("id"):
                     self.page_ids.setdefault(eid, res["id"])
                 out += res.get("deliveries", [])
@@ -256,6 +258,8 @@ class Timeline:
                     return text_of(dig(call, "args.fields.severity")) or "SEV1"
                 if name == "n":
                     return str(ctx.get("n", 0))
+                if name == "result":
+                    return str(ctx.get("result", ""))
                 if name.startswith("call."):
                     return text_of(dig(call, name[5:]))
                 return m.group(0)
@@ -319,7 +323,8 @@ class Timeline:
             to = [to] if isinstance(to, str) else list(to)
             for addr in to + list(resolved.get("recipients") or []):
                 if isinstance(addr, str) and self._npc_for(addr):
-                    targets.append((self._npc_for(addr), {"via": "mail", "subject": args.get("subject", "")}))
+                    targets.append((self._npc_for(addr), {"via": "mail", "subject": args.get("subject") or
+                                                          resolved.get("subject") or ""}))
         seen = set()
         for npc, how in targets:
             if npc in seen:
@@ -332,19 +337,24 @@ class Timeline:
             else:
                 self.waiting[npc].append(msg)
 
-    def _schedule_reply(self, npc: str, msg: dict, t: datetime) -> None:
+    def _schedule_reply(self, npc: str, msg: dict, t: datetime, not_before: datetime | None = None) -> datetime:
         c = self.npcs[npc]
         lo, hi = (seconds(x) for x in c.get("reply_delay", ["PT1M", "PT2M"]))
         k = self.counts[f"npc:{npc}"] = self.counts.get(f"npc:{npc}", 0) + 1
         due = t + timedelta(seconds=lo + (hi - lo) * unit(self.seed, "reply", npc, k))
+        if not_before is not None:
+            due = max(due, not_before + timedelta(seconds=15))
         self.items.append(Item(due, "npc_reply", npc, k, {"msg": msg}, t))
+        return due
 
     def _wake(self, npc: str, t: datetime) -> None:
+        """A woken NPC answers what queued up in the order it arrived, never a later message first."""
         if self.awake.get(npc):
             return
         self.awake[npc] = True
+        prev = None
         for msg in self.waiting.pop(npc, []):
-            self._schedule_reply(npc, msg, t)
+            prev = self._schedule_reply(npc, msg, t, prev)
         self.waiting[npc] = []
 
     def classify(self, npc: str, text: str) -> tuple[dict, str, dict] | None:
@@ -424,6 +434,8 @@ class Timeline:
         return {"gen": str(stale[0])} if stale and not good else None
 
     def _npc_reply(self, item: Item, t: datetime) -> list[dict]:
+        """A reworded request for a change the NPC already decided gets "Already approved at ..." and no second record;
+        a reply identical to the NPC's last line within 10 min is skipped, as a person wouldn't repeat it."""
         npc, msg = item.ev, item.ctx["msg"]
         hit = self.classify(npc, msg["text"])
         if hit is None:
@@ -432,20 +444,33 @@ class Timeline:
             return []
         rule, ask, values = hit
         self.replied.setdefault((npc, rule["id"]), set()).add(" ".join(ask.lower().split()))
-        if rule.get("asks_details"):
-            self.awaiting.add(npc)
-            self.counts[f"default:{npc}"] = self.counts.get(f"default:{npc}", 0) + 1
 
         def fill(s: str) -> str:
             for k, v in values.items():
                 s = s.replace("{" + k + "}", v)
             return s
-        text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
-        if rule.get("decision") in ("APPROVED", "DECLINED"):
-            self.approvals.append({"t": iso(t), "by": npc, "decision": rule["decision"],
-                                   "change": fill(rule.get("change", "")), "scope": fill(rule.get("scope", "")),
-                                   "rule": rule["id"], "request": ask[:300]})
-        entry = {"id": f"npc:{npc}:{rule['id']}#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
+        decision, change, rid = rule.get("decision"), fill(rule.get("change", "")), rule["id"]
+        prior = next((a for a in self.approvals if decision in ("APPROVED", "DECLINED") and a["by"] == npc
+                      and a["rule"] == rule["id"] and a["change"] == change), None)
+        if prior:
+            hhmm = datetime.fromisoformat(prior["t"]).strftime("%H:%M")
+            text = (f"Already approved at {hhmm} ET: {change}. Post the CHANGE record." if decision == "APPROVED"
+                    else f"Already declined at {hhmm} ET.")
+            rid += "#repeat"
+        else:
+            text = fill(pick(self.seed, f"{npc}#{item.n}", rule.get("reply_variants") or rule.get("reply", "Noted.")))
+        last = self.last_said.get(npc)
+        if last and last[1] == text and t - last[0] <= timedelta(minutes=10):
+            self.log.append({"id": f"npc:{npc}:repeat:{rule['id']}#{item.n}", "due_at": iso(item.due),
+                             "fired_at": None, "status": "skipped", "deliveries": []})
+            return []
+        if rule.get("asks_details"):
+            self.awaiting.add(npc)
+            self.counts[f"default:{npc}"] = self.counts.get(f"default:{npc}", 0) + 1
+        if decision in ("APPROVED", "DECLINED") and not prior:
+            self.approvals.append({"t": iso(t), "by": npc, "decision": decision, "change": change,
+                                   "scope": fill(rule.get("scope", "")), "rule": rule["id"], "request": ask[:300]})
+        entry = {"id": f"npc:{npc}:{rid}#{item.n}", "due_at": iso(item.due), "fired_at": iso(t),
                  "status": "fired", "deliveries": self._deliver(npc, msg, text, t)}
         self.log.append(entry)
         return entry["deliveries"]
@@ -467,11 +492,12 @@ class Timeline:
     def _deliver(self, npc: str, msg: dict, text: str, t: datetime, mention: bool = True) -> list[dict]:
         c = self.npcs[npc]
         user = c.get("chat_user", npc)
+        self.last_said[npc] = (t, text)
         if msg["via"] == "dm":
             res = self.w.ws_apply("chat.dm_as", {"from_user": user, "to_user": self.me.get("chat", "sre-primary"),
                                                  "text": text}, t)
         elif msg["via"] == "mail":
-            subj = msg.get("subject") or ""
+            subj = msg.get("subject") or "(no subject)"
             res = self.w.ws_apply("mail.deliver", {"from": c.get("email", f"{npc}@vantleaf.com"),
                                                    "to": [self.me.get("mail", "oncall@vantleaf.com")],
                                                    "subject": subj if subj.lower().startswith("re:") else f"Re: {subj}",
