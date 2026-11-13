@@ -15,7 +15,8 @@ the T03 world, else the sibling ``agentenv-awsbench-plugin-t03`` worktree).
 
 Writes ``hub/space/app/public/data/`` (the viewers' ``index.json`` and ``runs/<id>.json``) and ``hub/dataset/`` (per run:
 ``viewer.json``, the scrubbed ``aws-export.json`` and ``workspace-export.json``, ``grade.json`` and ``transcript.md``;
-plus ``index.json`` and the dataset viewer's ``tables/<task>/{runs,calls,checks}.jsonl``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
+plus ``index.json``, the dataset viewer's ``tables/<task>/{runs,calls,checks}.jsonl`` and each task's card,
+``tasks/<task>/{README.md,task.json}`` from ``tools/build_task_cards.py``, which the Space reads as ``tasks.json``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
 foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the private Hugging Face repos
 (``earakely-scale/AwsIncidentsBench``), one commit each.
 """
@@ -34,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+import build_task_cards as TC
 import export_run as X
 import export_t03 as X3
 
@@ -344,12 +346,14 @@ def end_text(r: dict) -> str:
     return r["end_reason"] or ""
 
 
-def fill_card(index: dict) -> Path:
+def fill_card(index: dict, cards: dict[str, dict]) -> Path:
     card = DATASET / "README.md"
     text = card.read_text()
-    start, end = "<!-- results -->", "<!-- /results -->"
-    head, rest = text.split(start, 1)
-    card.write_text(head + start + "\n" + results_table(index) + "\n" + end + rest.split(end, 1)[1])
+    for name, body in (("results", results_table(index)), ("tasks", TC.tasks_table(cards))):
+        start, end = f"<!-- {name} -->", f"<!-- /{name} -->"
+        head, rest = text.split(start, 1)
+        text = head + start + "\n" + body + "\n" + end + rest.split(end, 1)[1]
+    card.write_text(text)
     return card
 
 
@@ -490,7 +494,10 @@ def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
             keep = [k for k in (mine[0] if mine else {}) if any(r.get(k) is not None for r in mine)]
             written.append(write_jsonl(DATASET / "tables" / task.lower() / f"{name}.jsonl",
                                        [{k: r.get(k) for k in keep} for r in mine]))
-    written.append(fill_card(index))
+    cards = TC.cards()
+    written += TC.write_cards(DATASET / "tasks", cards)
+    written.append(write_json(SPACE_DATA / "tasks.json", {"schema": TC.SCHEMA, "tasks": cards}))
+    written.append(fill_card(index, cards))
     X.check_clean(written)
     for p in written:
         if X.KEY_FRAGMENT in p.read_text(errors="ignore"):
@@ -511,7 +518,8 @@ def publish() -> None:
                         **({"space_sdk": "docker"} if kind == "space" else {}))
         api.upload_folder(repo_id=REPO, repo_type=kind, folder_path=str(path), commit_message="Update AwsIncidentsBench data",
                           ignore_patterns=["app/node_modules/**", "app/dist/**", "app/.astro/**", "**/.DS_Store"],
-                          delete_patterns=["runs/**", "reference/**", "reference-*/**", "tables/**", "app/public/data/**"])
+                          delete_patterns=["runs/**", "reference/**", "reference-*/**", "tables/**", "tasks/**",
+                                           "app/public/data/**"])
         print(f"published {kind} {REPO}")
 
 

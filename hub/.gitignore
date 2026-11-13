@@ -4,6 +4,7 @@ dataset/runs/
 dataset/reference/
 dataset/reference-*/
 dataset/tables/
+dataset/tasks/
 dataset/index.json
 space/app/node_modules/
 space/app/dist/
