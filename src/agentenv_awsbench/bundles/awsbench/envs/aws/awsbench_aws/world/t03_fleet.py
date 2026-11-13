@@ -27,7 +27,7 @@ PARAMS = {
     "jvm_jitter_s": 10, "auth_s": 90, "auth_jitter_s": 20, "peer_boot_s": 300, "peer_slots": 2, "retry_s": 30,
     "quarantine_s": 900, "boot_s": 240, "oom_after_s": 720, "oom_xmx_gib": 8,
     "cellmap_capacity": 12, "cellmap_collapse_above": 24, "cellmap_collapse_for_s": 120, "cellmap_shed_s": 600,
-    "epoch0": 204400, "rebuild_gap": [900, 1321], "pinned_offsets": {"sr-b-017": 1321},
+    "epoch0": 204400, "rebuild_gap": [900, 1321], "pinned_offsets": {"sr-b-017": 1321}, "fixed_offsets": {"sr-a-017": 1210},
 }
 
 
@@ -209,7 +209,7 @@ class Fleet:
         return h
 
     def offset(self, name: str) -> float:
-        pinned = self.p["pinned_offsets"].get(name)
+        pinned = self.p["pinned_offsets"].get(name, self.p["fixed_offsets"].get(name))
         if pinned is not None:
             return float(pinned)
         lo, hi = self.p["rebuild_gap"]

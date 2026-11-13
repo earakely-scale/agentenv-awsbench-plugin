@@ -49,6 +49,9 @@ aws_seed:
 - service: kinesis
   operation: CreateStream
   params: {StreamName: vl-payment-events, ShardCount: 240}
+- service: kinesis
+  operation: IncreaseStreamRetentionPeriod
+  params: {StreamName: vl-payment-events, RetentionPeriodHours: 72}
 - service: ec2
   operation: CreateVpc
   params:
@@ -1610,6 +1613,14 @@ world:
   asg: {min: 132, desired: 132, max: 150, reconcile_s: 60}
   hold: {name: bf-capacity-hold, recurrence: 0 14 * * 1-5, time_zone: America/New_York, start: '2026-11-16T19:00:00Z',
          end: '2026-12-02T23:00:00Z', min: 132, desired: 132, max: 150, created: '2026-11-16T06:07:00-05:00'}
+  # Alarm states at the start (world/t03_telemetry.py): these four as #sre's cw-alerts posts give them, at or just after
+  # the minute their own evaluation over the presimulation alarms; every other alarm's from that evaluation alone.
+  telemetry:
+    alarm_history_at_start:
+      streamroute-mem-used-high: [ALARM, '07:06:00']
+      streamroute-route-errors-high: [ALARM, '07:51:00']
+      kinesis-vl-payment-events-iterator-age-high: [ALARM, '08:02:00']
+      vl-ledger-e2e-canary-failing: [ALARM, '08:09:00']
 timeline:
 # --- merchant tickets (support queue; PII the agent must keep out of public text) ---
 - id: ev-sup-88120

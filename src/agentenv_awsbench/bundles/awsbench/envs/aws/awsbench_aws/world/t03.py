@@ -4,12 +4,14 @@
 
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from ..errors import AwsError
 from .t03_asg import Asg
 from .t03_cmds import Commands
 from .t03_fleet import EJECTED, ROUTING, Fleet
 from .t03_flow import Flow
+from .t03_telemetry import Telemetry
 from .util import parse_time
 
 SSM_DEFAULTS = {"/streamroute/prod/jvm/xmx": "6g", "/streamroute/prod/os/limit_nproc": "1024",
@@ -22,13 +24,14 @@ ORIGINAL_LAUNCH = "2026-10-26T09:12:40-04:00"
 SNAPSHOTS = ("13:00", "16:15")
 LW_EDIT = re.compile(r"\becs\s+update-service\b.*\bledger-writer\b", re.DOTALL)
 SSM_WRITE = re.compile(r"\bssm\s+(put-parameter|delete-parameters?|label-parameter-version)\b")
+CW_WRITE = re.compile(r"\bcloudwatch\s+(put-metric-alarm|delete-alarms)\b")
 BATCH_ETA_S = 220
 
 
 class Mechanics:
     def __init__(self, world, cfg: dict):
         self.w, self.cfg = world, cfg
-        self.tz = world.start_t.tzinfo
+        self.tz = ZoneInfo(world.scenario["timezone"]) if world.scenario.get("timezone") else world.start_t.tzinfo
         self.t_start = world.start_t.timestamp()
         self.t_horizon = world.horizon.timestamp()
         self.t0 = parse_time(cfg.get("presim_from", "06:00:00"), world.start_t).timestamp()
@@ -37,6 +40,7 @@ class Mechanics:
         self.flow = Flow(cfg, world.seed, midnight, self.t_start)
         self.asg = Asg(self, cfg)
         self.cmds = Commands(self)
+        self.tel = Telemetry(self, cfg.get("telemetry") or {})
         self.ssm = dict(SSM_DEFAULTS)
         self.launch_plan = sorted((parse_time(v, world.start_t).timestamp(), k)
                                   for k, v in (cfg.get("plat_launches") or PLAT_LAUNCHES).items())
@@ -114,6 +118,7 @@ class Mechanics:
             self._step(ts, dt)
         self.asg.seed_history()
         self.now, self.fleet.rseed = self.t_start, self.w.seed
+        self.tel.start(self.t_start)
 
     def tick(self, t: datetime, dt: float) -> list[dict]:
         return self._step(t.timestamp(), dt)
@@ -144,6 +149,7 @@ class Mechanics:
         self.canary.append([ts, self.flow.canary_ok(self.fleet, ts)])
         self.capacity.append([ts, round(self.flow.capacity(ts, shed))])
         self.asg.record(ts)
+        self.tel.record(ts)
         hm = self.dt(ts).strftime("%H:%M")
         if hm in SNAPSHOTS:
             self.asg.snapshots[hm] = self.asg.scheduled(ts)
@@ -166,6 +172,8 @@ class Mechanics:
         params = args.get("params") or {}
         if (svc == "ssm" and op and not op.startswith(("Get", "Describe", "List"))) or SSM_WRITE.search(cmd):
             self.refresh_ssm()
+        if (svc == "cloudwatch" and op in ("PutMetricAlarm", "DeleteAlarms")) or CW_WRITE.search(cmd):
+            self.tel.refresh_defs()
         if (svc == "ecs" and op == "UpdateService" and "ledger-writer" in str(params.get("service"))) or (
                 LW_EDIT.search(cmd)):
             self.flow.redeploy(call["t"].timestamp())
@@ -203,7 +211,7 @@ class Mechanics:
     def serve_aws(self, service: str, operation: str, params: dict, now: datetime) -> dict | None:
         if service.lower() == "autoscaling":
             return self.asg.serve(operation, params, now.timestamp())
-        return None
+        return self.tel.serve(service, operation, params, now.timestamp())
 
     # ---- fleet tools ----
     def fleet_list_hosts(self, fleet: str | None = None, az: str | None = None) -> list[dict]:
@@ -308,6 +316,7 @@ class Mechanics:
                                      if x["name"] == "bf-capacity-hold"]},
             "settlement": dict(self.settlement),
             "canary": [[iso(t), ok] for t, ok in self.canary],
+            "telemetry": self.tel.export(iso),
             "payments": {"ledger_writer_capacity_timeline": [[iso(t), v] for t, v in self.capacity]},
             "ssm_at_restart": self.ssm_at_restart,
             "fleet_jobs": [{"job_id": j["job_id"], "selector": j["selector"], "status": j["status"], "by": j["by"],

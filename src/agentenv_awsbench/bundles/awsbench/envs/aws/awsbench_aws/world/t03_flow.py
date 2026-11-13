@@ -1,5 +1,8 @@
 """T03 payment events: demand on vl-payment-events, shard leases, per-shard backlog and cell lag (payments-graph,
-sr-backlog), the ledger-writer capacity and the canary (docs/T03-build.md §1.7-1.8). Times are float epoch seconds."""
+sr-backlog), the ledger-writer capacity and the canary (docs/T03-build.md §1.7-1.8). Times are float epoch seconds.
+
+Shards carry seeded demand weights (mean 1) and a seeded lease map, so cells differ. `P` and `cons` are in weight-1 units
+(records / weight); the record backlog of shard s is `w[s] * (P - cons[s])`."""
 
 from bisect import bisect_left
 
@@ -10,7 +13,8 @@ DEMAND = [["06:00", 900], ["07:00", 1500], ["07:30", 1850], ["08:00", 2250], ["0
           ["11:00", 3150], ["12:00", 3350], ["13:00", 3300], ["16:15", 2400]]
 PARAMS = {"shards": 240, "cells": 8, "drain_per_host": 62, "lw_capacity": 6500, "lease_move_s": 90,
           "redeploy_factor": 0.7, "redeploy_s": 360, "shed_factor": 0.33, "presim_factor": 1.03,
-          "jitter": [0.95, 1.05], "blend_s": 2700, "canary_shard": 17, "canary_lag_s": 120}
+          "jitter": [0.95, 1.05], "blend_s": 2700, "canary_shard": 6, "canary_lag_s": 120, "weights": [0.9, 1.1],
+          "floor_s": [0.6, 2.6], "map_seed": "t03-presim"}
 
 
 def _mins(hhmm: str) -> float:
@@ -26,6 +30,12 @@ class Flow:
         self.jitter = lo + (hi - lo) * unit(seed, "demand")
         self.midnight, self.start = midnight, start
         n = self.p["shards"]
+        lo, hi = self.p["weights"]
+        raw = [lo + (hi - lo) * unit(self.p["map_seed"], "weight", s) for s in range(n)]
+        self.w = [x * n / sum(raw) for x in raw]
+        self.order = sorted(range(n), key=lambda s: unit(self.p["map_seed"], "lease", s))
+        self.seed = seed
+        self.routed = 0.0
         self.owner: list[str] = [""] * n
         self.cons = [0.0] * n
         self.P = 0.0
@@ -67,7 +77,8 @@ class Flow:
 
     # ---- leases ----
     def assign(self, names: list[str]) -> None:
-        self.owner = [names[i % len(names)] for i in range(self.p["shards"])]
+        for i, s in enumerate(self.order):
+            self.owner[s] = names[i % len(names)]
 
     def leases(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -113,27 +124,33 @@ class Flow:
         per = self.p["drain_per_host"] * dt
         for shards in by_owner.values():
             left = per
-            shards.sort(key=lambda s: self.P - self.cons[s])
+            shards.sort(key=lambda s: self.w[s] * (self.P - self.cons[s]))
             for i, s in enumerate(shards):
-                w = min(self.P - self.cons[s], left / (len(shards) - i))
-                want[s], left = w, left - w
+                r = min(self.w[s] * (self.P - self.cons[s]), left / (len(shards) - i))
+                want[s], left = r, left - r
         total = sum(want.values())
         scale = min(1.0, self.capacity(t, shed) * dt / total) if total > 0 else 1.0
-        for s, w in want.items():
-            self.cons[s] += w * scale
+        for s, r in want.items():
+            self.cons[s] += r * scale / self.w[s]
+        self.routed += total * scale
         self.lag_t = None
 
     # ---- lag ----
+    def floor(self, s: int, t: float) -> float:
+        """Every shard reads a second or two behind what it has consumed: its consumer's poll and processing time."""
+        lo, hi = self.p["floor_s"]
+        return lo + (hi - lo) * unit(self.p["map_seed"], "poll", s, int(t // 60))
+
     def shard_lag(self, s: int, t: float) -> float:
-        c = self.cons[s]
+        c, fl = self.cons[s], self.floor(s, t)
         if self.P - c < 1:
-            return 0.0
+            return fl
         i = bisect_left(self.hist_p, c)
         if i == 0:
-            return t - self.hist_t[0]
+            return t - self.hist_t[0] + fl
         (t0, p0), (t1, p1) = (self.hist_t[i - 1], self.hist_p[i - 1]), (self.hist_t[i], self.hist_p[i])
         tc = t0 + (t1 - t0) * ((c - p0) / (p1 - p0) if p1 > p0 else 0)
-        return max(0.0, t - tc)
+        return t - tc + fl
 
     def cell_lags(self, t: float) -> list[float]:
         if self.lag_t != t:
@@ -143,11 +160,22 @@ class Flow:
             self.lag_t = t
         return self.lags
 
+    def cell_of(self, s: int) -> int:
+        return s // (self.p["shards"] // self.p["cells"])
+
+    def shard_backlog(self, s: int) -> float:
+        return self.w[s] * (self.P - self.cons[s])
+
+    def cell_backlog(self, c: int) -> float:
+        per = self.p["shards"] // self.p["cells"]
+        return sum(self.shard_backlog(s) for s in range(c * per, (c + 1) * per))
+
     def backlog(self) -> float:
-        return sum(self.P - c for c in self.cons)
+        return sum(self.shard_backlog(s) for s in range(self.p["shards"]))
 
     def canary_ok(self, fleet, t: float) -> bool:
+        """The canary's synthetic event lands on one shard: it reaches the ledger in time while that shard's owner still
+        routes (a STALE map still routes) and the shard is less than `canary_lag_s` behind."""
         s = self.p["canary_shard"]
         h = fleet.hosts.get(self.owner[s])
-        cell = s // (self.p["shards"] // self.p["cells"])
-        return bool(h and h.proc and h.state == ROUTING) and self.cell_lags(t)[cell] < self.p["canary_lag_s"]
+        return bool(h and h.proc and h.state in SERVING) and self.shard_lag(s, t) < self.p["canary_lag_s"]
