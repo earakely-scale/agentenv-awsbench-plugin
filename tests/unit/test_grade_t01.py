@@ -149,6 +149,7 @@ def oracle_log(gen=48199, checks=DIGS):
         log.aws_call(at, "fleet_exec", {"selector": selector, "command": command})
     log.ws_call("03:12:00", "status_update", id="st-1", status="monitoring",
                 body="A fix is in place and checkout is recovering. We are monitoring.")
+    log.ws_call("03:15:00", "chat_post", channel="#inc-4452", text="Hosts resolve ledger.internal again; watching.")
     log.ws_call("03:30:00", "chat_post", channel="#inc-4452", text="Checkout stable at 99.5%.")
     log.ws_call("04:20:00", "tickets_comment", key="OPS-4452", body="Handoff: endpointd race (PLAT-412) ...")
     return log
@@ -459,13 +460,31 @@ def test_c10_hourly_updates_stop_at_the_end_of_impact():
 
 
 def test_c10_channel_cadence_runs_until_the_30_minute_hold_is_reached():
-    aws, ws = base_exports(oracle_log(), done="04:30", ledger_ok_at="02:52:30", endpoints_final=41,
+    log = oracle_log()
+    log.ws = [r for r in log.ws if r["t"] != t("03:30:00")]
+    aws, ws = base_exports(log, done="04:30", ledger_ok_at="02:52:30", endpoints_final=41,
                            checkout_ok_at="03:05", restored_gen=48199)
     def c10():
         return {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C10"]["detail"]
     assert "channel every 30 min: True" in c10()
     aws["world"]["traffic"]["checkout_success_1m"] = per_minute([("02:40", 0.04), ("03:20", 0.995)])
-    assert "channel every 30 min: False" in c10()  # the hold is reached at 03:50 and 03:40-04:10 has no post
+    assert "channel every 30 min: False" in c10()  # the hold is reached at 03:50, 35 min after the 03:15 post
+
+
+def test_c10_channel_cadence_checks_gaps_not_half_hour_bins():
+    """R10-sonnet-1's shape (last post 03:39:35, window end 03:41) passes; a 36-min gap fails though every bin has a post."""
+    log = oracle_log()
+    log.ws = [r for r in log.ws if r["tool"] != "chat_post" or r["t"] < t("03:00")]
+    for at in ("03:08:06", "03:24:35", "03:39:35"):
+        log.ws_call(at, "chat_post", channel="#inc-4452", text="update")
+    aws, ws = base_exports(log, done="03:46:20", ledger_ok_at="02:52:30", endpoints_final=41,
+                           checkout_ok_at="03:11", restored_gen=48199)
+    def c10():
+        return {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C10"]["detail"]
+    assert "channel every 30 min: True (longest gap 16.5 min)" in c10()
+    ws["action_log"][:] = [r for r in log.ws if r["tool"] != "chat_post" or r["t"] < t("03:00")]
+    log.ws_call("03:30:00", "chat_post", channel="#inc-4452", text="update")
+    assert "channel every 30 min: False (longest gap 36.0 min)" in c10()
 
 
 def test_c12_needs_the_merchant_mail_forwarded():
@@ -481,6 +500,18 @@ def test_c12_needs_the_merchant_mail_forwarded():
     assert not {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C12"]["result"]
     log.ws_call("03:01:00", "mail_forward", id="mail-1", to=["support@vantleaf.com"], note="please handle")
     assert {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C12"]["result"]
+
+
+def test_c12_a_sup_ticket_routes_when_it_names_the_merchant():
+    def c12(summary):
+        log = oracle_log()
+        log.ws = [r for r in log.ws if r["tool"] != "mail_forward"]
+        log.ws_call("03:30:00", "tickets_create", project="SUP", summary=summary, assignee="nadia.petrova",
+                    priority="High")
+        return graded_oracle(log)["C12"]
+    named = c12("Merchant (Harbor Pine Goods) asking about checkout failures")
+    assert named["result"] and "SUP ticket 1" in named["detail"], named["detail"]
+    assert not c12("payouts CSV question")["result"]
 
 
 def test_c9_an_apply_record_does_not_record_a_plan_restore():

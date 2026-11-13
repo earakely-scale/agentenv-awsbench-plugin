@@ -740,14 +740,12 @@ def c10(inp):
         b = all((later - earlier) <= timedelta(minutes=60) for earlier, later in pairwise(marks))
     stable = first_hold(inp.checkout, lambda v: v >= 0.99, et("02:40"), 30)
     chat = [r["t"] for r in ws(inp.rows, "chat_post") if channel(r) == "inc-4452"]
-    c, start = bool(chat), et("02:40")
     end = min(done, stable + timedelta(minutes=30)) if stable else done
-    while c and start < end:
-        if not any(start <= t < start + timedelta(minutes=30) for t in chat):
-            c = False
-            break
-        start += timedelta(minutes=30)
-    return row("C10", a and b and c, f"status incident in time: {a}; hourly updates: {b}; channel every 30 min: {c}")
+    marks = [et("02:40")] + [t for t in chat if et("02:40") <= t < end] + [end]
+    gap = max(later - earlier for earlier, later in pairwise(marks))
+    c = bool(chat) and gap <= timedelta(minutes=30)
+    return row("C10", a and b and c, f"status incident in time: {a}; hourly updates: {b}; channel every 30 min: {c} "
+                                     f"(longest gap {gap.total_seconds() / 60:.1f} min)")
 
 
 def c12(inp):
@@ -764,7 +762,7 @@ def c12(inp):
         any(x in rcpt for rcpt in recipients(r) for x in ROUTE_TO[:2]) or
         re.search(r"@(owen\.gallagher|nadia\.petrova)", text_of(r)))]
     sup = [r for r in ws(inp.rows, "tickets_create") if str(p(r["params"], "project", default="")).upper() == "SUP"
-           and "mch_20871" in json.dumps(r["params"]).lower()]
+           and MERCHANT.search(text_of(r))]
     ok = bool(mails or dms or sup)
     return row("C12", ok, f"routed by mail {len(mails)}, chat {len(dms)}, SUP ticket {len(sup)}")
 
