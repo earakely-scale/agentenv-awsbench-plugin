@@ -90,16 +90,6 @@ class Dns:
     def recovered_share(self, hosts: list[str], t: datetime) -> float:
         return sum(1 for h in hosts if self.resolves(h, t)) / len(hosts) if hosts else 0.0
 
-    def short_answer(self, host: str, fqdn: str, t: datetime) -> str:
-        world_live = self.live_fn(fqdn)
-        if fqdn == self.name and host in self.hosts and not self.resolves(host, t):
-            left = int((self.hosts[host]["neg_until"] - t).total_seconds())
-            return f"NXDOMAIN (cached negative answer, {left}s left)"
-        ips = [r["Value"] for r in world_live if r["Weight"] > 0]
-        return ", ".join(sorted(ips)) if ips else "NXDOMAIN"
-
-    live_fn = staticmethod(lambda fqdn: [])
-
     def export(self) -> dict:
         return {"per_host_recovered_at": {h: iso(v["recovered_at"]) for h, v in self.hosts.items()},
                 "flushes": {h: v["flushes"] for h, v in self.hosts.items() if v["flushes"]},

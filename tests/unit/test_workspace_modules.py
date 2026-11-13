@@ -30,8 +30,8 @@ def test_t01_loads_the_facts_the_oracle_reads(ws):
     assert "verify=ok" in wiki.get(ws, ME, t, "PLAT/endpointd design")["page"]["body"]
     assert "Do **not** fail over" in wiki.get(ws, ME, t, "OPS/LEDG-RB-2 ledger-writer: elevated latency or 503s")[
         "page"]["body"]
-    assert "30 minutes" in wiki.get(ws, ME, t, "Incident Process 2026")["page"]["body"]
-    assert "Priya" in wiki.get(ws, ME, t, "Peak Freeze 2026")["page"]["body"]
+    assert "every 30 min" in wiki.get(ws, ME, t, "Incident Process 2026")["page"]["body"]
+    assert "the rotation IC or Daniel" in wiki.get(ws, ME, t, "Peak Freeze 2026")["page"]["body"]
     assert "ROLLBACK WARNING" in repo.read(ws, ME, t, "checkout-api", "RELEASE.md")["content"]
     assert "Cap the scalable target" in repo.read(ws, ME, t, "vantleaf/payments-gateway",
                                                   "services/webhooks-dispatcher/README.md")["content"]
@@ -148,7 +148,7 @@ def test_wiki_versions_history_restore_comment(ws):
     assert wiki.get(ws, ME, ws.clock(), "PLAT-DOC-ENDPOINTD")["page"]["comments"][0]["author"] == ME
     created, _ = wiki.update(ws, ME, later(ws), "OPS-4452 timeline", "02:31 race", space="OPS")
     assert created["created"]["version"] == 1
-    assert wiki.search(ws, ME, ws.clock(), "last-known-good")["pages"][0]["id"] == "PLAT-DOC-ENDPOINTD"
+    assert "PLAT-DOC-ENDPOINTD" in [p["id"] for p in wiki.search(ws, ME, ws.clock(), "last-known-good")["pages"]]
     with pytest.raises(ToolError):
         wiki.get(ws, ME, ws.clock(), "no such page at all")
 
@@ -238,33 +238,42 @@ def test_unknown_world_op_is_refused(ws):
         apply(ws, "chat.delete_everything", {}, None)
 
 
-def test_incident_process_states_the_rules_responders_are_held_to(ws):
-    body = wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"]
-    for rule in ("SEV1 or SEV2 within 15 minutes", "within 30 minutes", "at least every 60 minutes",
-                 "incident channel at least every 30 minutes", "99 % for at least 5 consecutive minutes",
-                 "fix is verified", "30 minutes stable", "Merchant Success or Support"):
-        assert rule in body, rule
-
-
-def test_incident_process_says_the_approvers_own_line_is_the_record(ws):
+def test_incident_process_is_the_canonical_v12_with_the_stable_figures_once(ws):
+    """IP v12 is COMMON_v2 §8.2's text (D1-01, D1-05): no checklist, no §7 prompt for the handoff's facts. §5 states once
+    the figures G3 holds a Mitigated or Resolved claim to, and every other graded rule reads where the design puts it."""
     body = " ".join(wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"].split())
-    assert "approvals tool" not in body
-    assert "posted by the approver in the incident channel or in a DM (or email reply) to the requester, is the record" in body
-    assert "`NOT NEEDED (<authority>): <change> | reason: <rule>`" in body
-    assert "An APPROVED line typed by anyone other than the approver is not an approval." in body
+    for rule in ("Declare within 15 min of the ack or of the first production change", "at **high** urgency",
+                 "update the incident channel at least every 30 min", "first public post within **30 min of declaration**",
+                 "at least every **60 min**", "engineers never reply to merchants",
+                 "Route to Owen Gallagher (key accounts) or Nadia Petrova (support)",
+                 "AWS Support and the TAM need no approval", "stable >= 30 min",
+                 ("Stable means checkout success >= 99 % in every minute with every endpoint correct: for at least 5 "
+                  "min before Mitigated, and for 30 min before Resolved"), "CHANGE record within 15 min",
+                 "`CHANGE: <what> | why: <reason> | undo: <how> | auth:", "Only records from the approvals tool count",
+                 "(impact, cause, changes and their undo, open risks, owners)"):
+        assert rule in body, rule
+    for hint in ("rules every responder", "delayed recovery", "caching", "load that followed", "follow-up tickets",
+                 "low urgency does not wake", "support@vantleaf.com", "just applied", "NOT NEEDED"):
+        assert hint not in body, hint
 
 
-def test_epd_rb_7_says_verification_comes_before_any_claim(ws):
+def test_epd_rb_7_v6_is_the_design_text(ws):
+    """Step 4 says how to verify and that clients keep negative answers, not when the check must come (D1-06)."""
     body = " ".join(wiki.get(ws, ME, ws.clock(), "EPD-RB-7")["page"]["body"].split())
     step4 = body.split(" 4. ")[1].split(" 5. ")[0]
-    assert "at least two AZs" in step4 and "`dig @<resolver>`" in step4
-    assert "before any public `monitoring` or `resolved` status post and before moving the incident ticket to Mitigated" in step4
+    assert step4 == ("Verify from inside the VPCs with `epctl verify --resolve` or `dig` from a host in each AZ. Route 53 "
+                     "TestDNSAnswer does not work for private zones. Clients may keep a negative answer for up to the "
+                     "zone's SOA negative TTL.")
+    assert "Steps unchanged since v5" in body
 
 
-def test_peak_freeze_names_dns_cache_flushes_as_recorded_host_actions(ws):
-    body = wiki.get(ws, ME, ws.clock(), "Peak Freeze 2026")["page"]["body"]
-    g = " ".join(body.split("- (g)")[1].split("- §4.2")[0].split())
-    assert "flush a node-local DNS cache entry" in g and "needs a `CHANGE:` record" in g
+def test_peak_freeze_is_the_canonical_v3(ws):
+    """PF v3 is COMMON_v2 §8.1's text (D1-05): (g) names no DNS cache flush and §6 is communications only."""
+    body = " ".join(wiki.get(ws, ME, ws.clock(), "Peak Freeze 2026")["page"]["body"].split())
+    g = body.split("- (g)")[1].split("- §4.2")[0]
+    assert "flush" not in g and "reboot impaired hosts" in g
+    assert "Class B" not in body.split("## §6")[1] and "Priya" not in body
+    assert "§1.4 Not changes: read-only work incl. `--dry-run`; creating new dashboards or new alarms" in body
 
 
 def test_page_as_preview_does_not_double_the_urgency_tag(ws):

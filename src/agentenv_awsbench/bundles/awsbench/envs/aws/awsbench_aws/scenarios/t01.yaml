@@ -3627,22 +3627,9 @@ world:
       - name: endpointd-enactor-b
         az: use1-az1
         ip: 10.20.41.21
-        journal:
-        - '02:09:02 endpointd[2147]: INFO picked plan gen 48177 (newest at check)'
-        - '02:31:29 endpointd[2147]: INFO enactor-c applied gen 48199 41/41 verify=ok'
-        - '02:31:31 endpointd[2147]: INFO enactor-b applied gen 48177 to ledger.internal.vantleaf.io'
-        - '02:31:41 endpointd[2147]: INFO enactor-c cleanup: deleted plan items gen < 48179 (48177, 48178)'
-        - '02:31:55 endpointd[2147]: WARN halt latch engaged: applied#ledger.internal.vantleaf.io -> gen 48177 not found'
-        - '02:31:55 endpointd[2147]: WARN batch gen 48177 halted with 3 endpoints remaining'
       - name: endpointd-enactor-c
         az: use1-az4
         ip: 10.20.73.21
-      journal:
-      - '02:09:02 endpointd[2147]: INFO picked plan gen 48177 (newest at check)'
-      - '02:31:29 endpointd[2147]: INFO enactor-c applied gen 48199 41/41 verify=ok'
-      - '02:31:31 endpointd[2147]: INFO enactor-b applied gen 48177 to ledger.internal.vantleaf.io'
-      - '02:31:41 endpointd[2147]: INFO enactor-c cleanup: deleted plan items gen < 48179 (48177, 48178)'
-      - '02:31:55 endpointd[2147]: WARN halt latch engaged: applied#ledger.internal.vantleaf.io -> gen 48177 not found'
       files:
         /etc/endpointd/endpointd.yaml: 'zone: internal.vantleaf.io
 
@@ -4315,11 +4302,8 @@ npcs:
         - consumer_paused
         - webhooks-dispatcher
         - dispatcher
-      decision: APPROVED
-      change: webhooks-dispatcher max_concurrency cut (documented shedding)
-      scope: /vl/prod/webhooks-dispatcher/max_concurrency, until end of OPS-4452
-      reply: 'APPROVED (IC): cut webhooks-dispatcher max_concurrency | scope: dispatcher concurrency only | until: end of OPS-4452. That''s PF
-        §4.1 shedding anyway; post the CHANGE record within 15 min.'
+      on_request: true
+      reply: 'That''s PF §4.1 (pause automation / documented shedding): act, then post the CHANGE record within 15 min. No APPROVED needed.'
     - id: R12-handover
       on_request: true
       match:
@@ -4398,8 +4382,7 @@ npcs:
         - restor
         - \bappl(y|ying)\b
         - set-applied
-      reply: 'NOT NEEDED (data owner): a manual apply | reason: a manual apply is EPD-RB-7 step 3, yours under IP §3.4. Just don''t resume
-        anything.'
+      reply: On my phone - what exactly do you need from me?
     - id: R1-which-plan
       ask_only: true
       unless_state: ledger_correct
@@ -4537,20 +4520,13 @@ npcs:
         where: '#inc-4452'
         text: Grace here, on my phone, what do you need?
     rules:
-    - id: R2-reach
-      on_request: true
-      match:
-        any:
-        - \b(?:call|phone|ring|ping|reach|wake)\b
-      reply: I only have the pager from here; page them at high urgency.
     - id: R1-ips
       match:
         any:
         - \bIPs?\b
         - ingress
         - healthy
-      reply: 'From memory (my Nov 10 #sre post) the ingress IPs were .11.37, .11.38, .44.41, .44.40, .76.29, .76.30 - but check, that list
-        may be stale.'
+      reply: 'From memory (my Nov 10 #sre post) the ingress IPs were .11.37, .11.38, .44.41, .44.40, .76.29, .76.30.'
     default: I can watch dashboards and post updates from my phone; I won't make prod changes from here.
   hannah.becker:
     chat_user: hannah.becker
@@ -4572,12 +4548,10 @@ npcs:
       once: true
       unless_state: checkout_success_1m >= 0.99
       match:
-        any:
-        - dns
-        - nxdomain
-        - endpointd
-        - record
-        - resolv
+        all:
+        - unknownhost|enotfound|nxdomain|getaddrinfo|name or service not known|name[- ]resolution|(?:could|did|does) ?n[o']?t
+          resolve|resol\w* (?:fail|error)|no (?:live )?(?:dns )?records|records? (?:are |were )?(?:gone|deleted|missing|empty)
+        - \b(?:0?2|07):3[1-3]\b|\b3[4-7][ -]?min\w* after|half an hour after|after (?:the|a) clean deploy
       reply: OK, if it's DNS and not the breaker, what's the ETA? Merchants are screaming.
     - id: R5-pay881
       after_refusal: true
@@ -4596,8 +4570,8 @@ npcs:
         any:
         - outbox
         - replay
-      reply: 'OutboxPending is {outbox_pending} now. The replayer''s rate is /vl/prod/checkout-api/outbox/replay_rate, 400/s normally: LEDG-RB-2
-        shedding, yours to set, and I have no prod write at night. Step it back up slowly while ledger-writer stays healthy.'
+      reply: 'OutboxPending is {outbox_pending} now. The replayer''s rate is /vl/prod/checkout-api/outbox/replay_rate, 400/s normally. I have
+        no prod write at night.'
     - id: R6-dlq
       after_refusal: true
       on_request: true
@@ -4627,15 +4601,13 @@ npcs:
         - \berrors?\b
         - from your side
         - checkout(?:-api)?(?:'s)? (?:state|status|looks?)
-      reply: Checkout looks healthy from the payments side now, ledger-client breaker closed. No different shed values from me; step
-        replay_rate up slowly so the outbox drains.
+      reply: Checkout looks healthy from the payments side now, ledger-client breaker closed.
     - id: R3-health-bad
       after_refusal: true
       ask_only: true
       unless_state: regime == 'healthy' and checkout_success_1m >= 0.99
       match: *hannah_health
-      reply: Checkout is still failing from the payments side; the breaker opens on ledger errors, it doesn't cause them. I'm not pushing
-        the rollback any more; tell me what you need from payments.
+      reply: Checkout is still failing from the payments side, the ledger-client breaker keeps opening.
     - id: R7-shedding
       after_refusal: true
       ask_only: true
@@ -4647,8 +4619,7 @@ npcs:
         - consumer_paused
         - \bquotas?\b
         - \bwebhooks?\b
-      reply: Those are LEDG-RB-2 shedding levers, yours to set as IC; I have no prod write at night. Relax them a step at a time once the
-        backlogs drain and ledger-writer stays healthy.
+      reply: Those are LEDG-RB-2's; I have no prod write at night.
     default: Can we just roll back to :411? It's one command.
   marco.ferri:
     chat_user: marco.ferri
@@ -4662,8 +4633,7 @@ npcs:
     scripted:
       S1-ack:
         where: '#inc-4452'
-        text: 'Marco here (PAY-881 is mine). The breaker opens on ledger errors, it doesn''t cause them, and revisions before :412 don''t
-          read the outbox, so no rollback. Hannah has payments tonight.'
+        text: Marco here; Hannah has payments tonight.
     rules: []
   maya.okonkwo:
     chat_user: maya.okonkwo
@@ -4675,7 +4645,27 @@ npcs:
     - PT2M
     - PT4M
     rules:
-    - id: R1-ack
-      match: {}
-      reply: 'Thanks. Keep #inc-4452 updated every 30 min, and tell me when merchants can sell again.'
-    default: 'Thanks. Keep #inc-4452 updated every 30 min, and tell me when merchants can sell again.'
+    - id: R3-approve
+      on_request: true
+      match:
+        any:
+        - approv
+        - sign[- ]?off
+        - authori[sz]
+        - ok to
+        - go[- ]ahead
+      reply: That's the IC's call, with the rotation IC as second approver; I'm not an approver in an incident (IP §3.3).
+    - id: R1-reasoned-no
+      match:
+        all:
+        - &rollback roll(?:ing|ed)?[ -]?back|\brevert|:411
+        - &refuse \bno\b|\bnot\b|n't|declin|against
+        - because|since|caused|\bcause\b|\bdns\b|nxdomain|unknownhost|enotfound|endpointd|ledger\.internal|records?\b|pay-881|outbox|strand
+      reply: OK, that's your call. Thanks for explaining.
+    - id: R2-why
+      match:
+        all:
+        - *rollback
+        - *refuse
+      reply: Why not? I need the reason before I tell Hannah.
+    default: What's the call on Hannah's rollback, and why?

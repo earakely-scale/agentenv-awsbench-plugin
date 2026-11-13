@@ -67,10 +67,7 @@ class Fleet:
         for h in self.hosts.values():
             if fleet and h["fleet"] != fleet or az and h["az"] != az:
                 continue
-            row = {"host": h["name"], "fleet": h["fleet"], "az": h["az"], "ip": h.get("ip"), "state": h["state"]}
-            if h["fleet"] == "ledger-ingress":
-                row["ready"] = bool(h.get("ready"))
-            out.append(row)
+            out.append({"host": h["name"], "fleet": h["fleet"], "az": h["az"], "ip": h.get("ip"), "state": h["state"]})
         return out
 
     def select(self, selector: str) -> list[str]:
@@ -103,18 +100,13 @@ class Fleet:
                "os": h.get("os", self.cfg[h["fleet"]].get("os", "Ubuntu 22.04.4 LTS")),
                "instance_type": h.get("type", self.cfg[h["fleet"]].get("instance_type"))}
         out["arch"] = "aarch64" if re.match(r"[a-z]+\d+[a-z]*g", out["instance_type"] or "") else "x86_64"
-        dns = self.w.dns
-        if host in dns.hosts:
-            dns.update(host, now)
-            out["resolver"] = {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": dns.resolver,
-                               "cache": {dns.name: self._cache_entry(host, now)}}
+        if host in self.w.dns.hosts:
+            out["resolver"] = {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": self.w.dns.resolver}
         out["services"] = {name: "active (running)" if self._running(host, name) else "inactive (dead)"
                            for name in self.units(host)}
         if h["fleet"] == "endpointd":
             comp = next(c for c in COMPONENTS if host_of(c) == host)
             out["kill_switch"] = "on" if self.w.endpointd.switch(comp) else "off"
-        if h["fleet"] == "ledger-ingress":
-            out["envoy_ready"] = bool(h.get("ready"))
         out["recent_log"] = self.journal_lines(host, None, now)[-5:]
         return out
 
@@ -176,13 +168,6 @@ class Fleet:
                     "02:11:20; listener ledger_https NOT READY\n"), 1
         return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
 
-    def _cache_entry(self, host, now) -> str:
-        """What the host's unbound holds for the ledger name: its negative answer, else the one record its last
-        upstream query got, the same record dig shows this minute."""
-        dns = self.w.dns
-        status, ips, ttl = self._ns_answer(host, dns.name, now, False)
-        return f"{ips[0]} (ttl {ttl}s)" if status == "NOERROR" else dns.short_answer(host, dns.name, now)
-
     def _ns_answer(self, host, name, now, bypass):
         """(status, ips, ttl) for `name` as `host` sees it."""
         live = [r for r in self.w.mirror.live(name) if r["Weight"] > 0]
@@ -215,6 +200,7 @@ class Fleet:
         status, ips, ttl = self._ns_answer(host, name, now, bypass)
         if short:
             return "".join(ip + "\n" for ip in ips), 0
+        records = self.records(name, status, ips, ttl)
         qid = int(unit(self.w.seed, "qid", host, now.timestamp()) * 65535)
         used = server or "127.0.0.1"
         lines = [f"; <<>> DiG 9.18.28-0ubuntu0.22.04.1-Ubuntu <<>> {' '.join(args)}", ";; global options: +cmd",
@@ -222,17 +208,26 @@ class Fleet:
                  f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: {qid}",
                  f";; flags: qr rd ra; QUERY: 1, ANSWER: {len(ips)}, AUTHORITY: {0 if ips else 1}, ADDITIONAL: 1", "",
                  ";; QUESTION SECTION:", f";{name}.\t\t\tIN\tA", ""]
-        if ips:
-            lines += [";; ANSWER SECTION:"] + [f"{name}.\t{ttl}\tIN\tA\t{ip}" for ip in ips] + [""]
-        else:
-            zone = self.w.mirror.zone
-            lines += [";; AUTHORITY SECTION:",
-                      (f"{zone}.\t{max(ttl, 0)}\tIN\tSOA\tns-1536.awsdns-00.co.uk. awsdns-hostmaster.amazon.com. "
-                       "1 7200 900 1209600 86400"), ""]
+        lines += [";; ANSWER SECTION:" if ips else ";; AUTHORITY SECTION:"] + records + [""]
         lines += [";; Query time: 0 msec" if not bypass else ";; Query time: 2 msec",
                   f";; SERVER: {used}#53({used}) (UDP)", f";; WHEN: {now.strftime('%a %b %d %H:%M:%S %Z %Y')}",
                   ";; MSG SIZE  rcvd: 112", ""]
         return "\n".join(lines), 0
+
+    def records(self, name, status, ips, ttl) -> list[str]:
+        """dig's answer lines, or the zone's SOA with the negative TTL left for an NXDOMAIN."""
+        if status == "NOERROR":
+            return [f"{name}.\t{ttl}\tIN\tA\t{ip}" for ip in ips]
+        return [(f"{self.w.mirror.zone}.\t{max(ttl, 0)}\tIN\tSOA\tns-1536.awsdns-00.co.uk. awsdns-hostmaster.amazon.com. "
+                 "1 7200 900 1209600 86400")]
+
+    def resolve_from(self, hosts, name, now) -> list[str]:
+        """What dig on each host gets for `name`: its status, then its answer or the SOA of its negative answer."""
+        out = []
+        for h in hosts:
+            status, ips, ttl = self._ns_answer(h, name, now, False)
+            out += [f"  {h}: status: {status}"] + [f"    {r}" for r in self.records(name, status, ips, ttl)]
+        return out
 
     def getent(self, host, name, now):
         _, ips, _ = self._ns_answer(host, name.rstrip("."), now, False)
@@ -322,13 +317,14 @@ class Fleet:
         return "\n".join(lines) + "\n", (0 if running else 3)
 
     def journal_lines(self, host: str, unit_name: str | None, now: datetime) -> list[str]:
-        """journalctl lines up to `now`: the scenario's own, endpointd's halt and apply events, and per minute the app
-        log lines the unit's `log_group` writes as this host sees the outage."""
+        """journalctl lines up to `now`: the scenario's own, an endpointd component's own log group lines with its halt
+        and apply events, and per minute the app log lines the unit's `log_group` writes as this host sees the outage."""
         h, units = self.hosts[host], self.units(host)
         rows: list[tuple[str, str]] = []
         for line in h.get("journal") or self.cfg[h["fleet"]].get("journal") or []:
             ts, rest = line.split(" ", 1)
             rows.append((ts, rest))
+        tz = self.w.start_t.tzinfo
         comp = next((c for c in COMPONENTS if host_of(c) == host), None)
         if comp:
             ep = self.w.endpointd
@@ -337,7 +333,8 @@ class Fleet:
                 rows.append((hms(now), f"endpointd[2147]: WARN halt latch engaged: {why}; writing nothing"))
             rows += [(ev["t"][11:19], f"endpointd[2147]: INFO batch gen {ev['gen']} {ev['event']}")
                      for ev in ep.apply_events[-5:] if ev["enactor"] == comp]
-        tz = self.w.start_t.tzinfo
+            rows += [(hms(t.astimezone(tz)), f"endpointd[2147]: {msg}") for t, g, msg in self.w.telemetry.extra_logs
+                     if g == f"/vl/platform/endpointd/{comp}"]
         off = int(unit(self.w.seed, "journal", host) * 15)
         for name, u in units.items():
             if not u.get("log_group") or unit_name and name != unit_name:
@@ -437,18 +434,9 @@ class Fleet:
                 return 503, {"status": "DEGRADED", "db_pool": {"active": 25, "idle": 0, "waiting": 212}}
             busy = 18 if regime == "degraded" else 4
             return 200, {"status": "UP", "db_pool": {"active": busy, "idle": 25 - busy, "waiting": 0}}
-        resolves = host not in w.dns.hosts or w.dns.resolves(host, now)
-        ledger = ({"status": "DOWN", "error": "java.net.UnknownHostException: ledger.internal.vantleaf.io"}
-                  if not resolves else {"status": "DOWN", "error": "SocketTimeoutException: Read timed out after 2000ms"}
-                  if regime == "collapsed" else {"status": "UP"})
         if kind == "checkout":
-            up = ledger["status"] == "UP"
-            return (200 if up else 503), {"status": "UP" if up else "DOWN", "components": {
-                "ledger": ledger, "ledgerClientBreaker": {"status": "CLOSED" if up else "OPEN"}}}
-        if kind == "dispatcher":
-            lev = w.levers()
-            return 200, {"status": "UP", "consumer_paused": lev["consumer_paused"],
-                         "max_concurrency": int(lev["max_concurrency"]), "ledger": ledger["status"]}
+            up = (host not in w.dns.hosts or w.dns.resolves(host, now)) and regime != "collapsed"
+            return (200, {"status": "UP"}) if up else (503, {"status": "DOWN"})
         return 200, {"status": "UP"}
 
     # ---- restart jobs ----

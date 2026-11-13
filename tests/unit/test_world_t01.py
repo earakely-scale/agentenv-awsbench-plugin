@@ -231,9 +231,9 @@ def test_hannah_nudge_cancelled_and_priya_approval(world):
     assert log["ev-hannah-escalates"]["status"] == "cancelled"
     assert log["ev-sev-autopage"]["status"] == "fired"
     assert log["ev-priya-ack"]["status"] == "fired"
-    appr = world.export()["approvals"]
-    assert appr and appr[0]["by"] == "priya.raman" and appr[0]["decision"] == "APPROVED"
-    assert "max_concurrency" in appr[0]["change"]
+    assert world.export()["approvals"] == []
+    said = [o[1]["text"] for o in world.ws.ops if o[0] in ("chat.post_as", "chat.dm_as") and o[1].get("user") == "priya.raman"]
+    assert [t for t in said if "PF §4.1 (pause automation / documented shedding)" in t and "No APPROVED needed" in t]
     ops = [op for op, *_ in world.ws.ops]
     assert "pager.page_as" in ops and "pager.ack_as" in ops
 

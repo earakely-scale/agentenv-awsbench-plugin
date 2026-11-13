@@ -297,10 +297,9 @@ class Epctl:
         ep = self.ep
         if resolve:
             fqdn = endpoint or ep.ledger
-            lines = [f"resolving {fqdn} from the enactor hosts:"]
-            for h in ("endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c"):
-                lines.append(f"  {h}: {self.world.dns.short_answer(h, fqdn, now)}")
-            return "\n".join(lines) + "\n"
+            hosts = ("endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c")
+            return "\n".join([f"resolving {fqdn} from the enactor hosts:"]
+                             + self.world.fleet.resolve_from(hosts, fqdn, now)) + "\n"
         ok, bad = 0, []
         for fqdn in [endpoint] if endpoint else ep.order:
             p = ep.m.pointers().get(fqdn)

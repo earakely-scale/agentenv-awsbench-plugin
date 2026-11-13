@@ -50,8 +50,8 @@ def test_systemctl_and_curl_reflect_the_outage(world):
     out, code = run(world, "core-a-01", "systemctl status checkout-api")
     assert code == 0 and "active (running)" in out and "CircuitBreakerOpenException" in out
     assert "UnknownHostException" in run(world, "core-a-01", "journalctl -u checkout-api")[0]
-    body = json.loads(run(world, "core-a-01", "curl -s localhost:8080/health")[0])
-    assert body["status"] == "DOWN" and "UnknownHostException" in body["components"]["ledger"]["error"]
+    assert json.loads(run(world, "core-a-01", "curl -s localhost:8080/health")[0]) == {"status": "DOWN"}
+    assert json.loads(run(world, "core-a-01", "curl -s localhost:8081/health")[0]) == {"status": "UP"}
     assert run(world, "core-a-01", "curl -sf localhost:8080/health")[1] == 22
     assert run(world, "core-a-01", "curl -s localhost:9999/health")[1] == 7
     assert run(world, "core-a-01", f"curl -s https://{LEDGER}/health")[1] == 6
@@ -160,13 +160,15 @@ def test_systemctl_status_of_several_units_and_stop_with_a_flag(world):
     assert (out, rc) == ("inactive\n", 3)
 
 
-def test_inspect_shows_services_cache_and_recent_log(world):
+def test_inspect_shows_services_resolver_config_and_recent_log(world):
+    """D1-02, D1-11: inspect shows the resolver's config, never its cache or a countdown, and no Envoy readiness."""
     world.advance_to(at("02:45:00"))
     core = world.fleet_inspect_host("core-a-01")
     assert core["services"]["unbound"] == "active (running)"
-    assert core["resolver"]["cache"][LEDGER].startswith("NXDOMAIN (cached negative answer")
+    assert core["resolver"] == {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": "10.20.0.2"}
     assert 0 < len(core["recent_log"]) <= 5
-    assert "envoy" in world.fleet_inspect_host("li-b-01")["services"]
+    li = world.fleet_inspect_host("li-b-01")
+    assert "envoy" in li["services"] and "envoy_ready" not in li
     enactor = world.fleet_inspect_host("endpointd-enactor-a")
     assert enactor["services"]["endpointd-enactor-a"] == "active (running)" and enactor["kill_switch"] == "on"
 
@@ -213,15 +215,42 @@ def test_unsupported_unbound_control_names_its_subcommand(world):
     assert run(world, "core-a-01", f"unbound-control flush {LEDGER}") == ("ok\n", 0)
 
 
-def test_inspect_cache_holds_the_one_record_dig_answers(world):
+def test_verify_resolve_shows_what_dig_on_each_enactor_shows(world):
+    """D1-02: `epctl verify --resolve` is dig from the three enactors: NXDOMAIN with the zone's SOA line while a host
+    holds the negative answer, else its one weighted answer; never a computed countdown or the healthy set."""
+    world.advance_to(at("02:45:00"))
+    out = run(world, "endpointd-enactor-a", "epctl verify --resolve")[0]
+    assert "cached negative" not in out and "left" not in out
+    for h in ("endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c"):
+        soa = [x for x in run(world, h, f"dig {LEDGER}")[0].splitlines() if "\tSOA\t" in x]
+        assert f"  {h}: status: NXDOMAIN\n    {soa[0]}\n" in out
     ep(world, "epctl pause all", "02:49:00")
     ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x", "02:52:30")
     world.advance_to(at("02:53:00"))
-    world.fleet_exec("core-a-01", f"unbound-control flush {LEDGER}", AGENT)
-    world.advance_to(at("02:53:20"))
-    cache = world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER]
-    ip = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
-    assert ip and "\n" not in ip and cache.startswith(f"{ip} (ttl ")
+    run(world, "endpointd-enactor-a", f"unbound-control flush {LEDGER}")
+    out = run(world, "endpointd-enactor-a", "epctl verify --resolve")[0]
+    ip = run(world, "endpointd-enactor-a", f"dig +short {LEDGER}")[0].strip()
+    assert ip and "\n" not in ip and f"  endpointd-enactor-a: status: NOERROR\n    {LEDGER}.\t" in out
+    assert out.split("endpointd-enactor-a: status: NOERROR\n")[1].splitlines()[0].endswith(f"IN\tA\t{ip}")
+
+
+def test_each_endpointd_host_journals_only_its_own_component(world):
+    """D1-03: an endpointd host's journal is its component's log group, so no one host tells the race."""
+    world.advance_to(at("02:45:00"))
+    journal = {h: run(world, h, "journalctl -n 200")[0] for h in (
+        "endpointd-planner-1", "endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c")}
+    assert "planner gen=48199 changes=0" in journal["endpointd-planner-1"]
+    assert "enactor=b batch gen=48177 halted with 3 endpoints remaining" in journal["endpointd-enactor-b"]
+    assert "enactor=c cleanup: deleted plan gen=48177" in journal["endpointd-enactor-c"]
+    for host, text in journal.items():
+        comp = host.removeprefix("endpointd-").removesuffix("-1").replace("enactor-", "")
+        others = {"planner", "a", "b", "c"} - {comp}
+        assert not [o for o in others if (f"enactor={o} " if o != "planner" else "INFO planner ") in text], host
+    assert "applied gen=48195 41/41 verify=ok" in journal["endpointd-enactor-a"]
+    assert not [x for x in ("picked plan gen=48177", "cleanup", "gen=48199") if x in journal["endpointd-enactor-a"]]
+    assert "48199" not in journal["endpointd-enactor-b"]
+    recent = world.fleet_inspect_host("endpointd-planner-1")["recent_log"]
+    assert recent and not [x for x in recent if "enactor" in x]
 
 
 def test_every_epctl_subcommand_prints_its_usage_on_help_and_writes_nothing(world):
@@ -247,7 +276,7 @@ def test_list_hosts_refuses_an_unknown_group_or_zone_and_takes_zone_names(world)
     assert world.fleet_list_hosts(az="us-east-1a") == world.fleet_list_hosts(az="use1-az6")
     assert world.fleet_list_hosts(fleet="vl-core", az="us-east-1b") == world.fleet_list_hosts("vl-core", "use1-az1")
     ingress = world.fleet_list_hosts(fleet="ledger-ingress")
-    assert len(ingress) == 6 and all("ready" in h for h in ingress)
+    assert len(ingress) == 6 and not [h for h in ingress if "ready" in h]
     assert world.fleet.select("vl-core:us-east-1c") == world.fleet.select("vl-core:use1-az4")
 
 
@@ -268,14 +297,13 @@ def test_a_cached_answer_counts_down_its_ttl(world):
     answer = [x for x in run(world, "core-a-01", f"dig {LEDGER}")[0].splitlines() if x.startswith(LEDGER + ".")]
     assert answer and answer[0].split()[1] == "20"
     ip = answer[0].split()[-1]
-    assert world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER] == f"{ip} (ttl 20s)"
     assert run(world, "core-a-01", f"dig +short {LEDGER}")[0] == ip + "\n"
     direct = [x for x in run(world, "core-a-01", f"dig @10.20.0.2 {LEDGER}")[0].splitlines()
               if x.startswith(LEDGER + ".")]
     assert direct[0].split()[1] == "60"
     world.advance_to(at("02:59:00"))
-    fresh = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
-    assert world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER] == f"{fresh} (ttl 60s)"
+    fresh = [x for x in run(world, "core-a-01", f"dig {LEDGER}")[0].splitlines() if x.startswith(LEDGER + ".")]
+    assert fresh[0].split()[1] == "60"
 
 
 def test_li_b_01_tells_one_story_the_sds_reload_missed_the_cert_path(world):

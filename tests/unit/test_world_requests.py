@@ -8,7 +8,7 @@ from datetime import timedelta
 import pytest
 from awsbench_aws.world import World, replay_seed
 from awsbench_aws.world.timeline import asks, context, plan_gens
-from test_world_npcs import page_platform, post, replies
+from test_world_npcs import page_platform, post, replies, said
 from test_world_t01 import SCENARIO, FakeAws, FakeWs, at, ep
 
 S_0257 = "@priya.raman @kwame.asante ROOT CAUSE (DNS): endpointd enactors halted 07:31:55Z because applied# pointer for ledger.internal.vantleaf.io -> gen 48177 whose plan was missing; the endpoint has no live records. I restored 48177 from archive (EPD-RB-7 step 3; restore into plan store only). But 48177 is stale vs fleet (dead 10.20.76.29, not-ready li-b-01, missing li-c-01): applying it as-is would send ~1/3 of ledger traffic to bad targets. Gen 48220 for THIS endpoint only matches the live fleet (li-b-01 w0, 5 ready at w100). PROPOSED (outside the runbook's literal 'applied gen'): epctl apply --gen 48220 --endpoint ledger.internal.vantleaf.io --manual, then set-applied to 48220. Undo: re-apply 48199-era records / endpointd owner. Requesting APPROVED (IC/freeze) from Priya via the approvals tool; Kwame FYI. ETA: minutes once approved."
@@ -222,7 +222,7 @@ def test_marco_acks_a_direct_page_and_grace_points_to_the_pager(world):
     assert [o for o in world.ws.ops if o[0] == "pager.ack_as" and o[1]["user"] == "marco.ferri"]
     post(world, "03:20:00", "@grace.liu can you call Priya Raman and get her to record an APPROVED?")
     world.advance_to(at("03:30:00"))
-    assert replies(world, "grace.liu", "R2-reach") and not replies(world, "grace.liu", "default")
+    assert replies(world, "grace.liu", "default") and not [t for t in said(world, "grace.liu") if "urgency" in t]
 
 
 def test_priya_answers_a_direct_request_without_ask_words(world):

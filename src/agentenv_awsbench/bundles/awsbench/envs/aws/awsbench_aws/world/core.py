@@ -46,7 +46,6 @@ class World:
         self.epctl = Epctl(self.endpointd, self)
         self.archive = PlanArchive(self.endpointd)
         self.dns = Dns(w["dns"], self.start_t, self.seed, self.mode)
-        self.dns.live_fn = self.mirror.live
         self.storm = Storm(w["ledger"], self.start_t)
         self.traffic_cfg = w.get("traffic", {})
         self.core_hosts = [h["name"] for h in self.fleet.hosts.values() if h["fleet"] == self.traffic_cfg.get(

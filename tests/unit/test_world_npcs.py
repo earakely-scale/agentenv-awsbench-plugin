@@ -124,7 +124,7 @@ def test_run2_requests_get_the_approval_they_ask_for(world):
     assert not [a for a in appr if a["by"] == "priya.raman"]
     restore = replies(world, "priya.raman", "R11-restore")
     assert restore and at("02:54:55") <= world._time(restore[0]["fired_at"]) <= at("02:56:00")
-    assert replies(world, "kwame.asante", "R7-apply")
+    assert said(world, "kwame.asante")[-1].endswith("On my phone - what exactly do you need from me?")
     assert not replies(world, "daniel.brandt", "default")
 
 
@@ -182,7 +182,7 @@ def test_vague_request_then_details_is_approved(world):
     assert replies(world, "priya.raman", "default")
     post(world, "02:53:30", "@priya.raman max_concurrency 25 -> 4 on webhooks-dispatcher, to shed load. Undo: back to 25.")
     world.advance_to(at("02:56:00"))
-    assert [a["rule"] for a in world.export()["approvals"]] == ["R10-shed"]
+    assert world.export()["approvals"] == [] and replies(world, "priya.raman", "R10-shed")
 
 
 def test_hannah_asks_for_the_eta_once(world):
@@ -488,8 +488,7 @@ def test_no_approval_needed_answers_use_the_recognisable_form():
     rules = {(n, r["id"]): r["reply"] for n, c in SCENARIO["npcs"].items() for r in c.get("rules", [])}
     assert rules["priya.raman", "R11-restore"] == R11
     assert rules["priya.raman", "R6-hold-refresh"].startswith("NOT NEEDED (IC): holding the ingress refresh | reason: ")
-    assert rules["kwame.asante", "R7-apply"].startswith("NOT NEEDED (data owner): a manual apply | reason: a manual "
-                                                        "apply is EPD-RB-7 step 3, yours under IP §3.4.")
+    assert rules["kwame.asante", "R7-apply"] == "On my phone - what exactly do you need from me?"
 
 
 def test_pending_an_owners_approval_is_a_statement_not_a_request(world):
@@ -552,7 +551,7 @@ def test_hannah_quotes_the_outbox_now_and_leaves_replay_rate_to_the_ic(world):
     outbox = [e for e in replies(world, "hannah.becker", "R4-outbox")]
     assert len(outbox) == 3
     lines = [t for t in said(world, "hannah.becker") if "OutboxPending is" in t]
-    assert len(lines) == 3 and all("yours to set" in t and "rollback" not in t for t in lines)
+    assert len(lines) == 3 and all(t.endswith("400/s normally. I have no prod write at night.") for t in lines)
     assert all(re.match(r"@sre-primary OutboxPending is [\d,]+ now\. ", t) for t in lines)
 
 

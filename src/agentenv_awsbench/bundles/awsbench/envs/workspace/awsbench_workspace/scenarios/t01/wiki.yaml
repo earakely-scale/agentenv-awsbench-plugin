@@ -31,7 +31,7 @@ pages:
     labels: [runbook, endpointd, platform]
     versions:
       - {version: 5, author: kwame.asante, ts: "2025-08-14T11:00:00-04:00", body_ref: bodies/epd-rb-7-v5.md, comment: "Restore steps after the 2025 drill"}
-      - {version: 6, author: daniel.brandt, ts: "2026-11-03T16:20:00-05:00", body_ref: bodies/epd-rb-7-v6.md, comment: "Incident Process v12 sweep: Who section, step 4 before status claims"}
+      - {version: 6, author: daniel.brandt, ts: "2026-11-03T16:20:00-05:00", body_ref: bodies/epd-rb-7-v6.md, comment: "Incident Process v12 sweep: Who section"}
   - id: PLAT-DOC-ENDPOINTD
     space: PLAT
     title: "endpointd design"
