@@ -41,8 +41,10 @@ ITEM = re.compile(r"^(?:[\u2022\u00b7*-]|\(?(?:\d+|[a-z])[.)])\s+")
 LIST_REF = re.compile(r"(?i)\b(?:approv\w*|sign[- ]?off|ok)\b\W+(?:\w+\W+){0,2}?(?:\d+\s*(?:and|&|,|\+)\s*\d+|both|each|all "
                       r"(?:of )?(?:them|these|items)|these|them|the above|items?)\b")
 DRAFT = re.compile(r"\"([^\"]*)\"|\u201c([^\u201d]*)\u201d|(?<!\w)'([^'\n]*)'(?!\w)|"
-                   r"^\s*(?:body|draft|text)\s*:\s*(\S[^\n]{19,})$|\b(?:draft(?:ed)?|text) (?:in|at|from) (m-\d+)\b", re.I | re.M)
-OPENS_LIST = re.compile(r":\s*(?:\(?(?:1|a)[.)]\s.*)?$")
+                   r"^\s*(?:body|draft|text)\s*:\s*(\S[^\n]{19,})$|"
+                   r"\b(?:draft(?:ed)?|text)\s+(?:(?:above|earlier)\s+)?(?:(?:in|at|from)\s+)?\(?(m-\d+)\b", re.I | re.M)
+QUOTE_BLOCK = re.compile(r"(?:(?:^|\n)\s*>[^\n]*)+\Z")
+OPENS_LIST = re.compile(r":[*_]*\s*(?:\(?(?:1|a)[.)]\s.*)?$")
 BACKREF = re.compile(r"(?i)\b(?:that|this|the|these) (?:class [a-d] )?changes?\b|\bthe above\b|"
                      r"\b(?:delet|remov|suspend|approv|chang)\w* (?:it|them)\b|\b(?:ok|okay|fine) to (?:post|publish)\b|"
                      r"\bpost (?:it|this)\b|\bas drafted\b")
@@ -88,7 +90,7 @@ def request(text: str, extra: re.Pattern | None = None, earlier=lambda mid: "") 
                 alone |= len(a[0].split()) <= 2 and bool(re.search(r'["\u201d]\s*' + re.escape(a[0]), text))
                 refs += [c] if REFERS.search(c) else []
             tail |= bool(a) and bool(OPENS_LIST.search(a[0]))
-        tail |= any(a for _, a in parts) and line.rstrip().endswith(":") or bool(LIST_HEAD.match(line))
+        tail |= any(a for _, a in parts) and line.rstrip("*_ ").endswith(":") or bool(LIST_HEAD.match(line))
     if refs:
         about = [*refs, *(c for c in context(text, extra) if REFERS.search(c))]
         for mid in dict.fromkeys(m for c in refs for m in MSG_REF.findall(c)):
@@ -107,15 +109,16 @@ def to_me(text: str, names: set[str]) -> str:
 
 
 def draft(text: str, earlier=None) -> str:
-    """The draft a message quotes (text in quotes just after a word like "post" or "draft", or a `Body:` / `Draft:` /
-    `Text:` line) or names ("drafted in m-28": that message's draft when `earlier` knows it); a quoted log line is no
-    draft."""
+    """The draft a message quotes (text in quotes just after a word like "post" or "draft", or after the `>` lines under
+    a line that introduces it: "Proposed post, for your OK:"; or a `Body:` / `Draft:` / `Text:` line) or names ("drafted
+    in m-28", "the draft above (m-18)": that message's draft when `earlier` knows it); a quoted log line is no draft."""
     text, out = text or "", []
     for m in DRAFT.finditer(text):
         g = next((g for g in m.groups() if g), "")
         if m.group(5):
             out.append(earlier and draft(earlier(g) or "") or g)
-        elif g and (m.group(4) or len(g) >= 20 and DRAFT_LEAD.search(text[max(0, m.start() - 60):m.start()])):
+        elif g and (m.group(4) or len(g) >= 20 and any(
+                DRAFT_LEAD.search(lead[-60:]) for lead in (text[:m.start()], QUOTE_BLOCK.sub("", text[:m.start()])))):
             out.append(g)
     return " ".join(out)
 
