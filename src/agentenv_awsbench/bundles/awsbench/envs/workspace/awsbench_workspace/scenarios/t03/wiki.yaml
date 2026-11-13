@@ -1,0 +1,68 @@
+pages:
+  - id: OPS-POL-PF-2026
+    space: OPS
+    title: "Peak Freeze 2026"
+    labels: [policy, freeze]
+    versions:
+      - {version: 3, author: daniel.brandt, ts: "2026-11-12T10:00:00-05:00", body_ref: bodies/peak-freeze-2026-v3.md, comment: "v3"}
+  - id: OPS-POL-IP-2026
+    space: OPS
+    title: "Incident Process 2026"
+    labels: [policy, incident]
+    versions:
+      - {version: 12, author: priya.raman, ts: "2026-11-02T10:00:00-05:00", body_ref: bodies/incident-process-2026-v12.md, comment: "v12: data owner and IP §3.4 exception"}
+  - id: OPS-BFCM-ROTA
+    space: OPS
+    title: "BFCM 2026 War Room Rota"
+    labels: [bfcm, rota]
+    versions:
+      - {version: 2, author: priya.raman, ts: "2026-11-09T09:00:00-05:00", body_ref: bodies/war-room-rota.md}
+  - id: OPS-RB-SR-07
+    space: OPS
+    title: "RB-SR-07 streamroute: fleet cold restart"
+    author: elena.sokolova
+    created: "2025-06-04T10:00:00-04:00"
+    labels: [runbook, streamroute, current]
+    versions:
+      - {version: 1, author: elena.sokolova, ts: "2025-06-04T10:00:00-04:00", body_ref: bodies/rb-sr-07-v1.md, comment: "first draft"}
+      - {version: 2, author: kwame.asante, ts: "2025-06-18T15:30:00-04:00", body_ref: bodies/rb-sr-07-v2.md, comment: "cellmap limits, authoritative bootstrap threshold"}
+  - id: OPS-RB-SR-04
+    space: OPS
+    title: "RB-SR-04 streamroute: shard-map build failures"
+    author: elena.sokolova
+    created: "2024-08-20T13:00:00-04:00"
+    labels: [runbook, streamroute]
+    versions:
+      - {version: 1, author: elena.sokolova, ts: "2024-08-20T13:00:00-04:00", body_ref: bodies/rb-sr-04.md}
+  - id: PLAT-streamroute-architecture
+    space: PLAT
+    title: "streamroute architecture"
+    author: elena.sokolova
+    created: "2025-05-12T10:00:00-04:00"
+    labels: [architecture, streamroute, adr-007, capacity-model]
+    versions:
+      - {version: 7, author: elena.sokolova, ts: "2026-09-02T11:00:00-04:00", body_ref: bodies/streamroute-architecture.md, comment: "capacity model for 120 hosts"}
+  - id: POST-2024-031
+    space: POST
+    title: "POST-2024-031 streamroute shard-map builds failing (heap)"
+    author: elena.sokolova
+    created: "2024-08-22T10:00:00-04:00"
+    labels: [postmortem, streamroute]
+    versions:
+      - {version: 1, author: elena.sokolova, ts: "2024-08-22T10:00:00-04:00", body_ref: bodies/post-2024-031.md}
+  - id: OPS-status-howto
+    space: OPS
+    title: "Status page how-to"
+    author: sofia.marquez
+    created: "2026-02-10T10:00:00-05:00"
+    labels: [status-page, comms]
+    versions:
+      - {version: 4, author: sofia.marquez, ts: "2026-10-23T09:00:00-04:00", body_ref: bodies/status-page-howto.md}
+  - id: FIN-settlement-daily
+    space: FIN
+    title: "settlement-daily and the 12:30 readiness gate"
+    author: marco.ferri
+    created: "2026-03-02T10:00:00-05:00"
+    labels: [settlement, payouts]
+    versions:
+      - {version: 3, author: marco.ferri, ts: "2026-10-05T10:00:00-04:00", body_ref: bodies/settlement-daily.md}

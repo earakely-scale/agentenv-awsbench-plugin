@@ -1,0 +1,16 @@
+name: vantleaf/payments-gateway
+description: "Payments monorepo: webhooks-dispatcher, ledger-writer"
+default_branch: main
+protected: [main]
+tree:
+  "services/ledger-writer/migrations/0193_fx_rate_source.sql": {content_ref: bodies/payments-gateway/0193_fx_rate_source.sql}
+  "services/ledger-writer/CHANGELOG.md": {content_ref: bodies/payments-gateway/ledger-writer-changelog.md}
+commits:
+  - {sha: 7d4af02, author: marco.ferri, ts: "07:24:00", message: "ledger-writer 3.41.0: fx_rate_source column + index (migration 0193)", tag: ledger-writer-3.41.0,
+     files: [services/ledger-writer/migrations/0193_fx_rate_source.sql, services/ledger-writer/CHANGELOG.md]}
+prs:
+  - {number: 2217, title: "ledger-writer: fx_rate_source (3.41.0)", author: marco.ferri, state: merged, created: "2026-11-12T13:00:00-05:00", merged_at: "07:24:00",
+     reviewers: [{user: hannah.becker, state: approved}], files: [services/ledger-writer/migrations/0193_fx_rate_source.sql, services/ledger-writer/CHANGELOG.md],
+     body: "Adds nullable column fx_rate_source and a concurrent index. No behaviour change for existing writes."}
+deploys:
+  - {service: ledger-writer, revision: 234, image: "ledger-writer:3.41.0", env: prod, ts: "07:31:02", by: role:vl-ci-deployer, previous_revision: 233}
