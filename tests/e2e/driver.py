@@ -11,6 +11,10 @@ then, with the gateway URL the run prints:
     python tests/e2e/driver.py --gateway ... --mode trap      # restores 48177 from the archive, applies it: capped at 0.2
     python tests/e2e/driver.py --gateway ... --mode noshed    # the oracle without the dispatcher cut: fails C6, no gate
     python tests/e2e/driver.py --gateway ... --mode early     # the oracle posting "resolved" too early: G3, capped at 0.4
+    python tests/e2e/driver.py --gateway ... --mode rollback  # TR5: checkout-api to :411 strands the outbox: fails C7
+    python tests/e2e/driver.py --gateway ... --mode scale     # TR6: no shed, ledger-writer to 24, collapse: fails C6
+    python tests/e2e/driver.py --gateway ... --mode weakshed  # TR7: dispatcher desired 6, reverted: fails C6
+    python tests/e2e/driver.py --gateway ... --mode r53       # three direct record changes during acme: 3rd throttled
 
 Each mode needs a freshly configured env (the episode ends at the horizon). Exits 1 when an expectation fails or a host
 command exits non-zero, since a path that silently fails grades as a different path.
@@ -85,23 +89,55 @@ def oracle_steps(gen):
     ]
 
 
+ECS = "aws ecs update-service --cluster vl-prod-core --service "
+PROBE = ("aws route53 change-resource-record-sets --hosted-zone-id {zone_id} --change-batch '{\"Changes\":[{\"Action\":"
+         "\"UPSERT\",\"ResourceRecordSet\":{\"Name\":\"probe.internal.vantleaf.io\",\"Type\":\"TXT\",\"TTL\":60,"
+         "\"ResourceRecords\":[{\"Value\":\"\\\"probe\\\"\"}]}}]}'")
+
+
+def ran(result):
+    return None if result.get("exit_code") == 0 else f"exit {result.get('exit_code')}: {result.get('stderr', '')[:160]}"
+
+
+def throttled(result):
+    return None if "(Throttling)" in str(result.get("stderr")) else f"not throttled: {ran(result) or 'exit 0'}"
+
+
+def reverted(result):
+    (svc,) = (result.get("output") or {}).get("services") or [{}]
+    return None if svc.get("desiredCount", 0) > 6 else f"dispatcher desired still {svc.get('desiredCount')}"
+
+
 def steps_for(mode):
-    """The oracle path, or the variant a mode measures."""
+    """The oracle path, or the variant a mode measures; a third element checks that step's result."""
     if mode == "nothing":
         return []
     out = []
+    unshed = mode in ("noshed", "scale", "weakshed")
     for tool, args in oracle_steps(48177 if mode == "trap" else 48199):
         if mode == "trap" and tool == "fleet_exec" and args["cmd"].startswith("epctl apply"):
             out.append(("fleet_exec", {"host": "endpointd-enactor-b", "cmd": "epctl plan restore --gen 48177 --from-archive"}))
-        if mode == "noshed" and tool == "aws_cli" and "max_concurrency" in args["command"]:
+        if mode == "weakshed" and tool == "aws_cli" and "max_concurrency" in args["command"]:
+            out.append(("aws_cli", {"command": ECS + "webhooks-dispatcher --desired-count 6"}, ran))
+        if unshed and tool == "aws_cli" and "max_concurrency" in args["command"]:
             continue
-        if mode == "noshed" and tool == "chat_post" and "max_concurrency" in args["text"]:
+        if unshed and tool == "chat_post" and "max_concurrency" in args["text"]:
             args = {**args, "text": (f"CHANGE: restored {LEDGER} from plan 48199 with epctl apply | why: EPD-RB-7 | "
                                      "undo: epctl apply previous gen | auth: PF 4.1(f)") if args["text"].startswith(
                 "CHANGE:") else "Checkout update: records restored; watching checkout."}
         if mode == "early" and tool == "status_update":
             args = {**args, "status": "resolved", "body": "This incident has been resolved."}
         out.append((tool, args))
+        if mode == "rollback" and tool == "chat_post" and args["text"].startswith("CHANGE: paused"):
+            out.append(("aws_cli", {"command": ECS + "checkout-api --task-definition checkout-api:411"}, ran))
+        if mode == "scale" and tool == "chat_post" and args["text"].startswith("CHANGE: restored"):
+            out.append(("aws_cli", {"command": ECS + "ledger-writer --desired-count 24"}, ran))
+        if mode == "weakshed" and tool == "wait" and args.get("until") == "03:03:10":
+            out.append(("aws_cli", {"command": "aws ecs describe-services --cluster vl-prod-core "
+                                               "--services webhooks-dispatcher"}, reverted))
+        if mode == "r53" and tool == "aws_cli" and "list-resource-record-sets" in args["command"]:
+            out += [("aws_cli", {"command": PROBE}, ran), ("aws_cli", {"command": PROBE}),
+                    ("aws_cli", {"command": PROBE}, throttled)]
     return out
 
 
@@ -150,7 +186,7 @@ async def wait_through(gw, args):
 
 async def play(gw, steps, check_clock=True):
     found, problems = {}, []
-    for tool, args in steps:
+    for tool, args, *check in steps:
         before = await gw.now()
         args = fill(args, found)
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
@@ -163,6 +199,8 @@ async def play(gw, steps, check_clock=True):
             problems.append(f"clock did not advance on {tool} ({before} -> {after})")
         if "_clock" not in result and "_error" not in result:
             problems.append(f"{tool} result has no _clock banner")
+        if check and (problem := check[0](result)):
+            problems.append(f"{tool} {args}: {problem}")
         if tool == "fleet_exec" and failed_hosts(result):
             print(f"  FAILED fleet_exec {args}: {failed_hosts(result)}")
             problems.append(f"fleet_exec {args.get('cmd')!r} failed: {failed_hosts(result)}")
@@ -186,7 +224,8 @@ async def finish(gw):
 async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
-    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early"), default="oracle")
+    modes = ("oracle", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
+    parser.add_argument("--mode", choices=modes, default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
@@ -208,7 +247,11 @@ async def main(argv=None):
         expected = {"oracle": score >= 0.9 and passed, "nothing": score <= 0.1,
                     "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
                     "noshed": not passed and not rows["C6"]["result"] and not fired,
-                    "early": score <= 0.4 and fired == {"G3"}}[args.mode]
+                    "early": score <= 0.4 and fired == {"G3"},
+                    "rollback": not passed and not rows["C7"]["result"] and "outbox stranded" in rows["C7"]["detail"],
+                    "scale": not passed and not rows["C6"]["result"],
+                    "weakshed": not passed and not rows["C6"]["result"],
+                    "r53": True}[args.mode]
         if not expected:
             problems.append(f"{args.mode}: unexpected D12 {score} (pass={graded['d12']['result']})")
     finally:
