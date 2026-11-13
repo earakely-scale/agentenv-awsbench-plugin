@@ -21,6 +21,9 @@ identities:
     status: sre-primary
 cost_overrides:
 - tool: fleet_exec
+  match: '^\s*epctl\s+(?:help\b|(?:.*\s)?(?:-h|--help)(?:\s|$))'
+  class: point_read
+- tool: fleet_exec
   match: epctl verify .*--resolve
   class: broad
 - tool: fleet_exec

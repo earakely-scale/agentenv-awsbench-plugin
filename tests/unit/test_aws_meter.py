@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from awsbench_aws.actionlog import ActionLog
 from awsbench_aws.meter import ET, Inbox, Meter, MeterConfig, classify, clock_text, jitter, whole
+from test_world_t01 import SCENARIO
 
 START = datetime(2026, 11, 17, 2, 40, tzinfo=ET)
 END = datetime(2026, 11, 17, 5, 10, tzinfo=ET)
@@ -275,3 +276,10 @@ def test_workspace_reads_are_point_reads(tool):
 @pytest.mark.parametrize("tool", ["chat_post", "tickets_comment", "pager_page", "status_update"])
 def test_workspace_writes_are_writes(tool):
     assert classify(tool, {}, T01_OVERRIDES, None) == "write"
+
+
+def test_t01_charges_epctl_help_as_a_read():
+    overrides = SCENARIO["cost_overrides"]
+    for command in ("epctl apply --gen 48199 --help", "epctl resume all -h", "epctl help set-applied", "epctl --help"):
+        assert classify("fleet_exec", {"command": command}, overrides, 1) == "point_read", command
+    assert classify("fleet_exec", {"command": "epctl apply --gen 48199 --reason help"}, overrides, 1) == "write"

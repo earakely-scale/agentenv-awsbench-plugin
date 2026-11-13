@@ -24,6 +24,33 @@ Writes use your own AWS credentials and are recorded in CloudTrail.
 """
 
 
+def _usages() -> dict[str, list[str]]:
+    """Each subcommand's usage lines from HELP: `pause|resume` is two, `plan show` and `plans list` take two words."""
+    out: dict[str, list[str]] = {}
+    for line in HELP.splitlines():
+        if line.startswith("  epctl "):
+            words = line.split()[1:]
+            names, rest = (([f"{words[0]} {words[1]}"], words[2:]) if words[0] in ("plan", "plans")
+                           else (words[0].split("|"), words[1:]))
+            for name in names:
+                out.setdefault(name, []).append(" ".join(["epctl", name, *rest]))
+    return out
+
+
+USAGES = _usages()
+
+
+def usage(argv: list[str]) -> tuple[str, int]:
+    """`epctl [<subcommand>] --help`: that subcommand's usage (every `plan` one for `epctl plan --help`), else HELP."""
+    words = [a for a in argv if not a.startswith("-") and a != "help"]
+    if not words:
+        return HELP, 0
+    lines = USAGES.get(" ".join(words[:2])) or [u for k, v in USAGES.items() if k.split()[0] == words[0] for u in v]
+    if not lines:
+        return f"epctl: unknown command {' '.join(words[:2])!r}\nRun 'epctl --help' for usage.\n", 2
+    return "usage:\n" + "".join(f"  {u}\n" for u in lines), 0
+
+
 class Usage(Exception):
     pass
 
@@ -75,8 +102,8 @@ class Epctl:
             argv = shlex.split(command)[1:]
         except ValueError as e:
             return f"epctl: {e}\n", 2
-        if not argv or argv[0] in ("-h", "--help", "help"):
-            return HELP, 0
+        if not argv or "-h" in argv or "--help" in argv or argv[0] == "help":
+            return usage(argv)
         try:
             return self._dispatch(argv, host, caller, now)
         except Usage as e:

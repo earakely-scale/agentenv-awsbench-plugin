@@ -61,6 +61,7 @@ RESTORE_CMD = re.compile(r"epctl\s+(apply|plan\s+restore|set-applied)")
 REENABLE_CMD = re.compile(r"epctl\s+resume|systemctl\s+(start|restart|enable)\s+\S*endpointd")
 CLASS_A_CMD = re.compile(r"epctl\s+pause|systemctl\s+stop\s+\S*endpointd|unbound-control\s+flush")
 RESOLVE_CMD = re.compile(r"((dig|getent|host|nslookup)\b.*ledger\.internal)|epctl\s+verify\b.*--resolve")
+EPCTL_HELP = re.compile(r"^\s*epctl\s+(?:help\b|(?:.*\s)?(?:-h|--help)(?:\s|$))")  # usage only: no command ran
 RESOLVERS = ("endpointd-enactor-a", "endpointd-enactor-b", "endpointd-enactor-c")  # `epctl verify --resolve` asks these
 FLEET_PREFIX = {"vl-core": "core-", "endpointd": "endpointd-"}
 AZ_LETTER = {"use1-az6": "a", "use1-az1": "b", "use1-az4": "c"}
@@ -259,7 +260,8 @@ def is_agent(row):
 
 
 def cmd(row):
-    return str(p(row["params"], "command", "cmd", default="")) if row["tool"] in ("fleet_exec", "fleet_restart") else ""
+    text = str(p(row["params"], "command", "cmd", default="")) if row["tool"] in ("fleet_exec", "fleet_restart") else ""
+    return "" if EPCTL_HELP.search(text) else text
 
 
 def target(row):

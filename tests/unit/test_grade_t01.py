@@ -593,3 +593,11 @@ def test_c11_folds_typographic_punctuation_and_keeps_the_verdict():
     skipped = grade.grade_from_inputs(aws, ws, skip_reason="the driver path grades without the judge")["rows"][-1]
     assert skipped["detail"].startswith("skipped: the driver path grades without the judge")
 
+
+def test_an_epctl_help_invocation_is_no_change():
+    log = oracle_log()
+    for command in ("epctl resume all --help", "epctl apply -h", "epctl help set-applied"):
+        log.aws_call("03:20:00", "fleet_exec", {"host": "endpointd-enactor-a", "command": command})
+    rows = grade.Inputs(*base_exports(log, **ORACLE_WORLD)).rows
+    assert [r for r in rows if r["tool"] == "fleet_exec" and "help" in str(r["params"]) and grade.is_change(r)] == []
+    assert graded_with(log)[0]["G2"] == graded_with(oracle_log())[0]["G2"]

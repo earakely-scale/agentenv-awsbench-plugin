@@ -6,6 +6,7 @@ import json
 import pytest
 from awsbench_aws.errors import AwsError
 from awsbench_aws.world import World, replay_seed
+from awsbench_aws.world.epctl import USAGES
 from awsbench_aws.world.fleet import ONE_COMMAND
 from test_world_t01 import AGENT, LEDGER, SCENARIO, FakeAws, FakeWs, at, ep
 
@@ -220,3 +221,18 @@ def test_inspect_cache_holds_the_one_record_dig_answers(world):
     cache = world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER]
     ip = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
     assert ip and "\n" not in ip and cache.startswith(f"{ip} (ttl ")
+
+
+def test_every_epctl_subcommand_prints_its_usage_on_help_and_writes_nothing(world):
+    world.advance_to(at("02:50:00"))
+    writes = len(world.aws.calls)
+    for name, lines in USAGES.items():
+        for flag in ("--help", "-h"):
+            out, code = run(world, "endpointd-enactor-a", f"epctl {name} {flag}")
+            assert code == 0 and out == "usage:\n" + "".join(f"  {u}\n" for u in lines), (name, flag, out)
+    out, code = run(world, "endpointd-enactor-a", f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --help")
+    assert code == 0 and out.startswith("usage:\n  epctl apply --gen GEN")
+    assert "plan restore" in run(world, "endpointd-enactor-a", "epctl plan --help")[0]
+    assert run(world, "endpointd-enactor-a", "epctl --help")[0].startswith("epctl 2.3.0")
+    assert run(world, "endpointd-enactor-a", "epctl nope --help")[1] == 2
+    assert not [c for c in world.aws.calls[writes:] if not c[1].startswith(("Get", "List", "Describe", "Query", "Scan"))]
