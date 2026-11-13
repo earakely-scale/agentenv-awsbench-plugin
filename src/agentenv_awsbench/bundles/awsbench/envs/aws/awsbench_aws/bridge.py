@@ -11,7 +11,7 @@ import shlex
 import threading
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -174,6 +174,17 @@ def _http(status: int) -> SimpleNamespace:
     return SimpleNamespace(status_code=status, headers={}, content=b"", text="", raw=None)
 
 
+def _utc(value: Any) -> Any:
+    """A served response's aware datetimes in UTC, as AWS answers, at any depth."""
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value
+    if isinstance(value, dict):
+        return {k: _utc(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_utc(v) for v in value]
+    return value
+
+
 class Bridge:
     def __init__(self, emulator: Emulator, actionlog: ActionLog, *, profiles: dict[str, list[dict]] | None = None,
                  policies: dict[str, dict] | None = None, faults: list[dict] | None = None, seed: str = "0",
@@ -227,13 +238,14 @@ class Bridge:
                                                f"{service}:{operation} action", 403)
             self.faults.check(service, operation, params, ctx.get("t"))
             if (service, operation) == ("cloudtrail", "LookupEvents"):
-                return _http(200), {**self.trail.lookup(params), "ResponseMetadata": {"HTTPStatusCode": 200}}
+                return _http(200), {**_utc(self.trail.lookup(params)), "ResponseMetadata": {"HTTPStatusCode": 200}}
             world = self.world()
             if world is not None:
                 with self.world_lock:
                     served = world.serve_aws(service, operation, params)
                 if served is not None:
-                    return _http(200), {**served, "ResponseMetadata": {"HTTPStatusCode": 200, "RequestId": "awsbench"}}
+                    return _http(200), {**_utc(served), "ResponseMetadata": {"HTTPStatusCode": 200,
+                                                                            "RequestId": "awsbench"}}
         except AwsError as e:
             return _http(e.status), {"Error": e.as_dict(), "ResponseMetadata": {"HTTPStatusCode": e.status}}
         return None

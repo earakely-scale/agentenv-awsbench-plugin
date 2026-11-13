@@ -1,11 +1,13 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from awsbench_aws.actionlog import ActionLog, resources_of
 from awsbench_aws.bridge import DEFAULT_POLICY, Bridge, CommandError, Faults, iam_allows, parse_command, split_globals
 from awsbench_aws.emulator import Emulator
 from awsbench_aws.errors import AwsError
+from awsbench_aws.world import World, replay_seed
+from test_world_t01 import SCENARIO, FakeAws, FakeWs, at
 
 T = datetime(2026, 11, 17, 7, 41, tzinfo=UTC)
 PROFILES = {"sre-primary": [{"profile": "vl-prod/SRE-OnCall", "account": "vl-prod", "permission_set": "SRE-OnCall"}]}
@@ -209,3 +211,19 @@ def test_logs_insights_reads_pass_the_gate(bridge):
                                        "endTime": 2}), ("GetQueryResults", {"queryId": "q"})):
         assert "error" not in bridge.call_api("logs", op, params, role="sre-primary"), op
     assert [c[1] for c in bridge.test_world.calls] == ["StartQuery", "GetQueryResults"]
+
+
+def test_world_served_times_come_back_in_utc():
+    world = World(SCENARIO, "eval-seed-1", aws := FakeAws(), FakeWs())
+    replay_seed(SCENARIO, aws)
+    world.start()
+    world.advance_to(at("02:47:00"))
+    b = Bridge(Emulator(port=1), ActionLog(), profiles=PROFILES, world=lambda: world)
+    out = b.run_cli("aws cloudwatch describe-alarms --alarm-names checkout-api-CheckoutSuccessRate-critical",
+                    role="sre-primary", call={"t": at("02:47:00")})
+    assert out["exit_code"] == 0, out
+    (alarm,) = json.loads(out["stdout"])["MetricAlarms"]
+    assert alarm["StateUpdatedTimestamp"] == "2026-11-17T07:32:00+00:00"
+    asg = b.call_api("autoscaling", "DescribeAutoScalingGroups", {}, role="sre-primary",
+                     call={"t": at("02:47:00")})["AutoScalingGroups"][0]
+    assert asg["CreatedTime"].utcoffset() == timedelta(0)
