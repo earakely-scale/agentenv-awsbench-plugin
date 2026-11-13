@@ -473,4 +473,5 @@ class Ecs:
                                  "task_definition": f"{n}:{s['rev']}"} for n, s in self.services.items()},
                 "dispatcher_target": {"min": self.w.storm.disp_min, "max": self.w.storm.disp_max,
                                       "suspended": dict(self.suspended), "policy": bool(self.policy)},
-                "acme_running": self.acme_running(), "acme_stopped_by": self.acme_stopped_by}
+                "acme_running": self.acme_running(), "acme_stopped_by": self.acme_stopped_by,
+                "acme_task_arn": self._acme_task()["taskArn"] if self.acme else None}

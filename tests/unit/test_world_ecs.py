@@ -170,6 +170,7 @@ def test_stopping_acme_completes_it_and_cancels_the_scheduled_finish(world):
     assert {e["id"]: e["status"] for e in world.timeline.export()}.get("ev-acme-done") == "cancelled"
     task = world.serve_aws("ecs", "DescribeTasks", {"cluster": "vl-prod-core", "tasks": [arn]})["tasks"][0]
     assert task["lastStatus"] == "STOPPED" and task["stopCode"] == "UserInitiated"
+    assert world.export()["ecs"]["acme_task_arn"] == arn
     assert world.serve_aws("ecs", "ListTasks", {"cluster": "vl-prod-core", "family": "acme-renewer"})["taskArns"] == []
 
 
