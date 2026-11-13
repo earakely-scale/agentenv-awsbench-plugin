@@ -1,9 +1,11 @@
 """AWS reads that physics owns: CloudWatch metrics and alarms, CloudWatch Logs, SQS queue depth and the outbox table."""
 
 import hashlib
+import json
 import math
 import operator
 import re
+import uuid
 from bisect import bisect_right
 from datetime import UTC, datetime, timedelta
 
@@ -611,11 +613,26 @@ class Telemetry:
             busy = 0 if dlq or self.w.levers()["consumer_paused"] else min(visible,
                                                                             self.w.storm.dispatcher_running() * 10)
             attrs = {"ApproximateNumberOfMessages": str(visible), "ApproximateNumberOfMessagesNotVisible": str(busy),
-                     "ApproximateNumberOfMessagesDelayed": "0", "VisibilityTimeout": "0" if not dlq else "30",
-                     "MessageRetentionPeriod": "345600"}
+                     "ApproximateNumberOfMessagesDelayed": "0", **self._queue(dlq)}
             want = p.get("AttributeNames") or ["All"]
             return {"Attributes": attrs if "All" in want else {k: v for k, v in attrs.items() if k in want}}
         return None
+
+    def _queue(self, dlq: bool) -> dict:
+        """The queue's configuration as GetQueueAttributes shows it; the main queue dead-letters only after 1000
+        receives, so the DLQ's seeded messages predate tonight."""
+        name = "vl-webhook-delivery-dlq" if dlq else "vl-webhook-delivery"
+        created = str(int(parse_time(self.w.scenario["seeded_at"], self.w.start_t).timestamp()))
+        out = {"VisibilityTimeout": "30", "MessageRetentionPeriod": "345600", "DelaySeconds": "0",
+               "MaximumMessageSize": "262144", "ReceiveMessageWaitTimeSeconds": "0", "SqsManagedSseEnabled": "true",
+               "QueueArn": f"arn:aws:sqs:us-east-1:{ACCOUNT}:{name}", "CreatedTimestamp": created,
+               "LastModifiedTimestamp": created if dlq else
+               str(int(parse_time("2026-11-10T11:05:00-05:00", self.w.start_t).timestamp()))}
+        if not dlq:
+            out["RedrivePolicy"] = json.dumps({"deadLetterTargetArn": f"arn:aws:sqs:us-east-1:{ACCOUNT}:"
+                                                                      "vl-webhook-delivery-dlq",
+                                               "maxReceiveCount": 1000}, separators=(",", ":"))
+        return out
 
     def _cloudwatch(self, op: str, p: dict, now: datetime):
         if op == "GetMetricData":
@@ -716,11 +733,22 @@ class Telemetry:
             return None
         n = round(self.w.storm.outbox)
         if op == "DescribeTable":
-            return {"Table": {"TableName": OUTBOX, "TableStatus": "ACTIVE", "ItemCount": n, "TableSizeBytes": n * 350,
+            created = parse_time(self.w.scenario["seeded_at"], self.w.start_t)
+            return {"Table": {"TableName": OUTBOX, "TableStatus": "ACTIVE", "CreationDateTime": created,
+                              "ItemCount": n, "TableSizeBytes": n * 350,
                               "KeySchema": [{"AttributeName": "payment_id", "KeyType": "HASH"}],
                               "AttributeDefinitions": [{"AttributeName": "payment_id", "AttributeType": "S"}],
-                              "BillingModeSummary": {"BillingMode": "PAY_PER_REQUEST"},
-                              "TableArn": f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/{OUTBOX}"}}
+                              "ProvisionedThroughput": {"NumberOfDecreasesToday": 0, "ReadCapacityUnits": 0,
+                                                        "WriteCapacityUnits": 0},
+                              "BillingModeSummary": {"BillingMode": "PAY_PER_REQUEST",
+                                                     "LastUpdateToPayPerRequestDateTime": created},
+                              "TableArn": f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/{OUTBOX}",
+                              "TableId": str(uuid.UUID(hashlib.sha256(f"{self.w.seed}|{OUTBOX}".encode())
+                                                       .hexdigest()[:32])),
+                              "DeletionProtectionEnabled": False,
+                              "OnDemandThroughput": {"MaxReadRequestUnits": -1, "MaxWriteRequestUnits": -1},
+                              "WarmThroughput": {"ReadUnitsPerSecond": 12000, "WriteUnitsPerSecond": 4000,
+                                                 "Status": "ACTIVE"}}}
         if op == "GetItem":
             item = self._outbox_find(((p.get("Key") or {}).get("payment_id") or {}).get("S"), n)
             return {"Item": item} if item else {}

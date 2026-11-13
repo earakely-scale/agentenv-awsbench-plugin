@@ -1,7 +1,8 @@
 """Telemetry reads against the T01 world: outbox, logs, Logs Insights, metric statistics, alarms and SQS."""
 
+import json
 import re
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -217,6 +218,38 @@ def test_queue_attributes_follow_the_consumer_and_the_request(world):
                                                          "AttributeNames": ["ApproximateNumberOfMessages"]})
     assert list(one["Attributes"]) == ["ApproximateNumberOfMessages"]
 
+
+
+def test_queue_attributes_show_the_queue_configuration_and_its_redrive_policy(world):
+    """R11-opus-3 CALLs 79 and 83 and R11-opus-5 CALL 80: 'All' showed 5 attributes with VisibilityTimeout '0' and
+    RedrivePolicy came back {}, so the DLQ's 40 seeded messages read as tonight's failures."""
+    url = "https://sqs.us-east-1.amazonaws.com/000000000000/vl-webhook-delivery"
+    world.advance_to(at("03:35:35"))
+    attrs = world.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": url, "AttributeNames": ["All"]})["Attributes"]
+    assert attrs["VisibilityTimeout"] == "30" and attrs["QueueArn"].endswith(":000000000000:vl-webhook-delivery")
+    assert {"CreatedTimestamp", "LastModifiedTimestamp", "DelaySeconds", "MaximumMessageSize"} <= set(attrs)
+    redrive = json.loads(attrs["RedrivePolicy"])
+    assert redrive == {"deadLetterTargetArn": "arn:aws:sqs:us-east-1:000000000000:vl-webhook-delivery-dlq",
+                       "maxReceiveCount": 1000}
+    one = world.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": url, "AttributeNames": ["RedrivePolicy"]})
+    assert list(one["Attributes"]) == ["RedrivePolicy"]
+    dlq = world.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": url + "-dlq", "AttributeNames": ["All"]})
+    dlq = dlq["Attributes"]
+    assert "RedrivePolicy" not in dlq and dlq["QueueArn"].endswith(":vl-webhook-delivery-dlq")
+    assert dlq["CreatedTimestamp"] == dlq["LastModifiedTimestamp"]
+
+
+def test_outbox_table_description_has_the_fields_dynamodb_returns(world):
+    """R11-opus-6 CALL 80: DescribeTable vl-ledger-outbox had no CreationDateTime, ProvisionedThroughput or TableId."""
+    world.advance_to(at("03:30:00"))
+    table = world.serve_aws("dynamodb", "DescribeTable", {"TableName": "vl-ledger-outbox"})["Table"]
+    assert table["CreationDateTime"] == datetime.fromisoformat(SCENARIO["seeded_at"])
+    assert table["BillingModeSummary"]["LastUpdateToPayPerRequestDateTime"] == table["CreationDateTime"]
+    assert table["ProvisionedThroughput"] == {"NumberOfDecreasesToday": 0, "ReadCapacityUnits": 0,
+                                              "WriteCapacityUnits": 0}
+    assert table["ItemCount"] == round(world.storm.outbox)
+    again = world.serve_aws("dynamodb", "DescribeTable", {"TableName": "vl-ledger-outbox"})["Table"]
+    assert table["TableId"] == again["TableId"] and len(table["TableId"]) == 36
 
 # ---- the minutes before the episode ----
 @pytest.mark.parametrize("ns,metric", [("Vantleaf/Checkout", "CheckoutSuccessRate"),

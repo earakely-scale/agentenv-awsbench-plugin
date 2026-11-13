@@ -2551,7 +2551,7 @@ aws_seed:
   params:
     QueueName: vl-webhook-delivery
     Attributes:
-      VisibilityTimeout: '0'
+      VisibilityTimeout: '30'
       MessageRetentionPeriod: '345600'
 - service: logs
   operation: CreateLogGroup

@@ -266,7 +266,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
     @tool(structured_output=False)
     async def tickets_search(self, ctx: ToolContext, query: str | None = None, project: str | None = None,
                              status: str | None = None, assignee: str | None = None, limit: int = 20) -> str:
-        """Search tickets (projects OPS, PLAT, PAY, SUP, ...) by words, project, status or assignee."""
+        """Search tickets (projects OPS, PLAT, PAY, SUP, ...) by project, status, assignee, or `query`: tickets whose
+        key, summary, description or comments contain every word of it (case-insensitive substrings)."""
         return await self._call(ctx, "tickets_search", locals(),
                                 lambda a, t: tickets.search(self.ws, a, t, query, project, status, assignee, limit))
 
@@ -314,7 +315,7 @@ class WorkspaceEnv(AgentEnvEnvironment):
     # wiki
     @tool(structured_output=False)
     async def wiki_search(self, ctx: ToolContext, query: str, space: str | None = None, limit: int = 10) -> str:
-        """Search wiki pages by words in their title, body or labels."""
+        """Search wiki pages whose title, body or labels contain every word of `query` (case-insensitive substrings)."""
         return await self._call(ctx, "wiki_search", locals(),
                                 lambda a, t: wiki.search(self.ws, a, t, query, space, limit))
 
@@ -378,7 +379,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
     @tool(structured_output=False)
     async def mail_search(self, ctx: ToolContext, query: str | None = None, folder: str | None = None,
                           sender: str | None = None, unread: bool | None = None, limit: int = 20) -> str:
-        """Search your mailbox (folder 'inbox' or 'sent'), newest first."""
+        """Search your mailbox (folder 'inbox' or 'sent'), newest first; `query` matches mail whose subject, body or
+        addresses contain every word of it (case-insensitive substrings)."""
         return await self._call(ctx, "mail_search", locals(),
                                 lambda a, t: mail.search(self.ws, a, t, query, folder, sender, unread, limit))
 
