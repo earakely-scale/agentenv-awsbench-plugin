@@ -208,7 +208,8 @@ def replay_run(root: Path, run_dir: Path) -> dict:
                     unserved.append(f"call {n} {r['operation']}: {e}")
         tool = m["tool"]
         if tool == "fleet_restart" and not any(r.get("error") for r in mine):
-            world.fleet_restart(args.get("selector") or args.get("host"), int(args.get("batch_size") or 1), AGENT)
+            world.fleet_restart(args.get("selector") or args.get("host"), int(args.get("batch_size") or 1), AGENT,
+                                args.get("wait_for") or "ready", args.get("pause_seconds") or 0)
         elif tool == "fleet_exec":
             world.fleet_exec(args.get("selector") or args.get("host") or "", args.get("command") or args.get("cmd") or "",
                              AGENT)
@@ -291,7 +292,8 @@ def replay_reference(root: Path) -> dict:
                 elif tool == "fleet_inspect_host":
                     data = world.fleet_inspect_host(args["host"])
                 elif tool == "fleet_restart":
-                    data = world.fleet_restart(args["selector"], args["batch_size"], AGENT)
+                    data = world.fleet_restart(args["selector"], args["batch_size"], AGENT,
+                                               args.get("wait_for") or "ready", args.get("pause_seconds") or 0)
                     found["job_id"] = data.get("job_id", found["job_id"])
                 elif tool == "fleet_job_status":
                     data = world.fleet_job_status(args["job_id"])

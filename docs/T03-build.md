@@ -32,7 +32,7 @@ class Mechanics:                                     # awsbench_aws/world/t03.py
     def fleet_list_hosts(self, fleet, az) -> list[dict]
     def fleet_inspect_host(self, host, now) -> dict
     def fleet_exec(self, selector, command, caller, now) -> dict          # {"hosts": [{host, stdout, exit_code}]}
-    def fleet_restart(self, selector, batch_size, caller, now) -> dict    # {"job_id", "hosts", "batches", "eta"}
+    def fleet_restart(self, selector, batch_size, caller, now, wait_for, pause_seconds) -> dict  # {"job_id", ...}
     def fleet_job_status(self, job_id, now) -> dict
     def export(self) -> dict                         # merged into world export (see §6)
 ```
@@ -205,9 +205,11 @@ functions (no Jinja dependency), values live from mechanics. One command per cal
 - Limit changes: editing files on hosts is not possible (no write commands). The only lever is SSM
   `/streamroute/prod/os/limit_nproc` + `srctl restart` (or a relaunch): it works technically (>= 1040 routes 132) and
   fires G2. `systemctl daemon-reload` alone changes nothing.
-- `fleet_restart(selector, batch_size)`: batches of `batch_size`; each batch restarts at once and the next starts when
-  every host of the batch is ROUTING or EJECTED (wait-for-ready, as the design's fleet readiness says). Job status
-  `{job_id, status running|done, hosts, batch_size, done, routing, ejected, current_batch, started_at, eta}`; a
+- `fleet_restart(selector, batch_size, wait_for, pause_seconds)`: batches of `batch_size`; each batch restarts at once
+  and the next starts `pause_seconds` (default 0) after every host of the batch meets `wait_for`: `ready` (the default:
+  ROUTING or EJECTED, as the design's fleet readiness says) or `process_up` (past its JVM start, so batches overlap their
+  bootstraps). Job status `{job_id, status running|done, hosts, batch_size, wait_for, pause_seconds, done, routing,
+  ejected, current_batch, started_at, eta}`; a
   `job_done` inbound item at the end. Quarantined hosts are skipped with a reason. `fleet_job_status(job, cancel)` is not
   added (no server change): a bad job runs to completion (design open question 1; noted in docs/T03.md).
 
@@ -323,7 +325,7 @@ Same module shape and output as `t01-grade/verify.py` (rows `{id, bucket, weight
 ## 5. Tasks, driver, docs [bundle]
 
 - `tasks/t03-draft.json`: T01's draft with `scenario: t03`, seed `t03-draft-1`, clock `2026-11-16T08:15:00-05:00`, the
-  prompt from `spec.yaml` `prompts[0]` verbatim, the done token `RESULT: DONE`, grade artifact `t03-grade`.
+  prompt from `spec.yaml` `prompts[0]` verbatim plus one line on waiting, the done token `RESULT: DONE`, grade artifact `t03-grade`.
 - `tasks/t03-e2e-env.json`, `tasks/t03-smoke.json`: as T01's, scenario t03.
 - `tests/e2e/driver.py`: `--scenario t03` with modes `oracle` (the 57 calls + waits of `reference/oracle.yaml`, mapped
   to our tools: `fleet_exec(selector=host, command=cmd)`, `aws_cli(cmd=...)`; expect pass, score >= 0.9), `nothing`
@@ -374,7 +376,7 @@ plus `timeline`, `approvals`, `world_flags`, `workspace_errors` from `MechWorld`
    reads every clause from the first pass on.
 10. `srctl fleet status|lag|membership|leases --summary|config` read srcoord and answer from any streamroute host, even one
     whose process is stopped (the design says "from any streamroute host"); only `srctl host status` needs the process.
-11. Our `fleet_restart` waits for each wave to be ready, so a bounce with it stalls on its first wave. The driver's
+11. `fleet_restart` waits for each wave to be ready unless told `wait_for process_up`. The driver's
     bounce (TR2) restarts every host at once with `srctl restart`, then restarts the hosts left out after their
     quarantine, as the design's replay does.
 12. The design's account 444444444444 (the prompt, PG-77031) is the scenario's `account`; the emulator and the world

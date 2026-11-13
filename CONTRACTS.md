@@ -131,6 +131,7 @@ class World:
     def fleet_inspect_host(self, host: str) -> dict
     def fleet_exec(self, selector: str, command: str, caller: dict) -> dict   # {"hosts": [{host, stdout, exit_code}]}
     def fleet_restart(self, selector: str, batch_size: int, caller: dict) -> dict   # {"job_id"}
+        # T03's also takes wait_for (ready|process_up) and pause_seconds; the server refuses them for a world without
     def fleet_job_status(self, job_id: str) -> dict
     def serve_aws(self, service: str, operation: str, params: dict) -> dict | None
         # physics-served AWS reads (CloudWatch metrics and alarm states, Logs, SQS queue attributes, ...);
