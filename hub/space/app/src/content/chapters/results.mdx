@@ -1,15 +1,33 @@
 import IDX from "../../../public/data/index.json";
 
-export const pct = (v) => (v == null ? "–" : Number(v).toFixed(2));
-export const end = (r) => (r.end_reason === "done" && r.done ? r.done : r.end_reason === "window_end" ? "13:00 window" : r.end_reason);
+export const pct = (v) => (v == null ? "–" : Number(v).toFixed([2, 3, 4].find((n) => Math.abs(v * 10 ** n - Math.round(v * 10 ** n)) < 1e-6) || 4));
+export const each = (rs) => (new Set(rs.map((r) => r.d12)).size === 1 && rs.length > 1 ? `${pct(rs[0].d12)} each` : rs.map((r) => pct(r.d12)).join(", "));
+export const end = (r) => (r.end_reason === "done" && r.done ? r.done : r.end_reason === "window_end" ? (r.task === "T03" ? "13:00 window" : "05:10 window") + (r.said_done ? ` (said DONE ${r.said_done})` : "") : r.end_reason);
+export const lost = (r) => (r.failed.length ? r.failed.map((c) => (r.partial && r.partial[c] ? `${c} (${r.partial[c][0]} of ${r.partial[c][1]})` : c)).join(", ") : "none");
 export const TASKS = IDX.tasks || { T01: { title: "The Empty Ledger Endpoint", reference: IDX.reference, runs: IDX.runs } };
+export const FG = IDX.final_grader || {};
+export const same = (r) => r.final && Math.abs(r.final.d12 - r.d12) < 1e-6 && r.final.pass === r.pass;
+export const moved = (r) => (!r.final || same(r) ? "" : r.final.d12 > r.d12 ? "up" : "down");
+export const LOSSES = { fair: "fair", env: "environment", mixed: "partly environment" };
+export const noted = (t) => t.runs.filter((r) => r.final && (r.final.losses || !same(r)));
+export const SAID = Object.values(TASKS).flatMap((t) => t.runs).filter((r) => r.end_reason !== "done" && r.said_done);
+export const latest = (t) => (t ? t.runs.filter((r) => !r.dev) : []);
+export const T01L = latest(TASKS.T01);
+export const T03L = latest(TASKS.T03);
+export const opus = (r) => /Opus/.test(r.model);
+export const son = (r) => /Sonnet/.test(r.model);
+export const T03LAST2 = TASKS.T03 ? TASKS.T03.runs.filter((r) => r.build === T03L[0]?.build || /^T03R2-/.test(r.id)) : [];
 
 ## Runs
 
 Each row is one recorded run by an agent in Claude Code, with the solver's built-in tools off so that it works only
 through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs that are
-fixed since, and the final runs will replace them. The reference for each task is its scripted oracle path. Click a
-run to open it in the flight recorder.
+fixed since. The reference for each task is its scripted oracle path. Click a run to open it in the flight recorder.
+
+**Graded** is the score a run got when it was graded. **Final** is the same run's exports graded again by the final
+grader (build `{FG.build}`). Where the two differ, or a run still loses points, the note under the table says why and
+whose the lost points are: **fair** when the agent could have avoided the loss with what the world showed it,
+**environment** when a world, colleague or grader defect caused it.
 
 {Object.entries(TASKS).map(([task, t]) => (
   <div>
@@ -17,18 +35,19 @@ run to open it in the flight recorder.
     <div class="table-scroll">
     <table class="aib-results">
       <thead>
-        <tr><th>Run</th><th>Model</th><th>Build</th><th>D12</th><th>Pass</th><th>Checks lost</th><th>Gates</th><th>Calls</th><th>End</th></tr>
+        <tr><th>Run</th><th>Model</th><th>Build</th><th>Graded</th><th>Pass</th><th>Checks lost</th><th>Gates</th><th>Final</th><th>Calls</th><th>End</th></tr>
       </thead>
       <tbody>
         {t.runs.map((r) => (
           <tr>
             <td><a href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener">{r.id}</a></td>
-            <td>{r.model}</td>
+            <td>{r.model.replace("Claude ", "")}</td>
             <td class={r.dev ? "dev" : ""}>{r.build}{r.dev ? " (dev)" : ""}</td>
             <td>{pct(r.d12)}</td>
             <td class={r.pass ? "pass" : "fail"}>{r.pass ? "pass" : "fail"}</td>
-            <td>{r.failed.length ? r.failed.join(", ") : "none"}</td>
+            <td>{lost(r)}</td>
             <td>{r.gates.length ? r.gates.join(", ") : "none"}</td>
+            <td class={`fin ${moved(r)}`}>{r.final ? <span>{pct(r.final.d12)}{same(r) ? "" : r.final.pass ? " pass" : " fail"}</span> : <span class="na">not regraded</span>}</td>
             <td>{r.calls}</td>
             <td>{end(r)}</td>
           </tr>
@@ -41,21 +60,87 @@ run to open it in the flight recorder.
           <td class="pass">pass</td>
           <td>none</td>
           <td>none</td>
+          <td></td>
           <td>{t.reference.calls}</td>
           <td>{end(t.reference)}</td>
         </tr>
       </tbody>
     </table>
     </div>
+    {noted(t).length > 0 && <ul class="aib-notes">
+      {noted(t).map((r) => (
+        <li><strong>{r.id}</strong> {same(r) ? `${pct(r.final.d12)}` : `${pct(r.d12)} → ${pct(r.final.d12)}${r.final.pass === r.pass ? "" : r.final.pass ? ", now a pass" : ", now a fail"}`}{r.final.losses ? <span class={`loss ${r.final.losses}`}>{LOSSES[r.final.losses]}</span> : ""}. {r.final.why}</li>
+      ))}
+    </ul>}
   </div>
 ))}
 
 T01's reference D12 of 1.0 is what the same scripted path grades on a deployed env; T03's reference has its outcome
-checks graded by the grader's own rules on the replayed world, and its process and communication marks are the ones the
-path is built to pass. Both references are replayed in process on this page (see Methods). Single runs per model and
-build are not a pass rate: they show where a task bites, not how often. Calls count every charged call, `wait` included,
-as the meter counts them against the budget (250 calls in T01, 220 in T03). T03 runs end at the 13:00 window unless the
-agent finishes first; the T03 runs here are the first, on a development build.
+checks and its runbook check (C16) graded by the grader's own rules on the replayed world, and its other process and
+communication marks are the ones the path is built to pass. Both references are replayed in process on this page (see
+Methods). Calls count every charged call, `wait` included, as the meter counts them against the budget (250 calls in
+T01, 220 in T03). A check lost with points in brackets was given part of them. Runs on builds older than R8 were not
+graded again.
+
+{SAID.length > 0 && <p>The {SAID.length} runs on build {[...new Set(SAID.map((r) => r.build))].join(", ")} replied <code>RESULT: DONE</code> before 13:00, at the time in brackets, but that build's turn hook missed it (see Methods), so the episode ran on to the 13:00 window. Later builds end the episode on it.</p>}
+
+### Where the tasks stand
+
+**T01.** On the latest build ({T01L[0]?.build}), all {T01L.length} runs passed: {T01L.filter(opus).length} Opus runs
+at {each(T01L.filter(opus))}, and {T01L.filter(son).length} Sonnet runs at
+{" "}{T01L.filter(son).map((r) => pct(r.d12)).join(" and ")} as graded ({T01L.filter(son).map((r) => pct(r.final?.d12)).join(" and ")}
+under the final grader). Opus has scored 1.00 in every T01 run since R9 (R9's three Opus runs, on build 9e55614, are
+not shown here). The one point loss that stands on this build is fair: a Sonnet handoff note that leaves out the root
+cause.
+
+**T03.** On the latest build ({T03L[0]?.build}), all {T03L.filter(opus).length} Opus runs passed at
+{" "}{each(T03L.filter(opus))}. Both Sonnet runs were capped at 0.40 by G4, for different
+reasons. T03R3-sonnet-1 failed fairly: it reverted the Auto Scaling group but left the scheduled capacity hold in place,
+which put the fleet back to 132 hosts at 14:00, so its "resolved" was false by the horizon. That is the half-revert trap
+the task is built around, and the same miss as T03R2-sonnet-2 on the build before. T03R3-sonnet-2 was capped because
+the grader read a conditional in its change record ("…unless the thread budget is fixed first") as a resolved claim; the
+final grader fixes that and scores it 0.975, a pass.
+
+### Calibration: easier than designed
+
+Both task designs aim for a frontier pass rate near 10–18 %. On the latest builds every T01 run passed, and 3 of the 5
+T03 runs passed as graded (4 of 5 under the final grader). A handful of runs per model and build shows where a task
+bites, not a rate, but the gap is too large to be noise. Audits of the build the R10 and T03R2 runs used (5095dda)
+against the designs found the physics faithful: T01's storm thresholds, autoscaler revert and reconnect-herd collapse,
+and T03's thread arithmetic (132 hosts fail, 124 and fewer fit), its restart behaviour and its 14:00 relapse all follow
+the designs. The builds are easier in what they give away:
+
+- **Policy pages restate the grade.** The incident-process pages open with the graded thresholds and rules, and T01's
+  handoff section asks for the facts the handoff judge looks for; the R10 handoff notes copy its headings.
+- **Tools and logs hand out answers.** T01's DNS check prints the cached NXDOMAIN with its seconds left, and every
+  endpointd host's journal holds the whole race. T03's host journal shows only the two lines that matter, and its log
+  group has about 5,500 lines where the design has about 430,000. The design's log noise is missing in both.
+- **Colleagues volunteer the fix.** In T03 a colleague recites the wedge and the restart recipe when the agent uses the
+  right words, and the incident commander offers the safe host range.
+- **T03's restart discipline is automatic.** The fleet restart tool waits for each batch on its own, and the runbook
+  says how to use it. In all {T03LAST2.length} T03 runs on the last two builds the agent restarted at most
+  {" "}{Math.max(...T03LAST2.map((r) => r.peak_conc))} hosts at a time with {T03LAST2.reduce((a, r) => a + r.ejections, 0)} hosts
+  ejected, and no run changed anything before the incident commander approved it; the design expected each of those
+  mistakes in 10–25 % of runs.
+- **Some grader rules are looser than the checks they implement.**
+
+Even aligned with its design, T01's core checks may stay easy for strong agents: the runbook's own plan diff steers an
+agent away from the stale-plan trap, and C6's 20-minute collapse budget admits shedding after the collapse has started.
+Reaching the target will take harder levers than the designs have, which is a design decision still open.
+
+### What makes a failure fair
+
+A failure is **fair** when the agent could have avoided it with what the world showed it: the evidence was there to
+find, the policy said what to do, and a reasonable colleague would have answered. T03R3-sonnet-1's relapse is fair. The
+hold was in the capacity change's ticket, in a #deploys post the agent read at 08:19 ("Hold schedule in place"), and in
+the Auto Scaling group's scheduled actions, which it never listed; it asked the incident commander only about capacity.
+
+It is the **environment's** when the world, a colleague or the grader got it wrong: a colleague answering a correct
+request with an approval for something else, a lookup returning nothing that should have returned a row, or a grader
+rule reading a conditional as a claim. Every lost check in the runs since R8 was traced to its evidence and labelled
+that way. Grader defects are fixed, and the final grader grades the run again from its own exports. World and colleague
+defects are fixed too, but a regrade can't change what a recorded run did, so those losses stay in the final score and
+are labelled environment.
 
 ### The flight recorder
 

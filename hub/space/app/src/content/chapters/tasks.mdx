@@ -32,7 +32,8 @@ work into the incident ticket, and ends by replying `RESULT: DONE`.
 What happened, though the agent has to find it: at 06:05 a pre-approved capacity change grew streamroute, the fleet
 that routes payment events to the ledger, from 120 to 132 hosts. Each host keeps two threads per peer, and its service
 user is capped at 1,024 threads. As the hosts learned their new peers over the next hour, their periodic shard-map
-builds stopped being able to start threads; the builds failed, the maps expired, and by 08:12 no host was routing.
+builds stopped being able to start threads; the builds failed and the maps expired. From 08:00 no host had a
+fresh map, and by 08:15, as the page went out, the last stale ones had expired too: no host was routing.
 Payment events queue up safely, but the ledger falls further behind every minute, and a settlement run at 13:00
 depends on it.
 

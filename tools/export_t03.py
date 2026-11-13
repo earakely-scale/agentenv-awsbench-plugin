@@ -17,6 +17,9 @@ final, handoff); T03 adds its own:
     t03      {settlement, loadshed, ejections, oom, hold_log, restarts, replay_check}
     summary  {routing_from, all_routing_at, lag_clear_at, lag_end, backlog_end, peak_conc, agent_restarts, ejections,
               oom, loadshed_s, settlement, hold, canary_ok_at}
+
+It also adds ``clock.said_done`` (when the agent first replied with a ``RESULT: DONE`` line, for an episode that didn't end
+on it) and ``checks[].earned`` (the points a check earned, below its weight ``w`` when the grader gave partial credit).
 """
 from __future__ import annotations
 
@@ -355,11 +358,15 @@ def world_events(aws: dict, series: dict, summary: dict, fleet: dict) -> list[di
     if ff:
         ev.append({"t": ff[0], "kind": "world", "who": ff[1], "role": "streamroute",
                    "text": "First shard-map build fails: OutOfMemoryError: unable to create native thread"})
-    zero = next((T0 + DT * i for i in range(N) if T0 + DT * i > X.sec("2026-11-16T06:45:00-05:00") and series["R"][i] == 0),
-                None)
-    if zero:
-        ev.append({"t": zero, "kind": "world", "who": "streamroute", "role": "",
-                   "text": "No host is ROUTING: the shard maps have expired fleet-wide"})
+    after = [i for i in range(N) if T0 + DT * i > X.sec("2026-11-16T06:45:00-05:00")]
+    zero = next((i for i in after if series["R"][i] == 0), None)
+    gone = next((i for i in after if series["R"][i] + series["S"][i] == 0), None)
+    if zero is not None and zero != gone and series["S"][zero]:
+        ev.append({"t": T0 + DT * zero, "kind": "world", "who": "streamroute", "role": "",
+                   "text": f"No host is ROUTING; {series['S'][zero]} still serve on stale shard maps until they expire"})
+    if gone is not None:
+        ev.append({"t": T0 + DT * gone, "kind": "world", "who": "streamroute", "role": "",
+                   "text": "Every shard map has expired: no host routes payment events"})
     if summary.get("routing_from"):
         ev.append({"t": summary["routing_from"], "kind": "world", "who": "streamroute", "role": "",
                    "text": "95 % of in-service hosts are ROUTING again"})
@@ -413,9 +420,12 @@ def build_checks(grade_rows: list[dict], steps: list[dict], done: int | None, ve
             t = X._first_time(detail)
             at = (t + 600) if (result and t) else 45000
         else:
-            at = served[-1]["end"] if served and result else served[0]["end"] if served else (done or HZ)
+            at = served[-1]["end"] if served else (done or HZ)
+        w = round(float(row.get("points", 0) or 0), 2)
+        frac = row.get("score")
+        earned = round(w * float(frac), 2) if isinstance(frac, (int, float)) and not gate else (w if result else 0.0)
         checks.append({"id": cid, "name": name, "title": row.get("title", ""), "short": short_name,
-                       "bucket": row.get("bucket"), "w": round(float(row.get("points", 0) or 0), 2), "core": core,
+                       "bucket": row.get("bucket"), "w": w, "earned": earned if not gate else None, "core": core,
                        "gate": gate, "M": cid == "C15", "result": result, "fired": fired, "skipped": skipped,
                        "detail": X.short(detail, 400), "at": at, "deadline": deadline, "window": window})
     caps = d12.get("caps") or []
@@ -425,6 +435,42 @@ def build_checks(grade_rows: list[dict], steps: list[dict], done: int | None, ve
              "why": (f"raw {round(100 * raw)}" + (f" · capped at {min(caps)}" if caps else " · no cap")) if raw is not None else "",
              "measured": version}
     return checks, score
+
+
+DONE_LINE = re.compile(r"^[\s>*_`#-]*RESULT:\s*DONE\b", re.MULTILINE)
+
+
+HOOK_TIME = re.compile(r"^\[(\d\d):(\d\d) ET\]")
+
+
+def said_done_at(session_path: Path, steps: list[dict]) -> int | None:
+    """When the agent first replied with a `RESULT: DONE` line: the end of the last call before that reply, or the turn
+    hook's wake-up if one came after it. The episode's own end can be later, when the hook doesn't recognise the reply."""
+    if not session_path.exists():
+        return None
+    end_of = {s["n"]: s["end"] for s in steps}
+    now = None
+    for line in session_path.read_text().splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        content = (row.get("message") or {}).get("content")
+        if row.get("type") == "user" and isinstance(content, str):
+            m = HOOK_TIME.match(content.strip())
+            if m:
+                now = max(now or 0, int(m.group(1)) * 3600 + int(m.group(2)) * 60)
+            continue
+        for block in content if isinstance(content, list) else []:
+            if block.get("type") == "tool_result":
+                raw = block.get("content")
+                text = "".join(c.get("text", "") for c in raw if isinstance(c, dict)) if isinstance(raw, list) else str(raw or "")
+                m = re.search(r'"_clock":\{"now":"[^"]*","call":(\d+)', text)
+                if m and int(m.group(1)) in end_of:
+                    now = max(now or 0, end_of[int(m.group(1))])
+            elif block.get("type") == "text" and row.get("type") == "assistant" and DONE_LINE.search(block.get("text", "")):
+                return now
+    return None
 
 
 def rca_of(ws: dict, incident: str) -> str:
@@ -488,7 +534,10 @@ def export_run_t03(run_dir: Path, run_id: str, label: str | None, dev: bool, not
             "model": NAMES.get(model_id, model_id), "model_id": model_id,
             "harness": "Claude Code (solver's built-in tools off; AwsBench MCP tools only)", "build": build, "dev": dev,
             "note": note}
-    return _view(base, aws, ws, steps, rep["board"], checks, score, [], incident, final, rca_of(ws, incident), rep["check"])
+    view = _view(base, aws, ws, steps, rep["board"], checks, score, [], incident, final, rca_of(ws, incident), rep["check"])
+    view["clock"]["said_done"] = (said_done_at(run_dir / "agent-session.jsonl", steps)
+                                  if ep.get("end_reason") != "done" else None)
+    return view
 
 
 def reference_t03(t03_root: Path, work: Path, people: dict, build: str) -> dict:
@@ -514,9 +563,9 @@ def reference_t03(t03_root: Path, work: Path, people: dict, build: str) -> dict:
     rows.insert(0, {"id": "D12", "score": 1.0, "raw": 1.0, "result": True, "caps": [],
                     "buckets": {"outcome": 62, "process": 18, "comms": 20}})
     done = X.sec(aws["episode"]["done_at"])
-    checks, score = build_checks(rows, steps, done, "outcome rows by the grader's own rules on the replayed world; the "
-                                                    "rest are what the path is built to pass")
-    score["why"] = "outcome graded on the replay · process and comms as built"
+    checks, score = build_checks(rows, steps, done, "outcome and C16 rows by the grader's own rules on the replayed "
+                                                    "world; the rest are what the path is built to pass")
+    score["why"] = "outcome and C16 graded on the replay · the rest as built"
     for c in checks:
         if c["id"] in outcome:
             c["graded"] = True
@@ -545,8 +594,9 @@ def reference_t03(t03_root: Path, work: Path, people: dict, build: str) -> dict:
             "dev": False,
             "note": ("The scripted oracle path of tests/e2e/t03_oracle.py, played through the world package in process "
                      "with in-memory AWS and workspace fakes: the same physics, timeline and colleagues, with waits run "
-                     "to their full length. Its outcome checks are graded by the grader's own rules on the replayed "
-                     "world; the process and communication marks are the ones it is built to pass.")}
+                     "to their full length. Its outcome checks and its runbook check (C16) are graded by the grader's own "
+                     "rules on the replayed world; the other process and communication marks are the ones it is built "
+                     "to pass.")}
     rca = next((s["args"].get("body", "") for s in steps if s["tool"] == "tickets_comment"), "")
     view = _view(base, aws, {}, steps, rep["board"], checks, score, ev, INCIDENT, "RESULT: DONE", rca, None, people)
     view["board"] = {"ticket": [[s["end"], "SEV1"] for s in steps if s["tool"] == "tickets_create"][:1] +

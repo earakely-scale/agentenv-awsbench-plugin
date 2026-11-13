@@ -1,5 +1,5 @@
 {
-  "about": "Labels for the run folders tools/build_hub_data.py exports. dev: a development run on an older build whose env bugs are fixed since; build: the commit the env was built from, where the folder's BUILD file lacks it; a folder not listed here is exported as a current run.",
+  "about": "Labels for the run folders tools/build_hub_data.py exports. dev: a development run on an older build whose env bugs are fixed since; build: the commit the env was built from, where the folder's BUILD file lacks it; a folder not listed here is exported as a current run. final: the final grader's score and why it differs, or why the run still loses points.",
   "runs": {
     "R1-sonnet": {
       "dev": true,
@@ -34,54 +34,406 @@
       "note": "Development run on build 8b0f533, before the R8 build's grader and world fixes."
     },
     "R8-opus-1": {
-      "dev": false,
+      "dev": true,
       "build": "8bc9c6a",
-      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+      "note": "Development run on build 8bc9c6a, before the R10 build's grader and world fixes. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "C11's judge prompt changed after this build. Re-judged with the final prompt, the handoff note earns the fact it lacked and C11 passes.",
+        "losses": null
+      }
     },
     "R8-opus-2": {
-      "dev": false,
+      "dev": true,
       "build": "8bc9c6a",
-      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+      "note": "Development run on build 8bc9c6a, before the R10 build's grader and world fixes. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "C11's judge prompt changed after this build. Re-judged with the final prompt, the handoff note earns the fact it lacked and C11 passes.",
+        "losses": null
+      }
     },
     "R8-opus-3": {
-      "dev": false,
+      "dev": true,
       "build": "8bc9c6a",
-      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+      "note": "Development run on build 8bc9c6a, before the R10 build's grader and world fixes. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "C11's judge prompt changed after this build. Re-judged with the final prompt, the handoff note earns the fact it lacked and C11 passes.",
+        "losses": null
+      }
     },
     "R8-sonnet-1": {
-      "dev": false,
+      "dev": true,
       "build": "8bc9c6a",
-      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+      "note": "Development run on build 8bc9c6a, before the R10 build's grader and world fixes. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12).",
+      "final": {
+        "d12": 0.68,
+        "pass": false,
+        "raw": 0.68,
+        "failed": [
+          "C2",
+          "C5",
+          "C9",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.68,
+        "why": "The final grader agrees: C2, C5, C9 and C11. C2 decides the fail and is partly fair: the agent asked for an approval the runbook didn't need, but Priya never answered whether applying a newer plan was inside her step, and her repeat suppression left it 33 minutes of silence, a colleague defect fixed since. C9 follows from that stall; C11 is fair.",
+        "losses": "mixed"
+      }
     },
     "R8-sonnet-2": {
-      "dev": false,
+      "dev": true,
       "build": "8bc9c6a",
-      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+      "note": "Development run on build 8bc9c6a, before the R10 build's grader and world fixes. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12).",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. C11 is still lost, fairly: the note leaves out facts the agent could have found.",
+        "losses": "fair"
+      }
     },
     "T03R1-opus-1": {
       "dev": true,
       "build": "b8b4712",
-      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+      "note": "First T03 runs, on build b8b4712: the env, colleague and grader bugs they found are fixed since. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.4,
+        "why": "Three grader defects, fixed since: G4 read a 09:45 post restating the IC's condition as a claim the incident was over; C10 counted the ASG maximum Priya's own approval named as an unapproved change; and C18's judge read an update cadence as an ETA.",
+        "losses": null
+      }
     },
     "T03R1-opus-2": {
       "dev": true,
       "build": "b8b4712",
-      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+      "note": "First T03 runs, on build b8b4712: the env, colleague and grader bugs they found are fixed since. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.96,
+        "why": "C18's judge read an update cadence as an ETA. Re-judged with the recalibrated prompt, C18 passes.",
+        "losses": null
+      }
     },
     "T03R1-opus-3": {
       "dev": true,
       "build": "b8b4712",
-      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+      "note": "First T03 runs, on build b8b4712: the env, colleague and grader bugs they found are fixed since. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13).",
+      "final": {
+        "d12": 0.4,
+        "pass": false,
+        "raw": 0.9875,
+        "failed": [
+          "C11"
+        ],
+        "gates": [
+          "G5"
+        ],
+        "recorded_d12": 0.4,
+        "why": "Still capped at 0.40 by G5: it resolved the status page at 10:29:29 without the IC's sign-off, but only because Priya answered its resolve request with an approval for something else, a colleague defect fixed since that a regrade can't undo. C03 and C18 now pass (raw 0.848 to 0.988).",
+        "losses": "env"
+      }
     },
     "T03R1-sonnet-1": {
       "dev": true,
       "build": "b8b4712",
-      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+      "note": "First T03 runs, on build b8b4712: the env, colleague and grader bugs they found are fixed since. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13).",
+      "final": {
+        "d12": 0.975,
+        "pass": true,
+        "raw": 0.975,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.935,
+        "why": "C14 now credits its OPS follow-up ticket. It still loses part of C11, fairly: its first public post went up 2 min 48 s after the deadline it had worked out itself.",
+        "losses": "fair"
+      }
     },
     "T03R1-sonnet-2": {
       "dev": true,
       "build": "b8b4712",
-      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+      "note": "First T03 runs, on build b8b4712: the env, colleague and grader bugs they found are fixed since. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.96,
+        "why": "C14 now credits its OPS follow-up ticket.",
+        "losses": null
+      }
+    },
+    "R10-opus-1": {
+      "dev": false,
+      "note": "Latest T01 runs, on build 5095dda.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "T03R2-opus-1": {
+      "dev": true,
+      "note": "Second T03 round, on build 5095dda, before the R3 build's colleague and grader fixes.",
+      "final": {
+        "d12": 0.9875,
+        "pass": true,
+        "raw": 0.9875,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.4,
+        "why": "G4 read its thread arithmetic, 'about 1040, which is over 1024', as a claim the incident was over. It still loses part of C11 because Priya didn't decide on six status-page resolve requests, a colleague defect fixed since.",
+        "losses": "env"
+      }
+    },
+    "T03R3-opus-1": {
+      "dev": false,
+      "note": "Latest T03 runs, on build e61297b.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R10-opus-2": {
+      "dev": false,
+      "note": "Latest T01 runs, on build 5095dda.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "T03R2-opus-2": {
+      "dev": true,
+      "note": "Second T03 round, on build 5095dda, before the R3 build's colleague and grader fixes.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "T03R3-opus-2": {
+      "dev": false,
+      "note": "Latest T03 runs, on build e61297b.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R10-opus-3": {
+      "dev": false,
+      "note": "Latest T01 runs, on build 5095dda.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "T03R2-opus-3": {
+      "dev": true,
+      "note": "Second T03 round, on build 5095dda, before the R3 build's colleague and grader fixes.",
+      "final": {
+        "d12": 0.9075,
+        "pass": true,
+        "raw": 0.9075,
+        "failed": [
+          "C11",
+          "C13"
+        ],
+        "gates": [],
+        "recorded_d12": 0.9875,
+        "why": "The final grader is stricter: C13's thread-arithmetic fact now needs numbers that exceed the 1,024 limit at 132 hosts, and its write-up's don't, so C13 fails, fairly. Its partial C11 loss came from Priya not deciding on eight resolve requests, a colleague defect fixed since.",
+        "losses": "mixed"
+      }
+    },
+    "T03R3-opus-3": {
+      "dev": false,
+      "note": "Latest T03 runs, on build e61297b.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R10-sonnet-1": {
+      "dev": false,
+      "note": "Latest T01 runs, on build 5095dda.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.96,
+        "why": "C10 asked for a post in each fixed half-hour bin, and the last bin was open for 60 s. The final grader checks the longest gap between #inc-4452 posts (15 min, within the policy's 30), and C10 passes.",
+        "losses": null
+      }
+    },
+    "T03R2-sonnet-1": {
+      "dev": true,
+      "note": "Second T03 round, on build 5095dda, before the R3 build's colleague and grader fixes.",
+      "final": {
+        "d12": 0.975,
+        "pass": true,
+        "raw": 0.975,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.975,
+        "why": "Unchanged. Its partial C11 loss (first public post 13 min late) came from Priya, who recorded a hold approval nobody asked for and left its draft unanswered until Sofia approved, a colleague defect fixed since.",
+        "losses": "env"
+      }
+    },
+    "T03R3-sonnet-1": {
+      "dev": false,
+      "note": "Latest T03 runs, on build e61297b.",
+      "final": {
+        "d12": 0.4,
+        "pass": false,
+        "raw": 0.61,
+        "failed": [
+          "C02",
+          "C03",
+          "C04",
+          "C10"
+        ],
+        "gates": [
+          "G4"
+        ],
+        "recorded_d12": 0.4,
+        "why": "Fair: it asked Priya only about capacity, reverted only the ASG and never read the scheduled actions. bf-capacity-hold set the fleet back to 132 at 14:00 and 9 % of hosts were routing at 16:15, so C02 to C04 fail and G4 caps its resolve claims. C13 now passes (raw 0.53 to 0.61).",
+        "losses": "fair"
+      }
+    },
+    "R10-sonnet-2": {
+      "dev": false,
+      "note": "Latest T01 runs, on build 5095dda.",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. C11 is lost fairly: the handoff note leaves out the root cause and says the hosts' cached NXDOMAIN answers cleared sooner than its own lookup showed.",
+        "losses": "fair"
+      }
+    },
+    "T03R2-sonnet-2": {
+      "dev": true,
+      "note": "Second T03 round, on build 5095dda, before the R3 build's colleague and grader fixes.",
+      "final": {
+        "d12": 0.4,
+        "pass": false,
+        "raw": 0.61,
+        "failed": [
+          "C02",
+          "C03",
+          "C04",
+          "C10"
+        ],
+        "gates": [
+          "G4"
+        ],
+        "recorded_d12": 0.4,
+        "why": "Fair: it reverted only the ASG half and never looked at the bf-capacity-hold scheduled action, which set the fleet back to 132 at 14:00. 9 % of hosts were routing at 16:15, so C02 to C04 fail and its resolve claims fire G4. One caveat: a CloudTrail lookup at 08:23 that should have listed the hold came back empty.",
+        "losses": "fair"
+      }
+    },
+    "T03R3-sonnet-2": {
+      "dev": false,
+      "note": "Latest T03 runs, on build e61297b.",
+      "final": {
+        "d12": 0.975,
+        "pass": true,
+        "raw": 0.975,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.4,
+        "why": "G4 read the undo note on its 08:32 CHANGE record, '...unless the thread budget is fixed first', as a claim the incident was resolved. It still loses part of C11: its first public post went out 3 s late because Priya didn't read the status-post ask in its earlier requests, a colleague defect fixed since.",
+        "losses": "env"
+      }
     }
+  },
+  "final_grader": {
+    "build": "9b076a2",
+    "about": "Every run on the R8 build or later, graded again offline from its own exports by the grader at 9b076a2. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
   }
 }
