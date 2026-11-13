@@ -56,6 +56,8 @@ Pins, every image: `python:3.12-slim`, `agentenv-framework-protocol==0.1.536` (l
 
 - All virtual times are timezone-aware `datetime`. On the wire they are RFC 3339 strings with an offset. The task's
   zone is `America/New_York`.
+- Every time an agent or the grader sees is a whole second: the meter rounds the times it moves to up to the next second
+  (a wake can land between seconds), and the workspace stamps records in whole seconds.
 - The gateway clock is armed by `sync_env_clock` at the task start with rate 0 (frozen). From then on, **only the `aws`
   server moves it**, with `PUT {gw}/clock/advance {"virtual_time": "<rfc3339>"}` (forward only).
 - `{gw}` comes from the `env_get_time_url` argument of the `urn:agentenv:clock/v1` `sync_time` call, with the
@@ -73,7 +75,8 @@ never charged.
 Each charged call:
 1. `begin(server, tool, args, role)`. It takes the agent lane (one asyncio lock) and refuses when the episode has
    ended, the budget is spent, or the clock is at `window_end`. It counts the call (`call_no`), picks its cost class,
-   draws jitter, and advances the world and the gateway clock to `t_exec = min(now + cost, window_end)`. It returns
+   draws jitter, and advances the world and the gateway clock to `t_exec = min(now + cost, window_end)`, the cost
+   rounded to whole seconds. It returns
    `{ok, call_no, t_exec, calls_left}`, or `{ok: false, refuse: "<message>"}`.
 2. The tool executes at `t_exec` (effect time = done time).
 3. `end(call_no, tool, args, result_summary, resolved)`. It records the call, lets the world observe it (action
@@ -155,6 +158,9 @@ Seven apps, all state in memory, every record with full history. Tools (exact na
 - pager: `pager_list`, `pager_get`, `pager_oncall`, `pager_ack`, `pager_page`, `pager_note`, `pager_resolve`
 - status: `status_get`, `status_create`, `status_update`
 
+List arguments (`to`, `cc`, `members`, `labels`) also take one comma-separated string, and `tickets_update` `fields` the
+JSON text of an object, so a model's loose types come back as tool results, not schema errors.
+
 The acting identity of a role comes from the scenario's `identities` (T01: role `sre-primary` is chat user
 `sre-primary`, mail `oncall@vantleaf.com`, pager user `sre-primary`).
 
@@ -191,13 +197,17 @@ Hidden tool on `aws`: `awsbench_control(op: str, max_s: float = 600)`, for the r
 Data ops: both servers implement `@reset_data` (clear everything) and `@get_data` (the exports). `@add_data` accepts
 scenario files (optional; scenarios also ship in the images).
 
+`configure` refuses (an error, nothing changed) when the gateway clock is already past the scenario's start, as after a
+`data/reset` of a used env: the gateway clock only moves forward, so the world would never agree with it. Deploy a fresh
+env instead.
+
 ## Exports (`data/get`)
 
 `aws` returns one `DataPart` with:
 ```
 {"episode": {scenario, seed, mode, start, window_end, horizon, now, ended, end_reason, done_at, calls_used},
  "action_log": [ {seq, t, t_issue, call_no, role, principal, world_made, server, tool, service, operation, params,
-                  error, resources} ],
+                  error, exit_code, resources} ],
  "meter": [ {call_no, tool, cost_class, cost_s, t_issue, t_exec} ],
  "world": {"endpointd": {...}, "dns": {...}, "ledger": {...}, "traffic": {...}, "timeline": [...],
            "approvals": [...], "fleet_jobs": [...]},
@@ -207,6 +217,10 @@ scenario files (optional; scenarios also ship in the images).
 ```
 `workspace` returns one `DataPart` with `{"collab": {"chat": ..., "tickets": ..., "wiki": ..., "mail": ...,
 "pager": ..., "status": ...}, "action_log": [...]}`, every record with its history and timestamps.
+
+`exit_code` is set on the rows of `fleet_exec` and `fleet_restart`: the highest exit code over the hosts (1 when the
+selector named no host), and `error` says which hosts failed when it is non-zero, so a failed command is never read as a
+change. Other rows carry `null`.
 
 The world fills `world.*` with series the grader reads; each series is a list of `[rfc3339, value]`:
 - `endpointd.ledger_correct_series` (bool per tick), `endpointd.endpoints_correct_series` (int per tick, out of 41),

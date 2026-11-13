@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 FIELDS = ("seq", "t", "t_issue", "call_no", "role", "principal", "world_made", "server", "tool", "service",
-          "operation", "params", "error", "resources")
+          "operation", "params", "error", "exit_code", "resources")
 
 
 def _iso(t: Any) -> Any:

@@ -1,6 +1,7 @@
 """The workspace's shared state: the store, the scenario's clock anchor, users and the agent identities that decide
 which inbound items are the agent's."""
 
+import json
 import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -33,15 +34,18 @@ class Workspace:
 
     # time
     def when(self, value) -> datetime | None:
-        """A scenario time: 'HH:MM[:SS]' on the scenario's start date, or an ISO date-time (naive = scenario zone)."""
-        if value is None or isinstance(value, datetime):
-            return value if value is None or value.tzinfo else value.replace(tzinfo=self.tz)
-        text = str(value).strip()
-        if re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", text):
+        """A scenario time: 'HH:MM[:SS]' on the scenario's start date, or an ISO date-time (naive = scenario zone), in
+        whole seconds, as every record shows it."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            t = value
+        elif re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", text := str(value).strip()):
             day = (self.start or datetime.now(self.tz)).astimezone(self.tz).date()
-            return datetime.combine(day, time(*(int(p) for p in text.split(":"))), self.tz)
-        t = datetime.fromisoformat(text)
-        return t if t.tzinfo else t.replace(tzinfo=self.tz)
+            t = datetime.combine(day, time(*(int(p) for p in text.split(":"))), self.tz)
+        else:
+            t = datetime.fromisoformat(text)
+        return (t if t.tzinfo else t.replace(tzinfo=self.tz)).replace(microsecond=0)
 
     def iso(self, t: datetime | None) -> str | None:
         return t.astimezone(self.tz).isoformat() if t else None
@@ -102,6 +106,17 @@ class Workspace:
         return self.store.deliver(item)
 
 
+def as_list(value) -> list[str]:
+    """A list argument as models send it: a list, one comma-separated string, or a JSON list in a string."""
+    if isinstance(value, str) and value.strip().startswith("["):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            pass
+    items = [value] if isinstance(value, str) else list(value or [])
+    return [part.strip() for item in items for part in str(item).split(",") if part.strip()]
+
+
 def is_external(address: str) -> bool:
     return not address.lower().endswith("@" + INTERNAL_DOMAIN)
 
@@ -122,4 +137,4 @@ def snippet(text: str, query: str | None, width: int = 160) -> str:
     return ("..." if lo else "") + flat[lo:lo + width]
 
 
-__all__ = ["NotFound", "ToolError", "Workspace", "is_external", "snippet", "terms_match"]
+__all__ = ["NotFound", "ToolError", "Workspace", "as_list", "is_external", "snippet", "terms_match"]

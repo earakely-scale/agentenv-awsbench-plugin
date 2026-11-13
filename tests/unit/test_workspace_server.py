@@ -195,3 +195,43 @@ async def test_without_a_scenario_calls_are_refused_and_not_metered():
     env = WorkspaceEnv(aws_url="http://aws.test", transport=httpx.MockTransport(fake))
     out = await call(env.create_app(), "tickets_get", {"key": "OPS-4452"})
     assert "no scenario loaded" in out["error"] and fake.calls == []
+
+
+async def test_recipient_lists_take_a_string_and_land_as_lists():
+    fake = FakeAws()
+    env, app = make(fake)
+    out = await call(app, "mail_send", {"to": "priya.raman@vantleaf.com, owen.gallagher@vantleaf.com",
+                                        "cc": "daniel.brandt@vantleaf.com", "subject": "OPS-4452", "body": "update"})
+    assert out["sent"]["to"] == ["priya.raman@vantleaf.com", "owen.gallagher@vantleaf.com"]
+    assert out["sent"]["cc"] == ["daniel.brandt@vantleaf.com"] and "_clock" in out
+    assert env.ws.store.action_log[-1]["args"]["to"] == ["priya.raman@vantleaf.com", "owen.gallagher@vantleaf.com"]
+    sent = out["sent"]["id"]
+    out = await call(app, "mail_forward", {"id": sent, "to": "support@vantleaf.com"})
+    assert out["sent"]["to"] == ["support@vantleaf.com"]
+    out = await call(app, "mail_forward", {"id": sent, "to": '["nadia.petrova@vantleaf.com"]'})
+    assert out["sent"]["to"] == ["nadia.petrova@vantleaf.com"]
+    out = await call(app, "mail_reply", {"id": sent, "body": "ack", "cc": "grace.liu@vantleaf.com"})
+    assert out["sent"]["cc"] == ["grace.liu@vantleaf.com"]
+    out = await call(app, "mail_send", {"to": "not-an-address", "subject": "s", "body": "b"})
+    assert "not an email address" in out["error"] and out["_clock"]["call"] == 7
+
+
+async def test_ticket_fields_as_json_text_and_bad_fields_come_back_as_json():
+    env, app = make(FakeAws())
+    out = await call(app, "tickets_update", {"key": "OPS-4452", "fields": '{"severity": "SEV1"}'})
+    assert out["changed"] == ["severity"]
+    assert env.ws.store.action_log[-1]["args"]["fields"] == {"severity": "SEV1"}
+    out = await call(app, "tickets_update", {"key": "OPS-4452", "fields": "severity SEV1"})
+    assert out["error"].startswith("fields must be an object") and "_clock" in out
+    out = await call(app, "chat_create_channel", {"name": "inc-4452-comms", "members": "priya.raman, hannah.becker"})
+    assert out["created"]["members"] == ["sre-primary", "priya.raman", "hannah.becker"]
+
+
+async def test_records_are_stamped_in_whole_seconds():
+    fake = FakeAws(begin={"ok": True, "call_no": 7, "t_exec": "2026-11-17T03:16:18.110954-05:00", "calls_left": 200})
+    env, app = make(fake)
+    await call(app, "tickets_update", {"key": "OPS-4452", "fields": {"severity": "SEV1"}})
+    assert env.ws.store.history("tickets.issue", "OPS-4452")[-2]["t"] == "2026-11-17T03:16:18-05:00"
+    r = env.apply("chat.dm_as", {"from_user": "hannah.becker", "to_user": "sre-primary", "text": "ETA?"},
+                  "2026-11-17T03:17:02.5-05:00")
+    assert r["deliveries"][0]["t"] == "2026-11-17T03:17:02-05:00"

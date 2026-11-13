@@ -80,8 +80,8 @@ class AwsPort:
 
 
 class WorkspacePort:
-    """POST {workspace}/awsbench/world/apply. An unreachable workspace never fails the world: the op is kept in
-    `dropped` and answered with no deliveries."""
+    """POST {workspace}/awsbench/world/apply at whole seconds (NPC reply delays are fractional). An unreachable
+    workspace never fails the world: the op is kept in `dropped` and answered with no deliveries."""
 
     def __init__(self, url: str, inbox: Inbox | None = None, timeout: float = 30.0, headers: dict | None = None):
         self.url = url.rstrip("/")
@@ -92,6 +92,7 @@ class WorkspacePort:
         self._client = httpx.Client(timeout=timeout)
 
     def apply(self, op: str, args: dict, at: datetime) -> dict:
+        at = at.replace(microsecond=0) if isinstance(at, datetime) else at
         body = {"op": op, "args": args, "at": at.isoformat() if isinstance(at, datetime) else at}
         try:
             r = self._client.post(f"{self.url}/awsbench/world/apply", json=body, headers=self.headers)

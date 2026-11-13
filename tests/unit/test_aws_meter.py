@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from awsbench_aws.actionlog import ActionLog
-from awsbench_aws.meter import ET, Inbox, Meter, MeterConfig, classify, clock_text, jitter
+from awsbench_aws.meter import ET, Inbox, Meter, MeterConfig, classify, clock_text, jitter, whole
 
 START = datetime(2026, 11, 17, 2, 40, tzinfo=ET)
 END = datetime(2026, 11, 17, 5, 10, tzinfo=ET)
@@ -216,3 +216,40 @@ def test_config_from_scenario():
                                     seed="7", mode="train")
     assert cfg.max_calls == 250 and cfg.wake == {"dm", "email", "job_done"} and cfg.horizon == cfg.window_end
     assert cfg.charged_roles == ("sre-primary",) and cfg.overrides == T01_OVERRIDES
+
+
+async def test_an_early_wake_between_seconds_lands_on_the_next_whole_second():
+    dm = {"t": "x", "kind": "dm", "from": "hannah.becker", "where": "dm", "preview": "ETA?"}
+    at = START + timedelta(minutes=7, microseconds=110954)
+    world = FakeWorld([(at, dm)])
+    m = meter(world=world)
+    out = await m.wait(START + timedelta(minutes=20))
+    assert out["reason"] == "inbound" and out["woke_early"] and dm in out["inbound"]
+    assert m.now == START + timedelta(minutes=7, seconds=1) == world.now and m.clock.now == m.now
+    assert out["waited_s"] == 421 and out["now"] == "2026-11-17T02:47:01-05:00"
+    b = await m.begin("aws", "chat_read", {}, "sre-primary")
+    assert b["t_exec"] == "2026-11-17T02:47:21-05:00"
+
+
+async def test_train_jitter_keeps_times_in_whole_seconds():
+    m = meter(mode="train")
+    for _ in range(20):
+        b = await m.begin("aws", "chat_post", {}, "sre-primary")
+        await m.end(b["call_no"], "chat_post", {}, None, {})
+        assert m.now.microsecond == 0
+    assert all(isinstance(r["cost_s"], int) for r in m.rows) and len({r["cost_s"] for r in m.rows}) > 1
+
+
+def test_whole_rounds_up_only_fractions():
+    assert whole(START) == START
+    assert whole(START + timedelta(microseconds=1)) == START + timedelta(seconds=1)
+
+
+async def test_end_logs_a_fleet_exit_code():
+    log = ActionLog()
+    m = meter(actionlog=log)
+    b = await m.begin("aws", "fleet_exec", {"command": "epctl apply --gen 48177"}, "sre-primary", hosts=1)
+    await m.end(b["call_no"], "fleet_exec", {}, {"error": "exit code 1 on ep-enactor-a"},
+                {"error": "exit code 1 on ep-enactor-a", "exit_code": 1})
+    (row,) = log.export()
+    assert row["exit_code"] == 1 and row["error"] == "exit code 1 on ep-enactor-a"

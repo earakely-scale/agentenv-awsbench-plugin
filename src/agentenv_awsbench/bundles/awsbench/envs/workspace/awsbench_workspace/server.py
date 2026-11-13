@@ -30,7 +30,7 @@ from starlette.responses import JSONResponse
 
 from .modules import apply as world_apply
 from .modules import chat, load_docs, load_scenario, mail, pager, repo, status, tickets, wiki
-from .modules.base import ToolError, Workspace
+from .modules.base import ToolError, Workspace, as_list
 from .store import NotFound
 
 COSTS = {"free": 0, "point_read": 20, "write": 45, "broad": 75}
@@ -49,6 +49,18 @@ def result_summary(result: dict) -> dict:
     if rid is None:
         rid = next((v["id"] for v in result.values() if isinstance(v, dict) and v.get("id") is not None), None)
     return {"id": rid, "error": result.get("error"), "text": _json(result)[:500]}
+
+
+def as_fields(value: dict[str, Any] | str) -> dict[str, Any] | str:
+    """Ticket fields from the JSON text of an object, which models also send; anything else is left for
+    tickets.update to refuse."""
+    if not isinstance(value, str):
+        return value
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return value
+    return parsed if isinstance(parsed, dict) else value
 
 
 def cost_class(tool_name: str) -> str:
@@ -240,8 +252,9 @@ class WorkspaceEnv(AgentEnvEnvironment):
 
     @tool(structured_output=False)
     async def chat_create_channel(self, ctx: ToolContext, name: str, topic: str = "",
-                                  members: list[str] | None = None) -> str:
-        """Create a channel; you join it, with the listed members."""
+                                  members: list[str] | str | None = None) -> str:
+        """Create a channel; you join it, with the listed members (a list, or comma-separated handles)."""
+        members = as_list(members)
         return await self._call(ctx, "chat_create_channel", locals(),
                                 lambda a, t: chat.create_channel(self.ws, a, t, name, topic, members))
 
@@ -261,8 +274,9 @@ class WorkspaceEnv(AgentEnvEnvironment):
     @tool(structured_output=False)
     async def tickets_create(self, ctx: ToolContext, project: str, summary: str, description: str = "",
                              type: str = "Task", priority: str | None = None, severity: str | None = None,
-                             assignee: str | None = None, labels: list[str] | None = None) -> str:
+                             assignee: str | None = None, labels: list[str] | str | None = None) -> str:
         """Create a ticket in a project; you are the reporter."""
+        labels = as_list(labels)
         return await self._call(ctx, "tickets_create", locals(), lambda a, t: tickets.create(
             self.ws, a, t, project, summary, description, type, priority, severity, assignee, labels))
 
@@ -273,9 +287,10 @@ class WorkspaceEnv(AgentEnvEnvironment):
                                 lambda a, t: tickets.comment(self.ws, a, t, key, body, visibility))
 
     @tool(structured_output=False)
-    async def tickets_update(self, ctx: ToolContext, key: str, fields: dict[str, Any]) -> str:
+    async def tickets_update(self, ctx: ToolContext, key: str, fields: dict[str, Any] | str) -> str:
         """Set ticket fields: summary, description, priority, severity (SEV1-SEV4), assignee, labels, or custom
         fields. Status changes go through tickets_transition."""
+        fields = as_fields(fields)
         return await self._call(ctx, "tickets_update", locals(),
                                 lambda a, t: tickets.update(self.ws, a, t, key, fields))
 
@@ -368,21 +383,24 @@ class WorkspaceEnv(AgentEnvEnvironment):
         return await self._call(ctx, "mail_read", locals(), lambda a, t: mail.read(self.ws, a, t, id))
 
     @tool(structured_output=False)
-    async def mail_send(self, ctx: ToolContext, to: list[str], subject: str, body: str,
-                        cc: list[str] | None = None) -> str:
-        """Send a new email from your mailbox."""
+    async def mail_send(self, ctx: ToolContext, to: list[str] | str, subject: str, body: str,
+                        cc: list[str] | str | None = None) -> str:
+        """Send a new email from your mailbox. `to` and `cc` take a list or comma-separated addresses."""
+        to, cc = as_list(to), as_list(cc)
         return await self._call(ctx, "mail_send", locals(), lambda a, t: mail.send(self.ws, a, t, to, subject, body, cc))
 
     @tool(structured_output=False)
     async def mail_reply(self, ctx: ToolContext, id: str, body: str, reply_all: bool = False,
-                         cc: list[str] | None = None) -> str:
+                         cc: list[str] | str | None = None) -> str:
         """Reply to a message (to its sender, or everyone with reply_all)."""
+        cc = as_list(cc)
         return await self._call(ctx, "mail_reply", locals(),
                                 lambda a, t: mail.reply(self.ws, a, t, id, body, reply_all, cc))
 
     @tool(structured_output=False)
-    async def mail_forward(self, ctx: ToolContext, id: str, to: list[str], note: str = "") -> str:
-        """Forward a message to other addresses with an optional note above it."""
+    async def mail_forward(self, ctx: ToolContext, id: str, to: list[str] | str, note: str = "") -> str:
+        """Forward a message to other addresses (a list, or comma-separated) with an optional note above it."""
+        to = as_list(to)
         return await self._call(ctx, "mail_forward", locals(), lambda a, t: mail.forward(self.ws, a, t, id, to, note))
 
     # pager

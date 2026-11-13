@@ -86,6 +86,15 @@ def test_split_globals():
     ("ecs", "UpdateService", {}, True),
     ("application-autoscaling", "RegisterScalableTarget", {}, True),
     ("logs", "StartQuery", {}, True),
+    ("logs", "GetQueryResults", {"queryId": "q"}, True),
+    ("logs", "StopQuery", {"queryId": "q"}, True),
+    ("logs", "FilterLogEvents", {"logGroupName": "g"}, True),
+    ("cloudtrail", "LookupEvents", {}, True),
+    ("dynamodb", "Query", {"TableName": "vl-ledger-outbox"}, True),
+    ("autoscaling", "DescribeInstanceRefreshes", {"AutoScalingGroupName": "vl-ledger-ingress-asg"}, True),
+    ("route53", "TestDNSAnswer", {}, True),
+    ("iam", "GetRole", {}, False),
+    ("logs", "DeleteLogGroup", {"logGroupName": "g"}, False),
 ])
 def test_iam(service, op, params, ok):
     assert iam_allows(DEFAULT_POLICY, service, op, params) is ok
@@ -193,3 +202,10 @@ def test_cli_passes_urls_through_without_fetching_them(bridge):
                          "--value http://127.0.0.1:1/awsbench/inbox", role="sre-primary")
     assert out["exit_code"] == 0, out["stderr"]
     assert bridge.test_world.calls[-1][2]["Value"] == "http://127.0.0.1:1/awsbench/inbox"
+
+
+def test_logs_insights_reads_pass_the_gate(bridge):
+    for op, params in (("StartQuery", {"logGroupNames": ["g"], "queryString": "fields @message", "startTime": 1,
+                                       "endTime": 2}), ("GetQueryResults", {"queryId": "q"})):
+        assert "error" not in bridge.call_api("logs", op, params, role="sre-primary"), op
+    assert [c[1] for c in bridge.test_world.calls] == ["StartQuery", "GetQueryResults"]

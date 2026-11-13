@@ -222,3 +222,11 @@ def test_status_page_create_update_is_external(ws):
 def test_unknown_world_op_is_refused(ws):
     with pytest.raises(ToolError):
         apply(ws, "chat.delete_everything", {}, None)
+
+
+def test_incident_process_states_the_rules_responders_are_held_to(ws):
+    body = wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"]
+    for rule in ("SEV1 or SEV2 within 15 minutes", "within 30 minutes", "at least every 60 minutes",
+                 "incident channel at least every 30 minutes", "99 % for at least 5 consecutive minutes",
+                 "fix is verified", "30 minutes stable", "Merchant Success or Support"):
+        assert rule in body, rule

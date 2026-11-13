@@ -43,6 +43,12 @@ def rfc3339(t: datetime) -> str:
     return t.isoformat()
 
 
+def whole(t: datetime) -> datetime:
+    """`t` rounded up to a whole second: NPC reply delays are fractional, and a wake at one would otherwise put
+    microseconds on every later time an agent sees."""
+    return t + timedelta(microseconds=1_000_000 - t.microsecond) if t.microsecond else t
+
+
 def clock_text(t: datetime) -> str:
     return t.astimezone(ET).strftime("%H:%M:%S ET")
 
@@ -70,14 +76,16 @@ def cli_words(command: str) -> list[str]:
     return out
 
 
+def is_read(operation: str | None) -> bool:
+    return bool(operation) and (bool(READ_OP.match(operation)) or operation == "TestDNSAnswer")
+
+
 def op_class(service: str | None, operation: str | None) -> str:
     if not operation:
         return "point_read"
     if (service, operation) in BROAD_OPS:
         return "broad"
-    if READ_OP.match(operation) or operation == "TestDNSAnswer":
-        return "point_read"
-    return "write"
+    return "point_read" if is_read(operation) else "write"
 
 
 def default_class(tool: str, args: dict) -> str:
@@ -291,14 +299,21 @@ class Meter:
             return fn(*args, **kwargs)
 
     async def advance(self, t: datetime, wake: set[str] | frozenset | None = None) -> dict:
-        """Move the world, then the gateway clock, forward to `t` (or to the wake item that stopped it)."""
+        """Move the world, then the gateway clock, forward to `t` (or to the wake item that stopped it), always to a
+        whole second; `early` says a wake item stopped it short of `t`."""
+        t = whole(t)
         if t <= self.now:
-            return {"now": self.now, "woke": [], "fired": []}
+            return {"now": self.now, "woke": [], "fired": [], "early": False}
         if self.world is not None:
             res = await asyncio.to_thread(self._world, self.world.advance_to, t, set(wake) if wake else None)
             reached = parse_time(res.get("now") or t)
+            if reached.microsecond:
+                rest = await asyncio.to_thread(self._world, self.world.advance_to, whole(reached), None)
+                res = {**res, "fired": list(res.get("fired") or []) + list(rest.get("fired") or [])}
+            res["early"] = reached < t
+            reached = whole(reached)
         else:
-            res, reached = {"now": t, "woke": [], "fired": []}, t
+            res, reached = {"now": t, "woke": [], "fired": [], "early": False}, t
         self.inbox.extend(res.get("woke"))
         if reached > self.now:
             self.now = reached
@@ -327,11 +342,11 @@ class Meter:
             self.calls_used += 1
             call_no = self.calls_used
             cls = cost_class or classify(tool, args, self.cfg.overrides, hosts)
-            cost = COSTS[cls] * jitter(self.cfg.seed, call_no, self.cfg.mode)
+            cost = round(COSTS[cls] * jitter(self.cfg.seed, call_no, self.cfg.mode))
             t_issue = self.now
             t_exec = min(t_issue + timedelta(seconds=cost), self.cfg.window_end)
             await self.advance(t_exec)
-            row = {"call_no": call_no, "tool": tool, "cost_class": cls, "cost_s": round(cost, 3),
+            row = {"call_no": call_no, "tool": tool, "cost_class": cls, "cost_s": cost,
                    "t_issue": rfc3339(t_issue), "t_exec": rfc3339(self.now)}
             self.rows.append(row)
             self.pending[call_no] = {**row, "server": server, "role": role, "args": dict(args)}
@@ -352,7 +367,8 @@ class Meter:
                 if self.actionlog is not None and not (resolved or {}).get("logged"):
                     self.actionlog.record(t=self.now, t_issue=call["t_issue"], call_no=call_no, role=call["role"],
                                           principal=call["role"], world_made=False, server=call["server"], tool=tool,
-                                          params=dict(args), error=(resolved or {}).get("error"), resources=[])
+                                          params=dict(args), error=(resolved or {}).get("error"),
+                                          exit_code=(resolved or {}).get("exit_code"), resources=[])
                 if self.world is not None:
                     await asyncio.to_thread(self._world, self.world.observe, record)
         finally:
@@ -372,7 +388,7 @@ class Meter:
         res = await self.advance(cap, wake=self.cfg.wake) if cap > start else {"now": start, "woke": []}
         inbound = self.inbox.drain()
         woke = any(i.get("kind") in self.cfg.wake for i in self.inbox.all()[before:])
-        reason = "inbound" if woke and self.now < cap else (
+        reason = "inbound" if woke and res.get("early") else (
             "window_end" if self.now >= self.cfg.window_end else "until_reached")
         return {"waited_s": (self.now - start).total_seconds(), "now": rfc3339(self.now), "woke_early": reason ==
                 "inbound", "reason": reason, "inbound": inbound, "fired": res.get("fired", [])}

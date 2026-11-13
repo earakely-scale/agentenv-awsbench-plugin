@@ -141,6 +141,8 @@ def _comment(ws: Workspace, issue: dict, by: str, body: str, t: datetime, visibi
 
 def update(ws: Workspace, actor: str, t: datetime, key: str, fields: dict):
     issue = _issue(ws, key)
+    if not isinstance(fields, dict):
+        raise ToolError('fields must be an object, e.g. {"severity": "SEV1"}')
     if not fields:
         raise ToolError("fields is empty")
     changed = _apply_fields(ws, issue, _check_fields(ws, fields), actor, t)

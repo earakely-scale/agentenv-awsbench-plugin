@@ -25,7 +25,7 @@ from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 from .actionlog import ActionLog
 from .emulator import ACCESS_KEY, SECRET_KEY, Emulator
 from .errors import AwsError
-from .meter import op_class
+from .meter import is_read
 
 urllib3.disable_warnings()
 
@@ -34,7 +34,7 @@ LOCAL_FILES = ("file://", "fileb://")
 NOT_HERE = {"configure", "history"}
 DROPPED_FLAGS = {"--debug", "--no-verify-ssl"}
 VALUED_GLOBALS = {"--profile", "--region", "--endpoint-url", "--ca-bundle"}
-READ_EXTRA = {"StartQuery", "StopQuery", "FilterLogEvents", "GetLogEvents", "GetCallerIdentity", "Scan", "Query"}
+READ_EXTRA = {"StartQuery", "StopQuery"}
 DEFAULT_POLICY = {
     "deny": ["iam:*", "organizations:*", "sts:AssumeRole*", "account:*"],
     "allow": [
@@ -115,10 +115,12 @@ def _matches(patterns: Any, value: str) -> bool:
 
 
 def iam_allows(policy: dict, service: str, operation: str, params: dict) -> bool:
+    """Deny rules first; then every read, whatever it costs (a Logs Insights query is broad, but still a read); then
+    the allow rules for writes."""
     action = f"{service}:{operation}"
     if _matches(policy.get("deny"), action):
         return False
-    if op_class(service, operation) == "point_read" or operation in READ_EXTRA:
+    if is_read(operation) or operation in READ_EXTRA:
         return True
     for rule in policy.get("allow", []):
         if not _matches(rule.get("action"), action):

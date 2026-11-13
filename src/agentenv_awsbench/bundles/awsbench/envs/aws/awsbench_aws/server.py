@@ -50,6 +50,7 @@ HARNESS = "harness"
 NO_SCENARIO = ("AwsBench has no scenario loaded: the aws server restarted or was reset and lost the episode's state. "
                "Nothing more can be done in this environment; reply DONE.")
 SWEEP_TABLES = ("endpointd-plans",)
+FLEET_COMMANDS = ("fleet_exec", "fleet_restart")
 _deser = TypeDeserializer()
 
 
@@ -187,6 +188,39 @@ def profiles_of(scenario: dict) -> dict[str, list[dict]]:
                                     "permission_set": "SRE-OnCall", "regions": ["us-east-1", "us-west-2"]}]}
 
 
+def lookup_attributes_of(value: Any) -> list[dict]:
+    """CloudTrail LookupAttributes from {"EventName": "X"}, {"AttributeKey": "EventName", "AttributeValue": "X"}, or a
+    list of either: models write all three."""
+    out = []
+    for item in value if isinstance(value, list) else [value] if value else []:
+        if not isinstance(item, dict):
+            raise TypeError(f"a lookup attribute is an object like {{\"EventName\": \"PutParameter\"}}, not {item!r}")
+        if "AttributeKey" in item:
+            out.append({"AttributeKey": str(item["AttributeKey"]), "AttributeValue": str(item.get("AttributeValue", ""))})
+        else:
+            out += [{"AttributeKey": str(k), "AttributeValue": str(v)} for k, v in item.items()]
+    if len(out) > 1:
+        raise ValueError("CloudTrail looks events up by one attribute at a time; pass one, e.g. "
+                         "{\"EventName\": \"ChangeResourceRecordSets\"}")
+    return out
+
+
+def fleet_outcome(result: Any) -> tuple[int | None, str | None]:
+    """A fleet call's exit code (the worst host's) and, when it is non-zero, the error the action log records, so a
+    failed command is never read as a change."""
+    if not isinstance(result, dict):
+        return None, None
+    hosts = result.get("hosts")
+    hosts = [h for h in hosts if isinstance(h, dict)] if isinstance(hosts, list) else []
+    code = max((int(h.get("exit_code") or 0) for h in hosts), default=0)
+    if result.get("error"):
+        return code or 1, str(result["error"])
+    if code:
+        failed = [str(h.get("host")) for h in hosts if int(h.get("exit_code") or 0)]
+        return code, f"exit code {code} on {', '.join(failed)}"
+    return 0, None
+
+
 def count_hosts(world: Any, selector: str) -> int | None:
     """How many hosts a fleet selector names: host names or globs, fleets, groups or AZs, comma-separated."""
     try:
@@ -305,8 +339,13 @@ class AwsServer(AgentEnvEnvironment):
             result = {"error": str(e)}
         finally:
             summary = result.get("error") if isinstance(result, dict) else None
-            ended = await meter.end(began["call_no"], tool_name, args, {"error": summary} if summary else None,
-                                    {"logged": logged, "error": summary}, drain=meter.charged(role))
+            exit_code = None
+            if tool_name in FLEET_COMMANDS:
+                exit_code, summary = fleet_outcome(result)
+            ended = await meter.end(began["call_no"], tool_name, args,
+                                    {"error": summary, "exit_code": exit_code} if summary else None,
+                                    {"logged": logged, "error": summary, "exit_code": exit_code},
+                                    drain=meter.charged(role))
         out = result if isinstance(result, dict) else {"result": result}
         return _json({**out, "_clock": ended["banner"]})
 
@@ -344,13 +383,17 @@ class AwsServer(AgentEnvEnvironment):
                                            profile=profile, region=region, call=call)
         return await self._metered(ctx, "aws_api", args, work, logged=True)
 
-    @tool(description="A broad query: `source=logs` runs a CloudWatch Logs Insights query over `log_groups`; "
-                      "`source=cloudtrail` looks up CloudTrail management events (`lookup_attributes`: "
-                      "{AttributeKey: AttributeValue}). Times are RFC 3339; the default window is the last hour.",
-          structured_output=False)
+    @tool(description="A broad query. `source=logs` runs the CloudWatch Logs Insights `query` over `log_groups`, e.g. "
+                      "query `fields @timestamp, @message | filter @message like /NXDOMAIN/ | limit 20`. "
+                      "`source=cloudtrail` looks up CloudTrail management events, filtered on one attribute: "
+                      "`lookup_attributes` {\"EventName\": \"ChangeResourceRecordSets\"} (or {\"AttributeKey\": "
+                      "\"Username\", \"AttributeValue\": \"kwame.asante\"}); keys EventName, Username, EventSource, "
+                      "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId. `start`/`end` are RFC 3339; the "
+                      "default window is the last hour.", structured_output=False)
     async def aws_query(self, ctx: ToolContext, source: str = "logs", query: str = "",
                         log_groups: list[str] | None = None, start: str | None = None, end: str | None = None,
-                        limit: int = 100, lookup_attributes: dict | None = None, region: str | None = None) -> str:
+                        limit: int = 100, lookup_attributes: dict | list[dict] | None = None,
+                        region: str | None = None) -> str:
         args = {"source": source, "query": query, "log_groups": log_groups, "start": start, "end": end,
                 "limit": limit, "lookup_attributes": lookup_attributes}
 
@@ -360,9 +403,12 @@ class AwsServer(AgentEnvEnvironment):
             api = self.bridge.call_api
             kw = {"role": _role(ctx), "region": region, "call": call}
             if source == "cloudtrail":
-                attrs = [{"AttributeKey": k, "AttributeValue": str(v)} for k, v in (lookup_attributes or {}).items()]
+                try:
+                    attrs = lookup_attributes_of(lookup_attributes)
+                except (TypeError, ValueError) as e:
+                    return {"error": str(e)}
                 params = {"StartTime": t_start, "EndTime": t_end, "MaxResults": min(int(limit), 50),
-                          **({"LookupAttributes": attrs[:1]} if attrs else {})}
+                          **({"LookupAttributes": attrs} if attrs else {})}
                 events: list = []
                 while len(events) < limit:
                     out = await asyncio.to_thread(api, "cloudtrail", "LookupEvents", params, **kw)
@@ -540,13 +586,17 @@ class AwsServer(AgentEnvEnvironment):
         await self._ready()
         data = load_scenario_file(scenario, self.staged)
         data = {**data, "npc_mode": npc_mode}
+        cfg = MeterConfig.from_scenario(data, seed=seed, mode=mode, charged_roles=charged_roles)
+        if self.clock is not None and (gw_now := await self.clock.time()) is not None and gw_now > cfg.start:
+            # The gateway clock moves forward only, so a world started behind it would never agree with it.
+            raise ValueError(f"the gateway clock ({rfc3339(gw_now)}) is past the scenario start ({rfc3339(cfg.start)}); "
+                             "deploy a fresh env")
         if self.scenario is not None:
             await asyncio.to_thread(self.emulator.restart)
         clock = self.clock
         self._clear()
         self.scenario, self.scenario_name, self.seed, self.mode = data, scenario, seed, mode
-        self.meter = Meter(MeterConfig.from_scenario(data, seed=seed, mode=mode, charged_roles=charged_roles),
-                           clock=clock or LocalClock(), inbox=self.inbox, actionlog=self.actionlog,
+        self.meter = Meter(cfg, clock=clock or LocalClock(), inbox=self.inbox, actionlog=self.actionlog,
                            world_lock=self.world_lock)
         self.bridge.profiles = profiles_of(data)
         self.bridge.policies = data.get("iam") or {}

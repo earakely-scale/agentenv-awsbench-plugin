@@ -3,7 +3,7 @@ thread. Mail to an address outside the company is flagged external."""
 
 from datetime import datetime
 
-from .base import ToolError, Workspace, is_external, terms_match
+from .base import ToolError, Workspace, as_list, is_external, terms_match
 
 K_MSG, K_BOX = "mail.message", "mail.mailbox"
 
@@ -51,8 +51,7 @@ def _resolved(msg: dict, sender: str) -> dict:
 
 
 def _addresses(value) -> list[str]:
-    items = [value] if isinstance(value, str) else list(value or [])
-    out = [a.strip() for item in items for a in item.split(",") if a.strip()]
+    out = as_list(value)
     for a in out:
         if "@" not in a:
             raise ToolError(f"{a!r} is not an email address")
