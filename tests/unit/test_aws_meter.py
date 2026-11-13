@@ -32,9 +32,9 @@ class FakeWorld:
             woke.append(item)
             if wake and item["kind"] in wake:
                 self.now = at
-                return {"now": at, "woke": woke, "fired": []}
+                return {"now": at, "woke": woke, "fired": ["ev-x"]}
         self.now = t
-        return {"now": t, "woke": woke, "fired": []}
+        return {"now": t, "woke": woke, "fired": ["ev-x"]}
 
     def observe(self, call):
         self.observed.append(call)
@@ -182,6 +182,15 @@ async def test_wait_wakes_early_on_inbound():
     assert out["woke_early"] and out["reason"] == "inbound"
     assert out["waited_s"] == 420
     assert dm in out["inbound"]
+
+
+async def test_wait_shows_only_its_documented_keys():
+    keys = {"waited_s", "now", "woke_early", "reason", "inbound"}
+    dm = {"t": "x", "kind": "dm", "from": "callum.reyes", "where": "dm", "preview": "status?"}
+    early = await meter(world=FakeWorld([(START + timedelta(minutes=2), dm)])).wait(START + timedelta(minutes=10))
+    full = await meter(world=FakeWorld()).wait(START + timedelta(minutes=10))
+    assert early["reason"] == "inbound" and full["reason"] == "until_reached"
+    assert set(early) == keys and set(full) == keys
 
 
 async def test_wait_is_clamped_to_thirty_minutes_and_window():

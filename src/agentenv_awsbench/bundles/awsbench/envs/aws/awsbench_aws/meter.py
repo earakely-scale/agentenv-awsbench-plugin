@@ -381,7 +381,8 @@ class Meter:
                 "new": self.inbox.drain() if drain else []}
 
     async def wait(self, target: datetime) -> dict:
-        """Advance toward `target` (clamped to the wait cap and window_end), stopping at the first wake item."""
+        """Advance toward `target` (clamped to the wait cap and window_end), stopping at the first wake item. The
+        timeline ids that fired stay internal: they name scripted beats, cancelled ones included."""
         start = self.now
         cap = min(target, start + timedelta(seconds=self.cfg.wait_max_s), self.cfg.window_end)
         before = len(self.inbox.all())
@@ -391,7 +392,7 @@ class Meter:
         reason = "inbound" if woke and res.get("early") else (
             "window_end" if self.now >= self.cfg.window_end else "until_reached")
         return {"waited_s": (self.now - start).total_seconds(), "now": rfc3339(self.now), "woke_early": reason ==
-                "inbound", "reason": reason, "inbound": inbound, "fired": res.get("fired", [])}
+                "inbound", "reason": reason, "inbound": inbound}
 
     def end_episode(self, reason: str = "done") -> None:
         if not self.ended:
