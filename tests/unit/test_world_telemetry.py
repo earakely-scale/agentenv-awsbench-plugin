@@ -184,11 +184,11 @@ def test_statistics_aggregate_each_period(world):
     assert len(pts) == 1 and pts[0]["Maximum"] == 2000.0 and 120.0 < pts[0]["Average"] < 2000.0
     pts = stats(world, "Vantleaf/Checkout", "CheckoutSuccessRate", "02:40:00", "03:40:00", 300, ["Minimum"])
     for p in pts:
-        start = p["Timestamp"].astimezone(at("00:00:00").tzinfo).strftime("%H:%M:%S")
-        end = (p["Timestamp"] + timedelta(minutes=5)).astimezone(at("00:00:00").tzinfo).strftime("%H:%M:%S")
+        start = (p["Timestamp"] + timedelta(minutes=1)).astimezone(at("00:00:00").tzinfo).strftime("%H:%M:%S")
+        end = (p["Timestamp"] + timedelta(minutes=6)).astimezone(at("00:00:00").tzinfo).strftime("%H:%M:%S")
         assert p["Minimum"] == min(round(v, 4) for v in minutes(world, "checkout", start, end))
     pts = stats(world, "Vantleaf/Checkout", "CheckoutSuccessRate", "03:00:00", "03:02:00", 120, ["Average"])
-    assert pts[0]["Average"] == round(sum(round(v, 4) for v in minutes(world, "checkout", "03:00:00", "03:02:00"))
+    assert pts[0]["Average"] == round(sum(round(v, 4) for v in minutes(world, "checkout", "03:01:00", "03:03:00"))
                                       / 2, 4)
 
 
@@ -231,7 +231,7 @@ def test_metrics_have_every_minute_from_before_the_outage(world, ns, metric):
 
 def test_backfilled_minutes_follow_the_outage_physics(world):
     world.advance_to(at("02:45:00"))
-    outbox = [p["Average"] for p in sorted(stats(world, "Vantleaf/Checkout", "OutboxPending", "02:31:00", "02:42:00",
+    outbox = [p["Average"] for p in sorted(stats(world, "Vantleaf/Checkout", "OutboxPending", "02:30:00", "02:42:00",
                                                  60, ["Average"]), key=lambda p: p["Timestamp"])]
     assert outbox[0] == 0 and outbox == sorted(outbox) and 6000 < outbox[-3] < outbox[-2]
     rate = stats(world, "Vantleaf/Checkout", "CheckoutSuccessRate", "02:33:00", "02:40:00", 60, ["Maximum"])
@@ -448,3 +448,33 @@ def test_ledger_writer_lines_carry_no_computed_baseline(world):
     world.advance_to(at("03:20:00"))
     lines = messages(world, "/vl/prod/ledger-writer", "02:40:00", "03:20:00")
     assert lines and not [m for m in lines if "baseline" in m]
+
+
+# ---- a minute's samples and lines (R11-opus-3) ----
+def test_a_datapoint_is_labelled_at_the_start_of_its_minute(world):
+    """opus-3 read 08:02:00 = 0.1251, the minute that ended at 08:02; the minute in progress has no datapoint."""
+    oracle(world)
+    world.advance_to(at("03:10:30"))
+    pts = stats(world, "Vantleaf/Checkout", "CheckoutSuccessRate", "02:50:00", "03:11:00", 60, ["Average"])
+    export = dict(world.checkout_1m)
+    tz = at("00:00:00").tzinfo
+    assert max(p["Timestamp"] for p in pts) == at("03:09:00")
+    for p in pts:
+        assert p["Average"] == export[(p["Timestamp"] + timedelta(minutes=1)).astimezone(tz).isoformat()]
+
+
+def test_a_host_recovered_in_the_minute_logs_no_failure_after(world):
+    """opus-3: core-a-07 recovered at 03:02:18 and still logged UnknownHostException at 03:02:42."""
+    oracle(world)
+    world.advance_to(at("03:05:00"))
+    assert world.dns.hosts["core-a-07"]["recovered_at"] == at("03:02:18")
+    assert world.telemetry.lines(CK, at("03:02:42"), host="core-a-07") == []
+    named = re.findall(r"host=([\w-]+)", " ".join(world.telemetry.lines(CK, at("03:02:42"))))
+    assert all(world.dns.hosts[h]["recovered_at"] > at("03:02:42") for h in named)
+
+
+def test_a_minute_that_collapses_after_its_record_logs_the_collapse(world):
+    """opus-3: ledger-writer logged 'waiting=0' at 08:02:42 though the pool collapsed at 08:02:20."""
+    collapse(world)
+    assert ["2026-11-17T03:02:20-05:00", "collapsed"] in world.storm.regime_timeline
+    assert world.telemetry.lines("/vl/prod/ledger-writer", at("03:02:42"))[0].startswith("WARN db pool exhausted")

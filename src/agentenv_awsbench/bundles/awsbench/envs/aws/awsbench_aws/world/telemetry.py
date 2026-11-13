@@ -567,15 +567,17 @@ class Telemetry:
         return self.minutes[i] if i >= 0 else None
 
     def aggregate(self, ns, metric, dims, start, end, period, stats) -> list[tuple[datetime, dict]]:
-        """Each statistic over every minute sample in [t, t+period), as CloudWatch aggregates a period."""
-        start, end = _utc(start), min(_utc(end), self.w.now.astimezone(UTC))
+        """Each statistic over every minute sample in [t, t+period), as CloudWatch aggregates a period. The sample
+        labelled x is the minute that ends at x+1, the record made then, so the minute in progress has none."""
+        now = self.w.now.astimezone(UTC)
+        start, end = _utc(start), min(_utc(end), now)
         period = max(60, int(period or 60))
         out = []
         t = start.replace(second=0, microsecond=0)
         while t < end and len(out) < 1440:
             stop, x, vals = min(t + timedelta(seconds=period), end), t, []
             while x < stop:
-                if (v := self.value(ns, metric, dims, x)) is not None:
+                if (nxt := x + timedelta(minutes=1)) <= now and (v := self.value(ns, metric, dims, nxt)) is not None:
                     vals.append(v)
                 x += timedelta(minutes=1)
             if vals:
@@ -765,14 +767,18 @@ class Telemetry:
         if t < self.outage_start.replace(second=0, microsecond=0) + timedelta(minutes=1) or not self.minutes:
             return []
         m = self._minute(t) or self.minutes[0]
-        unrec = [h for h in w.core_hosts if h not in m["recovered"]]
+        rec_at = {h: w.dns.hosts[h]["recovered_at"] for h in w.core_hosts}
+        recovered = set(m["recovered"]) | {h for h, r in rec_at.items() if r and m["t"] <= r <= t}
+        regime = next((r for ts, r in reversed(w.storm.regime_timeline) if datetime.fromisoformat(ts) <= t),
+                      m["regime"])
+        unrec = [h for h in w.core_hosts if h not in recovered]
         if host is not None and host in w.core_hosts:
             unrec = [host] if host in unrec else []
-        reaches = host is None or host in m["recovered"]
+        reaches = host is None or host in recovered
         kind = APP_GROUPS.get(group) or ("endpointd" if group.startswith("/vl/platform/endpointd/") else None)
         if kind == "checkout":
             out = self._checkout_lines(m, unrec[int(m["t"].timestamp()) // 60 % len(unrec)]) if unrec else []
-            if m["regime"] == "collapsed" and reaches:
+            if regime == "collapsed" and reaches:
                 out += [f"ERROR [ledger-client] POST https://{LEDGER}/v1/postings failed: "
                         + "java.net.SocketTimeoutException: Read timed out after 2000ms",
                         "ERROR [ledger-client] HTTP 503 from ledger-writer: db pool exhausted"]
@@ -784,14 +790,14 @@ class Telemetry:
             out = []
             if unrec and not m["paused"]:
                 out.append(f"ERROR dispatcher - deliver failed: getaddrinfo ENOTFOUND {LEDGER}; nack visibility=0")
-            if m["regime"] == "collapsed" and not m["paused"]:
+            if regime == "collapsed" and not m["paused"]:
                 out.append("ERROR dispatcher - ledger post timeout after 2000ms; retrying immediately")
             if m["rejected"] >= 0.5 and not m["paused"]:
                 out.append("WARN dispatcher - ledger lookup 429 Too Many Requests (Retry-After: 1); nack visibility=0")
             return out
         if kind == "ledger":
             tasks = max(1, m["lw_tasks"])
-            if m["regime"] == "collapsed":
+            if regime == "collapsed":
                 waiting = round(1.5 * m["offered"] / tasks)
                 out = [f"WARN db pool exhausted: waited 1500ms for connection (active=25 idle=0 waiting={waiting})",
                        "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
@@ -801,7 +807,7 @@ class Telemetry:
                 out = [f"{'WARN' if waiting else 'INFO'} inbound {m['offered'] / tasks:.1f} req/s per task (1m avg); "
                        f"pool active={active} idle={25 - active} "
                        f"waiting={waiting}"
-                       + ("" if m["recovered"] else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
+                       + ("" if recovered else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
             if m["rejected"] >= 0.5:
                 out.append(f"WARN admission: 429 Retry-After: 1 to webhooks-dispatcher for {m['rejected']:.0f} req/s "
                            f"over its quota of {m['quota']:.0f} req/s")
