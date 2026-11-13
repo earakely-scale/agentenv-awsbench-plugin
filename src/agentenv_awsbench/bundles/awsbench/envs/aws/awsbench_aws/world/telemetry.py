@@ -209,9 +209,203 @@ def _filter(expr: str):
     return lambda s: any(all(p(s) for p in ands) for ands in ors)
 
 
-def parse_query(qs: str) -> dict:
+SUPPORTED_X = ("supported: fields/display, filter on @message, @timestamp, @log, level or a parsed field (like, not like, "
+               "=~, =, !=, <, <=, >, >=, in [...], not in [...]) joined by and/or, parse @message /(?<name>re)/, "
+               "stats count(*)/count(f)/min(f)/max(f) [as name] [by bin(5m), @log or fields], sort <field> asc|desc, "
+               "limit")
+_XTERM = re.compile(r"\s*(?:(and|or)\s+)?(@?\w+)\s+(not\s+like|like|=~|not\s+in|in|!=|<=|>=|==|=|<|>)\s*"
+                    r"(/(?:\\.|[^/\\])*/|\"[^\"]*\"|'[^']*'|\[[^\]]*\]|[-\w.:]+)\s*", re.IGNORECASE)
+_AGG = re.compile(r"(count|min|max)\(\s*(\*|@?\w*)\s*\)(?:\s+as\s+(\w+))?$", re.IGNORECASE)
+_LEVELS = ("ERROR", "WARN", "WARNING", "INFO", "DEBUG", "FATAL")
+
+
+def _top(text: str, sep: str = ",") -> list[str]:
+    """`text` split on `sep` outside brackets and quotes."""
+    out, buf, depth, quote = [], "", 0, None
+    for ch in text:
+        if quote:
+            quote = None if ch == quote else quote
+        elif ch in "'\"":
+            quote = ch
+        elif ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == sep and depth == 0:
+            out, buf = out + [buf.strip()], ""
+            continue
+        buf += ch
+    return [x for x in out + [buf.strip()] if x]
+
+
+def _lit(tok: str):
+    if tok[0] in "'\"":
+        return tok[1:-1]
+    try:
+        return float(tok)
+    except ValueError:
+        return tok
+
+
+def _ms(v):
+    """A record's or a literal's time as epoch ms: numbers above 1e11 are ms, smaller ones seconds, text ISO 8601."""
+    if isinstance(v, (int, float)):
+        return v if v > 1e11 else v * 1000
+    return _utc(str(v)).timestamp() * 1000
+
+
+def _xfilter(expr: str):
+    """`<field> <op> <literal>` terms joined by and/or, as a predicate over a record (an or of ands)."""
+    pos, ors = 0, [[]]
+    while pos < len(expr):
+        m = _XTERM.match(expr, pos)
+        if not m or (m.group(1) is None) != (pos == 0):
+            raise ValueError(expr)
+        field, op, raw = m.group(2), re.sub(r"\s+", " ", m.group(3).lower()), m.group(4)
+        if op in ("like", "not like", "=~"):
+            needle = _lit(raw)
+            find = re.compile(raw[1:-1]).search if raw.startswith("/") else (lambda s, n=needle: n in s)
+            test = (lambda v, f=find, neg=op == "not like": bool(f(str(v))) != neg)
+        elif op in ("in", "not in"):
+            if not raw.startswith("["):
+                raise ValueError(raw)
+            vals = {_lit(x) for x in _top(raw[1:-1])}
+            test = (lambda v, s=vals, neg=op == "not in": (v in s) != neg)
+        else:
+            want, cmp = _lit(raw), {"=": operator.eq, "==": operator.eq, "!=": operator.ne, "<": operator.lt,
+                                    "<=": operator.le, ">": operator.gt, ">=": operator.ge}[op]
+            if field == "@timestamp":
+                want = _ms(want)
+            test = (lambda v, w=want, c=cmp: c(float(v), w) if isinstance(w, float) and _num(v) else c(str(v), str(w)))
+        if (m.group(1) or "").lower() == "or":
+            ors.append([])
+        ors[-1].append(lambda r, f=field, t=test: r.get(f) is not None and t(r[f]))
+        pos = m.end()
+    return lambda r: any(all(p(r) for p in ands) for ands in ors)
+
+
+def _num(v) -> bool:
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _xstats(rest: str) -> dict:
+    head, _, by = re.sub(r"\s+by\s+", "\0", rest, count=1, flags=re.IGNORECASE).partition("\0")
+    aggs = []
+    for part in _top(head):
+        m = _AGG.fullmatch(part)
+        if not m:
+            raise ValueError(part)
+        fn, arg = m.group(1).lower(), m.group(2) or "*"
+        aggs.append((m.group(3) or f"{fn}({arg})", fn, arg))
+    keys = []
+    for b in _top(by):
+        m = _BIN.match(b)
+        if not m and not re.fullmatch(r"@?\w+", b):
+            raise ValueError(b)
+        keys.append((b, int(m.group(1)) * {"s": 1, "m": 60, "h": 3600}[m.group(2)] * 1000 if m else 0))
+    return {"aggs": aggs, "keys": keys}
+
+
+def _xplan(qs: str) -> list:
+    ops = []
+    for cmd in _split(qs):
+        name, _, rest = cmd.partition(" ")
+        name, rest = name.lower(), rest.strip()
+        try:
+            if name == "filter":
+                ops.append(("filter", _xfilter(rest)))
+            elif name in ("fields", "display"):
+                ops.append(("fields", _top(rest)))
+            elif name == "parse":
+                m = re.fullmatch(r"@message\s+/((?:\\.|[^/\\])*)/", rest)
+                ops.append(("parse", re.compile(re.sub(r"\(\?<(\w+)>", r"(?P<\1>", m.group(1)))))
+            elif name == "sort":
+                m = re.fullmatch(r"(@?\w+)(?:\s+(asc|desc))?", rest, re.IGNORECASE)
+                ops.append(("sort", (m.group(1), (m.group(2) or "desc").lower())))
+            elif name == "limit":
+                ops.append(("limit", int(rest)))
+            elif name == "stats":
+                ops.append(("stats", _xstats(rest)))
+            else:
+                raise ValueError(name)
+        except (ValueError, AttributeError, KeyError, re.error):
+            raise AwsError("MalformedQueryException", f"unsupported in this environment: {cmd}; {SUPPORTED_X}",
+                           400) from None
+    return ops
+
+
+def _groups(rx, text: str) -> dict:
+    m = rx.search(text)
+    return {k: v for k, v in m.groupdict().items() if v is not None} if m else {}
+
+
+def _stamp(ms) -> str:
+    return datetime.fromtimestamp(float(ms) / 1000, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+
+def run_insights(ops: list, records: list[dict], limit: int, default_fields: list[str]) -> tuple[list, int]:
+    """A parsed query (`_xplan`) over records keyed by field (`@timestamp` in epoch ms): (result rows, matched)."""
+    rows, shown, stamps, matched = records, None, {"@timestamp"}, len(records)
+    for op, arg in ops:
+        if op == "parse":
+            rows = [{**r, **_groups(arg, r["@message"])} for r in rows]
+        elif op == "filter":
+            rows = [r for r in rows if arg(r)]
+            matched = len(rows)
+        elif op == "fields":
+            shown = arg
+        elif op == "sort":
+            have = [r for r in rows if r.get(arg[0]) is not None]
+            have.sort(key=lambda r: (0, float(r[arg[0]])) if _num(r[arg[0]]) else (1, str(r[arg[0]])),
+                      reverse=arg[1] == "desc")
+            rows = have + [r for r in rows if r.get(arg[0]) is None]
+        elif op == "limit":
+            rows = rows[:arg]
+        elif op == "stats":
+            groups: dict[tuple, list] = {}
+            for r in rows:
+                key = tuple(int(_ms(r["@timestamp"]) // size * size) if size else r.get(k) for k, size in arg["keys"])
+                if None not in key:
+                    groups.setdefault(key, []).append(r)
+            out = []
+            for key, members in sorted(groups.items(), key=lambda kv: [str(k) for k in kv[0]]):
+                row = {k: v for (k, _), v in zip(arg["keys"], key)}
+                for name, fn, f in arg["aggs"]:
+                    vals = [m.get(f, 1) for m in members if f == "*" or m.get(f) is not None]
+                    nums = [float(v) for v in vals] if vals and all(_num(v) for v in vals) else None
+                    row[name] = len(vals) if fn == "count" else (min if fn == "min" else max)(nums or vals) if vals \
+                        else None
+                    if f == "@timestamp" and fn != "count":
+                        stamps.add(name)
+                out.append(row)
+            stamps |= {k for k, size in arg["keys"] if size}
+            rows, shown = out, [k for k, _ in arg["keys"]] + [a[0] for a in arg["aggs"]]
+    if not any(op == "stats" for op, _ in ops) and not any(op == "sort" for op, _ in ops):
+        rows = sorted(rows, key=lambda r: r["@timestamp"], reverse=True)
+
+    def show(f, v):
+        return None if v is None else _stamp(v) if f in stamps else (
+            str(int(v)) if isinstance(v, float) and v.is_integer() else str(v))
+    return [[{"field": f, "value": show(f, r.get(f))} for f in (shown or default_fields) if r.get(f) is not None]
+            for r in rows[:limit]], matched
+
+
+def parse_query(qs: str, extended: bool = False) -> dict:
     """The Logs Insights subset this world serves; anything else is a MalformedQueryException, so no query is
-    silently half-answered."""
+    silently half-answered. `extended` also takes parse, stats by fields and filters on fields, as `ops`."""
+    try:
+        return _parse_basic(qs)
+    except AwsError:
+        if not extended:
+            raise
+    return {"filters": [], "sort": None, "limit": None, "fields": None, "stats": None, "ops": _xplan(qs)}
+
+
+def _parse_basic(qs: str) -> dict:
     plan = {"filters": [], "sort": None, "limit": None, "fields": None, "stats": None}
     for cmd in _split(qs):
         name, _, rest = cmd.partition(" ")
@@ -487,7 +681,7 @@ class Telemetry:
                 raise AwsError("InvalidParameterException", "Specify logGroupName, logGroupNames or "
                                                             "logGroupIdentifiers.", 400)
             qid = f"q-{len(self.queries) + 1:06d}"
-            q = {**p, "groups": groups, "plan": parse_query(p.get("queryString", "")), "at": now}
+            q = {**p, "groups": groups, "plan": parse_query(p.get("queryString", ""), extended=True), "at": now}
             self.queries[qid] = {**q, "result": self.run_query(q, now)}
             return {"queryId": qid}
         if op == "GetQueryResults":
@@ -674,16 +868,17 @@ class Telemetry:
                 return round(a["done_at_start"] * (t - t0) / (start - t0))
             return min(total, round(a["done_at_start"] + (total - a["done_at_start"]) * (t - start) / (t1 - start)))
 
-        out = [(t0, ACME_LOG, (f"INFO run started: {total:,} domains, batches of {batch} TXT changes (route53 "
-                               "ChangeResourceRecordSets)"))]
+        out = [(t0, ACME_LOG, (f"INFO run started: {total:,} domains, batches of {batch} domains ({2 * batch} TXT "
+                               "changes, route53 ChangeResourceRecordSets)"))]
         k = 1
         while (t := t0 + timedelta(seconds=300 * k)) <= end:
             done, changes = renewed(t), 2 * (renewed(t) - renewed(t - timedelta(seconds=300)))
             h = int(hashlib.sha256(f"{self.w.seed}|acme|{k}".encode()).hexdigest()[:8], 16)
             throttled = changes // 3 + h % 7 if k > 1 else 0
-            out.append((t, ACME_LOG, (f"INFO batch {math.ceil(done / batch)}/{math.ceil(total / batch)}: {changes} "
-                                      f"TXT changes; {done:,}/{total:,} domains renewed; Route 53 throttled {throttled} "
-                                      "calls (Throttling, PriorRequestNotComplete), retried with backoff")))
+            out.append((t, ACME_LOG, (f"INFO batch {math.ceil(done / batch)}/{math.ceil(total / batch)}: {done:,}/"
+                                      f"{total:,} domains renewed; {changes} TXT changes in the last 5 min; Route 53 "
+                                      f"throttled {throttled} calls (Throttling, PriorRequestNotComplete)"
+                                      + (", retried with backoff" if throttled else ""))))
             k += 1
         return out if t0 <= end else []
 
@@ -693,6 +888,15 @@ class Telemetry:
                                                                      10000)]
         rows = [(g, e) for g, e in scanned if all(f(e["message"]) for f in plan["filters"])]
         limit = min(plan["limit"] or 10000, int(q.get("limit") or 10000))
+        if plan.get("ops"):
+            recs = [{"@timestamp": e["timestamp"], "@message": e["message"], "@log": g, "@logStream": e["logStreamName"],
+                     **({"level": w.removesuffix("ING")} if (w := e["message"].split(" ", 1)[0]) in _LEVELS else {})}
+                    for g, e in scanned]
+            results, matched = run_insights(plan["ops"], recs, limit,
+                                            ["@timestamp", "@message"] + (["@log"] if len(groups) > 1 else []))
+            return {"status": "Complete", "results": results,
+                    "statistics": {"recordsMatched": float(matched), "recordsScanned": float(len(scanned)),
+                                   "bytesScanned": float(sum(len(e["message"].encode()) for _, e in scanned))}}
         if plan["stats"]:
             st, buckets = plan["stats"], {}
             for g, e in rows:

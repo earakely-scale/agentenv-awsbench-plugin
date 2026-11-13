@@ -276,3 +276,14 @@ def test_a_cached_answer_counts_down_its_ttl(world):
     world.advance_to(at("02:59:00"))
     fresh = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
     assert world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER] == f"{fresh} (ttl 60s)"
+
+
+def test_li_b_01_tells_one_story_the_sds_reload_missed_the_cert_path(world):
+    """The journal and envoy-certcheck say what the planner log and PLAT-405 say: SDS couldn't load
+    /etc/envoy/certs/ledger-ingress.pem, which the arm64 bootstrap writes under /etc/envoy/tls."""
+    world.advance_to(at("02:50:00"))
+    check, journal = run(world, "li-b-01", "envoy-certcheck"), run(world, "li-b-01", "journalctl -u envoy")
+    for out, _ in (check, journal):
+        assert "/etc/envoy/certs/ledger-ingress.pem" in out and "/var/lib/certsync" not in out
+    assert check[1] == 1 and run(world, "li-a-01", "envoy-certcheck") == (
+        "OK sds secret ingress-tls loaded; listener ledger_https ready\n", 0)

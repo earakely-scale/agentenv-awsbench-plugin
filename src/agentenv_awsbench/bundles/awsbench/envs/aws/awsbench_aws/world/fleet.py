@@ -171,8 +171,9 @@ class Fleet:
         if cmd == "envoy-certcheck" and h["fleet"] == "ledger-ingress":
             if h.get("ready"):
                 return "OK sds secret ingress-tls loaded; listener ledger_https ready\n", 0
-            return ("ERROR sds secret ingress-tls not loaded: certsync bootstrap path missing on arm64 "
-                    "(since 02:11:20); listener ledger_https NOT READY\n"), 1
+            return ("ERROR sds secret ingress-tls not loaded: /etc/envoy/certs/ledger-ingress.pem not found (arm64 "
+                    "bootstrap writes /etc/envoy/tls/ledger-ingress.pem); bootstrap cert dropped at first SDS reload "
+                    "02:11:20; listener ledger_https NOT READY\n"), 1
         return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
 
     def _cache_entry(self, host, now) -> str:

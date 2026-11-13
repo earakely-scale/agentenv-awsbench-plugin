@@ -42,6 +42,7 @@ from .errors import AwsError
 from .meter import ET, GatewayClock, Inbox, LocalClock, Meter, MeterConfig, parse_time, rfc3339, whole
 from .ports import WorkspacePort
 from .world.fleet import ONE_COMMAND, SHELL_OPS
+from .world.telemetry import Telemetry, parse_query
 
 log = logging.getLogger("awsbench.aws")
 
@@ -225,9 +226,10 @@ def fleet_outcome(result: Any) -> tuple[int | None, str | None]:
     return 0, None
 
 
-def unrunnable(tool: str, args: dict) -> dict | None:
+def unrunnable(tool: str, args: dict, world: Any = None) -> dict | None:
     """The answer to a call whose text can't run at all (shell operators, an empty command, an aws command the CLI
-    would not parse): refused before the meter, uncharged and uncounted. A command that runs and fails is charged."""
+    would not parse, a Logs Insights query the world can't run): refused before the meter, uncharged and uncounted. A
+    command that runs and fails is charged."""
     command = str(args.get("command") or "")
     if tool == "aws_cli":
         try:
@@ -237,6 +239,11 @@ def unrunnable(tool: str, args: dict) -> dict | None:
     elif tool == "fleet_exec" and (not command.strip() or SHELL_OPS.search(command)):
         return {"hosts": [], "exit_code": 2, "charged": False,
                 "error": ONE_COMMAND if command.strip() else "empty command: name one command to run"}
+    elif tool == "aws_query" and args.get("source", "logs") == "logs":
+        try:
+            parse_query(str(args.get("query") or ""), extended=isinstance(getattr(world, "telemetry", None), Telemetry))
+        except AwsError as e:
+            return {"error": e.as_dict(), "charged": False}
     return None
 
 
@@ -351,7 +358,7 @@ class AwsServer(AgentEnvEnvironment):
     async def _metered(self, ctx: ToolContext | None, tool_name: str, args: dict, work, *, hosts: int | None = None,
                        cost_class: str | None = None, logged: bool = False) -> str:
         role = _role(ctx)
-        if refused := self._unconfigured(role) or unrunnable(tool_name, args):
+        if refused := self._unconfigured(role) or unrunnable(tool_name, args, self.world):
             return _json({"_clock": self.meter.banner(drain=self.meter.charged(role)),
                           **{k: v for k, v in refused.items() if k != "_clock"}})
         meter = self.meter

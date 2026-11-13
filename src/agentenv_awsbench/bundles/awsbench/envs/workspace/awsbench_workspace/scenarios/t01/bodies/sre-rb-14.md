@@ -1,6 +1,6 @@
 # SRE-RB-14 acme-renewer
 
-Nightly ECS scheduled task (EventBridge Scheduler `acme-renewer-nightly`, 02:00 ET) that renews DNS-01 TXT records in
+Nightly ECS scheduled task (EventBridge rule `acme-renewer-nightly`, 02:00 ET) that renews DNS-01 TXT records in
 `acme.vantleaf.com` for ~2,400 merchant custom domains in batches of 50. It shares the account-wide Route 53 change rate with
 everything else in vl-prod (OPS-4398).
 

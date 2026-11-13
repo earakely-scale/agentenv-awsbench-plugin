@@ -216,6 +216,7 @@ def test_acme_renewer_logs_its_progress_until_the_run_ends(faulted):
     assert lines[0].startswith("INFO run started: 2,412 domains") and len(lines) == 16
     assert "1,051/2,412 domains renewed" in lines[8] and "Route 53 throttled 0 calls" in lines[1]
     assert all("TXT changes" in m and "throttled" in m for m in lines[1:])
+    assert "batches of 50 domains (100 TXT changes" in lines[0] and "retried with backoff" not in lines[1]
     w.advance_to(at("03:50:00"))
     done = datetime.fromisoformat(w.world_flags["acme_complete"]).timestamp() * 1000
     evs = events()

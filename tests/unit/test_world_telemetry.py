@@ -400,3 +400,28 @@ def test_an_overloaded_pool_logs_its_queue(world):
     hot = [x for x in lines if "waiting=0" not in x]
     assert len(hot) == 1 and hot[0].startswith("WARN inbound 144.5 req/s per task") and max(waits) > 0
     assert waits.count(0) == len(lines) - 1
+
+
+def test_insights_runs_the_design_oracles_query_and_names_what_it_supports(world):
+    """parse with named groups, stats count/min/max by a parsed field, and filters on @timestamp and level."""
+    world.advance_to(at("03:20:00"))
+    qs = ("filter @timestamp >= '2026-11-17T07:20:00Z' and level in ['ERROR','WARN'] "
+          "| parse @message /(?<cls>[A-Za-z]+Exception)/ | stats count(*), min(@timestamp)\n  by cls")
+    r = query(world, qs, [CK], "02:40:00", "03:15:00")
+    rows = {x[0]["value"]: {f["field"]: f["value"] for f in x} for x in r["results"]}
+    assert "CircuitBreakerOpenException" in rows and rows["CircuitBreakerOpenException"]["count(*)"].isdigit()
+    assert all(v["min(@timestamp)"] >= "2026-11-17 07:20:00" for v in rows.values())
+    r = query(world, "fields @timestamp, @message | filter @message like /ERROR/ and @timestamp < 1795421400000 "
+                     "| sort @timestamp asc | limit 3", [CK], "02:40:00", "03:15:00")
+    assert len(r["results"]) == 3 and r["results"][0][0]["value"] < r["results"][2][0]["value"]
+    with pytest.raises(AwsError) as e:
+        query(world, "fields @message | dedup @message", [CK], "03:00:00", "03:15:00")
+    assert e.value.code == "MalformedQueryException" and "parse @message /(?<name>re)/" in e.value.message
+
+
+def test_an_unsupported_query_is_refused_uncharged(world):
+    from awsbench_aws.server import unrunnable
+    assert unrunnable("aws_query", {"source": "logs", "query": "fields @message | dedup @message"}, world)["charged"] \
+        is False
+    assert unrunnable("aws_query", {"source": "logs", "query": "parse @message /(?<c>\\w+)/ | stats count(*) by c"},
+                      world) is None

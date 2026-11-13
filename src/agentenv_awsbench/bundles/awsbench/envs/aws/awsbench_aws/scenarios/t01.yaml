@@ -3464,7 +3464,7 @@ world:
         total: 2412
         completes_at: 03:40:00
         revisions:
-          8: {image: v2026.09.30-1, registered: '2026-09-30T10:00:00-04:00', env: {BATCH_SIZE: 50, ROUTE53_ZONE: internal.vantleaf.io, RUNBOOK: SRE-RB-14}}
+          8: {image: v2026.09.30-1, registered: '2026-09-30T10:00:00-04:00', env: {BATCH_SIZE: 50, ROUTE53_ZONE: acme.vantleaf.com, RUNBOOK: SRE-RB-14}}
     dispatcher_target:
       service: webhooks-dispatcher
       created: '2025-03-12T10:35:00-05:00'
@@ -3679,10 +3679,8 @@ world:
         ready: false
         journal:
         - '02:03:41 envoy[1880]: [info][main] starting main dispatch loop'
-        - '02:03:44 envoy[1880]: [warning][config] secret ingress-tls: certsync bootstrap path /var/lib/certsync/arm64
-          missing'
-        - '02:11:20 envoy[1880]: [warning][config] gRPC config: initial fetch timed out for type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
-          (ingress-tls)'
+        - '02:11:20 envoy[1880]: [warning][config] sds: failed to load certificate chain /etc/envoy/certs/ledger-ingress.pem:
+          No such file'
         - '02:11:20 envoy[1880]: [info][init] listener ledger_https NOT READY: waiting for secret ingress-tls'
       - name: li-b-02
         ip: 10.20.44.40
