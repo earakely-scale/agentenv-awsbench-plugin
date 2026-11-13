@@ -222,3 +222,14 @@ def test_acme_renewer_logs_its_progress_until_the_run_ends(faulted):
     evs = events()
     assert evs[-1]["message"] == "INFO run complete: 2,412/2,412" and abs(evs[-1]["timestamp"] - done) < 1000
     assert all(e["timestamp"] <= done for e in evs[:-1]) and done - evs[-2]["timestamp"] <= 300_000
+
+
+def test_acme_progress_reaches_the_run_its_completion_ends(faulted):
+    """R11-opus-6: 'batch 46/49: 2,299/2,412' at 08:35:02, then 'run complete' 25 s later, at the jittered 03:35:27."""
+    w, _ = faulted
+    w.advance_to(at("03:50:00"))
+    lines = [e["message"] for e in w.serve_aws("logs", "FilterLogEvents", {
+        "logGroupName": "/vl/platform/acme-renewer", "startTime": int(at("02:00:00").timestamp() * 1000)})["events"]]
+    assert lines[-1] == "INFO run complete: 2,412/2,412"
+    renewed = [int(m.split(": ")[1].split("/")[0].replace(",", "")) for m in lines if m.startswith("INFO batch")]
+    assert 2412 - 130 <= renewed[-1] < 2412

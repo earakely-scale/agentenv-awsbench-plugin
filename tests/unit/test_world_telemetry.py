@@ -478,3 +478,16 @@ def test_a_minute_that_collapses_after_its_record_logs_the_collapse(world):
     collapse(world)
     assert ["2026-11-17T03:02:20-05:00", "collapsed"] in world.storm.regime_timeline
     assert world.telemetry.lines("/vl/prod/ledger-writer", at("03:02:42"))[0].startswith("WARN db pool exhausted")
+
+
+def test_planner_lines_keep_the_apply_lag_while_plans_wait(world):
+    """R11-opus-1: the planner logged 'pending_unapplied=9 WARN apply lag 480s' at 02:40, then no lag while pending grew;
+    and gens 48200-48207 had no lines."""
+    world.advance_to(at("02:43:30"))
+    planner = messages(world, "/vl/platform/endpointd/planner", "02:31:30", "02:44:00")
+    assert [int(re.search(r"gen=(\d+)", x).group(1)) for x in planner] == list(range(48200, 48212))
+    assert planner[-3:] == [f"INFO planner gen={g} endpoints=41 changes=0 pending_unapplied={n} WARN apply lag {s}s"
+                            for g, n, s in ((48209, 10, 540), (48210, 11, 600), (48211, 12, 660))]
+    ep(world, "epctl pause all", "02:44:00")
+    world.advance_to(at("02:50:00"))
+    assert messages(world, "/vl/platform/endpointd/planner", "02:44:30", "02:50:00") == []

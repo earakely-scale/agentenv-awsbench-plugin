@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from ..account import ACCOUNT
 from ..errors import AwsError
 from .physics import FAILURE
-from .util import iso, parse_time
+from .util import iso, jitter, parse_time
 
 # name, namespace, metric, comparison, threshold, evaluation periods
 ALARMS = [
@@ -508,15 +508,26 @@ class Telemetry:
         self.minutes[:0], self._mts[:0] = rows, [r["t"] for r in rows]
 
     def _planner_lines(self, t: datetime) -> None:
-        """The planner logs each plan it writes, with how many ledger records changed from the plan before."""
+        """The planner logs each plan it writes, with how many ledger records changed from the plan before and, while
+        plans newer than the last applied one wait, how many are pending and how long the oldest of those has waited."""
         ep = self.w.endpointd
         while self._gen < ep.next_gen:
             prev, cur = ep.archive.get(self._gen - 1), ep.archive.get(self._gen) or []
             recs = [{(r["ip"], r["weight"]) for r in x or []} for x in (prev, cur)]
             changes = len(recs[0] ^ recs[1]) if prev is not None else 0
-            self.extra_logs.append((t, "/vl/platform/endpointd/planner",
-                                    f"INFO planner gen={self._gen} endpoints={len(ep.order)} changes={changes}"))
+            self.extra_logs.append((t, "/vl/platform/endpointd/planner", f"INFO planner gen={self._gen} endpoints="
+                                    f"{len(ep.order)} changes={changes}{self._apply_lag(t)}"))
             self._gen += 1
+
+    def _apply_lag(self, t: datetime) -> str:
+        ep = self.w.endpointd
+        status = {g: (ep.m.plan(g) or {}).get("status") for g in ep.m.plan_gens()}
+        applied = max((g for g, s in status.items() if s == "APPLIED"), default=0)
+        waiting = [g for g, s in status.items() if s == "PENDING" and g > applied]
+        if not waiting:
+            return ""
+        lag = int((t - ep.created[min(waiting)]).total_seconds())
+        return f" pending_unapplied={list(status.values()).count('PENDING')}" + (f" WARN apply lag {lag}s" if lag else "")
 
     def alarm_state(self, name: str) -> str:
         return (self.alarms.get(name) or {}).get("state") or "INSUFFICIENT_DATA"
@@ -860,12 +871,16 @@ class Telemetry:
     def acme_lines(self, now: datetime) -> list[tuple]:
         """The nightly acme-renewer task's progress every 5 minutes from its start until its run completes or is
         stopped: its batch, the TXT changes since the last line, domains renewed (`done_at_start` at the episode
-        start, all by `completes_at`) and how many of its Route 53 calls were throttled."""
+        start, all by the run's completion, the timeline's jittered `acme_complete` else `completes_at`) and how many
+        of its Route 53 calls were throttled."""
         a = ((self.w.scenario.get("world") or {}).get("ecs") or {}).get("tasks", {}).get("acme-renewer")
         if not a:
             return []
         t0, start, total = parse_time(a["started"], self.w.start_t), self.w.start_t, int(a["total"])
-        t1 = parse_time(a["completes_at"], start)
+        ev = next((e for e in self.w.scenario.get("timeline") or [] if "at" in e
+                   and any(x.get("world") == "acme_complete" for x in e.get("actions", []))), None)
+        t1 = (parse_time(ev["at"], start) + jitter(self.w.seed, ev["id"], ev.get("jitter")) if ev
+              else parse_time(a["completes_at"], start))
         batch = int(((a.get("revisions") or {}).get(a.get("revision")) or {}).get("env", {}).get("BATCH_SIZE", 50))
         done_at = self.w.world_flags.get("acme_complete")
         end = min(now, parse_time(done_at, start)) if done_at else now

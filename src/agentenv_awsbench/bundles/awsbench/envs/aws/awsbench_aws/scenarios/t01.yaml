@@ -3387,6 +3387,14 @@ world:
     - {t: '02:31:55', group: /vl/platform/endpointd/enactor-b, message: "ERROR enactor=b batch gen=48177 halted with 3 endpoints remaining; entering safe-hold"}
     - {t: '02:34:00', group: /vl/prod/webhooks-dispatcher, message: "INFO autoscale: desired 6 -> 18"}
     - {t: '02:38:00', group: /vl/prod/webhooks-dispatcher, message: "INFO autoscale: desired 18 -> 40"}
+    - {t: '02:32:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48200 changes=0 pending_unapplied=1"}
+    - {t: '02:33:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48201 changes=0 pending_unapplied=2 WARN apply lag 60s"}
+    - {t: '02:34:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48202 changes=0 pending_unapplied=3 WARN apply lag 120s"}
+    - {t: '02:35:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48203 changes=0 pending_unapplied=4 WARN apply lag 180s"}
+    - {t: '02:36:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48204 changes=0 pending_unapplied=5 WARN apply lag 240s"}
+    - {t: '02:37:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48205 changes=0 pending_unapplied=6 WARN apply lag 300s"}
+    - {t: '02:38:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48206 changes=0 pending_unapplied=7 WARN apply lag 360s"}
+    - {t: '02:39:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48207 changes=0 pending_unapplied=8 WARN apply lag 420s"}
     - {t: '02:40:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48208 changes=0 pending_unapplied=9 WARN apply lag 480s"}
   ingress_asg:
     name: vl-ledger-ingress-asg
