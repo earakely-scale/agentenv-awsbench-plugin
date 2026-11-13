@@ -40,16 +40,15 @@ def test_mechanics_name_is_checked():
         make_world(scenario(mechanics="nope"), "0", NoAws(), Ws())
 
 
-def test_t03_stub_runs_under_the_clock_loop():
-    s = scenario(mechanics="t03", hosts=[{"name": "sr-a-001", "fleet": "streamroute", "az": "us-east-1a"}])
-    world = make_world(s, "1101", NoAws(), Ws())
+def test_t03_runs_under_the_clock_loop():
+    world = make_world(scenario(mechanics="t03"), "1101", NoAws(), Ws())
     assert isinstance(world, MechWorld)
     world.start()
     out = world.advance_to(world.start_t + timedelta(minutes=5))
     assert out["now"] == world.start_t + timedelta(minutes=5)
-    assert [h["name"] for h in world.fleet_list_hosts("streamroute")] == ["sr-a-001"]
-    assert world.fleet_exec("sr-a-001", "srctl fleet status", {"role": "sre-primary"})["hosts"][0]["exit_code"] == 127
-    assert world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {}) is None
+    assert len(world.fleet_list_hosts("streamroute")) == 132
+    assert world.fleet_exec("sr-a-001", "srctl fleet status", {"role": "sre-primary"})["hosts"][0]["exit_code"] == 0
+    assert world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {})["AutoScalingGroups"]
     ex = world.export()
     assert {"t03", "timeline", "approvals", "world_flags", "workspace_errors"} <= set(ex)
 
