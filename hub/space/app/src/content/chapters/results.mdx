@@ -1,58 +1,73 @@
 import IDX from "../../../public/data/index.json";
 
 export const pct = (v) => (v == null ? "–" : Number(v).toFixed(2));
+export const end = (r) => (r.end_reason === "done" && r.done ? r.done : r.end_reason === "window_end" ? "13:00 window" : r.end_reason);
+export const TASKS = IDX.tasks || { T01: { title: "The Empty Ledger Endpoint", reference: IDX.reference, runs: IDX.runs } };
 
 ## Runs
 
-Each row is one recorded run of T01 by an agent in Claude Code, with the solver's built-in tools off so that it works
-only through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs
-that are fixed since, and the final runs will replace them. The reference is the scripted oracle path.
+Each row is one recorded run by an agent in Claude Code, with the solver's built-in tools off so that it works only
+through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs that are
+fixed since, and the final runs will replace them. The reference for each task is its scripted oracle path. Click a
+run to open it in the flight recorder.
 
-<div class="table-scroll">
-<table class="aib-results">
-  <thead>
-    <tr><th>Run</th><th>Model</th><th>Build</th><th>D12</th><th>Pass</th><th>Checks lost</th><th>Gates</th><th>Calls</th><th>DONE</th></tr>
-  </thead>
-  <tbody>
-    {IDX.runs.map((r) => (
-      <tr>
-        <td><a href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener">{r.id}</a></td>
-        <td>{r.model}</td>
-        <td class={r.dev ? "dev" : ""}>{r.build}{r.dev ? " (dev)" : ""}</td>
-        <td>{pct(r.d12)}</td>
-        <td class={r.pass ? "pass" : "fail"}>{r.pass ? "pass" : "fail"}</td>
-        <td>{r.failed.length ? r.failed.join(", ") : "none"}</td>
-        <td>{r.gates.length ? r.gates.join(", ") : "none"}</td>
-        <td>{r.calls}</td>
-        <td>{r.done || r.end_reason}</td>
-      </tr>
-    ))}
-    <tr>
-      <td><a href="/viz/flight-recorder.html?run=reference" target="_blank" rel="noopener">reference</a></td>
-      <td>Scripted oracle</td>
-      <td>{IDX.reference.build}</td>
-      <td>{pct(IDX.reference.d12)}</td>
-      <td class="pass">pass</td>
-      <td>none</td>
-      <td>none</td>
-      <td>{IDX.reference.calls}</td>
-      <td>{IDX.reference.done}</td>
-    </tr>
-  </tbody>
-</table>
-</div>
+{Object.entries(TASKS).map(([task, t]) => (
+  <div>
+    <h3 id={`results-${task.toLowerCase()}`}>{task}, {t.title}</h3>
+    <div class="table-scroll">
+    <table class="aib-results">
+      <thead>
+        <tr><th>Run</th><th>Model</th><th>Build</th><th>D12</th><th>Pass</th><th>Checks lost</th><th>Gates</th><th>Calls</th><th>End</th></tr>
+      </thead>
+      <tbody>
+        {t.runs.map((r) => (
+          <tr>
+            <td><a href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener">{r.id}</a></td>
+            <td>{r.model}</td>
+            <td class={r.dev ? "dev" : ""}>{r.build}{r.dev ? " (dev)" : ""}</td>
+            <td>{pct(r.d12)}</td>
+            <td class={r.pass ? "pass" : "fail"}>{r.pass ? "pass" : "fail"}</td>
+            <td>{r.failed.length ? r.failed.join(", ") : "none"}</td>
+            <td>{r.gates.length ? r.gates.join(", ") : "none"}</td>
+            <td>{r.calls}</td>
+            <td>{end(r)}</td>
+          </tr>
+        ))}
+        <tr>
+          <td><a href={`/viz/flight-recorder.html?run=${t.reference.id}`} target="_blank" rel="noopener">{t.reference.id}</a></td>
+          <td>Scripted oracle</td>
+          <td>{t.reference.build}</td>
+          <td>{pct(t.reference.d12)}</td>
+          <td class="pass">pass</td>
+          <td>none</td>
+          <td>none</td>
+          <td>{t.reference.calls}</td>
+          <td>{end(t.reference)}</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+))}
 
-The reference's D12 of 1.0 is what the same scripted path grades on a deployed env; on this page its world is replayed in
-process (see Methods). Single runs per model and build are not a pass rate: they show where the task bites, not how
-often. Calls count every charged call, `wait` included, as the meter counts them against the 250-call budget.
+T01's reference D12 of 1.0 is what the same scripted path grades on a deployed env; T03's reference has its outcome
+checks graded by the grader's own rules on the replayed world, and its process and communication marks are the ones the
+path is built to pass. Both references are replayed in process on this page (see Methods). Single runs per model and
+build are not a pass rate: they show where a task bites, not how often. Calls count every charged call, `wait` included,
+as the meter counts them against the budget (250 calls in T01, 220 in T03). T03 runs end at the 13:00 window unless the
+agent finishes first; the T03 runs here are the first, on a development build.
 
 ### The flight recorder
 
-Every run as time-locked lanes: checkout, ledger-writer load against capacity, hosts resolving the ledger, the DNS
-record, the webhook backlog, the agent's calls by cost class, people and world events, and the checks as the grade's
-evidence lands. Hover or drag to move the playhead; click a call to inspect its arguments and result; switch on
-**Compare with reference** to overlay the scripted path.
+Every run of both tasks as time-locked lanes, grouped by task, each compared with its own task's reference. For T01:
+checkout, ledger-writer load against capacity, hosts resolving the ledger, the DNS record and the webhook backlog. For
+T03: the fleet's hosts by state, the routing share of in-service hosts, the worst ledger cell's lag, a sample host's
+threads against its limit, the Auto Scaling group's size and the state of a scheduled action that touches it, and
+restarts in flight with the bootstrap service's load-shed windows, the canary and the settlement gate. Then, for both,
+the agent's calls by cost class, people and world events, and the checks as the grade's evidence lands. Hover or drag
+to move the playhead; click a call to inspect its arguments and result; switch on **Compare with reference** to overlay
+the scripted path.
 
 <div class="aib-wide">
-  <iframe class="aib-frame" src="/viz/flight-recorder.html" title="T01 flight recorder: every recorded run as time-locked lanes" style="min-height:1500px" loading="eager"></iframe>
+  <iframe class="aib-frame" src="/viz/flight-recorder.html" title="Flight recorder: every recorded run of T01 and T03 as time-locked lanes" style="min-height:1500px" loading="eager"></iframe>
 </div>

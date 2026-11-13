@@ -1,13 +1,87 @@
 {
-  "about": "Labels for the run folders tools/build_hub_data.py exports. dev: a development run on an older build whose env bugs are fixed since; a folder not listed here is exported as a current run.",
+  "about": "Labels for the run folders tools/build_hub_data.py exports. dev: a development run on an older build whose env bugs are fixed since; build: the commit the env was built from, where the folder's BUILD file lacks it; a folder not listed here is exported as a current run.",
   "runs": {
-    "R1-sonnet": {"dev": true, "note": "Development run on build e712bd7, before NPC and grader fixes."},
-    "R2-sonnet": {"dev": true, "note": "Development run on build e712bd7, before NPC and grader fixes."},
-    "R3-sonnet": {"dev": true, "note": "Development run on build 4aa8a25, before later grader and world fixes."},
-    "R3-opus": {"dev": true, "note": "Development run on build 4aa8a25, before later grader and world fixes."},
-    "R4-sonnet": {"dev": true, "note": "Development run on build 4f1813f, before later grader and world fixes."},
-    "R4-opus": {"dev": true, "note": "Development run on build 4f1813f, before later grader and world fixes."},
-    "R5-sonnet": {"dev": false, "note": "Latest measured build at publication (8b0f533); the final runs will replace it."},
-    "R5-opus": {"dev": false, "note": "Latest measured build at publication (8b0f533); the final runs will replace it."}
+    "R1-sonnet": {
+      "dev": true,
+      "note": "Development run on build e712bd7, before NPC and grader fixes."
+    },
+    "R2-sonnet": {
+      "dev": true,
+      "note": "Development run on build e712bd7, before NPC and grader fixes."
+    },
+    "R3-sonnet": {
+      "dev": true,
+      "note": "Development run on build 4aa8a25, before later grader and world fixes."
+    },
+    "R3-opus": {
+      "dev": true,
+      "note": "Development run on build 4aa8a25, before later grader and world fixes."
+    },
+    "R4-sonnet": {
+      "dev": true,
+      "note": "Development run on build 4f1813f, before later grader and world fixes."
+    },
+    "R4-opus": {
+      "dev": true,
+      "note": "Development run on build 4f1813f, before later grader and world fixes."
+    },
+    "R5-sonnet": {
+      "dev": true,
+      "note": "Development run on build 8b0f533, before the R8 build's grader and world fixes."
+    },
+    "R5-opus": {
+      "dev": true,
+      "note": "Development run on build 8b0f533, before the R8 build's grader and world fixes."
+    },
+    "R8-opus-1": {
+      "dev": false,
+      "build": "8bc9c6a",
+      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+    },
+    "R8-opus-2": {
+      "dev": false,
+      "build": "8bc9c6a",
+      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+    },
+    "R8-opus-3": {
+      "dev": false,
+      "build": "8bc9c6a",
+      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+    },
+    "R8-sonnet-1": {
+      "dev": false,
+      "build": "8bc9c6a",
+      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+    },
+    "R8-sonnet-2": {
+      "dev": false,
+      "build": "8bc9c6a",
+      "note": "Latest T01 build at publication. Its BUILD file was blank; the commit is main's head when the run started (23:34 PT, Nov 12)."
+    },
+    "T03R1-opus-1": {
+      "dev": true,
+      "build": "b8b4712",
+      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+    },
+    "T03R1-opus-2": {
+      "dev": true,
+      "build": "b8b4712",
+      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+    },
+    "T03R1-opus-3": {
+      "dev": true,
+      "build": "b8b4712",
+      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+    },
+    "T03R1-sonnet-1": {
+      "dev": true,
+      "build": "b8b4712",
+      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+    },
+    "T03R1-sonnet-2": {
+      "dev": true,
+      "build": "b8b4712",
+      "note": "First T03 runs, on the T03 development branch: known env bugs are being fixed, and the final runs will replace these. Its BUILD file was blank; the commit is the t03 branch's head when the run started (00:21 PT, Nov 13)."
+    }
   }
 }

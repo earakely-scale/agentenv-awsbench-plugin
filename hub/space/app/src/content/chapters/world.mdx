@@ -4,20 +4,26 @@ One AgentEnv `multi` env over two MCP servers behind the AgentEnv gateway:
 
 | Server | What it holds |
 | --- | --- |
-| `aws` | AWS Emulator (telemetry off, loopback only); the AWS CLI in process with an action log, fault rules and coarse IAM per profile; the world (endpointd plans and enactors, DNS negative caches, the ledger-writer storm, traffic, the event timeline, scripted colleagues and their approvals); fleet tools (`epctl`, `dig`, `systemctl`, `journalctl` on simulated hosts); the meter; `wait`; the horizon. |
+| `aws` | AWS Emulator (telemetry off, loopback only); the AWS CLI in process with an action log, fault rules and coarse IAM per profile; the task's world (its physics, the event timeline, scripted colleagues and their approvals), which can also answer AWS calls the emulator doesn't model; fleet tools on simulated hosts; the meter; `wait`; the horizon. |
 | `workspace` | Chat, tickets, wiki, a read-only code host, mail, pager and a public status page, in memory with full history. Every call is charged through the `aws` meter. |
 
 **Time.** The gateway clock is armed frozen at the task's start, and only the `aws` server moves it. Each charged call
 takes the agent lane, advances the world and the gateway clock to its execution time, runs, and lets the world observe
 it: action events, colleagues' replies, cancellations of timeline events the call made moot. Between the agent's turns
-the harness lets up to ten minutes pass and wakes the agent with whatever arrived. The agent has at most 250 tool calls.
+the harness lets up to ten minutes pass and wakes the agent with whatever arrived. The agent has at most 250 tool calls
+in T01 and 220 in T03.
 
-**Physics.** The world ticks every 10 s. Checkout success follows which hosts can resolve the ledger; ledger-writer's
-regime (healthy, degraded, collapsed) follows offered load against capacity; the webhook backlog and the checkout outbox
-drain or grow with the dispatcher's concurrency and the replay rate the agent can set. The physics is deterministic per
-seed, so a scripted path scores the same every time.
+**Physics.** The world ticks every 10 s, and a scenario picks its mechanics. In T01, checkout success follows which hosts
+can resolve the ledger; ledger-writer's regime (healthy, degraded, collapsed) follows offered load against capacity; the
+webhook backlog and the checkout outbox drain or grow with the dispatcher's concurrency and the replay rate the agent can
+set. In T03, each of about 130 stream-routing hosts holds threads against its user's process limit, learns its peers
+over time, rebuilds its shard map every 30 minutes and is ejected by its coordinator if it stays warming too long;
+the Auto Scaling group, its scheduled actions and its scaling activities are served from the world's state, a shared
+bootstrap service can be overloaded, and eight ledger cells fall behind or catch up with the hosts that route. The
+physics is deterministic per seed, so a scripted path scores the same every time.
 
-**Colleagues.** Scripted characters with jobs and moods: the payments lead who blames the last deploy and wants a
+**Colleagues.** Scripted characters with jobs and moods: in T01 the payments lead who blames the last deploy and wants a
 rollback, the rotation incident commander who approves changes outside the runbooks, the endpointd owner on his phone,
-a key merchant's CTO who emails. Their lines and the agent's replies are matched by a deterministic classifier, so the
+a key merchant's CTO who emails; in T03 the author of the change behind the outage, the platform on-call, the incident
+commander, finance waiting on settlement, and a key merchant with a sale that morning. Their lines and the agent's replies are matched by a deterministic classifier, so the
 same reply gets the same answer.
