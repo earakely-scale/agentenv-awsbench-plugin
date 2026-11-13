@@ -1,6 +1,7 @@
 """Mail: one record per message, seen by every mailbox among its sender and recipients; replies and forwards keep the
 thread. Mail to an address outside the company is flagged external."""
 
+import re
 from datetime import datetime
 
 from .base import ToolError, Workspace, as_list, is_external, terms_match
@@ -118,10 +119,25 @@ def forward(ws: Workspace, box: str, t: datetime, id: str, to: list[str], note: 
     return {"sent": _summary(m, box)}, _resolved(m, box)
 
 
+def _base(subject: str) -> str:
+    return re.sub(r"^(?:\s*(?:re|fwd?)\s*:)+", "", subject, flags=re.I).strip().casefold()
+
+
+def _answered(ws: Workspace, sender: str, subject: str) -> str | None:
+    """The message a 'Re:' answers: the newest with the same subject, or one a prefix of the other, that the sender
+    was on."""
+    base = _base(subject)
+    hits = [m for m in ws.store.items(K_MSG) if _mine(m, sender) and base and (b := _base(m["subject"]))
+            and (b.startswith(base) or base.startswith(b))]
+    return max(hits, key=lambda m: m["ts"])["id"] if hits else None
+
+
 # world ops
 def deliver(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
     mid = args.get("id") or _new_id(ws)
     thread = args.get("thread")
+    if not thread and not args.get("in_reply_to") and args["subject"].lower().startswith("re:"):
+        args = {**args, "in_reply_to": _answered(ws, args["from"], args["subject"])}
     if not thread and args.get("in_reply_to") and (orig := ws.store.get(K_MSG, args["in_reply_to"])):
         thread = orig["thread"]
     m = _store(ws, mid, args["from"], _addresses(args["to"]), _addresses(args.get("cc")), args["subject"],

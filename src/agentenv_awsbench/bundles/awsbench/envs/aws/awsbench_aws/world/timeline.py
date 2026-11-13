@@ -474,7 +474,8 @@ class Timeline:
             for addr in to + list(resolved.get("recipients") or []):
                 if isinstance(addr, str) and self._npc_for(addr):
                     targets.append((self._npc_for(addr), {"via": "mail", "subject": args.get("subject") or
-                                                          resolved.get("subject") or ""}))
+                                                          resolved.get("subject") or "",
+                                                          "in_reply_to": resolved.get("message")}))
         if tool == "pager_page" and str(args.get("urgency", "high")) == "high":
             npc = self._npc_for(str(args.get("user") or args.get("schedule") or args.get("to") or ""))
             body = " ".join(text_of(args.get(k)) for k in ("title", "summary", "details") if args.get(k))
@@ -873,7 +874,8 @@ class Timeline:
             msg = {"via": "dm"}
         elif where == "mail":
             call = ctx.get("call") or {}
-            msg = {"via": "mail", "subject": text_of(dig(call, "args.subject")) or line.get("subject", "")}
+            msg = {"via": "mail", "subject": text_of(dig(call, "args.subject")) or line.get("subject", ""),
+                   "in_reply_to": dig(call, "resolved.message")}
         else:
             msg = {"via": "channel", "channel": where}
         return self._deliver(npc, msg, text, t, mention=line.get("mention", False))
@@ -890,7 +892,9 @@ class Timeline:
             res = self.w.ws_apply("mail.deliver", {"from": c.get("email", f"{npc}@vantleaf.com"),
                                                    "to": [self.me.get("mail", "oncall@vantleaf.com")],
                                                    "subject": subj if subj.lower().startswith("re:") else f"Re: {subj}",
-                                                   "body": text, "untrusted": bool(c.get("external"))}, t)
+                                                   "body": text, "untrusted": bool(c.get("external")),
+                                                   **({"in_reply_to": msg["in_reply_to"]} if msg.get("in_reply_to")
+                                                      else {})}, t)
         else:
             body = f"@{self.me.get('chat', 'sre-primary')} {text}" if mention and "@" not in text[:1] else text
             args = {"channel": msg.get("channel") or "#inc-4452", "user": user, "text": body}

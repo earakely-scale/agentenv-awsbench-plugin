@@ -308,3 +308,38 @@ def test_mail_resolved_carries_the_sent_subject(ws):
     assert res["subject"] == "Re: Checkout failing"
     _, res = mail.send(ws, BOX, later(ws), ["owen.gallagher@vantleaf.com"], "ETA", "x")
     assert res["subject"] == "ETA"
+
+
+def test_link_types_mirror_as_their_inverse(ws):
+    """R11-opus-1 linked OPS-4452 to PLAT-412 'caused by'; PLAT-412 must read 'causes', not 'caused by'."""
+    for typ, back in [("caused by", "causes"), ("caused-by", "causes"), ("blocked by", "blocks"),
+                      ("frobnicates", "relates to"), ("Related", "relates to")]:
+        tickets.link(ws, ME, later(ws), "OPS-4452", "PLAT-412", typ)
+        last = tickets.get(ws, ME, ws.clock(), "PLAT-412")["issue"]["links"][-1]
+        assert (last["type"], last["target"]) == (back, "OPS-4452")
+
+
+CALLUM = "callum.reyes@harborpinegoods.example"
+SUBJECT = "Checkout failing during our sale - is Vantleaf down?"
+
+
+def test_mail_replies_join_the_thread_they_answer(ws):
+    """R11-opus-4's mail: Owen's auto-reply answers the agent's forward, and Callum's follow-up his first mail."""
+    first = apply(ws, "mail.deliver", {"from": CALLUM, "to": [BOX], "subject": SUBJECT, "body": (
+        "Hi Vantleaf on-call,\n\nOur storefront checkout has been failing with \"payment could not be completed\" "
+        "since about 2:30 ET")}, "03:02:01")["id"]
+    fwd, _ = mail.forward(ws, BOX, later(ws), first, ["nadia.petrova@vantleaf.com", "owen.gallagher@vantleaf.com"],
+                          "Merchant inquiry related to SEV1 OPS-4452 (checkout errors since 02:32 ET). Please handle.")
+    auto = apply(ws, "mail.deliver", {"from": "owen.gallagher@vantleaf.com", "to": [BOX], "subject": "Re: Fwd: " + SUBJECT,
+                                      "body": "(auto-reply) I'm offline until 08:00 ET."}, "03:04:17")["id"]
+    follow = apply(ws, "mail.deliver", {"from": CALLUM, "to": [BOX], "subject": "Re: " + SUBJECT, "body": (
+        "Still nothing from you? Our early-access sale ends at 4:00 ET. Please reply with what happened and when it "
+        "will be fixed.\n\nCallum")}, "03:40:08")["id"]
+    msg = {m: ws.store.get("mail.message", m) for m in (auto, follow)}
+    assert (msg[auto]["in_reply_to"], msg[auto]["thread"]) == (fwd["sent"]["id"], fwd["sent"]["thread"])
+    assert (msg[follow]["in_reply_to"], msg[follow]["thread"]) == (first, first)
+    rca = apply(ws, "mail.deliver", {"from": CALLUM, "to": [BOX], "subject": "Re: Checkout failing during our sale",
+                                     "body": "Thanks for answering."}, None)["id"]
+    assert ws.store.get("mail.message", rca)["thread"] == first
+    fresh = apply(ws, "mail.deliver", {"from": CALLUM, "to": [BOX], "subject": "Re: something else", "body": "x"}, None)
+    assert ws.store.get("mail.message", fresh["id"])["thread"] == fresh["id"]

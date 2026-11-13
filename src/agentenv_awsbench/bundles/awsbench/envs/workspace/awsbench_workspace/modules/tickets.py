@@ -170,6 +170,14 @@ def transition(ws: Workspace, actor: str, t: datetime, key: str, status: str, co
 INVERSE = {"relates to": "relates to", "blocks": "is blocked by", "causes": "is caused by", "fixes": "is fixed by",
            "duplicates": "is duplicated by", "clones": "is cloned by", "implements": "is implemented by"}
 INVERSE |= {v: k for k, v in INVERSE.items()}
+ALIAS = {"relates": "relates to", "related": "relates to", "related to": "relates to", "duplicate of": "duplicates"}
+
+
+def _canon(type: str) -> str:
+    """A link type as a tracker names it: 'caused-by' and 'caused by' are 'is caused by'."""
+    t = " ".join(re.sub(r"[-_]", " ", type).lower().split())
+    t = ALIAS.get(t, t)
+    return t if t in INVERSE or not t.endswith(" by") or t.startswith("is ") else f"is {t}"
 
 
 def _add_link(ws: Workspace, issue: dict, type: str, target: str, actor: str, t: datetime) -> None:
@@ -185,7 +193,7 @@ def link(ws: Workspace, actor: str, t: datetime, key: str, target: str, type: st
     other = _issue(ws, target) if re.fullmatch(r"[A-Za-z]+-\d+", target.strip()) else None
     _add_link(ws, issue, type, other["key"] if other else target, actor, t)
     if other and other["key"] != issue["key"]:
-        _add_link(ws, other, INVERSE.get(type.strip().lower(), type), issue["key"], actor, t)
+        _add_link(ws, other, INVERSE.get(_canon(type), "relates to"), issue["key"], actor, t)
     return {"ticket": issue["key"], "links": issue["links"]}, _resolved(issue, ["links"])
 
 

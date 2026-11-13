@@ -331,10 +331,10 @@ def test_grace_ip_list_needs_the_word_ips(world):
 def test_mail_forward_reply_keeps_the_subject(world):
     world.observe({"t": at("03:13:00"), "tool": "mail_forward", "role": "sre-primary", "server": "workspace",
                    "args": {"id": "mail-1", "to": ["owen.gallagher@vantleaf.com"], "note": "merchant inquiry"},
-                   "resolved": {"recipients": ["owen.gallagher@vantleaf.com"], "subject": "Fwd: X"}})
+                   "resolved": {"recipients": ["owen.gallagher@vantleaf.com"], "subject": "Fwd: X", "message": "mail-2"}})
     world.advance_to(at("03:20:00"))
     mails = [o[1] for o in world.ws.ops if o[0] == "mail.deliver" and o[1]["from"].startswith("owen.gallagher")]
-    assert [m["subject"] for m in mails] == ["Re: Fwd: X"]
+    assert [(m["subject"], m["in_reply_to"]) for m in mails] == [("Re: Fwd: X", "mail-2")]
 
 
 class RealWs:

@@ -306,7 +306,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
 
     @tool(structured_output=False)
     async def tickets_link(self, ctx: ToolContext, key: str, target: str, type: str = "relates to") -> str:
-        """Link a ticket to another ticket key or to a URL/reference."""
+        """Link a ticket to another ticket key or to a URL/reference. type: relates to (default), blocks, is blocked
+        by, causes, is caused by, duplicates, is duplicated by, fixes, is fixed by."""
         return await self._call(ctx, "tickets_link", locals(),
                                 lambda a, t: tickets.link(self.ws, a, t, key, target, type))
 
