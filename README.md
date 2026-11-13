@@ -78,7 +78,26 @@ What's measured, on an x86_64 Linux host with agentenv-framework 0.9.1521:
 | Restoring without shedding the herd | fails the storm check |
 | Claiming resolved early | capped at 0.4 |
 
-Claude Code runs end to end.
+Each scripted mode scores the same on fresh envs every time. The physics is deterministic per seed.
+
+Agent runs: Claude Code with the solver's built-in tools off, through a LiteLLM endpoint.
+
+| Model | D12 | Pass | Calls | Model cost |
+|---|---|---|---|---|
+| Claude Opus 5.5 | 0.97 | yes | 145 | $2.62 |
+| Claude Sonnet 5.5 | 0.91 | yes | 115 | $0.75 |
+
+These are single runs on the latest build. Earlier builds had NPC and grader bugs that the runs found and that are now
+fixed. With those builds, the same models scored 0.40 and 0.74.
+
+**Open work:**
+- **Calibration.** T01 is meant to sit near 10–18% frontier pass, and both models pass today. The levers:
+  - make shedding late cost more (C6 tolerates up to 20 min of collapse);
+  - tighten the approval and comms process;
+  - give the colleagues more pressure.
+- **NPC request matching** is a deterministic keyword classifier. It still needs a consistency suite over many phrasings.
+- **The C11 handoff judge is noisy.** It decides about 6 points.
+- **Packaging.** The task variants (scripted, train, template) and the refcheck driver are not built yet.
 
 ## License
 
