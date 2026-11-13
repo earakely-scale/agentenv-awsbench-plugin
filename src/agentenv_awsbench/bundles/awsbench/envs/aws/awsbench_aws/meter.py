@@ -27,6 +27,7 @@ READ_SUFFIXES = ("_get", "_read", "_search", "_history", "_log", "_oncall")
 READ_OP = re.compile(r"^(Describe|Get|List|Lookup|BatchGet|Scan|Query|Search|Filter|Test|Head|Ls)")
 BROAD_OPS = {("logs", "StartQuery"), ("logs", "GetQueryResults")}
 WAKE_KINDS = frozenset({"dm", "mention", "page", "email", "job_done"})
+WORLD_KINDS = frozenset({"job_done"})  # inbound items the world makes itself; workspace ones reach the inbox directly
 DEFAULT_ROLES = ("sre-primary",)
 CLI_VALUED = {"--profile", "--region", "--endpoint-url", "--output", "--query", "--ca-bundle", "--color",
               "--cli-read-timeout", "--cli-connect-timeout"}
@@ -309,12 +310,14 @@ class Meter:
             reached = parse_time(res.get("now") or t)
             if reached.microsecond:
                 rest = await asyncio.to_thread(self._world, self.world.advance_to, whole(reached), None)
-                res = {**res, "fired": list(res.get("fired") or []) + list(rest.get("fired") or [])}
+                res = {**res, "fired": list(res.get("fired") or []) + list(rest.get("fired") or []),
+                       "delivered": list(res.get("delivered") or []) + list(rest.get("delivered") or [])}
             res["early"] = reached < t
             reached = whole(reached)
         else:
             res, reached = {"now": t, "woke": [], "fired": [], "early": False}, t
         self.inbox.extend(res.get("woke"))
+        self.inbox.extend([d for d in res.get("delivered") or [] if d.get("kind") in WORLD_KINDS])
         if reached > self.now:
             self.now = reached
             await self.clock.advance(reached)

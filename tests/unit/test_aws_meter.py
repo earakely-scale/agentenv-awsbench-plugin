@@ -283,3 +283,36 @@ def test_t01_charges_epctl_help_as_a_read():
     for command in ("epctl apply --gen 48199 --help", "epctl resume all -h", "epctl help set-applied", "epctl --help"):
         assert classify("fleet_exec", {"command": command}, overrides, 1) == "point_read", command
     assert classify("fleet_exec", {"command": "epctl apply --gen 48199 --reason help"}, overrides, 1) == "write"
+
+
+class JobWorld(FakeWorld):
+    """A world whose job_done comes back in `delivered`, and in `woke` only when an advance stops on it, as the real
+    worlds' do."""
+
+    def advance_to(self, t, wake=None):
+        self.advances.append((t, wake))
+        out = []
+        while self.deliveries and self.deliveries[0][0] <= t:
+            at, item = self.deliveries.pop(0)
+            out.append(item)
+            if wake and item["kind"] in wake:
+                self.now = at
+                return {"now": at, "woke": out, "fired": [], "delivered": out}
+        self.now = t
+        return {"now": t, "woke": [], "fired": [], "delivered": out}
+
+
+JOB = {"t": "02:40:10 ET", "kind": "job_done", "from": "fleet", "where": "job-0001", "preview": "restart done"}
+
+
+async def test_a_job_done_inside_a_charged_call_reaches_the_banner_once():
+    m = meter(world=JobWorld([(START + timedelta(seconds=10), JOB)]))
+    b = await m.begin("aws", "fleet_job_status", {"job_id": "job-0001"}, "sre-primary")
+    assert (await m.end(b["call_no"], "fleet_job_status", {}, None, {}))["banner"]["new"] == [JOB]
+    b = await m.begin("aws", "fleet_job_status", {"job_id": "job-0001"}, "sre-primary")
+    assert (await m.end(b["call_no"], "fleet_job_status", {}, None, {}))["banner"]["new"] == []
+
+
+async def test_a_job_done_that_wakes_a_wait_is_listed_once():
+    out = await meter(world=JobWorld([(START + timedelta(minutes=2), JOB)])).wait(START + timedelta(minutes=10))
+    assert out["inbound"] == [JOB] and out["woke_early"]

@@ -97,6 +97,11 @@ RestartSec=5
 WantedBy=multi-user.target
 """
 MEM_TOTAL = 15690
+PS_FIELDS = {"pid": "PID", "user": "USER", "nlwp": "NLWP", "rss": "RSS", "comm": "COMMAND", "cmd": "CMD",
+             "args": "COMMAND"}
+UNIT_DESC = "streamroute.service - streamroute (vl-payment-events -> ledger cells)"
+BOOTSTRAP = "INFO [bootstrap] bootstrap source={bootstrap_source} limit_nproc={limit_nproc} xmx={xmx}"
+BUILD_OK = "INFO [shardmap-manager] c.v.streamroute.shardmap.ShardMapBuilder - build complete: 8/8 workers started"
 
 
 class Commands:
@@ -134,6 +139,11 @@ class Commands:
                 for h in sorted(self.m.fleet.hosts.values(), key=lambda h: h.name) if not h.terminated]
         rows += [{"name": n, "fleet": a["fleet"], "az": a["az"], "instance_id": "i-0c3a9e2b7d14f5068", "ip": a["ip"],
                   "state": "running", "launched": "2026-08-04T10:22:07-04:00"} for n, a in ADMIN.items()]
+        fleets, zones = sorted({r["fleet"] for r in rows}), sorted({r["az"] for r in rows})
+        if fleet and fleet not in fleets:
+            raise ValueError(f"unknown fleet {fleet!r}; fleets: {', '.join(fleets)}")
+        if az and az not in zones:
+            raise ValueError(f"unknown availability zone {az!r}; zones: {', '.join(zones)}")
         return [r for r in rows if (not fleet or r["fleet"] == fleet) and (not az or r["az"] == az)]
 
     def inspect(self, name: str, now: float) -> dict:
@@ -185,8 +195,9 @@ class Commands:
             return self.srctl(h, args, now)
         if cmd == "ulimit" and args in (["-a"], ["-u"], []):
             return (ULIMIT_A if args == ["-a"] else "62760\n" if args == ["-u"] else "unlimited\n"), 0
-        if cmd == "cat" and len(args) == 1:
-            return self.cat(h, args[0], now)
+        if cmd == "cat" and (paths := [a for a in args if not a.startswith("-")]):
+            outs = [self.cat(h, path, now) for path in paths]
+            return "".join(o for o, _ in outs), max(c for _, c in outs)
         if cmd == "systemctl":
             return self.systemctl(h, args, caller, now)
         if cmd == "journalctl":
@@ -196,7 +207,7 @@ class Commands:
         if cmd in ("pgrep", "pidof"):
             return ("2214\n", 0) if h.proc and ("java" in args) else ("", 1)
         if cmd == "ps":
-            return self.ps(h), 0
+            return self.ps(h, args)
         if cmd == "free":
             used = round(MEM_TOTAL * self.mem_pct(h) / 100)
             return (f"              total        used        free      shared  buff/cache   available\n"
@@ -320,19 +331,43 @@ class Commands:
                     f"Uid:\t996\t996\t996\t996\nVmRSS:\t{rss} kB\nThreads:\t{threads}\n"), 0
         return f"cat: {path}: No such file or directory\n", 1
 
-    def ps(self, h) -> str:
-        rows = ["    PID USER         NLWP   RSS CMD", "      1 root            1 11264 /sbin/init",
-                "    742 root            4 36864 /usr/sbin/unbound -d",
-                "   1187 streamroute    22 49152 /usr/local/bin/sr-metrics-agent --config /etc/sr-metrics-agent.yaml"]
+    def ps(self, h, args: list[str]) -> tuple[str, int]:
+        """ps over the host's processes: -e/-A/-f/aux, -u USER, -p PID, -C NAME, -o FIELDS and --no-headers."""
+        procs = [{"pid": 1, "user": "root", "nlwp": 1, "rss": 11264, "cmd": "/sbin/init"},
+                 {"pid": 742, "user": "root", "nlwp": 4, "rss": 36864, "cmd": "/usr/sbin/unbound -d"},
+                 {"pid": 1187, "user": "streamroute", "nlwp": 22, "rss": 49152,
+                  "cmd": "/usr/local/bin/sr-metrics-agent --config /etc/sr-metrics-agent.yaml"}]
         if h.proc:
-            rows.append(f"   2214 streamroute {h.jvm_threads(self.m.fleet.p):>4} {self.rss_mib(h) * 1024} "
-                        f"/usr/lib/jvm/java-17-openjdk-amd64/bin/java -Xmx{h.xmx} -XX:+UseG1GC -Xss1m "
-                        "-jar /opt/streamroute/streamroute-2.3.9.jar")
-        return "\n".join(rows) + "\n"
+            procs.append({"pid": 2214, "user": "streamroute", "nlwp": h.jvm_threads(self.m.fleet.p),
+                          "rss": self.rss_mib(h) * 1024, "cmd": f"/usr/lib/jvm/java-17-openjdk-amd64/bin/java "
+                          f"-Xmx{h.xmx} -XX:+UseG1GC -Xss1m -jar /opt/streamroute/streamroute-2.3.9.jar"})
+        for p in procs:
+            p["args"], p["comm"] = p["cmd"], p["cmd"].split()[0].rsplit("/", 1)[-1]
+        fields, header, it = ["pid", "user", "nlwp", "rss", "cmd"], True, iter(args)
+        for a in it:
+            if a in ("--no-headers", "--no-heading", "-h", "h"):
+                header = False
+            elif a in ("-o", "-eo", "o", "--format"):
+                fields = [f.strip().rstrip("=") for f in next(it, "").split(",") if f.strip()]
+            elif a in ("-u", "-U", "--user", "-p", "--pid", "-C"):
+                key, vals = {"-p": "pid", "--pid": "pid", "-C": "comm"}.get(a, "user"), next(it, "").split(",")
+                procs = [p for p in procs if str(p[key]) in vals]
+            elif not (a.lstrip("-") and set(a.lstrip("-")) <= set("eAfFlaux")):
+                return f"ps: unsupported option {a}\n", 1
+        if bad := [f for f in fields if f not in PS_FIELDS]:
+            return f'ps: unknown user-defined format specifier "{bad[0]}"\n', 1
+        width = {"pid": 7, "user": -11, "nlwp": 4, "rss": 5}
+
+        def row(vals: dict) -> str:
+            return " ".join(f"{vals[f]:>{width[f]}}" if width.get(f, 0) > 0 else f"{vals[f]:<{-width[f]}}"
+                            if f in width else str(vals[f]) for f in fields).rstrip()
+        rows = ([row(PS_FIELDS)] if header else []) + [row(p) for p in procs]
+        return "".join(r + "\n" for r in rows), 0 if procs else 1
 
     def systemctl(self, h, args: list[str], caller: dict, now: float) -> tuple[str, int]:
         verb = args[0] if args else "status"
-        unit = next((a for a in args[1:] if not a.startswith("-")), "streamroute").removesuffix(".service")
+        pos = [a for i, a in enumerate(args) if i and not a.startswith("-") and args[i - 1] not in ("-p", "--property")]
+        unit = (pos[0] if pos else "streamroute").removesuffix(".service")
         if unit not in ("streamroute", "sr-metrics-agent", "sr-apply-limits"):
             return f"Unit {unit}.service could not be found.\n", 4
         if verb in ("restart", "start", "stop") and unit == "streamroute":
@@ -348,6 +383,8 @@ class Commands:
             return "", 0
         if verb == "show":
             props = {"LimitNPROC": h.limit, "LimitNPROCSoft": h.limit, "LimitNOFILE": 65536, "TasksMax": 18828,
+                     "TasksCurrent": h.jvm_threads(self.m.fleet.p) if h.proc else "[not set]",
+                     "MemoryCurrent": self.rss_mib(h) * 1048576 if h.proc else "[not set]", "NRestarts": 0,
                      "MemoryMax": "infinity", "MainPID": 2214 if h.proc else 0,
                      "ActiveState": "active" if h.proc else "inactive", "SubState": "running" if h.proc else "dead",
                      "User": "streamroute"}
@@ -384,10 +421,27 @@ class Commands:
         groups = {"streamroute": ("/vl/prod/streamroute",)}.get(unit)
         if groups is None:
             return "-- No entries --\n", 0
-        lines = [(t, line) for t, g, host, line in self.m.fleet.logs if host == h.name and g in groups and t <= now]
-        tag = f"{h.name} streamroute[2214]:"
-        return "".join(f"{datetime.fromtimestamp(t, self.m.tz).strftime('%b %d %H:%M:%S')} {tag} {line}\n"
-                       for t, line in lines[-n:]) or "-- No entries --\n", 0
+        tag = "streamroute[2214]:"
+        lines = [(t, tag, line) for t, g, host, line in self.m.fleet.logs if host == h.name and g in groups and t <= now]
+        if unit == "streamroute":
+            lines = sorted(lines + self.lifecycle(h, now), key=lambda x: x[0])
+        return "".join(f"{datetime.fromtimestamp(t, self.m.tz).strftime('%b %d %H:%M:%S')} {h.name} {who} {line}\n"
+                       for t, who, line in lines[-n:]) or "-- No entries --\n", 0
+
+    def lifecycle(self, h, now: float) -> list[tuple[float, str, str]]:
+        """The unit's restarts and its process's way back to ROUTING, as systemd and streamroute log them."""
+        f, out = self.m.fleet, []
+        for r in (r for r in f.restarts if r["host"] == h.name and r["t"] <= now):
+            out.append((r["t"], "systemd[1]:", f"Stopping {UNIT_DESC}..."))
+            if (up := r["t"] + f.p["stop_s"]) <= now:
+                out += [(up, "systemd[1]:", "streamroute.service: Deactivated successfully."),
+                        (up, "systemd[1]:", f"Started {UNIT_DESC}."),
+                        (up, "streamroute[2214]:", BOOTSTRAP.format(**r))]
+        for t, g, host, line in f.logs:
+            if host == h.name and g == "/vl/prod/srcoord" and t <= now and " ROUTING " in f" {line} ":
+                out += [(t, "streamroute[2214]:", BUILD_OK),
+                        (t, "streamroute[2214]:", f"INFO [srcoord] {line.removeprefix(h.name + ' ')}")]
+        return out
 
     def dmesg(self, h) -> str:
         oom = [k for k in self.m.fleet.oom_kills if k["host"] == h.name]

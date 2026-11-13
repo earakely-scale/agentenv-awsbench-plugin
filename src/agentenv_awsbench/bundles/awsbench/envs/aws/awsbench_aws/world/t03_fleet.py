@@ -47,6 +47,7 @@ class Host:
         "az",
         "boot_peer",
         "bootstrap_source",
+        "build_epoch",
         "build_until",
         "build_workers",
         "detached",
@@ -100,7 +101,7 @@ class Host:
         self.xmx, self.limit, self.pool, self.links, self.known, self.kver, self.next_learn = "6g", 1024, 0, 0, 0, -1, INF
         self.learn: dict[str, float] = {}
         self.link_retry, self.link_failures, self.boot_peer, self.epoch, self.last_error = 0.0, 0, None, None, None
-        self.routing_since = self.oom_at = None
+        self.routing_since = self.oom_at = self.build_epoch = None
         self.n_restarts, self.last_wait_log = 0, -INF
         self.standby = self.detached = self.protected = False
 
@@ -384,6 +385,7 @@ class Fleet:
                 h.state, h.workers_started = ROUTING, "8/8"
             else:
                 h.stuck, h.workers_started, h.last_error = True, f"{h.build_workers}/8", NATIVE_THREAD
+                h.build_epoch = self.epoch
                 self.log(te, "/vl/prod/streamroute", h.name, BUILD_FAIL.format(epoch=self.epoch, started=h.build_workers))
             h.build_workers = 0
         if t >= h.next_rebuild:
@@ -391,7 +393,7 @@ class Fleet:
             h.next_rebuild += p["rebuild_s"]
             if h.stuck:
                 self.log(te, "/vl/prod/streamroute", h.name, "INFO [shardmap-manager] ShardMapManager - rebuild "
-                                                             f"skipped: build already in progress (epoch {self.epoch})")
+                                                             f"skipped: build already in progress (epoch {h.build_epoch})")
             else:
                 h.build_until, h.build_workers = te + p["build_s"], max(0, min(p["build_workers"], rem))
         if h.stuck or h.state != ROUTING:
@@ -445,6 +447,7 @@ class Fleet:
                     h.oom_at = te + p["oom_after_s"]
             else:
                 h.stuck, h.phase, h.workers_started, h.last_error = True, "wedged", f"{workers}/8", NATIVE_THREAD
+                h.build_epoch = self.epoch
                 self.log(te, "/vl/prod/streamroute", h.name, BUILD_FAIL.format(epoch=self.epoch, started=workers))
         if h.state == WARMING and t - h.process_start > h.grace_s:
             self._eject(h, t, h.restart_cause or "world",

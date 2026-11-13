@@ -54,7 +54,8 @@ Port `world/mechanisms.yaml` + `world/rules.py` (calibration lines are acceptanc
   (stopping, jvm, bootstrap_wait, bootstrap, first_build, wedged, routing, ejected), `valid_until`, `last_success`,
   `next_rebuild` (seeded offset in [0, 1800) s), `stuck`, `build_until`, `process_start`, `bootstrap_source`,
   `grace_s`, `quarantined_until`, `restart_cause` (agent|world|launch), `workers_started`, `epoch`, `xmx`, `limit`.
-- `fleet_list_hosts`: `[{name, fleet, az, instance_id, ip, state (srcoord), launched}]`.
+- `fleet_list_hosts`: `[{name, fleet, az, instance_id, ip, state (srcoord), launched}]`; an unknown fleet or AZ is a
+  `ValueError` naming the valid ones, which the aws server returns as `{hosts: [], error}`.
 - `fleet_inspect_host` (no thread counts, by design): `srcoord_state, uptime, cpu_pct, load1, rss, heap_used_max
   ("2.4 / 6.0 GiB"), mem_used_pct, mem_available_mib, open_fds, peers_known_connected ("131 / 127"), shard_map {state,
   epoch, last_success, last_error}, leases_held`. Expected opening values: `overlay/hosts/hosts/sr-b-017.yaml`,
@@ -110,9 +111,11 @@ The emulator's Auto Scaling is not trusted (stubs, wall-clock); `serve_aws("auto
 operation below from world state, shaped like botocore, validated like AWS (`ValidationError` text as AWS words it):
 - Reads: `DescribeAutoScalingGroups` (min/desired/max, Instances with LifecycleState/HealthStatus/AZ/LT version,
   SuspendedProcesses), `DescribeAutoScalingInstances`, `DescribeScheduledActions`, `DescribeScalingActivities`
-  (seeded PLAT-2291 launches + every world change), `DescribeInstanceRefreshes`.
+  (seeded PLAT-2291 launches + every world change, one activity per instance as AWS writes them; a recurring
+  action's `StartTime`/`Time` is its next run), `DescribeInstanceRefreshes`.
 - Writes: `UpdateAutoScalingGroup`, `SetDesiredCapacity` (desired must lie in [min, max]),
-  `TerminateInstanceInAutoScalingGroup` (`ShouldDecrementDesiredCapacity`; refuse below min like AWS),
+  `TerminateInstanceInAutoScalingGroup` (by instance id alone, as AWS takes it; `ShouldDecrementDesiredCapacity`;
+  refuse below min like AWS),
   `DeleteScheduledAction`, `BatchDeleteScheduledAction`, `PutScheduledUpdateGroupAction`,
   `BatchPutScheduledUpdateGroupAction`, `SuspendProcesses`, `ResumeProcesses`, `EnterStandby`, `ExitStandby`,
   `DetachInstances`, `SetInstanceProtection`, `StartInstanceRefresh`, `CancelInstanceRefresh`.
@@ -182,9 +185,10 @@ functions (no Jinja dependency), values live from mechanics. One command per cal
   streamroute java`, `pidof java` and `ps -o pid,user,nlwp,rss,cmd -u streamroute` (NLWP 22 + 1002 = 1024) give pids.
 - `systemctl status|show|cat streamroute|sr-metrics-agent|sr-apply-limits`, `systemctl restart streamroute` (same
   physics as `srctl restart` but without sr-apply-limits, so a new limit_nproc is not rendered), `journalctl -u
-  streamroute [-n N] [--since ...]` (same lines as the host's `/vl/prod/streamroute` stream, with the sr-b-017
-  overrides), `journalctl -k` / `dmesg` (boot lines; OOM lines only after a kill), `free -m`, `cat /proc/meminfo`,
-  `sysctl kernel.threads-max kernel.pid_max`, `uptime`, `hostname`, `date`, `ps`, `cat` of the 4 allowlisted files
+  streamroute [-n N] [--since ...]` (the host's `/vl/prod/streamroute` stream, with the sr-b-017 overrides, merged
+  with the unit's systemd stop/start lines and, from srcoord, its way back to ROUTING), `journalctl -k` / `dmesg` (boot lines; OOM lines only after a kill), `free -m`, `cat /proc/meminfo`,
+  `sysctl kernel.threads-max kernel.pid_max`, `uptime`, `hostname`, `date`, `ps` (`-e/-f/aux`, `-u`, `-p`, `-C`,
+  `-o pid,user,nlwp,rss,comm,cmd,args`, `--no-headers`; any other option is refused), `cat` of the 4 allowlisted files
   (`/etc/streamroute/streamroute.conf`, `10-limits.conf`, `/usr/local/bin/sr-apply-limits`, `/etc/sr-metrics-agent.yaml`),
   `curl -s localhost:8081/healthz|/admin/threadpools|/admin/peers`.
 - Limit changes: editing files on hosts is not possible (no write commands). The only lever is SSM
@@ -320,3 +324,6 @@ plus `timeline`, `approvals`, `world_flags`, `workspace_errors` from `MechWorld`
 11. Our `fleet_restart` waits for each wave to be ready, so a bounce with it stalls on its first wave. The driver's
     bounce (TR2) restarts every host at once with `srctl restart`, then restarts the hosts left out after their
     quarantine, as the design's replay does.
+12. The design's account 444444444444 (the prompt, PG-77031) is the scenario's `account`; the emulator and the world
+    keep `ACCOUNT` inside, and the aws server shows the scenario's id in every result and maps it back in what the agent
+    sends (CONTRACTS, "Exports").

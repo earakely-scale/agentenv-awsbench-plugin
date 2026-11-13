@@ -33,6 +33,7 @@ from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from .account import Shown
 from .actionlog import ActionLog
 from .bridge import Bridge, CommandError, Faults, WallTimes, WorldPort, parse_command, split_globals
 from .cloudtrail import seed_trail
@@ -53,6 +54,7 @@ NO_SCENARIO = ("AwsBench has no scenario loaded: the aws server restarted or was
                "Nothing more can be done in this environment; reply DONE.")
 SWEEP_TABLES = ("endpointd-plans",)
 FLEET_COMMANDS = ("fleet_exec", "fleet_restart")
+EXPORT_MAX_CHARS = 20_000
 _deser = TypeDeserializer()
 
 
@@ -276,6 +278,7 @@ class AwsServer(AgentEnvEnvironment):
         self.scenario: dict | None = None
         self.scenario_name: str | None = None
         self.seed, self.mode = "0", "eval"
+        self.shown = Shown()
         self.start_state: dict | None = None
         self.warnings: list[str] = []
         now = datetime.now(UTC).replace(microsecond=0)
@@ -343,17 +346,18 @@ class AwsServer(AgentEnvEnvironment):
         the clock is the host's, which an agent must not mistake for the incident."""
         if self.scenario is not None or not self.meter.charged(role):
             return None
-        return {"error": NO_SCENARIO, "_clock": self.meter.banner(drain=False)}
+        return {"_clock": self.meter.banner(drain=False), "error": NO_SCENARIO}
 
     async def _metered(self, ctx: ToolContext | None, tool_name: str, args: dict, work, *, hosts: int | None = None,
                        cost_class: str | None = None, logged: bool = False) -> str:
         role = _role(ctx)
         if refused := self._unconfigured(role) or unrunnable(tool_name, args):
-            return _json({**refused, "_clock": self.meter.banner(drain=self.meter.charged(role))})
+            return _json({"_clock": self.meter.banner(drain=self.meter.charged(role)),
+                          **{k: v for k, v in refused.items() if k != "_clock"}})
         meter = self.meter
         began = await meter.begin("aws", tool_name, args, role, hosts=hosts, cost_class=cost_class)
         if not began["ok"]:
-            return _json({"error": began["refuse"], "_clock": meter.banner(drain=meter.charged(role))})
+            return _json({"_clock": meter.banner(drain=meter.charged(role)), "error": began["refuse"]})
         call = {"call_no": began["call_no"], "t": meter.now, "t_issue": meter.now, "tool": tool_name, "role": role}
         result: Any = None
         try:
@@ -374,7 +378,7 @@ class AwsServer(AgentEnvEnvironment):
                                     {"logged": logged, "error": summary, "exit_code": exit_code},
                                     drain=meter.charged(role))
         out = result if isinstance(result, dict) else {"result": result}
-        return _json({**out, "_clock": ended["banner"]})
+        return self.shown.out(_json({"_clock": ended["banner"], **out}))
 
     def _need_world(self) -> Any:
         if self.world is None:
@@ -389,6 +393,8 @@ class AwsServer(AgentEnvEnvironment):
           structured_output=False)
     async def aws_cli(self, command: Annotated[str, Field(description="The full command, starting with `aws`.")],
                       ctx: ToolContext) -> str:
+        command = self.shown.inside(command)
+
         async def work(call: dict) -> dict:
             out = await asyncio.to_thread(self.bridge.run_cli, command, role=_role(ctx), call=call)
             try:
@@ -403,10 +409,11 @@ class AwsServer(AgentEnvEnvironment):
                       "`ListResourceRecordSets`) and its parameters as the API names them.", structured_output=False)
     async def aws_api(self, service: str, operation: str, ctx: ToolContext, params: dict | None = None,
                       profile: str | None = None, region: str | None = None) -> str:
-        args = {"service": service, "operation": operation, "params": params or {}}
+        params = self.shown.inside(params or {})
+        args = {"service": service, "operation": operation, "params": params}
 
         async def work(call: dict) -> dict:
-            return await asyncio.to_thread(self.bridge.call_api, service, operation, params or {}, role=_role(ctx),
+            return await asyncio.to_thread(self.bridge.call_api, service, operation, params, role=_role(ctx),
                                            profile=profile, region=region, call=call)
         return await self._metered(ctx, "aws_api", args, work, logged=True)
 
@@ -426,6 +433,7 @@ class AwsServer(AgentEnvEnvironment):
                         log_groups: list[str] | None = None, start: str | None = None, end: str | None = None,
                         limit: int = 100, lookup_attributes: dict | list[dict] | None = None,
                         region: str | None = None) -> str:
+        query, lookup_attributes = self.shown.inside(query), self.shown.inside(lookup_attributes)
         args = {"source": source, "query": query, "log_groups": log_groups, "start": start, "end": end,
                 "limit": limit, "lookup_attributes": lookup_attributes}
 
@@ -470,12 +478,21 @@ class AwsServer(AgentEnvEnvironment):
                     "statistics": out.get("statistics")}
         return await self._metered(ctx, "aws_query", args, work, logged=True)
 
-    @tool(description="Export a DynamoDB table: every item (a scan), as plain JSON.", structured_output=False)
-    async def aws_table_export(self, table: str, ctx: ToolContext, limit: int = 1000, region: str | None = None) -> str:
+    @tool(description="Export a DynamoDB table as plain JSON (a scan). One answer holds at most about 20,000 "
+                      "characters of items: when `truncated` is true, call again with `offset` = `next_offset`. "
+                      "`attributes` keeps only the named attributes, e.g. leaseKey, leaseOwner, checkpoint.",
+          structured_output=False)
+    async def aws_table_export(self, table: str, ctx: ToolContext, limit: int = 1000, offset: int = 0,
+                               attributes: list[str] | str | None = None, region: str | None = None) -> str:
+        keep = [a.strip() for a in (attributes.split(",") if isinstance(attributes, str) else attributes or [])
+                if a.strip()]
+        offset, limit = max(0, int(offset)), max(1, int(limit))
+
         async def work(call: dict) -> dict:
             items: list = []
             params: dict = {"TableName": table}
-            while len(items) < limit:
+            more = False
+            while len(items) < offset + limit + 1:
                 out = await asyncio.to_thread(self.bridge.call_api, "dynamodb", "Scan", params, role=_role(ctx),
                                               region=region, call=call)
                 if "error" in out:
@@ -484,17 +501,33 @@ class AwsServer(AgentEnvEnvironment):
                 if not out.get("LastEvaluatedKey"):
                     break
                 params["ExclusiveStartKey"] = out["LastEvaluatedKey"]
-            return {"table": table, "count": len(items[:limit]), "items": items[:limit]}
-        return await self._metered(ctx, "aws_table_export", {"table": table, "limit": limit}, work, logged=True)
+            else:
+                more = True
+            window = items[offset:offset + limit]
+            page: list = []
+            for item in window:
+                item = {k: v for k, v in item.items() if k in keep} if keep else item
+                if page and len(_json(page + [item])) > EXPORT_MAX_CHARS:
+                    break
+                page.append(item)
+            truncated = more or offset + len(page) < len(items)
+            return {"table": table, "offset": offset, "count": len(page), "items": page, "truncated": truncated,
+                    **({"next_offset": offset + len(page)} if truncated else {})}
+        return await self._metered(ctx, "aws_table_export", {"table": table, "limit": limit, "offset": offset,
+                                                             "attributes": keep or None}, work, logged=True)
 
     @tool(description="List the hosts of the fleet, optionally of one fleet group or availability zone.",
           structured_output=False)
     async def fleet_list_hosts(self, ctx: ToolContext, fleet: str | None = None, az: str | None = None) -> str:
         async def work(call: dict) -> dict:
-            return {"hosts": await self._world_call(self._need_world().fleet_list_hosts, fleet, az)}
+            try:
+                return {"hosts": await self._world_call(self._need_world().fleet_list_hosts, fleet, az)}
+            except ValueError as e:
+                return {"hosts": [], "error": str(e)}
         return await self._metered(ctx, "fleet_list_hosts", {"fleet": fleet, "az": az}, work)
 
-    @tool(description="Inspect one host: its state, services, resolver cache and recent log lines.",
+    @tool(description="Inspect one host: its state and what its host agent reports (the fields depend on the host's "
+                      "role).",
           structured_output=False)
     async def fleet_inspect_host(self, host: str, ctx: ToolContext) -> str:
         async def work(call: dict) -> dict:
@@ -550,7 +583,7 @@ class AwsServer(AgentEnvEnvironment):
         args = {"minutes": minutes, "until": until}
         began = await meter.begin("aws", "wait", args, role, cost_class="free")
         if not began["ok"]:
-            return _json({"error": began["refuse"], "_clock": meter.banner(drain=meter.charged(role))})
+            return _json({"_clock": meter.banner(drain=meter.charged(role)), "error": began["refuse"]})
         result: dict
         try:
             target = self._wait_target(minutes, until)
@@ -560,7 +593,7 @@ class AwsServer(AgentEnvEnvironment):
             result = {"error": str(e)}
         finally:
             ended = await meter.end(began["call_no"], "wait", args, None, {"error": None}, drain=False)
-        return _json({**result, "_clock": ended["banner"]})
+        return _json({"_clock": ended["banner"], **result})
 
     def _wait_target(self, minutes: float | None, until: str | None) -> datetime:
         now = self.meter.now
@@ -581,7 +614,8 @@ class AwsServer(AgentEnvEnvironment):
           structured_output=False)
     async def awsbench_control(self, op: str, ctx: ToolContext, max_s: float = 600, reason: str | None = None) -> str:
         if _role(ctx) not in (HARNESS, None):
-            return _json({"error": "awsbench_control is for the harness only", "_clock": self.meter.banner(drain=False)})
+            return _json({"_clock": self.meter.banner(drain=False),
+                          "error": "awsbench_control is for the harness only"})
         meter = self.meter
         if op == "status":
             out: dict = meter.status()
@@ -601,7 +635,7 @@ class AwsServer(AgentEnvEnvironment):
                        "reason": reason_}
         else:
             out = {"error": f"unknown op {op!r}: status, end or turn_end"}
-        return _json({**out, "_clock": meter.banner(drain=False)})
+        return _json({"_clock": meter.banner(drain=False), **out})
 
     # extensions
 
@@ -640,6 +674,7 @@ class AwsServer(AgentEnvEnvironment):
         clock = self.clock
         self._clear()
         self.scenario, self.scenario_name, self.seed, self.mode = data, scenario, seed, mode
+        self.shown = Shown(data.get("account"))
         self.meter = Meter(cfg, clock=clock or LocalClock(), inbox=self.inbox, actionlog=self.actionlog,
                            world_lock=self.world_lock)
         self.bridge.profiles = profiles_of(data)

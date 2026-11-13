@@ -172,7 +172,7 @@ class WorkspaceEnv(AgentEnvEnvironment):
         role = ctx.role if ctx else None
         app = name.split("_", 1)[0]
         if self.ws.scenario is None and not self.standalone:
-            return _json({"error": NO_SCENARIO, "_clock": self._local_banner(self.ws.clock(), None)})
+            return _json({"_clock": self._local_banner(self.ws.clock(), None), "error": NO_SCENARIO})
         if self.ws.identities and not self.ws.role_known(role):
             return _json({"error": f"role {role!r} has no identity in this workspace "
                                    f"(roles: {', '.join(sorted(self.ws.identities))})"})
@@ -184,8 +184,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
             begin, note = await self._meter("begin", {"server": "workspace", "tool": name, "args": args,
                                                       "role": role})
             if begin is not None and not begin.get("ok", False):
-                return _json({"error": begin.get("refuse") or "refused by the meter",
-                              "_clock": begin.get("banner") or self._local_banner(self.ws.clock(), None)})
+                return _json({"_clock": begin.get("banner") or self._local_banner(self.ws.clock(), None),
+                              "error": begin.get("refuse") or "refused by the meter"})
         if begin is not None:
             t = self.ws.at(self.ws.when(begin["t_exec"]))
         else:
@@ -212,7 +212,7 @@ class WorkspaceEnv(AgentEnvEnvironment):
             if isinstance(banner, dict) and "_clock" in banner:
                 banner = banner["_clock"]
             self.banner_seq = self.ws.store.seq
-        return _json({**result, "_clock": banner or self._local_banner(t, note)})
+        return _json({"_clock": banner or self._local_banner(t, note), **result})
 
     # chat
     @tool(structured_output=False)

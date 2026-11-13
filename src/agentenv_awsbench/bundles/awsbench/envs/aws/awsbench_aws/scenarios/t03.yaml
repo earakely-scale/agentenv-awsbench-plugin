@@ -4,6 +4,7 @@
 id: t03
 title: Thread Ceiling
 timezone: America/New_York
+account: '444444444444'   # vl-prod, as the prompt and PG-77031 name it; the aws server shows it for the emulator's
 start: '2026-11-16T08:15:00-05:00'
 window_end: '2026-11-16T13:00:00-05:00'
 horizon: '2026-11-16T16:15:00-05:00'

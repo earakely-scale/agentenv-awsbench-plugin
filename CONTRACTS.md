@@ -103,7 +103,7 @@ A call whose text can't run (an `aws_cli` command the CLI won't parse, a `fleet_
 run) is refused before the meter the same way, uncharged and uncounted; a command that runs and fails is charged.
 
 **Banner.** Every tool result of either server is a single JSON text block (`structured_output=False`). The top-level
-object carries `"_clock": {"now": "<HH:MM:SS ET>", "call": n, "calls_left": m, "new": [<inbound items since the last
+object carries, as its first key, `"_clock": {"now": "<HH:MM:SS ET>", "call": n, "calls_left": m, "new": [<inbound items since the last
 call>]}`. An inbound item is `{"t", "kind": "dm|mention|page|email|channel|job_done", "from", "where", "preview"}`.
 Only items addressed to the agent's identities appear.
 
@@ -240,7 +240,10 @@ times their items record (`applied_at` by `applied_by`, else `created_at` by the
 enactor step after the last apply, by the enactor of the newest generation. That cleanup first deletes, in Route 53, the
 records the deleted plan carries for a name an `applied#` pointer still names (T01: the six `g48177-*` ledger records
 enactor-b had upserted). A world write is logged at the world's time. Every account id, in CloudTrail and in the world's
-ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they agree with the ARNs the emulator returns.
+ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they agree with the ARNs the emulator returns. A scenario
+may declare its own `account` (T03: vl-prod's 444444444444); the aws server then shows that id in place of `ACCOUNT` in
+every tool result and maps it back to `ACCOUNT` in the arguments of `aws_cli`, `aws_api` and `aws_query`, so the agent
+sees one account and the exports keep `ACCOUNT`. T01 declares none.
 
 `exit_code` is set on the rows of `fleet_exec` and `fleet_restart`: the highest exit code over the hosts (1 when the
 selector named no host), and `error` says which hosts failed when it is non-zero, so a failed command is never read as a

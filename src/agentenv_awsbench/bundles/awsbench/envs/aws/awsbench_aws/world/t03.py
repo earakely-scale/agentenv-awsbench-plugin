@@ -105,7 +105,6 @@ class Mechanics:
             for n in range(1, 41):
                 self.fleet.add_host(f"sr-{az}-{n:03d}", launched, presim=True, t=self.t0)
         self.flow.assign(sorted(self.fleet.hosts))
-        self.asg.seed_history()
         dt, ts = 10.0, self.t0
         while ts + dt <= self.t_start + 1e-6:
             ts += dt
@@ -113,6 +112,7 @@ class Mechanics:
                 if ts - dt < lt <= ts and name not in self.fleet.hosts:
                     self.fleet.add_host(name, lt, presim=False)
             self._step(ts, dt)
+        self.asg.seed_history()
         self.now, self.fleet.rseed = self.t_start, self.w.seed
 
     def tick(self, t: datetime, dt: float) -> list[dict]:
@@ -146,7 +146,7 @@ class Mechanics:
         self.asg.record(ts)
         hm = self.dt(ts).strftime("%H:%M")
         if hm in SNAPSHOTS:
-            self.asg.snapshots[hm] = self.asg.scheduled()
+            self.asg.snapshots[hm] = self.asg.scheduled(ts)
 
     def next_due(self) -> datetime | None:
         nxt = self.asg.next_due(self.now)

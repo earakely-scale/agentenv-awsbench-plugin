@@ -77,15 +77,20 @@ class Asg:
         return [h for h in self.instances() if not h.standby]
 
     def seed_history(self) -> None:
+        """PLAT-2291's three resizes, one launch activity per instance as AWS writes them; run once the presimulation
+        has launched those hosts."""
         for at, size, names in PLAT_2291:
             t = _ts(at)
-            iids = ", ".join(self.m.fleet.hosts[n].iid for n in names if n in self.m.fleet.hosts)
-            self.activity(t + 20, f"Launching a new EC2 instance(s): {iids}",
-                          f"At {self._z(t)} a user request update of AutoScalingGroup constraints to min: {size}, "
-                          f"max: 150, desired: {size} changing the desired capacity from {size - 4} to {size}.")
+            for h in (self.m.fleet.hosts[n] for n in names if n in self.m.fleet.hosts):
+                self.activity(h.launched, f"Launching a new EC2 instance: {h.iid}",
+                              f"At {self._z(t)} a user request update of AutoScalingGroup constraints to min: {size}, "
+                              f"max: 150, desired: {size} changing the desired capacity from {size - 4} to {size}.  "
+                              f"At {self._z(h.launched)} an instance was started in response to a difference between "
+                              f"desired and actual capacity, increasing the capacity from {size - 4} to {size}.")
 
     def activity(self, t: float, desc: str, cause: str, status: str = "Successful") -> None:
-        self.activities.append({"t": t, "Description": desc, "Cause": cause, "StatusCode": status})
+        self.activities.append({"t": t, "n": len(self.activities), "Description": desc, "Cause": cause,
+                                "StatusCode": status})
 
     @staticmethod
     def _z(t: float) -> str:
@@ -153,17 +158,17 @@ class Asg:
             victims = victims[:len(live) - self.desired]
             for h in victims:
                 self.m.terminate(h.name, t)
-            if victims:
-                self.activity(t, "Terminating EC2 instance: " + ", ".join(h.iid for h in victims),
+                self.activity(t, f"Terminating EC2 instance: {h.iid}",
                               f"At {self._z(t)} an instance was taken out of service in response to a difference "
                               f"between desired and actual capacity, shrinking the capacity from {len(live)} to "
-                              f"{len(live) - len(victims)}.")
+                              f"{len(live) - len(victims)}.  At {self._z(t)} instance {h.iid} was selected for "
+                              "termination.")
         elif len(live) < self.desired and "Launch" not in self.suspended:
-            names = [self.m.launch(t + 5 * k) for k in range(self.desired - len(live))]
-            self.activity(t, "Launching a new EC2 instance(s): " + ", ".join(
-                self.m.fleet.hosts[n].iid for n in names),
-                f"At {self._z(t)} an instance was started in response to a difference between desired and actual "
-                f"capacity, increasing the capacity from {len(live)} to {self.desired}.")
+            for k in range(self.desired - len(live)):
+                h = self.m.fleet.hosts[self.m.launch(t + 5 * k)]
+                self.activity(t + 5 * k, f"Launching a new EC2 instance: {h.iid}",
+                              f"At {self._z(t)} an instance was started in response to a difference between desired "
+                              f"and actual capacity, increasing the capacity from {len(live)} to {self.desired}.")
         if len(self.inservice()) != self.desired:
             self.next_reconcile = t + self.reconcile_s
 
@@ -190,19 +195,27 @@ class Asg:
             "SuspendedProcesses": [{"ProcessName": p, "SuspensionReason": f"User suspended at {self._z(t)}"}
                                    for p, t in sorted(self.suspended.items())],
             "VPCZoneIdentifier": "subnet-0d4a1c7e9b2f36051,subnet-0e5b2d8f1c3a47062,subnet-0f6c3e9a2d4b58073",
-            "EnabledMetrics": [], "TerminationPolicies": ["Default"], "NewInstancesProtectedFromScaleIn": False,
+            "EnabledMetrics": [], "TerminationPolicies": ["NewestInstance"], "NewInstancesProtectedFromScaleIn": False,
             "ServiceLinkedRoleARN": f"arn:aws:iam::{ACCOUNT}:role/aws-service-role/autoscaling.amazonaws.com/"
                                     "AWSServiceRoleForAutoScaling",
             "Tags": [{"ResourceId": NAME, "ResourceType": "auto-scaling-group", "Key": k, "Value": v,
                       "PropagateAtLaunch": True} for k, v in (("Name", "streamroute"), ("owner", "platform"))],
         }
 
-    def _action(self, name: str, a: dict) -> dict:
+    def next_start(self, a: dict, now: float) -> float:
+        """A recurring action's StartTime as AWS shows it: its next run at or after `now`, else its stored start."""
+        if not a.get("recurrence"):
+            return a["start"]
+        t0 = max(now, a["start"]) - 1
+        nxt = cron_times(a["recurrence"], self.m.tz, t0, a.get("end") or t0 + 8 * 86400)
+        return nxt[0] if nxt else a["start"]
+
+    def _action(self, name: str, a: dict, now: float) -> dict:
         out = {"AutoScalingGroupName": NAME, "ScheduledActionName": name,
                "ScheduledActionARN": f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:scheduledUpdateGroupAction:"
                                      f"5b8d2e1f-0a7c-4c39-9e64-3f2a1b0c8d7e:autoScalingGroupName/{NAME}:"
                                      f"scheduledActionName/{name}",
-               "StartTime": datetime.fromtimestamp(a["start"], UTC)}
+               "StartTime": datetime.fromtimestamp(self.next_start(a, now), UTC)}
         if a.get("recurrence"):
             out["Recurrence"] = a["recurrence"]
             out["Time"] = out["StartTime"]
@@ -215,8 +228,9 @@ class Asg:
             out["TimeZone"] = a["time_zone"]
         return out
 
-    def scheduled(self) -> list[dict]:
-        return [self._action(n, a) for n, a in sorted(self.actions.items())]
+    def scheduled(self, now: float | None = None) -> list[dict]:
+        now = self.m.now if now is None else now
+        return [self._action(n, a, now) for n, a in sorted(self.actions.items())]
 
     # ---- dispatch ----
     def _check_group(self, p: dict) -> None:
@@ -251,21 +265,22 @@ class Asg:
             if p.get("AutoScalingGroupName") not in (None, NAME):
                 return {"ScheduledUpdateGroupActions": []}
             names = p.get("ScheduledActionNames")
-            return {"ScheduledUpdateGroupActions": [a for a in self.scheduled()
+            return {"ScheduledUpdateGroupActions": [a for a in self.scheduled(now)
                                                     if not names or a["ScheduledActionName"] in names]}
         if op == "DescribeScalingActivities":
             if p.get("AutoScalingGroupName") not in (None, NAME):
                 return {"Activities": []}
-            rows = sorted((a for a in self.activities if a["t"] <= now), key=lambda a: -a["t"])
-            return {"Activities": [{"ActivityId": f"a1f0{int(a['t']):x}-{k:04x}", "AutoScalingGroupName": NAME,
+            rows = sorted((a for a in self.activities if a["t"] <= now), key=lambda a: (-a["t"], -a["n"]))
+            return {"Activities": [{"ActivityId": f"a1f0{int(a['t']):x}-{a['n']:04x}", "AutoScalingGroupName": NAME,
                                     "Description": a["Description"], "Cause": a["Cause"],
                                     "StartTime": datetime.fromtimestamp(a["t"], UTC),
                                     "EndTime": datetime.fromtimestamp(a["t"] + 30, UTC), "StatusCode": a["StatusCode"],
-                                    "Progress": 100, "Details": "{}"} for k, a in enumerate(rows[:100])]}
+                                    "Progress": 100, "Details": "{}"} for a in rows[:100]]}
         if op == "DescribeInstanceRefreshes":
             return {"InstanceRefreshes": []}
         if op in WRITES:
-            self._check_group(p)
+            if op != "TerminateInstanceInAutoScalingGroup":  # it names an instance, not its group
+                self._check_group(p)
             out = getattr(self, "_" + op)(p, now)
             self.calls.append({"t": now, "op": op, "params": p})
             self.poke(now)

@@ -84,6 +84,9 @@ AWS_SERVICES = {"sqs", "dynamodb", "autoscaling", "route53", "ssm", "ecs", "logs
                 "iam", "ec2", "elasticloadbalancing", "events", "lambda", "s3", "rds", "kms", "sns", "secretsmanager",
                 "cloudwatch", "acm", "application-autoscaling", "servicediscovery", "elasticache"}
 ACCOUNT = "000000000000"
+# The emulator's account and the ones scenarios declare (T03's vl-prod), all fictional, are kept as they are.
+ACCOUNTS = {ACCOUNT} | set(re.findall(r"(?m)^account:\s*'?(\d{12})", "\n".join(
+    f.read_text() for f in (BUNDLE / "envs/aws/awsbench_aws/scenarios").glob("*.yaml"))))
 ARN_ACCOUNT = re.compile(r"(arn:aws:[a-z0-9\-]*:[a-z0-9\-]*:)(\d{12})")
 FIELD_ACCOUNT = re.compile(r"((?:recipientAccountId|accountId|AccountId|Account|account)\\?\"?\s*[:=]\s*\\?\"?)(\d{12})")
 TWELVE = re.compile(r"(?<![0-9])\d{12}(?![0-9])")
@@ -125,8 +128,8 @@ def scrub(text: str) -> str:
     s = LOCAL_URL.sub("[local-endpoint]", s)
     s = INFRA_URL.sub("[endpoint]", s)
     s = INFRA_HOST.sub("[host]", s)
-    s = ARN_ACCOUNT.sub(lambda m: m.group(1) + ACCOUNT, s)
-    s = FIELD_ACCOUNT.sub(lambda m: m.group(1) + ACCOUNT, s)
+    s = ARN_ACCOUNT.sub(lambda m: m.group(0) if m.group(2) in ACCOUNTS else m.group(1) + ACCOUNT, s)
+    s = FIELD_ACCOUNT.sub(lambda m: m.group(0) if m.group(2) in ACCOUNTS else m.group(1) + ACCOUNT, s)
     s = PATHS.sub("[path]", s)
     s = re.sub(r"\b127\.\d+\.\d+\.\d+\b", "localhost", s)
     s = IPV4.sub(lambda m: m.group(0) if _ip_ok(m.group(0)) else "[ip]", s)
@@ -157,7 +160,7 @@ def scrub_problems(text: str) -> list[str]:
         if m.group(1) not in AWS_SERVICES:
             out.append(f"aws host: {m.group(0)}")
     for m in TWELVE.finditer(text):
-        if m.group(0) != ACCOUNT and _account_context(text, m.start()):
+        if m.group(0) not in ACCOUNTS and _account_context(text, m.start()):
             out.append(f"account id: {m.group(0)}")
     for m in IPV4.finditer(text):
         if not _ip_ok(m.group(0)):
