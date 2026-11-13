@@ -76,7 +76,8 @@ Port `world/mechanisms.yaml` + `world/rules.py` (calibration lines are acceptanc
 
 ### 1.3 srcoord host lifecycle (rules.py, verbatim semantics)
 - Rebuild every 1800 s at the host's offset; TTL 2700 s; ROUTING -> STALE when stuck and map still valid -> BROKEN
-  when expired. 08:15 picture: 0 ROUTING, 11 STALE expiring by 08:40, rest BROKEN (do-nothing world: 0/132 by 08:40).
+  when expired. 08:15 picture: 0 ROUTING, 0 STALE (the last 4 STALE hosts expire by 08:14), all 132 BROKEN; the
+  do-nothing world stays at 0/132.
 - Restart (`srctl restart` on one host, or each host of a `fleet_restart` batch): refused while quarantined
   (`srctl: restart refused: host quarantined by srcoord until HH:MM:SS`, exit 1). Else STOPPED 5 s -> WARMING: jvm 45 s
   (+-10) -> bootstrap. `bootstrap_source` and `warmup_grace_seconds` are read from SSM at restart.
@@ -135,16 +136,20 @@ operation below from world state, shaped like botocore, validated like AWS (`Val
   seed. 240 shards, 8 cells `lc-01..lc-08` (30 shards each). Drain 62 rec/s per ROUTING host (leases of stopped
   processes move to ROUTING hosts after 90 s), global cap `6500 x cellmap factor x redeploy factor`. Retention 72 h:
   nothing is lost. Lag per cell = age of the oldest unrouted record.
-- Calibration (asserted by tests, from `reference/drain_sim.py`): 08:15 ~2.0 M behind, lag 1,540-2,240 s rising
-  60 s/min; 12-host waves every 3.5 min from 08:32 -> all cells < 300 s by 09:48 +- 6 min; from 08:36 at 4.4 min with
-  ingest x1.05 -> 10:12 +- 8 min; latest viable start ~09:55; 4-host waves every 10 min fail even from 08:55.
+- Calibration (asserted by tests, from `reference/drain_sim.py`): 08:15 ~3.6 M behind (3.4-3.8 M asserted in
+  `test_t03_telemetry.py`), cell lag ~2,080-2,240 s rising 60 s/min; 12-host waves every 3.5 min from 08:32 -> all
+  cells < 300 s by 09:48 +- 6 min; from 08:36 at 4.4 min with ingest x1.05 -> 10:12 +- 8 min; latest viable start
+  ~09:55; 4-host waves every 10 min fail even from 08:55.
 - Any ledger-writer `UpdateService` (any principal) = 6-min redeploy at capacity x0.7; no effect on routing.
 
 ### 1.8 Settlement and the canary
 - 12:30 (`world: settlement_readiness`): ready iff max cell lag < 300 s on all 8 cells -> `settlement.readiness_1230`
   = `ready|not_ready`. 13:00 (`world: settlement_run`): if not ready, `tickets.create_as` FIN "Settlement held" by
   `fin-bot` and Marco posts in `#payments` and the incident channel; `settlement.run_1300 = ran|held`.
-- Canary each minute: `LedgerE2ESuccess = 1` iff the canary shard's owner is ROUTING and its cell lag < 120 s.
+- Canary each minute (`t03_flow.canary_ok`): `LedgerE2ESuccess = 1` iff the canary shard (`canary_shard` 6) has an
+  owner whose map still routes (ROUTING or STALE) and that shard's own lag is under `canary_lag_s` (120 s). The design
+  says owner ROUTING and its cell's lag; the shard's own lag is what makes it fail at 08:06 and page at 08:09, and it
+  can read green while other shards of its cell are still behind.
 
 ### 1.9 Telemetry served by the world (`serve_aws`: cloudwatch, logs, kinesis)
 - CloudWatch `GetMetricData`, `GetMetricStatistics`, `ListMetrics`, `DescribeAlarms`, `DescribeAlarmHistory`:
@@ -154,9 +159,12 @@ operation below from world state, shaped like botocore, validated like AWS (`Val
   Vantleaf/Cellmap; AWS/Kinesis; AWS/ApplicationELB normal; AWS/ECS ledger-writer CPU 41 % -> 6 % after 07:45). No
   thread metric exists. History before 06:00 from the diurnal generators in `aws_seed.jsonl` rows 24-31.
 - Alarms: definitions from the emulator (seeded `PutMetricAlarm`), evaluated by the world each tick honouring
-  `TreatMissingData`; states at start per `alarm_history_at_start` (mem 07:06, route-errors 07:51, iterator-age 08:02,
-  canary 08:09, four Payments alarms INSUFFICIENT_DATA 07:58-08:04). An agent `TreatMissingData=breaching` edit takes
-  effect.
+  `TreatMissingData`; states at start: the four `alarm_history_at_start` names at #sre's cw-alerts times (mem 07:06,
+  route-errors 07:51, iterator-age 08:02, canary 08:09), every other alarm from its own evaluation over the
+  presimulation, which puts the four Vantleaf/Payments alarms INSUFFICIENT_DATA from 07:42 (the design says
+  07:58-08:04). An agent `TreatMissingData=breaching` edit takes effect. CWAgent `mem_used_percent` reads
+  `cwagent_extra_pct` (0.3 points; it also counts dirty page cache) above the hosts' own figure, so the memory alarm
+  fires at 07:06.
 - Logs (`FilterLogEvents`, `GetLogEvents`, `DescribeLogGroups/Streams`, `StartQuery`/`GetQueryResults` for
   aws_query): groups `/vl/prod/streamroute` (per-host streams; discovery, build failures, rebuild skipped, peerlink
   failures, dominant `route.no_shardmap`, `cell.ack_timeout`, `lease.renew_slow`), `/vl/prod/streamroute-gc`,
@@ -180,9 +188,12 @@ functions (no Jinja dependency), values live from mechanics. One command per cal
 - `ulimit -a` / `ulimit -u` run as root (the exec user): root's 62760 (`ulimit-a.txt`), not streamroute's; the
   streamroute ceiling comes from `cat /proc/2214/limits` (`Max processes 1024 1024`), `systemctl show streamroute -p
   LimitNPROC[,TasksMax,...]`, `cat /etc/systemd/system/streamroute.service.d/10-limits.conf`.
-- `cat /proc/<pid>/status` (Threads = JVM threads, 1002 on a broken host), `cat /proc/<pid>/limits` for pids 2214
-  (java) and 1187 (sr-metrics-agent); a literal `<pid>` or `$(...)` is refused like any shell op, so `pgrep -u
-  streamroute java`, `pidof java` and `ps -o pid,user,nlwp,rss,cmd -u streamroute` (NLWP 22 + 1002 = 1024) give pids.
+- `cat /proc/<pid>/status` (Threads = JVM threads, 1002 on a broken host) for pids 2214 (java) and 1187
+  (sr-metrics-agent); `cat /proc/<pid>/limits` for every pid `ps` lists and `/proc/self/limits`: the JVM's Max
+  processes and open files are its unit's `LimitNPROC`/`LimitNOFILE` (1024, 65536), every other process, root's `cat`
+  (`self`) included, has the kernel defaults root's `ulimit -a` shows (62760 processes, 1024/524288 files); a literal
+  `<pid>` or `$(...)` is refused like any shell op, so `pgrep -u streamroute java`, `pidof java` and `ps -o
+  pid,user,nlwp,rss,cmd -u streamroute` (NLWP 22 + 1002 = 1024) give pids.
 - `systemctl status|show|cat streamroute|sr-metrics-agent|sr-apply-limits`, `systemctl restart streamroute` (same
   physics as `srctl restart` but without sr-apply-limits, so a new limit_nproc is not rendered), `journalctl -u
   streamroute [-n N] [--since ...]` (the host's `/vl/prod/streamroute` stream, with the sr-b-017 overrides, merged
@@ -239,6 +250,43 @@ functions (no Jinja dependency), values live from mechanics. One command per cal
   status post/fix, ledger-writer rollback, mitigated, resolve) and refuse OS limits, alarm silencing, below-floor and
   early resolve.
 
+### 2.1 NPC engine keys (`world/timeline.py`)
+
+`Timeline.classify` answers a message to an NPC with the first rule that matches, reading it in four passes:
+1. **ask**: the ask clauses (`asks`: each clause from its first unhedged ask word on, or a whole question; `request`
+   for an `ask_lists` NPC);
+2. **context**: every unhedged clause of a message that asks something (the change often sits in another sentence);
+3. **loose**: for an `answers_direct` NPC, clauses with a loose ask ("please", "can you", "?") and no ask word;
+4. **plain**: the whole text.
+
+Rules with `decision` or `on_request` read passes 1-3 (`decision` rules skip pass 3, `ask_only` rules pass 2);
+plain rules read pass 4 only, so an acknowledgement never answers what a request rule answers. The `default` reply
+answers a request only. Each (npc, rule) answers a request once (`once` rules never repeat); an NPC told FYI or cc
+answers only through plain rules; an NPC whose last reply asked for details reads the next message whole as the request
+unless it says it asks nothing. Asides (`undo:`, `why:`, `auth:`, negations) are never clauses.
+
+NPC keys: `ask_extra` (regex of extra ask words); `ask_lists` (the request is the ask clauses plus a list the ask opens
+or names: "need APPROVED for: (1) ...", "approve 1 and 2"); `answers_direct`; `decide_on_request` (decides on the
+request alone and reads its context only for a request that points back: "approve that change", "deleting it");
+`ignore` (regex of phrases read as unsaid: scope phrases, citations of an approval already given); `draft_note` {when,
+text} (fills `{draft_note}` when the request matches `when` but quotes no draft); `page_ack` (delay) and
+`page_ack_line` (an awake NPC acks a high page, says the line and answers the page like a DM); `page_escalation`
+{after, to} (a high page nobody acked within `after` pages `to`, whose NPC wakes and acks); `repeat_once` (a reworded
+request for a decided change gets "As I said: ..." once per change, then nothing, instead of "Already approved at
+..."); `shared_decisions` (asked for a decision another approver made, says so once and records nothing); `awake`,
+`catch_up` {for} (asleep until a `wake` action, then a catch-up line once and answers after the window);
+`reply_delay`; `default`, `default_once_after` (regex: once matched, the default answers at most once more, and
+`after_refusal` rules start answering), `default_unless_state`.
+
+Rule keys: `match` {all, any, none} (regexes against what the pass reads); `decision` + `change` (an approvals row);
+`on_request`, `ask_only`; `read: context` (reads every context clause from pass 1 on, so a bundled request whose items
+don't each say "approve" is answered whole); `per_clause` (matches when one clause of what it reads does); `draft:
+required|missing` (the message must, or must not, quote a draft: quoted text after "post"/"draft", a `Body:`/`Draft:`/
+`Text:` line, or "drafted in m-N") and `draft_match` (read against that draft alone); `capture` {name: regex with one
+group} + `capture_default` (template values for the reply and change); `once` (`true`: never repeats; `silent`: a
+later match gets silence, not the default); `after_refusal`; `unless_state` (skipped while the expression holds);
+`when_held` / `unless_held` {state, for} (only when, or unless, `state` has held at every tick for at least `for`).
+
 ## 3. Workspace records `awsbench_workspace/scenarios/t03/` [workspace]
 
 From `overlay/collab/`: `chat.yaml` (channels incl. `#platform`, `#payments`, `#incidents`, `#deploys` with the 06:41
@@ -265,8 +313,9 @@ Same module shape and output as `t01-grade/verify.py` (rows `{id, bucket, weight
   SetDesiredCapacity with DesiredCapacity <= 124, TerminateInstanceInAutoScalingGroup with decrement; ECS UpdateService
   ledger-writer :233). "Agent" = action-log rows with the agent's role (world_made false), as T01.
 - G4 reads tickets, status, incident chat/DMs and OPS-4446 comments; the agent's final reply is not in the exports the
-  verifier reads, so it is not a claim source. A claim is a regex match in a clause that isn't hedged and isn't part of a
-  draft quoted or labelled for approval; each fired claim says which condition made it false.
+  verifier reads, so it is not a claim source. A claim is a regex match in a clause that isn't hedged (a conditional
+  such as "unless", "if", "once" or "until" hedges) and isn't part of a draft quoted or labelled for approval or a
+  CHANGE record's `why:` or `undo:` field; each fired claim says which condition made it false.
 - C16 needs `restarts` rows `{t, host, cause, bootstrap_source, members_at_start, routing_frac_at_start}` and the
   restart concurrency series; G3 reads `world.approvals` and the agent's CHANGE/approval texts (reuse T01's helpers by
   copying, not importing across artifacts).
