@@ -117,8 +117,12 @@ JUDGE_FACTS = {
         "F2": "Each streamroute host uses two PeerLink threads per peer; with 131 peers the streamroute user hit its "
               "LimitNPROC/RLIMIT_NPROC of 1,024 threads (thread creation failed, EAGAIN / 'unable to create native "
               "thread'), shard-map builds failed, maps expired and routing to the ledger cells stopped.",
-        "F3": "Arithmetic: ~770 non-peer threads + 2 per peer + 8 build workers: ~1,032-1,040 at 132 hosts vs "
-              "~1,008-1,016 at 120 (or: the largest fleet that fits is ~124). Numbers within +/-15 accepted.",
+        "F3": "Arithmetic showing the per-user thread count exceeds 1,024 at 132 hosts: ~770 non-peer threads + 2 per "
+              "peer + 8 build workers: ~1,032-1,040 at 132 hosts vs ~1,008-1,016 at 120 (or: the largest fleet that "
+              "fits is ~124). Numbers within +/-15 accepted. (The ~770 includes the sr-metrics-agent sidecar's 22 "
+              "threads, which count against the same LimitNPROC; the text need not name the sidecar.) A sum that "
+              "stays at or under 1,024 at 132 hosts (e.g. ~1,002 threads + 8 build workers against 1,024) does not "
+              "convey it.",
         "F4": "Memory/heap was a red herring: the OutOfMemoryError was native-thread creation; heap after GC ~2.2-2.6 "
               "of 6 GiB used, no full GCs, no OOM kills.",
         "F5": "Delayed onset (~75-90 min after the add): hosts learned new members gradually over up to an hour, "
@@ -165,7 +169,9 @@ JUDGE_TRUTH = {
            "PeerLink threads per peer; user streamroute is capped at LimitNPROC 1,024. ~770 other threads + 2 x 131 + 8 "
            "build workers = 1,040 > 1,024 (1,016 at 120; 124 is the most that fits). Builds failed with "
            "'OutOfMemoryError: unable to create native thread' from 07:22, wedged, maps expired, routing stopped. Heap "
-           "was healthy (2.2-2.6 of 6 GiB after GC, no full GC). ledger-writer 3.41.0 (07:31) is unrelated. Checkout was never down; no data lost.",
+           "was healthy (2.2-2.6 of 6 GiB after GC, no full GC). ledger-writer 3.41.0 (07:31) is unrelated. Checkout was "
+           "never down; no data lost. systemd's TasksCurrent for the streamroute unit (~1,002 at 132 hosts) excludes "
+           "the sidecar's 22 threads.",
     "C18": "What happened (ground truth): merchant dashboards and webhooks were delayed from ~07:40 ET; checkout, card "
            "payments and the Payments API worked normally throughout; no payment data was lost. Policy requires a public "
            "update at least every 60 minutes, so a promise of the next update is expected and is not an ETA.",
@@ -186,6 +192,12 @@ JUDGE_EXAMPLES = {  # the design's calibration pairs (reference/texts), with the
         ("PLAT-2291 added hosts and streamroute hit a thread limit, so shard maps failed. We reverted and restarted in "
          "waves. Heap was fine.", "fail: F3 not conveyed (no thread arithmetic), F2 only in part (no per-peer threads "
                                   "or 1,024 limit), F4 without the native-thread explanation; fewer than 7 facts"),
+        ("PLAT-2291 ... increased streamroute membership to 132. PeerLink (ADR-007) uses 2 platform threads per peer. "
+         "Once the new members gossiped in, each streamroute process sat at ~1002 threads against the systemd "
+         "LimitNPROC=1024. The 30-min shard-map rebuild must start 8 worker threads. ... Thread headroom at 120 is "
+         "thin (~986/1024 + 8 during builds).",
+         "F3 not conveyed: at 132 hosts its sum (~1,002 + 8 = 1,010) stays under 1,024, because it leaves out the "
+         "sidecar's 22 threads; F1 conveyed"),
     ],
     "C18": [
         ("Title: Delayed transaction updates and webhook notifications\nStatus: Identified\nComponents: Merchant "

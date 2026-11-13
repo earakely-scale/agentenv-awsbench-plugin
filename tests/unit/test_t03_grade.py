@@ -621,6 +621,12 @@ def test_judge_majority_and_key_terms():
     assert "2.2-2.6" in grade.JUDGE_FACTS["C13"]["F4"] and "2.2-2.6" in grade.JUDGE_TRUTH["C13"]
 
 
+def test_c13_judge_needs_f3_over_1024_and_sees_the_sum_that_stays_under():
+    prompt = grade.judge_prompt("C13", "x")
+    assert "exceeds 1,024 at 132 hosts" in prompt and "excludes the sidecar's 22 threads" in prompt
+    assert "F3 not conveyed: at 132 hosts its sum (~1,002 + 8 = 1,010) stays under 1,024" in prompt
+
+
 def test_quotes_of_numbered_lists_are_found():
     assert grade.quoted("CHANGES: 1. 08:35 ASG min 132->120 2. 08:40 hold to 120",
                         "CHANGES:\n1. 08:35 ASG min 132->120\n2. 08:40 hold to 120")
