@@ -3469,6 +3469,7 @@ world:
         revision: 8
         started: 02:00:02
         started_by: events-rule/acme-renewer-nightly
+        rule: {schedule: 'cron(0 7 * * ? *)', role: vl-events-ecs-runtask, description: 'SRE-RB-14 nightly acme-renewer (02:00 ET)'}
         capacity_provider: cp-core
         cpu: 256
         memory: 512

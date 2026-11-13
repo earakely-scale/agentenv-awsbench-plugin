@@ -1,4 +1,5 @@
-"""The vl-prod-core ECS cluster, the dispatcher's scalable target and vl-ledger-db, served from the world.
+"""The vl-prod-core ECS cluster, the dispatcher's scalable target, vl-ledger-db and the EventBridge rule that starts
+acme-renewer, served from the world.
 
 The emulator knows none of them, and physics owns what they change. A write is validated when it is served and its
 response shows the result, but it moves the world only when the meter's observe hands it back without an error
@@ -244,11 +245,35 @@ class Ecs:
                                     "ApplyType": "static", "IsModifiable": True} for k, v in db["parameters"].items()]}
         return None
 
+    def _events(self, op: str, p: dict) -> dict | None:
+        """The EventBridge rule that starts acme-renewer (its task's startedBy), read-only: SRE-OnCall may not edit it."""
+        a = self.acme or {}
+        name, rule = str(a.get("started_by", "")).removeprefix("events-rule/"), a.get("rule")
+        if not rule or op not in ("ListRules", "DescribeRule", "ListTargetsByRule"):
+            return None
+        row = {"Name": name, "Arn": f"arn:aws:events:{REGION}:{ACCOUNT}:rule/{name}", "State": "ENABLED",
+               "Description": rule["description"], "ScheduleExpression": rule["schedule"], "EventBusName": "default"}
+        if op == "ListRules":
+            return {"Rules": [row] if name.startswith(p.get("NamePrefix") or "") else []}
+        if (p.get("Name") or p.get("Rule")) != name:
+            raise AwsError("ResourceNotFoundException", f"Rule {p.get('Name') or p.get('Rule')} does not exist on "
+                                                        "EventBus default.", 400)
+        if op == "DescribeRule":
+            return {**row, "CreatedBy": ACCOUNT}
+        return {"Targets": [{"Id": "acme-renewer", "Arn": self.arn("cluster", self.cluster),
+                             "RoleArn": f"arn:aws:iam::{ACCOUNT}:role/{rule['role']}",
+                             "EcsParameters": {"TaskDefinitionArn": self.td_arn("acme-renewer", int(a["revision"])),
+                                               "TaskCount": 1, "CapacityProviderStrategy": [
+                                                   {"capacityProvider": a["capacity_provider"], "weight": 1,
+                                                    "base": 0}]}}]}
+
     # ---- dispatch ----
     def serve(self, service: str, op: str, p: dict, now: datetime) -> dict | None:
         """Reads, and writes validated and shown as they will be once applied; None lets the emulator answer."""
         if service == "rds":
             return self._rds(op, p)
+        if service == "events":
+            return self._events(op, p)
         if service == "application-autoscaling":
             return self._aas(op, p, now)
         if service != "ecs":

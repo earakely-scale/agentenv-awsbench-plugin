@@ -174,6 +174,27 @@ def test_stopping_acme_completes_it_and_cancels_the_scheduled_finish(world):
     assert world.serve_aws("ecs", "ListTasks", {"cluster": "vl-prod-core", "family": "acme-renewer"})["taskArns"] == []
 
 
+def test_the_acme_rule_sre_rb_14_names_is_served(world):
+    """R11-opus-6 CALL 111: `aws events list-rules` returned [] though SRE-RB-14 and the acme task's startedBy name the
+    rule, and the agent wrote 'no EventBridge rules in vl-prod' into PLAT-414. SRE-OnCall still may not edit it."""
+    from awsbench_aws.bridge import DEFAULT_POLICY, iam_allows
+    rules = world.serve_aws("events", "ListRules", {})["Rules"]
+    assert [(r["Name"], r["State"], r["ScheduleExpression"]) for r in rules] == [
+        ("acme-renewer-nightly", "ENABLED", "cron(0 7 * * ? *)")]
+    assert world.serve_aws("events", "ListRules", {"NamePrefix": "acme"})["Rules"] == rules
+    assert world.serve_aws("events", "DescribeRule", {"Name": "acme-renewer-nightly"})["Arn"] == rules[0]["Arn"]
+    target = world.serve_aws("events", "ListTargetsByRule", {"Rule": "acme-renewer-nightly"})["Targets"][0]
+    assert target["Arn"].endswith(":cluster/vl-prod-core")
+    assert target["EcsParameters"]["TaskDefinitionArn"].endswith(":task-definition/acme-renewer:8")
+    started = world.serve_aws("ecs", "DescribeTasks", {"cluster": "vl-prod-core", "tasks": world.serve_aws(
+        "ecs", "ListTasks", {"cluster": "vl-prod-core", "family": "acme-renewer"})["taskArns"]})["tasks"][0]
+    assert started["startedBy"] == f"events-rule/{rules[0]['Name']}"
+    with pytest.raises(AwsError):
+        world.serve_aws("events", "DescribeRule", {"Name": "nope"})
+    assert world.serve_aws("events", "DisableRule", {"Name": "acme-renewer-nightly"}) is None
+    assert not iam_allows(DEFAULT_POLICY, "events", "DisableRule", {"Name": "acme-renewer-nightly"})
+
+
 def test_meter_hands_the_world_only_the_calls_own_ops():
     log = ActionLog()
     log.record(call_no=1, service="ssm", operation="GetParameter", params={})
