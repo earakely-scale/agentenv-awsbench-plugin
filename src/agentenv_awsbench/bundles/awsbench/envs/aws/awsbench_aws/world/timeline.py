@@ -20,6 +20,12 @@ HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "un
          "without", "nobody"}
 CONTEXT_HEDGE = HEDGE - {"not", "no"} | {"pending"}
 GEN = re.compile(r"\b(\d{5})\b")
+ENDPOINT = re.compile(r"(?i)\b([a-z0-9-]+)\.internal\b")
+ARCHIVED = re.compile(r"(?i)^[^,.;()]{0,30}?from[- ](?:the )?archive")
+BY_HAND = re.compile(r"(?i)route ?53|change-resource-record-sets|record ?sets?\b|\brecords? write\b|"
+                     r"\b(?:write|writing|upsert)\b[^;\n]{0,60}?\brecords\b")
+POINTER_ONLY = re.compile(r"(?i)set-applied\b[^;|\n]{0,60}$")
+APPLY_WORD = re.compile(r"(?i)\b(?:re-?)?appl(?:y|ying)\b|set-applied|roll ?forward|last[- ]known[- ]good")
 LOOSE_ASK = re.compile(r"(?i)\?|\bplease\b|\b(?:could|can|would|will) you\b|\bneed (?:you|your)\b|\bapprov(?:e|al|als)\b|"
                        r"\bsign[- ]?off\b|\byour call\b|\bdecision for you\b")
 NOUN_HEDGE = re.compile(r"(?i)\b(?:behind|pending|awaiting|after|without)\s+(?:(?:one|an?|the|your|her|his|their|[\w.]+'s)\s+)?$")
@@ -78,6 +84,39 @@ def plan_gens(text: str) -> tuple[list[int], set[int], list[int]]:
         elif ASKED_BEFORE.search(before):
             asked.append(g)
     return named, rejected, [g for g in asked if g not in rejected]
+
+
+def asked_change(text: str, full: str | None = None, known=lambda gen: True) -> str:
+    """The change a request asks about, as an answer names it back: the newest known plan gen it asks to apply (or to
+    restore from the archive), else a hand write of an endpoint's records (a gen named only as the `set-applied`
+    pointer goes with it), read in the request and then in the whole message, whose ask clause may only say "please
+    post APPROVED"; else a restore or a manual apply. Gens the whole message rejects don't count, and any other is
+    named alike, so the answer never says which plan is right."""
+    text, scopes = text or "", [s for s in (text, full) if s]
+    names = next((m for s in scopes if (m := ENDPOINT.search(s))), None)
+    endpoint = f"{names.group(1).lower()}.internal" if names else ""
+    rejected = plan_gens(full)[1] if full else set()
+    for scope in scopes:
+        if named := _named_change(scope, endpoint, rejected, known):
+            return named
+    if re.search(r"(?i)restor", text):
+        return f"restoring {endpoint}" if endpoint else "the restore"
+    return f"a manual apply to {endpoint}" if endpoint and APPLY_WORD.search(text) else "the restore"
+
+
+def _named_change(text: str, endpoint: str, rejected: set[int], known) -> str | None:
+    asked = [g for g in plan_gens(text)[2] if g not in rejected and known(g)]
+    spots = {g: [m for m in GEN.finditer(text) if int(m.group(1)) == g] for g in asked}
+    applied = [g for g in asked if not all(POINTER_ONLY.search(text[max(0, m.start() - 80):m.start()]) for m in spots[g])]
+    by_hand = BY_HAND.search(text)
+    if applied or asked and not by_hand:
+        gen = max(applied or asked)
+        if any(ARCHIVED.search(text[m.end():]) for m in spots[gen]):
+            return f"restoring plan {gen} from the archive"
+        return f"applying plan {gen} to {endpoint}" if endpoint else f"applying plan {gen}"
+    if by_hand:
+        return f"writing the {endpoint} records by hand" if endpoint else "writing the records by hand"
+    return None
 
 
 def _matches(m: dict, text: str) -> bool:
@@ -435,6 +474,9 @@ class Timeline:
                     values = self._plan_gen(rule["plan_gen"], req if gated else text, text)
                     if values is None:
                         continue
+                if rule.get("names_change"):
+                    values = {**values, "change": asked_change(
+                        req if gated else text, text, lambda g: self.w.endpointd.plan_fits_fleet(g) is not None)}
                 if self._spent(npc, rule, key):
                     if gated and not only and i < 2:
                         return None
@@ -543,7 +585,8 @@ class Timeline:
         return entry["deliveries"]
 
     def _fill(self, s: str, values: dict) -> str:
-        """A line's `{plan}`/`{gen}` from the request and `{outbox_pending}`/`{dlq}` from the world now."""
+        """A line's `{plan}`/`{gen}`/`{change}` (a `names_change` rule's `asked_change`) from the request and
+        `{outbox_pending}`/`{dlq}` from the world now."""
         if "{" not in s:
             return s
         storm = self.w.storm

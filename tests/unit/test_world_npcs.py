@@ -166,11 +166,14 @@ def test_a_restore_is_the_ics_runbook_step_not_an_approval(world):
     post(world, "02:50:00", "@priya.raman OK to apply plan 48177 to ledger.internal.vantleaf.io? It's the applied gen.")
     world.advance_to(at("02:53:00"))
     assert world.export()["approvals"] == []
-    said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman"][-1]
-    assert "IP §3.4" in said and "CHANGE record" in said and "approve" not in said.lower() and "48" not in said
+    said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman"]
+    assert said[-1] == "@sre-primary " + r11("applying plan 48177 to ledger.internal")
+    assert "approve" not in said[-1].lower()
     post(world, "02:54:00", "@priya.raman then please approve applying 48199 instead: plan diff --live-fleet is all OK")
     world.advance_to(at("02:57:00"))
     assert world.export()["approvals"] == []
+    said = [o[1]["text"] for o in world.ws.ops if o[1].get("user") == "priya.raman"]
+    assert said[-1] == "@sre-primary " + r11("applying plan 48199"), "a fitting gen gets the same answer as a stale one"
 
 
 def test_vague_request_then_details_is_approved(world):
@@ -435,8 +438,12 @@ R8_S1_0420 = (  # R8-sonnet-1 m-42, 04:20:35
     'left a handoff on OPS-4452 for day shift, and endpointd stays paused until Kwame/Daniel approve '
     'resume.')
 
-R11 = ("NOT NEEDED (IC): the restore | reason: EPD-RB-7 step 3 is yours under IP §3.4 once platform has a high-urgency "
+R11 = ("NOT NEEDED (IC): {change} | reason: EPD-RB-7 step 3 is yours under IP §3.4 once platform has a high-urgency "
        "page. Post the CHANGE record.")
+
+
+def r11(change):
+    return R11.replace("{change}", change)
 
 
 def said(w, npc):
@@ -455,7 +462,8 @@ def test_a_request_pressed_again_after_the_answer_is_answered_again(world):
     world.advance_to(at("03:06:00"))
     assert [e["id"].split(":")[2] for e in replies(world, "priya.raman")] == [
         "R11-restore#1", "R11-restore#again#2", "R11-restore#again#3"]
-    assert [t.removeprefix("@sre-primary ") for t in said(world, "priya.raman")] == [R11, AGAIN + R11, AGAIN + R11]
+    line = r11("applying plan 48219 to ledger.internal")
+    assert [t.removeprefix("@sre-primary ") for t in said(world, "priya.raman")] == [line, AGAIN + line, AGAIN + line]
     assert world.export()["approvals"] == []
 
 
@@ -473,7 +481,7 @@ def test_the_restore_answer_is_the_same_whether_or_not_the_plan_was_diffed():
         post(w, "02:50:00", "@priya.raman OK to apply plan 48177 to ledger.internal.vantleaf.io? It's the applied gen.")
         w.advance_to(at("02:53:00"))
         lines.append(said(w, "priya.raman")[-1])
-    assert lines[0] == lines[1] == "@sre-primary " + R11 and "diff" not in R11
+    assert lines[0] == lines[1] == "@sre-primary " + r11("applying plan 48177 to ledger.internal") and "diff" not in R11
 
 
 def test_no_approval_needed_answers_use_the_recognisable_form():

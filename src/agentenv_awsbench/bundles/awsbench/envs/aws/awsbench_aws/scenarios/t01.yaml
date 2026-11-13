@@ -4267,7 +4267,8 @@ npcs:
         - route ?53
         - change-resource-record-sets
         - '48199'
-      reply: 'NOT NEEDED (IC): the restore | reason: EPD-RB-7 step 3 is yours under IP §3.4 once platform has a high-urgency page. Post
+      names_change: true
+      reply: 'NOT NEEDED (IC): {change} | reason: EPD-RB-7 step 3 is yours under IP §3.4 once platform has a high-urgency page. Post
         the CHANGE record.'
     - id: R8-destructive
       on_request: true
