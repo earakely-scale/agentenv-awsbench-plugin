@@ -238,6 +238,7 @@ class Mechanics:
         jid = f"job-{len(self.jobs) + 1:04d}"
         skipped = {n: f"quarantined by srcoord until {self.fleet.hms(h.quarantined_until)}"
                    for n in names if (h := self.fleet.hosts[n]).quarantined_until and ts < h.quarantined_until}
+        skipped |= {n: f"terminated {self.fleet.hms(t)} ET" for n, t in self.fleet.named_terminated(selector).items()}
         todo = [n for n in names if n not in skipped]
         j = {"job_id": jid, "selector": selector, "hosts": todo, "skipped": skipped, "batch_size": size,
              "batches": [todo[i:i + size] for i in range(0, len(todo), size)], "current": -1, "started_at": ts,

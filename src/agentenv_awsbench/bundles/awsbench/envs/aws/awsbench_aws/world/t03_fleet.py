@@ -90,6 +90,7 @@ class Host:
         "stopped_at",
         "stuck",
         "terminated",
+        "terminated_at",
         "valid_until",
         "workers_started",
         "xmx",
@@ -105,7 +106,7 @@ class Host:
         self.xmx, self.limit, self.pool, self.links, self.known, self.kver, self.next_learn = "6g", 1024, 0, 0, 0, -1, INF
         self.learn: dict[str, float] = {}
         self.link_retry, self.link_failures, self.boot_peer, self.epoch, self.last_error = 0.0, 0, None, None, None
-        self.routing_since = self.oom_at = self.build_epoch = None
+        self.routing_since = self.oom_at = self.build_epoch = self.terminated_at = None
         self.n_restarts, self.last_wait_log = 0, -INF
         self.standby = self.detached = self.protected = False
 
@@ -229,7 +230,7 @@ class Fleet:
         if h.terminated:
             return
         self._stop(h, t)
-        h.terminated, h.state, h.phase = True, STOPPED, "terminated"
+        h.terminated, h.terminated_at, h.state, h.phase = True, t, STOPPED, "terminated"
         self.epoch += 1
 
     # ---- membership ----
@@ -477,6 +478,11 @@ class Fleet:
                 chosen |= {n for n in names if self.fleet_of(n) == tok or fnmatch.fnmatchcase(n, tok) or
                            fnmatch.fnmatchcase(ADMIN[n]["az"] if n in ADMIN else self.hosts[n].az, tok)}
         return [n for n in names if n in chosen]
+
+    def named_terminated(self, selector: str) -> dict[str, float]:
+        """The terminated hosts a selector names literally (not by glob, fleet or AZ), with when they went."""
+        toks = re.split(r"[,\s]+", (selector or "").strip())
+        return {t: self.hosts[t].terminated_at for t in toks if t in self.hosts and self.hosts[t].terminated}
 
     def hms(self, t: float) -> str:
         return datetime.fromtimestamp(t, self.tz).strftime("%H:%M:%S")

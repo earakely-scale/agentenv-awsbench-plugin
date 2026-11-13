@@ -2,6 +2,7 @@
 fleet_list_hosts' refusals."""
 
 import pytest
+from awsbench_aws.server import fleet_outcome
 from test_t03_telemetry import world as scenario_world
 from test_t03_world import AGENT, SRC, at, revert, world
 
@@ -133,3 +134,21 @@ def test_the_journal_is_the_hosts_log_group():
     assert "build epoch=" in full and "complete: 8/8 workers started" in full
     assert "expired (last success" in full and "state BROKEN" in full
     assert full.splitlines()[-1].split()[4] == "streamroute[2214]:"
+
+
+def test_a_named_terminated_host_is_unreachable_not_dropped():
+    """sonnet-1 CALL 44 (08:34:38): 'sr-a-001,sr-a-041,sr-b-001' returned sr-a-001 and sr-b-001 and nothing for
+    sr-a-041, which the 08:32 scale-in had terminated."""
+    w = world()
+    revert(w)
+    w.advance_to(at(w, "08:34:38"))
+    assert w.mech.fleet.hosts["sr-a-041"].terminated
+    out = w.fleet_exec("sr-a-001,sr-a-041,sr-b-001", "hostname", AGENT)
+    assert [h["host"] for h in out["hosts"]] == ["sr-a-001", "sr-b-001"]
+    assert set(out["unreachable"]) == {"sr-a-041"}
+    assert out["unreachable"]["sr-a-041"].startswith("ssh: connect to host sr-a-041 port 22: No route to host")
+    assert fleet_outcome(out) == (0, None)
+    assert "unreachable" not in w.fleet_exec("sr-a-04*", "hostname", AGENT)
+    assert "terminated" in w.fleet_inspect_host("sr-a-041")["error"]
+    job = w.fleet_restart("sr-a-041,sr-a-001", 12, AGENT)
+    assert job["hosts"] == 1 and job["skipped"]["sr-a-041"].startswith("terminated ")

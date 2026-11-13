@@ -180,7 +180,8 @@ class Commands:
             return {"host": name, "fleet": "cellmap-admin", "uptime": "102d 1h", "cpu_pct": 3.1, "load1": 0.08}
         h = self.m.fleet.hosts.get(name)
         if h is None or h.terminated:
-            return {"error": f"no host {name!r}"}
+            return {"error": f"no host {name!r}" + (f" (terminated {self.m.fleet.hms(h.terminated_at)} ET)"
+                                                     if h is not None and h.terminated_at else "")}
         heap = 0.0 if not h.proc else 2.2 + 0.4 * unit(self.m.w.seed, "heap", name)
         return {"host": name, "fleet": "streamroute", "az": h.az, "srcoord_state": h.state,
                 "uptime": self.uptime(h.process_start, now) if h.proc else "process not running",
@@ -196,14 +197,17 @@ class Commands:
     def exec(self, selector: str, command: str, caller: dict, now: float) -> dict:
         if SHELL_OPS.search(command or ""):
             return {"hosts": [], "exit_code": 2, "error": ONE_COMMAND}
-        names = self.m.fleet.select(selector)
+        names, f = self.m.fleet.select(selector), self.m.fleet
+        gone = {n: f"ssh: connect to host {n} port 22: No route to host (instance {f.hosts[n].iid} terminated "
+                   f"{f.hms(t)} ET)" for n, t in f.named_terminated(selector).items()}
+        extra = {"unreachable": gone} if gone else {}
         if not names:
-            return {"hosts": [], "error": f"no hosts match {selector!r}"}
+            return {"hosts": [], "error": f"no hosts match {selector!r}", **extra}
         out = []
         for n in names:
             stdout, code = self.run(n, SUDO.sub("", command or ""), caller, now)
             out.append({"host": n, "stdout": stdout, "exit_code": code})
-        return {"hosts": out}
+        return {"hosts": out, **extra}
 
     def run(self, name: str, command: str, caller: dict, now: float) -> tuple[str, int]:
         try:
