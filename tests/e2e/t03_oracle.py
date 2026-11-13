@@ -183,8 +183,11 @@ def steps_for(mode):
         if mode in ("bounce", "heap") and tag == "claim":
             continue
         if mode == "bounce" and tag == "ask":
-            out.append(("fleet_restart", {"host": "streamroute", "batch_size": 12}))
+            out.append(sh("streamroute", "srctl restart"))
             out.append(("wait", {"minutes": 1}))
+        if mode == "bounce" and tool == "chat_post" and args["text"].startswith("Update: restart waves"):
+            out.append(("fleet_list_hosts", {"fleet": "streamroute"}))
+            out.append(("fleet_restart", {"host": "{not_routing}", "batch_size": 12}))
         if mode == "heap" and tag == "revert":
             for _ in range(2):
                 out.append(("chat_post", {"channel": CH, "text": "@priya.raman please approve raising "
@@ -230,6 +233,9 @@ def harvest(tool, result, found):
         found["status_id"] = (result.get("incident") or {}).get("id") or result.get("id")
     if tool == "fleet_restart":
         found["job_id"] = result.get("job_id") or found.get("job_id", "")
+    if tool == "fleet_list_hosts":
+        hosts = result.get("hosts") or result.get("result") or []
+        found["not_routing"] = ",".join(h["name"] for h in hosts if isinstance(h, dict) and h.get("state") != "ROUTING")
     if tool == "mail_search":
         for item in result.get("results") or result.get("messages") or result.get("items") or []:
             if "northwind" in json.dumps(item).lower() or "freya" in json.dumps(item).lower():

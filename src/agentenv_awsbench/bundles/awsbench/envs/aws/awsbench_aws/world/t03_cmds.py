@@ -240,7 +240,7 @@ class Commands:
                 return err + "\n", 1
             return (f"sr-apply-limits: LimitNPROC={h.limit}\nstreamroute restarting on {h.name} "
                     f"(bootstrap_source={h.bootstrap_source})\n"), 0
-        if not h.proc and sub != "config":
+        if not h.proc and sub == "host status":
             return f"srctl: streamroute is not running on {h.name} (state {h.state})\n", 1
         if sub == "fleet status":
             c = f.counts()
@@ -285,8 +285,9 @@ class Commands:
         if sub == "membership":
             newest = sorted((x for x in f.hosts.values() if not x.terminated and x.proc), key=lambda x: -x.launched)
             return (f"srcoord members (running streamroute processes): {len(f.members())}\n"
-                    f"this host knows {h.known} peers, connected {h.links}\n"
-                    f"newest members: {', '.join(x.name for x in newest[:6])}\n"), 0
+                    + (f"this host knows {h.known} peers, connected {h.links}\n" if h.proc else
+                       f"this host: streamroute not running (state {h.state})\n")
+                    + f"newest members: {', '.join(x.name for x in newest[:6])}\n"), 0
         if sub == "config":
             ssm = m.ssm
             return (f"effective (read at process start {m.iso(h.process_start)}):\n"

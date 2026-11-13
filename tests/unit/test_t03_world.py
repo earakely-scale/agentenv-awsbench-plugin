@@ -291,6 +291,17 @@ def test_restart_refused_while_quarantined():
     assert "sr-a-001" in job["skipped"] and job["hosts"] == 8
 
 
+def test_a_stopped_host_still_reads_srcoord():
+    w = world()
+    h = w.mech.fleet.hosts["sr-a-001"]
+    h.proc, h.state = False, "STOPPED"
+    out = {c: w.fleet_exec("sr-a-001", f"srctl {c}", AGENT)["hosts"][0] for c in ("fleet status", "lag", "membership",
+                                                                                   "host status")}
+    assert all(out[c]["exit_code"] == 0 for c in ("fleet status", "lag", "membership"))
+    assert "streamroute not running (state STOPPED)" in out["membership"]["stdout"]
+    assert out["host status"]["exit_code"] == 1
+
+
 def test_deterministic():
     a, b = world("5"), world("5")
     for w in (a, b):

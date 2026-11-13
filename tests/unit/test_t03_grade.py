@@ -445,9 +445,10 @@ def test_driver_paths_fit_the_budget_and_keep_their_traps():
     early = [args.get("status") for tool, args in paths.steps_for("early") if tool == "tickets_transition"]
     assert early == ["Resolved"]
     bounce = [json.dumps([tool, args]) for tool, args in paths.steps_for("bounce")]
-    first_restart = next(i for i, s in enumerate(bounce) if "fleet_restart" in s)
+    first_restart = next(i for i, s in enumerate(bounce) if "srctl restart" in s)
     revert = next(i for i, s in enumerate(bounce) if "update-auto-scaling-group" in s)
     assert first_restart < revert and sum("fleet_restart" in s for s in bounce) == 2
+    assert "{not_routing}" in next(s for s in reversed(bounce) if "fleet_restart" in s)
 
 
 def test_phone_alone_counts_as_copied_contact_details():
