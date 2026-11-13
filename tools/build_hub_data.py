@@ -11,7 +11,7 @@ timeline and colleagues an agent meets.
 
 Writes ``hub/space/app/public/data/`` (the viewers' ``index.json`` and ``runs/<id>.json``) and ``hub/dataset/`` (per run:
 ``viewer.json``, the scrubbed ``aws-export.json`` and ``workspace-export.json``, ``grade.json`` and ``transcript.md``;
-plus ``index.json``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
+plus ``index.json`` and the dataset viewer's ``tables/{runs,calls,checks}.jsonl``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
 foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the private Hugging Face repos
 (``earakely-scale/AwsIncidentsBench``), one commit each.
 """
@@ -128,7 +128,7 @@ def reference_view(people: dict | None = None) -> dict:
                  "AWS and workspace fakes: the same physics, timeline and colleagues. On a deployed env the same path "
                  "grades D12 1.0; the check marks here are the ones it is built to pass."),
         "clock": {"start": X.S0, "window_end": X.HZ, "horizon": X.HZ, "done": X.sec(done.isoformat()), "end_reason": "done",
-                  "calls_used": sum(1 for s in steps if s["cls"] != "wait"), "max_calls": 250},
+                  "calls_used": len(steps), "max_calls": 250},
         "score": {"d12": 1.0, "raw": 1.0, "pass": True, "caps": [], "buckets": {"outcome": 68, "process": 20, "comms": 12},
                   "why": "raw 100 · no cap", "measured": "D12 1.0 when the same path runs on a deployed env"},
         "checks": checks, "steps": steps, "series": series, "hosts": hosts, "levers": levers, "board": board,
@@ -192,9 +192,10 @@ def _reference_checks(steps: list[dict], series: dict, summary: dict) -> list[di
 
 
 def _head() -> str:
+    """The last commit that changed what the reference replays: the env, the driver or the fakes."""
     try:
-        return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
-                              check=True).stdout.strip()
+        return subprocess.run(["git", "-C", str(ROOT), "log", "-1", "--format=%h", "--", "src", "tests/e2e/driver.py",
+                               "tests/unit/test_world_t01.py"], capture_output=True, text=True, check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return ""
 
@@ -243,6 +244,43 @@ def fill_card(index: dict) -> Path:
     return card
 
 
+def _hms(t) -> str:
+    return X.hms(t) if t is not None else ""
+
+
+def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Flat rows for the dataset viewer: one per run, one per call, one per check."""
+    runs, calls, checks = [], [], []
+    for v in views:
+        row = index_row(v)
+        runs.append({"run": v["id"], "kind": v["kind"], "model": v["model"], "build": v["build"], "development_run": v["dev"],
+                     "d12": v["score"]["d12"], "raw": v["score"]["raw"], "passed": v["score"]["pass"],
+                     "caps": ", ".join(str(c) for c in v["score"]["caps"]), "checks_lost": ", ".join(row["failed"]),
+                     "gates_fired": ", ".join(row["gates"]), "calls": v["clock"]["calls_used"], "done_at": _hms(v["clock"]["done"]),
+                     "end_reason": v["clock"]["end_reason"], "restore_at": _hms(v["summary"].get("restore_at")),
+                     "collapsed_min": float(v["summary"]["collapsed_min"] or 0), "checkout_stable_from": v["summary"]["stable_from"] or "",
+                     "note": v["note"], "final_message": v["final"] or "", "handoff_note": v["handoff"] or ""})
+        for st in v["steps"]:
+            calls.append({"run": v["id"], "call": st["n"], "start": _hms(st["at"]), "end": _hms(st["end"]), "tool": st["tool"],
+                          "server": st["server"], "cost_class": st["cls"], "cost_s": st["cost"], "detail": st["detail"] or "",
+                          "result": st["result"] or "", "error": st["error"] or "", "production_change": bool(st["prod"]),
+                          "label": st["label"] or "", "bears_on": ", ".join(st["sat"])})
+        rows = {r.get("id"): r for r in grades.get(v["id"], [])}
+        for c in v["checks"]:
+            g = rows.get(c["id"], {})
+            checks.append({"run": v["id"], "check": c["id"], "name": c["name"], "bucket": g.get("bucket") or c.get("bucket") or "",
+                           "points": c["w"], "core": bool(c["core"]), "gate_cap": X.GATE_CAP.get(c["gate"]) if c["gate"] else None,
+                           "passed": bool(c["result"]), "fired": bool(c["fired"]), "detail": g.get("detail") or c.get("detail") or "",
+                           "graded": "grader" if g else "scripted"})
+    return {"runs": runs, "calls": calls, "checks": checks}
+
+
+def write_jsonl(path: Path, rows: list[dict]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+    return path
+
+
 def grade_doc(ctx: dict, view: dict) -> dict:
     grade = ctx["metadata"]["verifications"]["grade"]
     return {"run": view["id"], "model": view["model_id"], "build": view["build"], "dev": view["dev"],
@@ -257,6 +295,10 @@ def write_json(path: Path, obj) -> Path:
 
 def build(runs_dir: Path) -> list[Path]:
     manifest = json.loads((ROOT / "hub/runs.json").read_text())
+    for folder in run_folders(runs_dir):
+        build_id = (folder / "BUILD").read_text().strip() if (folder / "BUILD").exists() else ""
+        if not re.fullmatch(r"[0-9a-f]{7,40}", build_id):
+            raise SystemExit(f"{folder.name}: BUILD holds {build_id!r}, not the commit the env was built from")
     if SPACE_DATA.exists():
         shutil.rmtree(SPACE_DATA)
     for child in DATASET.iterdir() if DATASET.exists() else []:
@@ -264,6 +306,7 @@ def build(runs_dir: Path) -> list[Path]:
             shutil.rmtree(child) if child.is_dir() else child.unlink()
     written: list[Path] = []
     views = []
+    grades: dict[str, list[dict]] = {}
     for folder in sorted(run_folders(runs_dir), key=lambda p: order_key(p.name)):
         meta = manifest.get("runs", {}).get(folder.name, {})
         view = X.export_run(folder, folder.name, meta.get("label"), bool(meta.get("dev")), meta.get("note", ""))
@@ -275,7 +318,9 @@ def build(runs_dir: Path) -> list[Path]:
             if (folder / name).exists():
                 written.append(write_json(out / name, X.scrub_obj(json.loads((folder / name).read_text()))))
         ctx = json.loads((folder / "instance-context.json").read_text())
-        written.append(write_json(out / "grade.json", X.scrub_obj(grade_doc(ctx, view))))
+        grade = X.scrub_obj(grade_doc(ctx, view))
+        grades[view["id"]] = grade["rows"]
+        written.append(write_json(out / "grade.json", grade))
         if (folder / "transcript.md").exists():
             p = out / "transcript.md"
             p.write_text(X.scrub((folder / "transcript.md").read_text()))
@@ -293,6 +338,8 @@ def build(runs_dir: Path) -> list[Path]:
              "reference": index_row(ref), "runs": [index_row(v) for v in views]}
     written.append(write_json(SPACE_DATA / "index.json", index))
     written.append(write_json(DATASET / "index.json", index))
+    for name, rows in tables(views + [ref], grades).items():
+        written.append(write_jsonl(DATASET / "tables" / f"{name}.jsonl", rows))
     written.append(fill_card(index))
     X.check_clean(written)
     for p in written:
@@ -313,7 +360,7 @@ def publish() -> None:
                         **({"space_sdk": "docker"} if kind == "space" else {}))
         api.upload_folder(repo_id=REPO, repo_type=kind, folder_path=str(path), commit_message="Update AwsIncidentsBench data",
                           ignore_patterns=["app/node_modules/**", "app/dist/**", "app/.astro/**", "**/.DS_Store"],
-                          delete_patterns=["runs/**", "reference/**", "app/public/data/**"])
+                          delete_patterns=["runs/**", "reference/**", "tables/**", "app/public/data/**"])
         print(f"published {kind} {REPO}")
 
 

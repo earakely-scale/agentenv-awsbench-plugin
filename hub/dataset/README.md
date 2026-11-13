@@ -19,6 +19,20 @@ tags:
 - aws-emulator
 - simulation
 - trajectories
+configs:
+- config_name: runs
+  default: true
+  data_files:
+  - split: t01
+    path: tables/runs.jsonl
+- config_name: calls
+  data_files:
+  - split: t01
+    path: tables/calls.jsonl
+- config_name: checks
+  data_files:
+  - split: t01
+    path: tables/checks.jsonl
 ---
 
 # AwsIncidentsBench
@@ -67,16 +81,20 @@ pass and no cap applies. Task T03, "Thread Ceiling", will be added here.
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | 115 | 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | 139 | 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | 81 | 03:52:48 |
-| `reference` | Scripted oracle | `0b0a917` | 1.00 | pass | none | none | 25 | 03:37:55 |
+| `reference` | Scripted oracle | `8bc9c6a` | 1.00 | pass | none | none | 27 | 03:37:55 |
 <!-- /results -->
 
 Runs on older builds are **development runs**: they met env and grader bugs that the runs themselves found and that are
-fixed since. The final runs will replace them. One run per model and build is an example, not a pass rate.
+fixed since. The final runs will replace them. One run per model and build is an example, not a pass rate. Calls count
+every charged call, `wait` included, as the meter counts them against the 250-call budget.
 
 ## Files
 
 | Path | What |
 | --- | --- |
+| `tables/runs.jsonl` | The dataset viewer's `runs` table: one row per run and the reference, with its score, checks lost, gates fired, calls, DONE time, restore time, minutes collapsed, final message and handoff note |
+| `tables/calls.jsonl` | The `calls` table: one row per charged call of every run, with its virtual start and end, tool, cost class, command or arguments, result, error, and whether it changed production |
+| `tables/checks.jsonl` | The `checks` table: one row per check and gate of every run, with its points, whether it passed or fired, and the grader's evidence |
 | `index.json` | One row per run: model, build, development flag, D12, pass, checks lost, gates fired, calls, DONE time; plus the reference |
 | `runs/<run>/viewer.json` | The viewers' JSON (schema `awsincidentsbench.viewer/v1`, documented at the top of `tools/export_run.py`): every call with its virtual times, cost class, arguments and result; the world's series every 30 s; per-host DNS recovery; levers; the ticket and status-page history; events; the agent's messages; the grade's checks; the final message and the handoff note |
 | `runs/<run>/aws-export.json` | The `aws` server's horizon export: `episode`, the `action_log` of every call and world write, the `meter`, the `world` (endpointd, DNS, ledger, traffic, timeline, approvals, ...), `aws_state` and `start_state` |
@@ -110,8 +128,8 @@ ids.
   rewritten). Loopback addresses in simulated host output read `localhost`.
 - **Heuristics in the viewer JSON.** Which checks a call "bears on" is read from its tool and arguments, not from the
   grader; the grade's own evidence is in `grade.json`.
-- **Calibration is open.** T01 is meant to sit well below a one-in-two frontier pass rate; on the latest build both
-  models pass it, and the task is being tuned.
+- **Calibration is open.** T01 is meant to sit near a 10–18 % frontier pass rate; on the latest build both models pass
+  it, and the task is being tuned.
 - **The judge is noisy.** C11 decides about six points.
 
 ## License

@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>T01 Flight Recorder</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%9A%A8%3C/text%3E%3C/svg%3E" />
+<title>AwsIncidentsBench · T01 flight recorder</title>
 <meta name="description" content="AwsIncidentsBench T01: every recorded run as time-locked lanes, on real run data.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
@@ -210,6 +211,9 @@ h1 .tid{font-family:var(--mono);font-weight:500;color:var(--muted);font-size:20p
   h1{font-size:22px}
 }
 @media (max-width:640px){
+  .hud-ctl{width:100%}
+  .zoom{flex:1 1 auto;min-width:0}
+  .zoom button{flex:1 1 0;min-width:0;padding-left:4px;padding-right:4px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sm:not(.final){padding:0 12px;flex:1 1 45%}
   .sm:nth-child(odd):not(.final){padding-left:0;border-left:0}
   .gc .nm{font-size:9.5px}
@@ -882,7 +886,8 @@ function renderSummary(){
   const coll = sm.collapsed_min ? `<span class="v bad">${sm.collapsed_min} min <small>from ${esc(sm.first_collapse)}</small></span>` : '<span class="v ok">0 min</span>';
   const stable = sm.stable_from ? `<span class="v">${esc(sm.stable_from)} <small>→ 05:10 · ${durTxt(HZ - sec(sm.stable_from))}</small></span>` : '<span class="v bad">never</span>';
   const bl = `<span class="v ${sm.backlog_end >= 2000 || sm.outbox_end >= 500 ? 'bad' : ''}">${fmt(sm.backlog_end)} <small>outbox ${fmt(sm.outbox_end)}</small></span>`;
-  const fin = V.final ? esc(V.final.length > 520 ? V.final.slice(0, 519) + '…' : V.final) : '–';
+  const md = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  const fin = V.final ? md(V.final.length > 520 ? V.final.slice(0, 519) + '…' : V.final) : '–';
   const hand = V.handoff ? `<details class="hand"><summary>Handoff note on OPS-4452</summary><pre>${esc(V.handoff)}</pre></details>` : '';
   $('summary').innerHTML = `
     <div class="sm"><span class="k">Calls used</span><span class="v">${calls} <small>of 250 · ${V.clock.end_reason === 'done' ? 'DONE ' + hms(DONE) : 'ran to ' + esc(V.clock.end_reason || '')}</small></span></div>

@@ -389,9 +389,13 @@ def prod_label(tool: str, detail: str) -> str | None:
     m = re.search(r"epctl apply --gen (\d+)", low)
     if m:
         return f"apply {m.group(1)}"
+    m = re.search(r"epctl plan restore --gen (\d+)", low)
+    if m:
+        return f"restore plan {m.group(1)}"
     for rx, label in ((r"epctl pause", "pause"), (r"epctl resume", "resume"), (r"epctl stop", "stop"),
                       (r"cancel-instance-refresh", "cancel refresh"), (r"suspend-processes", "suspend ASG"),
                       (r"admission/enabled.*--value\s+true", "admission on"), (r"consumer_paused.*--value\s+true", "pause deliveries"),
+                      (r"consumer_paused.*--value\s+false", "resume deliveries"),
                       (r"replay_rate.*--value\s+(\d+)", "replay rate"), (r"flush", "flush cache"),
                       (r"update-service", "scale service"), (r"purge", "purge queue"), (r"restart", "restart")):
         if re.search(rx, low):
@@ -418,7 +422,8 @@ def build_steps(aws: dict, session: dict[int, dict]) -> list[dict]:
         detail = detail_of(tool, args)
         text = f"{tool} {json.dumps(args, ensure_ascii=False)}"
         aws_writes = [r for r in rows if r.get("service") and r.get("operation") and not re.match(
-            r"(Describe|Get|List|Lookup|Test|Query|Scan|BatchGet|Filter|Search|Select)", r["operation"])]
+            r"(Describe|Get|List|Lookup|Test|Query|Scan|BatchGet|Filter|Search|Select|StartQuery|StopQuery)",
+            r["operation"])]
         error = head.get("error")
         exit_code = head.get("exit_code")
         failed = bool(error) or (exit_code not in (None, 0))
@@ -722,6 +727,9 @@ def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool =
     series, hosts, levers = build_series(aws)
     summary = build_summary(aws, series, steps)
     done = sec(ep.get("done_at"))
+    end_reason = ep.get("end_reason")
+    if end_reason == "horizon" and done is not None and re.search(r"(?m)^\s*DONE\s*$", final or ""):
+        end_reason = "done"  # the first builds recorded an agent's DONE as the horizon's end
     checks, score = build_checks(grade, steps, done)
     view = {
         "schema": SCHEMA, "id": run_id, "label": label or f"{NAMES.get(model_id, model_id)} · {run_id}", "kind": "agent",
@@ -729,7 +737,7 @@ def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool =
         "model_id": model_id, "harness": "Claude Code (solver's built-in tools off; AwsBench MCP tools only)",
         "build": build, "dev": dev, "note": note,
         "clock": {"start": sec(ep["start"]), "window_end": sec(ep["window_end"]), "horizon": sec(ep["horizon"]),
-                  "done": done, "end_reason": ep.get("end_reason"), "calls_used": ep.get("calls_used"), "max_calls": 250},
+                  "done": done, "end_reason": end_reason, "calls_used": ep.get("calls_used"), "max_calls": 250},
         "score": score, "checks": checks, "steps": steps, "series": series, "hosts": hosts, "levers": levers,
         "board": build_board(ws), "dns": build_dns(aws, series), "summary": summary,
         "events": build_events(aws, ws, summary), "messages": agent_messages(steps), "final": short(final, 1500),

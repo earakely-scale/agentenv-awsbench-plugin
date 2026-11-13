@@ -2,6 +2,7 @@
 space/app/public/data/
 dataset/runs/
 dataset/reference/
+dataset/tables/
 dataset/index.json
 space/app/node_modules/
 space/app/dist/
