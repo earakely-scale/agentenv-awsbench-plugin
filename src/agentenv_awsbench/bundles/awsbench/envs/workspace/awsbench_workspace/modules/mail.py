@@ -45,7 +45,8 @@ def _summary(m: dict, box: str) -> dict:
 
 def _resolved(msg: dict, sender: str) -> dict:
     recipients = msg["to"] + msg["cc"]
-    return {"app": "mail", "recipients": recipients, "mentions": [], "message": msg["id"], "thread": msg["thread"],
+    return {"app": "mail", "recipients": recipients, "mentions": [], "message": msg["id"], "subject": msg["subject"],
+            "thread": msg["thread"],
             "in_reply_to": msg.get("in_reply_to"), "forwarded": msg.get("forwarded"),
             "external": any(is_external(r) for r in recipients)}
 

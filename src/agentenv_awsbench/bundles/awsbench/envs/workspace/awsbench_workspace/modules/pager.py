@@ -142,8 +142,9 @@ def page_as(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
                 args.get("details", ""), args.get("incident"))
     out = []
     if ws.agent_ids("pager") & set(p["assigned"]):
-        out.append(ws.deliver("page", t, args["from_user"], p["id"], f"[{p['urgency'].upper()}] {p['title']}",
-                              id=p["id"]))
+        tag = f"[{p['urgency'].upper()}]"
+        text = p["title"] if p["title"].lstrip().upper().startswith(tag) else f"{tag} {p['title']}"
+        out.append(ws.deliver("page", t, args["from_user"], p["id"], text, id=p["id"]))
     return p["id"], out
 
 

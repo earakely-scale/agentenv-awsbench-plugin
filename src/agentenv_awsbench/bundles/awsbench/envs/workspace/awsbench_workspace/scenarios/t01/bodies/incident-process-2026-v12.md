@@ -66,7 +66,8 @@ Investigating -> Identified -> **Mitigated** -> **Resolved**.
   minutes. The incident ticket and the status page are resolved only then, and the status page only with the IC's sign-off.
 
 ## §6 Decision and change records
-- Approver records, written by the approver through the approvals tool:
+- Approver records, written by the approver through the approvals tool, which posts each one as the approver's own message
+  where the request was made (channel, DM or email):
   `APPROVED (<authority>): <change> | scope: <resources and actions> | until: <time or end of OPS-NNNN>` and
   `DECLINED (<authority>): <change> | reason: <text>`; authority is one of IC, freeze, comms, CISO, GC, VP Eng+IC, data owner.
   The data owner is the owner named on the system's runbook or design page.

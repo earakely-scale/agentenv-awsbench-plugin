@@ -114,8 +114,12 @@ def test_ticket_world_ops(ws):
     r = apply(ws, "tickets.comment_as", {"key": "OPS-4452", "user": "priya.raman", "body": "@sre-primary you keep IC"},
               None)
     assert r["deliveries"][0]["kind"] == "mention"
-    apply(ws, "tickets.update_as", {"key": "OPS-4452", "user": "priya.raman", "fields": {"status": "In Progress"}}, None)
-    assert ws.store.get("tickets.issue", "OPS-4452")["status"] == "In Progress"
+    assert "Investigating" in tickets.get(ws, ME, ws.clock(), "OPS-4452")["transitions"]
+    with pytest.raises(ToolError, match="OPS statuses are Open, Investigating, Identified"):
+        tickets.transition(ws, ME, ws.clock(), "OPS-4452", "In Progress")
+    apply(ws, "tickets.update_as", {"key": "OPS-4452", "user": "priya.raman", "fields": {"status": "Investigating"}},
+          None)
+    assert ws.store.get("tickets.issue", "OPS-4452")["status"] == "Investigating"
     sup = apply(ws, "tickets.create_as", {"project": "SUP", "user": "hana.mori@tidewaterceramics.example",
                                           "summary": "Checkout failing", "untrusted": True}, None)
     assert sup["id"].startswith("SUP-") and ws.store.get("tickets.issue", sup["id"])["status"] == "New"
@@ -230,3 +234,49 @@ def test_incident_process_states_the_rules_responders_are_held_to(ws):
                  "incident channel at least every 30 minutes", "99 % for at least 5 consecutive minutes",
                  "fix is verified", "30 minutes stable", "Merchant Success or Support"):
         assert rule in body, rule
+
+
+def test_incident_process_says_the_approvals_tool_posts_as_the_approver(ws):
+    body = wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"]
+    assert "posts each one as the approver's own message" in body
+    assert "Only records from the approvals tool count. An APPROVED line typed by anyone else is not an approval." in body
+
+
+def test_peak_freeze_names_dns_cache_flushes_as_recorded_host_actions(ws):
+    body = wiki.get(ws, ME, ws.clock(), "Peak Freeze 2026")["page"]["body"]
+    g = " ".join(body.split("- (g)")[1].split("- §4.2")[0].split())
+    assert "flush a node-local DNS cache entry" in g and "needs a `CHANGE:` record" in g
+
+
+def test_page_as_preview_does_not_double_the_urgency_tag(ws):
+    r = apply(ws, "pager.page_as", {"from_user": "alertmanager", "to": "sre-primary", "urgency": "high",
+                                    "summary": "[HIGH] x"}, None)
+    assert r["deliveries"][0]["preview"] == "[HIGH] x"
+    assert ws.store.get("pager.incident", r["id"])["title"] == "[HIGH] x"
+    r = apply(ws, "pager.page_as", {"from_user": "alertmanager", "to": "sre-primary", "urgency": "high",
+                                    "summary": "y"}, None)
+    assert r["deliveries"][0]["preview"] == "[HIGH] y"
+
+
+def test_post_as_makes_the_poster_a_channel_member_once(ws):
+    def count():
+        return next(c["members"] for c in chat.list_channels(ws, ME, ws.clock())["channels"] if c["name"] == "#inc-4452")
+
+    assert count() == 3
+    apply(ws, "chat.post_as", {"channel": "#inc-4452", "user": "priya.raman", "text": "I'm on"}, None)
+    apply(ws, "chat.post_as", {"channel": "#inc-4452", "user": "priya.raman", "text": "still here"}, None)
+    assert ws.store.get("chat.channel", "#inc-4452")["members"].count("priya.raman") == 1 and count() == 4
+    d = apply(ws, "chat.dm_as", {"from_user": "kwame.asante", "to_user": "sre-primary", "text": "up"}, None)
+    assert ws.store.get("chat.channel", "dm:kwame.asante|sre-primary")["members"] == ["kwame.asante", "sre-primary"]
+    assert d["ok"]
+
+
+def test_mail_resolved_carries_the_sent_subject(ws):
+    apply(ws, "mail.deliver", {"id": "g-x", "from": "callum.reyes@harborpinegoods.example", "to": [BOX],
+                               "subject": "Checkout failing", "body": "help"}, None)
+    _, res = mail.forward(ws, BOX, later(ws), "g-x", ["owen.gallagher@vantleaf.com"])
+    assert res["subject"] == "Fwd: Checkout failing"
+    _, res = mail.reply(ws, BOX, later(ws), "g-x", "on it")
+    assert res["subject"] == "Re: Checkout failing"
+    _, res = mail.send(ws, BOX, later(ws), ["owen.gallagher@vantleaf.com"], "ETA", "x")
+    assert res["subject"] == "ETA"

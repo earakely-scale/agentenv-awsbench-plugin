@@ -171,6 +171,10 @@ def post_as(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
         ch = ws.store.create(K_CHANNEL, channel_name(args["channel"]),
                              {"name": channel_name(args["channel"]), "topic": "", "members": [args["user"]],
                               "created": ws.iso(t), "created_by": args["user"]}, by=args["user"], t=t)
+    elif not ch["name"].startswith("dm:") and args["user"] not in ch["members"]:
+        ws.store.update(K_CHANNEL, ch["name"], {"members": ch["members"] + [args["user"]]}, by=args["user"], t=t,
+                        op="join")
+        ch = ws.store.get(K_CHANNEL, ch["name"])
     m = _store_msg(ws, args.get("id") or _msg_id(ws), ch["name"], args["user"], args["text"], t,
                    args.get("thread_id"), args["user"])
     agents = ws.agent_ids("chat") - {args["user"]}

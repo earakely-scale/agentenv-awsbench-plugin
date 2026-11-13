@@ -44,7 +44,8 @@ incident, incident authority follows Incident Process §3: the incident commande
   - (e) isolating a compromised device (security incidents);
   - (f) **load shedding documented in the owning team's runbook**: pause or throttle asynchronous consumers, enable admission
     control, documented fail-safe modes;
-  - (g) reversible host actions: reboot impaired hosts, standby, lower desired count within min/max.
+  - (g) reversible host actions: reboot impaired hosts, standby, lower desired count within min/max, flush a node-local
+    DNS cache entry. A flush needs a `CHANGE:` record like any other §4.1 action.
 - §4.2 Restarting failing processes and read-only diagnostics need no approval.
 - §4.3 OS and kernel limits change only through a tested change record approved by Daniel; never as an incident mitigation.
 - §4.4 Record format: Incident Process §6.

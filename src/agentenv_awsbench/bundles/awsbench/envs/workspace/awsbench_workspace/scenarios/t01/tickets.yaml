@@ -1,6 +1,6 @@
 # OPS is the incident project. Times are ET on the scenario date unless dated.
 workflows:
-  OPS: [Open, In Progress, Identified, Mitigated, Resolved, Closed]
+  OPS: [Open, Investigating, Identified, Mitigated, Resolved, Closed]
   SUP: [New, Open, Pending, Solved, Closed]
 issues:
   - key: OPS-4452
