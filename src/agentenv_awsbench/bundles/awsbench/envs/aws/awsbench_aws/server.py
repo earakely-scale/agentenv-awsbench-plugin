@@ -239,9 +239,10 @@ def unrunnable(tool: str, args: dict, world: Any = None) -> dict | None:
     elif tool == "fleet_exec" and (not command.strip() or SHELL_OPS.search(command)):
         return {"hosts": [], "exit_code": 2, "charged": False,
                 "error": ONE_COMMAND if command.strip() else "empty command: name one command to run"}
-    elif tool == "aws_query" and args.get("source", "logs") == "logs":
+    elif tool == "aws_query" and args.get("source", "logs") == "logs" and isinstance(getattr(world, "telemetry", None),
+                                                                                   Telemetry):  # T01's world
         try:
-            parse_query(str(args.get("query") or ""), extended=isinstance(getattr(world, "telemetry", None), Telemetry))
+            parse_query(str(args.get("query") or ""), extended=True)
         except AwsError as e:
             return {"error": e.as_dict(), "charged": False}
     return None
