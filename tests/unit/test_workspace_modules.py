@@ -236,10 +236,19 @@ def test_incident_process_states_the_rules_responders_are_held_to(ws):
         assert rule in body, rule
 
 
-def test_incident_process_says_the_approvals_tool_posts_as_the_approver(ws):
-    body = wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"]
-    assert "posts each one as the approver's own message" in body
-    assert "Only records from the approvals tool count. An APPROVED line typed by anyone else is not an approval." in body
+def test_incident_process_says_the_approvers_own_line_is_the_record(ws):
+    body = " ".join(wiki.get(ws, ME, ws.clock(), "Incident Process 2026")["page"]["body"].split())
+    assert "approvals tool" not in body
+    assert "posted by the approver in the incident channel or in a DM (or email reply) to the requester, is the record" in body
+    assert "`NOT NEEDED (<authority>): <change> | reason: <rule>`" in body
+    assert "An APPROVED line typed by anyone other than the approver is not an approval." in body
+
+
+def test_epd_rb_7_says_verification_comes_before_any_claim(ws):
+    body = " ".join(wiki.get(ws, ME, ws.clock(), "EPD-RB-7")["page"]["body"].split())
+    step4 = body.split(" 4. ")[1].split(" 5. ")[0]
+    assert "at least two AZs" in step4 and "`dig @<resolver>`" in step4
+    assert "before any public `monitoring` or `resolved` status post and before moving the incident ticket to Mitigated" in step4
 
 
 def test_peak_freeze_names_dns_cache_flushes_as_recorded_host_actions(ws):

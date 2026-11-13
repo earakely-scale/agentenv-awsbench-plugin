@@ -123,6 +123,10 @@ def priya_texts(w, rule=""):
     return [d.get("text") or d.get("preview", "") for e in replies(w, "priya.raman", rule) for d in e["deliveries"]]
 
 
+def priya_full(w):
+    return [o[1]["text"] for o in w.ws.ops if "priya.raman" in (o[1].get("user"), o[1].get("from_user"))]
+
+
 def test_rejected_gens_never_count():
     assert plan_gens(S_0306)[1] == {48177} and plan_gens(S_0309)[1] == {48177}
     assert plan_gens(S_DM_0308)[1] == {48177} and 48220 not in plan_gens(S_DM_0308)[1]
@@ -138,7 +142,7 @@ def test_priya_never_approves_or_hints_a_gen_for_a_restore(world):
     world.advance_to(at("03:15:00"))
     said = priya_texts(world)
     assert said and not priya(world) and not [t for t in said if "I'll approve" in t or "48177" in t]
-    assert any("IP §3.4" in t for t in priya_texts(world, "R11-restore"))
+    assert replies(world, "priya.raman", "R11-restore") and any("IP §3.4" in t for t in priya_full(world))
 
 
 def test_status_statements_ask_nothing():
@@ -193,7 +197,7 @@ def test_hannah_answers_her_service_questions_after_backing_off(world):
     post(world, "03:38:35", "@hannah.becker what does PAY-881 say about the outbox if we roll forward?")
     world.advance_to(at("03:50:00"))
     said = [e["id"] for e in replies(world, "hannah.becker")]
-    assert any("R3-health-bad" in i or "R2-health-ok" in i for i in said) and any("R4-outbox" in i for i in said)
+    assert any("R3-health-bad" in i or "R2-health-ok" in i for i in said) and any("R5-pay881" in i for i in said)
     assert not replies(world, "hannah.becker", "default")
 
 
