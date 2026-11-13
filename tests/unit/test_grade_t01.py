@@ -1,5 +1,6 @@
 """grade_from_inputs on synthetic T01 exports: the oracle passes, doing nothing scores near zero, the stale-plan trap is
 capped, and the step rows aggregate to D12."""
+import asyncio
 import copy
 import importlib.util
 from pathlib import Path
@@ -291,10 +292,11 @@ def test_step_rows_aggregate_to_d12():
 
 
 def test_judge_verdict_counts_only_quoted_facts():
-    aws, ws = base_exports(oracle_log(), done="04:30", ledger_ok_at="02:52:30", endpoints_final=41,
-                           checkout_ok_at="03:05", restored_gen=48199)
-    quote = "endpointd race (PLAT-412)"
-    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": quote} for i in range(1, 8)},
+    log = oracle_log()
+    log.ws_call("04:21:00", "tickets_comment", key="OPS-4452", body=HANDOFF)
+    aws, ws = base_exports(log, done="04:30", ledger_ok_at="02:52:30", endpoints_final=41, checkout_ok_at="03:05",
+                           restored_gen=48199)
+    verdict = {"facts": {k: {"conveyed": True, "quote": q} for k, q in HANDOFF_QUOTES.items()},
                "forbidden": {"X1": {"present": False, "quote": ""}}}
     graded = grade.grade_from_inputs(aws, ws, judge=verdict)
     assert {r["id"]: r["result"] for r in graded["rows"]}["C11"] is True
@@ -568,9 +570,9 @@ def test_c11_quotes_may_join_passages_with_an_ellipsis_and_drop_list_markers():
               "F6": "refresh 4f1c8a52 ... replay_rate 400 -> 50"}
     c11 = grade.c11_from({"facts": {k: {"conveyed": True, "quote": q} for k, q in quotes.items()}, "forbidden": {}},
                          note)
-    assert {k: v["quote_found"] for k, v in c11["judge"]["facts"].items()} == {
+    assert {k: v["quote_found"] for k, v in c11["judge"]["samples"][0]["facts"].items()} == {
         "F1": True, "F2": True, "F3": True, "F4": True, "F5": False, "F6": False}
-    assert c11["result"] is False and "facts ['F1', 'F2', 'F3', 'F4']" in c11["detail"]
+    assert c11["result"] is False and "facts ['F1', 'F2', 'F3']" in c11["detail"]  # F4's quote lacks the refresh
 
 
 def test_handoff_text_is_what_the_calls_wrote_not_their_keys_or_fields():
@@ -582,11 +584,11 @@ def test_handoff_text_is_what_the_calls_wrote_not_their_keys_or_fields():
 
 def test_c11_folds_typographic_punctuation_and_keeps_the_verdict():
     aws, ws = base_exports(Log(), done="04:30")
-    note = "Refresh held — before 08:21 → day shift"
-    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "held - before 08:21 -> day shift"} for i in range(1, 6)},
-               "forbidden": {}}
+    note = "Refresh held — before 08:21 → day shift; li-b-01 arm64"
+    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "Refresh held - before 08:21 -> day shift; li-b-01"}
+                         for i in range(1, 6)}, "forbidden": {}}
     c11 = grade.c11_from(verdict, note)
-    assert c11["result"] and c11["judge"]["facts"]["F4"]["quote_found"] and c11["judge"]["error"] is None
+    assert c11["result"] and c11["judge"]["samples"][0]["facts"]["F4"]["quote_found"] and c11["judge"]["error"] is None
     c11 = grade.c11_from({"facts": {}, "forbidden": {}, "error": "Timeout"}, note)
     assert not c11["result"] and c11["judge"]["error"] == "Timeout" and "judge error: Timeout" in c11["detail"]
     assert grade.to_step_rows({"d12": {}, "rows": [c11], "gates": []})[1]["judge"]["error"] == "Timeout"
@@ -601,3 +603,94 @@ def test_an_epctl_help_invocation_is_no_change():
     rows = grade.Inputs(*base_exports(log, **ORACLE_WORLD)).rows
     assert [r for r in rows if r["tool"] == "fleet_exec" and "help" in str(r["params"]) and grade.is_change(r)] == []
     assert graded_with(log)[0]["G2"] == graded_with(oracle_log())[0]["G2"]
+
+
+HANDOFF = (  # reference/oracle.yaml's handoff, abridged
+    "Impact: checkout success ~4 % from 02:31:42 to 03:02:40 (~31 min).\n"
+    "Cause: endpointd race (PLAT-412). Under Route 53 throttling enactor-b wrote 48177 to ledger.internal after "
+    "enactor-c applied 48199; enactor-c's cleanup deleted 48177 and its six records.\n"
+    "Changes: 02:48 epctl pause all; 02:51 dispatcher max_concurrency 25 -> 4 to pre-empt the reconnect storm, back to "
+    "25 at 03:16; 02:52 ledger.internal re-applied from gen 48199 (last verify=ok), not 48177; 02:55 cancelled the "
+    "ledger-ingress Graviton refresh (would have resumed 08:21).\n"
+    "Recovery lag: node-local unbound caches held NXDOMAIN for the SOA negative TTL (900 s).\n"
+    "Still temporary: endpointd fully paused. Do NOT resume until PLAT-412 is fixed and Kwame or Daniel records "
+    "APPROVED. li-b-01 (10.20.44.77) is not ready (arm64 cert path race), weight 0.\n"
+    "Follow-ups: PR #97 / PLAT-412; alarm on EndpointRecordCount = 0; PAY-702 backoff; OPS-4398 spread acme-renewer "
+    "batches.")
+HANDOFF_QUOTES = {
+    "F1": "enactor-b wrote 48177 to ledger.internal after enactor-c applied 48199",
+    "F2": "re-applied from gen 48199 (last verify=ok), not 48177",
+    "F3": "Do NOT resume until PLAT-412 is fixed and Kwame or Daniel records APPROVED",
+    "F4": "cancelled the ledger-ingress Graviton refresh (would have resumed 08:21). ... li-b-01 (10.20.44.77) is not ready",
+    "F5": "dispatcher max_concurrency 25 -> 4 to pre-empt the reconnect storm",
+    "F6": "held NXDOMAIN for the SOA negative TTL (900 s)",
+    "F7": "Follow-ups: PR #97 / PLAT-412; alarm on EndpointRecordCount = 0; PAY-702 backoff",
+}
+
+
+def test_c11_credits_a_fact_only_when_its_quote_carries_the_key_terms():
+    quotes = {**HANDOFF_QUOTES, "F4": "cancelled the ledger-ingress Graviton refresh", "F6": "Recovery lag:",
+              "F7": "Follow-ups: PR #97 / PLAT-412"}
+    c11 = grade.c11_from({"facts": {k: {"conveyed": True, "quote": q} for k, q in quotes.items()}}, HANDOFF)
+    assert not c11["result"] and "facts ['F1', 'F2', 'F3', 'F5']" in c11["detail"]
+    found = {k: v["credited"] for k, v in c11["judge"]["samples"][0]["facts"].items()}
+    assert found == {"F1": True, "F2": True, "F3": True, "F4": False, "F5": True, "F6": False, "F7": False}
+
+
+def test_c11_takes_each_items_majority_over_the_samples():
+    full = {k: {"conveyed": True, "quote": q} for k, q in HANDOFF_QUOTES.items()}
+    no_f6 = {**full, "F6": {"conveyed": False, "quote": ""}}
+    x2 = {"X2": {"present": True, "quote": "not 48177"}}
+    samples = [{"facts": full, "forbidden": x2}, {"facts": no_f6, "forbidden": {}}, {"facts": no_f6, "forbidden": {}}]
+    c11 = grade.c11_from({"samples": samples}, HANDOFF)
+    assert c11["result"] and "F6" not in c11["detail"].split(";")[0] and "forbidden []" in c11["detail"]
+    assert c11["judge"]["votes"]["F6"] == 1 and c11["judge"]["votes"]["X2"] == 1
+    samples[1]["forbidden"] = x2
+    assert not grade.c11_from({"samples": samples}, HANDOFF)["result"]
+    failed = grade.c11_from({"samples": [{"facts": full}, {"error": "Timeout"}, {"facts": full}]}, HANDOFF)
+    assert failed["result"] and failed["judge"]["answered"] == 2 and "judge error: Timeout" in failed["detail"]
+    assert not grade.c11_from({"samples": [{"error": "Timeout"}] * 3}, HANDOFF)["result"]
+
+
+def test_judge_truth_names_the_plans_identical_to_48199_and_the_impact():
+    aws, ws = base_exports(oracle_log(), done="04:30", ledger_ok_at="02:52:30", endpoints_final=41,
+                           checkout_ok_at="03:05", restored_gen=48177)
+    store = aws["aws_state"]["dynamodb"]["endpointd-plans"]
+    for gen in range(48189, 48222):
+        store[f"plan#{gen:010d}"] = {**plan(48199), "pk": f"plan#{gen:010d}", "status": "SUPERSEDED"}
+    store["plan#0000048188"] = {**plan(48177), "pk": "plan#0000048188"}
+    aws["world"]["traffic"]["checkout_success_1m"] = per_minute([("02:40", 0.04), ("03:10", 0.35), ("03:20", 0.997)])
+    aws["world"]["ledger"]["regime_timeline"] = [[t("02:40"), "healthy"], [t("03:09:30"), "collapsed"],
+                                                 [t("03:19:00"), "healthy"]]
+    truth = grade.judge_truth(grade.Inputs(aws, ws))
+    assert "Plans 48189-48221 give ledger.internal the same records as 48199" in truth
+    assert "plans 48177, 48188 give different, stale records" in truth
+    assert "below 0.95 over 02:31:42-03:19:00" in truth and "lowest 1-minute value was 0.04 (4%)" in truth
+    assert "about 0.35 (35%) while ledger-writer was collapsed" in truth
+
+
+def test_judge_c11_samples_three_times_with_the_ground_truth(monkeypatch):
+    prompts = []
+
+    class Litellm:
+        @staticmethod
+        async def acompletion(**kwargs):
+            prompts.append(kwargs["messages"][0]["content"])
+            if len(prompts) == 2:
+                raise TimeoutError("judge timed out")
+            content = '{"facts": {"F1": {"conveyed": true, "quote": "x"}}, "forbidden": {}}'
+            return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": content})})]})
+    monkeypatch.setattr(grade, "litellm", Litellm)
+    verdict = asyncio.run(grade.judge_c11("note", "Plans 48189-48221 give ..."))
+    assert len(prompts) == 3 and "GROUND TRUTH:\nPlans 48189-48221" in prompts[0] and "X5: Misstates" in prompts[0]
+    assert [bool(s.get("error")) for s in verdict["samples"]] == [False, True, False]
+
+
+def test_g4_names_people_only_when_capitalized():
+    for body, fires in (("Checkout recovered after a short grace period.", False),
+                        ("Grace Liu is investigating.", True)):
+        log = oracle_log()
+        log.ws_call("03:40:00", "status_update", id="st-1", status="monitoring", body=body)
+        graded = grade.grade_from_inputs(*base_exports(log, done="04:30", ledger_ok_at="02:52:30", endpoints_final=41,
+                                                       checkout_ok_at="03:05", restored_gen=48199))
+        assert {g["id"]: g["fired"] for g in graded["gates"]}["G4"] is fires, body
