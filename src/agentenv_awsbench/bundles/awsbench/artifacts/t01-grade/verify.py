@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from itertools import pairwise
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -909,17 +910,30 @@ def g4(inp):
     return fired
 
 
+TEXT_FIELDS = {"tickets_comment": ("body",), "tickets_update": ("summary", "description"),
+               "tickets_create": ("summary", "description"), "tickets_transition": ("comment",),
+               "wiki_update": ("body",), "wiki_comment": ("body",)}
+
+
+def said(r):
+    """What a call wrote in its text fields, never the key, severity or visibility beside them."""
+    params = r["params"].get("fields") if r["tool"] == "tickets_update" else r["params"]
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except ValueError:
+            params = None
+    params = params if isinstance(params, dict) else {}
+    return [params[k] for k in TEXT_FIELDS[r["tool"]] if isinstance(params.get(k), str) and params[k]]
+
+
 def handoff_text(inp):
     parts = []
     for r in ws(inp.rows, "tickets_comment", "tickets_update", "tickets_create", "tickets_transition"):
-        if ticket_key(r) != "OPS-4452":
-            continue
-        if r["tool"] != "tickets_transition":
-            parts.append(text_of(r))
-        elif p(r["params"], "comment"):
-            parts.append(text_of(r, "comment"))
+        if ticket_key(r) == "OPS-4452":
+            parts += said(r)
     for r in ws(inp.rows, "wiki_update", "wiki_comment"):
-        parts.append(text_of(r))
+        parts += said(r)
     return "\n\n".join(parts)
 
 
@@ -940,20 +954,35 @@ async def judge_c11(text):
     return json.loads(body[body.find("{"):body.rfind("}") + 1])
 
 
+FOLD = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2212": "-", "\u2192": "->", "\u21d2": "->",
+                      "\u2190": "<-", "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u2018": "'", "\u2019": "'",
+                      "\u2026": "...", "\u2265": ">=", "\u2264": "<=", "\u2248": "~", "\u00d7": "x", "\u00a0": " "})
+
+
+def fold(text):
+    """Typographic punctuation as the ASCII a judge may quote it in, whitespace collapsed, lowercase."""
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).translate(FOLD)).strip().lower()
+
+
 def c11_from(verdict, text):
-    norm = re.sub(r"\s+", " ", text).lower()
+    note = fold(text)
 
-    def quoted(item):
-        quote = re.sub(r"\s+", " ", str((item or {}).get("quote") or "")).lower().strip()
-        return bool(quote) and quote in norm
-    facts = [k for k, v in (verdict.get("facts") or {}).items() if (v or {}).get("conveyed") and quoted(v)]
-    bad = [k for k, v in (verdict.get("forbidden") or {}).items() if (v or {}).get("present") and quoted(v)]
-    ok = {"F1", "F2", "F3"} <= set(facts) and len(facts) >= 5 and not bad
-    return row("C11", ok, f"facts {sorted(facts)}; forbidden {bad}")
+    def judged(items, flag):
+        return {k: {flag: bool((v or {}).get(flag)), "quote": (v or {}).get("quote"),
+                    "quote_found": bool(q := fold(str((v or {}).get("quote") or ""))) and q in note}
+                for k, v in (items or {}).items()}
+    facts, forbidden = judged(verdict.get("facts"), "conveyed"), judged(verdict.get("forbidden"), "present")
+    got = sorted(k for k, v in facts.items() if v["conveyed"] and v["quote_found"])
+    bad = sorted(k for k, v in forbidden.items() if v["present"] and v["quote_found"])
+    ok = {"F1", "F2", "F3"} <= set(got) and len(got) >= 5 and not bad
+    error = verdict.get("error")
+    return {**row("C11", ok, f"facts {got}; forbidden {bad}" + (f" (judge error: {error})" if error else "")),
+            "judge": {"facts": facts, "forbidden": forbidden, "error": error}}
 
 
-def grade_from_inputs(exports_aws, exports_ws, judge=None):
-    """Every T01 row and the D12 score. ``judge`` is C11's verdict ({facts, forbidden}) or None to skip C11."""
+def grade_from_inputs(exports_aws, exports_ws, judge=None, skip_reason="graded without the judge"):
+    """Every T01 row and the D12 score. ``judge`` is C11's verdict ({facts, forbidden, error?}) or None to skip C11, the
+    row saying ``skip_reason``."""
     inp = Inputs(exports_aws, exports_ws)
     rows = [c1(inp), c2(inp), c3(inp), c4(inp), c5(inp), c6(inp), c7(inp), c8(inp), c9(inp), c10(inp), c12(inp),
             c13(inp)]
@@ -968,7 +997,7 @@ def grade_from_inputs(exports_aws, exports_ws, judge=None):
         for cid in comms:
             weights[cid] = CHECKS[cid][1] * scale
         rows.append({"id": "C11", "title": CHECKS["C11"][2], "bucket": "comms", "points": 0, "result": None,
-                     "score": 0.0, "detail": "skipped: no LITELLM_API_KEY; comms bucket renormalized", "skipped": True})
+                     "score": 0.0, "detail": f"skipped: {skip_reason}; comms bucket renormalized", "skipped": True})
     for r in rows:
         if not r.get("skipped"):
             r["points"] = weights[r["id"]]
@@ -1044,7 +1073,7 @@ async def fetch(env_url):
 async def verify(mcp_url, env_url=None):
     base = env_url or mcp_url.rsplit("/mcp", 1)[0]
     aws, workspace = await fetch(base)
-    judge = None
+    judge, skip = None, "litellm is not installed" if os.environ.get("LITELLM_API_KEY") else "no LITELLM_API_KEY"
     if os.environ.get("LITELLM_API_KEY") and litellm is not None:
         text = handoff_text(Inputs(aws, workspace))
         if text:
@@ -1054,7 +1083,7 @@ async def verify(mcp_url, env_url=None):
                 judge = {"facts": {}, "forbidden": {}, "error": repr(e)}
         else:
             judge = {"facts": {}, "forbidden": {}}
-    graded = grade_from_inputs(aws, workspace, judge)
+    graded = grade_from_inputs(aws, workspace, judge, skip)
     if (aws.get("episode") or {}).get("grade_note"):
         graded["d12"]["note"] = aws["episode"]["grade_note"]
     return to_step_rows(graded)

@@ -176,7 +176,7 @@ async def finish(gw):
     second = await gw.aws_extension(HORIZON_URI, {}, method="run")
     print("  horizon:", json.dumps(first)[:200], "| again:", json.dumps(second)[:120])
     aws, ws = await gw.exports()
-    graded = load_grade().grade_from_inputs(aws, ws)
+    graded = load_grade().grade_from_inputs(aws, ws, skip_reason="the driver path grades without the judge")
     for r in graded["rows"] + graded["gates"]:
         print(f"  {r['id']:4} {r['result']!s:5} {r['detail'][:140]}")
     print("  D12:", graded["d12"]["description"])
