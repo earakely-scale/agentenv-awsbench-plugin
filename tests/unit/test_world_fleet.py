@@ -182,3 +182,41 @@ def test_refresh_matches_plat_405(world):
     g = world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {})["AutoScalingGroups"][0]
     versions = {i["InstanceType"][:3]: i["LaunchTemplate"]["Version"] for i in g["Instances"]}
     assert versions == {"m7g": "15", "m6i": "14"} and g["LaunchTemplate"]["Version"] == "15"
+
+
+@pytest.mark.parametrize("selector,n", [("vl-core,endpointd-enactor-a", 31), ("vl-core:use1-az6", 10),
+                                        ("vl-core endpointd-enactor-a", 31), ("*", None), ("all", None)])
+def test_selectors_resolve_fleets_azs_and_globs_inside_lists(world, selector, n):
+    hosts = world.fleet.select(selector)
+    assert len(hosts) == (n or len(world.fleet.hosts))
+    assert hosts == [h for h in world.fleet.hosts if h in hosts]
+
+
+def test_an_az_selects_its_hosts_across_fleets(world):
+    az6 = [h for h, v in world.fleet.hosts.items() if v["az"] == "use1-az6"]
+    assert len({world.fleet.hosts[h]["fleet"] for h in az6}) > 1
+    assert world.fleet.select("use1-az6") == az6
+
+
+def test_unmatched_tokens_are_reported_not_refused(world):
+    res = world.fleet_exec("vl-core,nope-*", "hostname", AGENT)
+    assert len(res["hosts"]) == 30 and res["unmatched"] == ["nope-*"]
+    assert "unmatched" not in world.fleet_exec("vl-core", "hostname", AGENT)
+
+
+def test_unsupported_unbound_control_names_its_subcommand(world):
+    out, code = run(world, "core-a-01", f"unbound-control lookup {LEDGER}")
+    assert code == 1 and "lookup" in out and "flush" in out and "not available" in out
+    assert run(world, "core-a-01", "unbound-control")[0].startswith("unbound-control with no command")
+    assert run(world, "core-a-01", f"unbound-control flush {LEDGER}") == ("ok\n", 0)
+
+
+def test_inspect_cache_holds_the_one_record_dig_answers(world):
+    ep(world, "epctl pause all", "02:49:00")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x", "02:52:30")
+    world.advance_to(at("02:53:00"))
+    world.fleet_exec("core-a-01", f"unbound-control flush {LEDGER}", AGENT)
+    world.advance_to(at("02:53:20"))
+    cache = world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER]
+    ip = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
+    assert ip and "\n" not in ip and cache.startswith(f"{ip} (ttl ")

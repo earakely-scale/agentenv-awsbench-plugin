@@ -1,6 +1,8 @@
 """Telemetry reads against the T01 world: outbox, logs, Logs Insights, metric statistics, alarms and SQS."""
 
+import re
 from datetime import UTC, timedelta
+from pathlib import Path
 
 import pytest
 from awsbench_aws.errors import AwsError
@@ -196,6 +198,7 @@ def test_alarms_keep_their_real_times_names_and_periods(world):
     alarms = {a["AlarmName"]: a for a in world.serve_aws("cloudwatch", "DescribeAlarms", {})["MetricAlarms"]}
     assert alarms["ledger-ingress-EnvoyNotReady"]["StateUpdatedTimestamp"] == at("02:13:00")
     assert alarms["endpointd-ApplyLagSeconds-high"]["StateUpdatedTimestamp"] == at("02:37:00")
+    assert alarms["checkout-api-CheckoutSuccessRate-critical"]["StateUpdatedTimestamp"] == at("02:32:00")
     one = world.serve_aws("cloudwatch", "DescribeAlarms", {
         "AlarmNames": ["checkout-api-CheckoutSuccessRate-critical"]})["MetricAlarms"]
     assert len(one) == 1 and one[0]["StateValue"] == "ALARM" and one[0]["Threshold"] == 0.95
@@ -213,3 +216,60 @@ def test_queue_attributes_follow_the_consumer_and_the_request(world):
     one = world.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": url,
                                                          "AttributeNames": ["ApproximateNumberOfMessages"]})
     assert list(one["Attributes"]) == ["ApproximateNumberOfMessages"]
+
+
+# ---- the minutes before the episode ----
+@pytest.mark.parametrize("ns,metric", [("Vantleaf/Checkout", "CheckoutSuccessRate"),
+                                       ("Vantleaf/Checkout", "OutboxPending"),
+                                       ("AWS/SQS", "ApproximateNumberOfMessagesVisible"),
+                                       ("Vantleaf/Endpointd", "EndpointRecordCount")])
+def test_metrics_have_every_minute_from_before_the_outage(world, ns, metric):
+    world.advance_to(at("02:45:00"))
+    pts = sorted(stats(world, ns, metric, "02:20:00", "02:45:00", 60, ["Average"]), key=lambda p: p["Timestamp"])
+    assert [p["Timestamp"] for p in pts] == [at("02:20:00") + timedelta(minutes=i) for i in range(25)]
+
+
+def test_backfilled_minutes_follow_the_outage_physics(world):
+    world.advance_to(at("02:45:00"))
+    outbox = [p["Average"] for p in sorted(stats(world, "Vantleaf/Checkout", "OutboxPending", "02:31:00", "02:42:00",
+                                                 60, ["Average"]), key=lambda p: p["Timestamp"])]
+    assert outbox[0] == 0 and outbox == sorted(outbox) and 6000 < outbox[-3] < outbox[-2]
+    rate = stats(world, "Vantleaf/Checkout", "CheckoutSuccessRate", "02:33:00", "02:40:00", 60, ["Maximum"])
+    assert len(rate) == 7 and all(p["Maximum"] < 0.95 for p in rate)
+
+
+# ---- Logs Insights ----
+def test_insights_answers_as_of_start_query(world):
+    world.advance_to(at("02:44:00"))
+    qid = world.serve_aws("logs", "StartQuery", {"logGroupNames": [CK], "queryString": "fields @timestamp, @message",
+                                                 "startTime": int(at("02:30:00").timestamp()),
+                                                 "endTime": int(at("02:50:00").timestamp())})["queryId"]
+    world.advance_to(at("02:50:00"))
+    rows = world.serve_aws("logs", "GetQueryResults", {"queryId": qid})["results"]
+    newest = max(r[0]["value"] for r in rows)
+    assert rows and newest <= at("02:44:00").astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S.999")
+
+
+# ---- ledger-writer pool ----
+def test_collapsed_pool_lines_always_have_waiters(world):
+    ep(world, "epctl pause all", "02:49:00")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x", "02:58:30")
+    set_param(world, "/vl/prod/webhooks-dispatcher/consumer_paused", "true", "03:06:00")
+    world.advance_to(at("03:20:00"))
+    tail = [m for m in world.telemetry.minutes if m["regime"] == "collapsed" and m["offered"] < m["capacity"]]
+    assert tail
+    for m in world.telemetry.minutes:
+        if m["regime"] == "collapsed":
+            line = world.telemetry.lines("/vl/prod/ledger-writer", m["t"] + timedelta(seconds=42))[0]
+            assert int(re.search(r"waiting=(\d+)", line).group(1)) > 0, line
+
+
+# ---- seeded log lines ----
+def test_seeded_logs_name_real_versions_and_hosts(world):
+    msgs = " ".join(e["message"] for e in SCENARIO["world"]["telemetry"]["logs"])
+    repo = (Path(__file__).resolve().parents[2] / "src/agentenv_awsbench/bundles/awsbench/envs/workspace/"
+            "awsbench_workspace/scenarios/t01/repo/checkout-api.yaml").read_text()
+    tags = re.findall(r"v\d{4}\.\d{2}\.\d{2}-\d+", msgs)
+    assert tags and all(t in repo for t in tags)
+    names = re.findall(r"\b(?:li|lw|core)-[abc]-\d{2}\b", msgs)
+    assert names and all(n in world.fleet.hosts for n in names)

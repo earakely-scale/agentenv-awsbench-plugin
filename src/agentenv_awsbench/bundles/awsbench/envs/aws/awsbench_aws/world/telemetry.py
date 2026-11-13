@@ -182,6 +182,20 @@ class Telemetry:
                 since = self.alarm_since.get(name) if a["state"] is None and on else None
                 a.update(state=v, since=since or t)
 
+    def backfill(self, start: datetime) -> None:
+        """Minute records from the outage to the episode start, which the world never ticks: the start's own state, with
+        the outbox and webhook backlog growing from nothing at the outage as physics grows them."""
+        span = (start - self.outage_start).total_seconds()
+        if not self.minutes or span <= 0:
+            return
+        m0, t = self.minutes[0], self.outage_start.astimezone(start.tzinfo).replace(second=0, microsecond=0)
+        rows = []
+        while t < m0["t"]:
+            f = max(0.0, (t - self.outage_start).total_seconds()) / span
+            rows.append({**m0, "t": t, "outbox": m0["outbox"] * f, "backlog": m0["backlog"] * f})
+            t += timedelta(minutes=1)
+        self.minutes[:0], self._mts[:0] = rows, [r["t"] for r in rows]
+
     def _planner_lines(self, t: datetime) -> None:
         """The planner logs each plan it writes, with how many ledger records changed from the plan before."""
         ep = self.w.endpointd
@@ -352,11 +366,12 @@ class Telemetry:
                 raise AwsError("InvalidParameterException", "Specify logGroupName, logGroupNames or "
                                                             "logGroupIdentifiers.", 400)
             qid = f"q-{len(self.queries) + 1:06d}"
-            self.queries[qid] = {**p, "groups": groups, "plan": parse_query(p.get("queryString", "")), "at": now}
+            q = {**p, "groups": groups, "plan": parse_query(p.get("queryString", "")), "at": now}
+            self.queries[qid] = {**q, "result": self.run_query(q, now)}
             return {"queryId": qid}
         if op == "GetQueryResults":
             q = self.queries.get(p.get("queryId"))
-            return None if q is None else self.run_query(q, now)
+            return None if q is None else q["result"]
         return None
 
     def _known(self, g) -> str:
@@ -433,7 +448,7 @@ class Telemetry:
         if kind == "ledger":
             tasks = max(1, m["lw_tasks"])
             if m["regime"] == "collapsed":
-                waiting = max(0, round((m["offered"] - m["capacity"]) / tasks))
+                waiting = round(1.5 * m["offered"] / tasks)
                 return [f"WARN db pool exhausted: waited 1500ms for connection (active=25 idle=0 waiting={waiting})",
                         "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
             active = min(25, math.ceil(25 * m["offered"] / max(1.0, m["capacity"])))

@@ -223,7 +223,10 @@ def fleet_outcome(result: Any) -> tuple[int | None, str | None]:
 
 
 def count_hosts(world: Any, selector: str) -> int | None:
-    """How many hosts a fleet selector names: host names or globs, fleets, groups or AZs, comma-separated."""
+    """How many hosts a fleet selector names: the world's own resolver when it has a fleet, else a match over its
+    host list."""
+    if getattr(world, "fleet", None) is not None:
+        return len(world.fleet.select(selector))
     try:
         hosts = world.fleet_list_hosts() if world is not None else []
     except Exception:
@@ -481,6 +484,13 @@ class AwsServer(AgentEnvEnvironment):
             return await self._world_call(self._need_world().fleet_inspect_host, host)
         return await self._metered(ctx, "fleet_inspect_host", {"host": host}, work)
 
+    def _fleet_caller(self, ctx: ToolContext, call: dict) -> dict:
+        """Who a fleet command acts as: the role, and for the AWS writes it makes (epctl) the principal the role's own
+        AWS credentials give, as aws_cli's writes have."""
+        role = _role(ctx)
+        return {"role": role, "principal": self.bridge.principal(role, self.bridge.profile(role, None)),
+                "call_no": call["call_no"], "t": call["t"]}
+
     @tool(description="Run a shell command on the hosts a selector names (a host, a glob, a fleet group or an AZ; "
                       "comma-separated). Each host answers with its stdout and exit code.", structured_output=False)
     async def fleet_exec(self, selector: str, command: str, ctx: ToolContext) -> str:
@@ -488,7 +498,7 @@ class AwsServer(AgentEnvEnvironment):
         hosts = await self._world_call(count_hosts, world, selector) if world is not None else None
 
         async def work(call: dict) -> dict:
-            caller = {"role": _role(ctx), "principal": _role(ctx), "call_no": call["call_no"], "t": call["t"]}
+            caller = self._fleet_caller(ctx, call)
             world = self._need_world()
             return await self._world_call(self._acting, caller, world.fleet_exec, selector, command, caller)
         return await self._metered(ctx, "fleet_exec", {"selector": selector, "command": command}, work, hosts=hosts)
@@ -497,7 +507,7 @@ class AwsServer(AgentEnvEnvironment):
                       "fleet_job_status follows it.", structured_output=False)
     async def fleet_restart(self, selector: str, ctx: ToolContext, batch_size: int = 1) -> str:
         async def work(call: dict) -> dict:
-            caller = {"role": _role(ctx), "principal": _role(ctx), "call_no": call["call_no"], "t": call["t"]}
+            caller = self._fleet_caller(ctx, call)
             world = self._need_world()
             return await self._world_call(self._acting, caller, world.fleet_restart, selector, batch_size, caller)
         return await self._metered(ctx, "fleet_restart", {"selector": selector, "batch_size": batch_size}, work)

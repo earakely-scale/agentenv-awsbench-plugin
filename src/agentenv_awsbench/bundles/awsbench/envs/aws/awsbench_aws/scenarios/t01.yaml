@@ -3321,17 +3321,18 @@ world:
   telemetry:
     outage_start: '2026-11-17T02:31:42-05:00'
     alarm_since:
+      checkout-api-CheckoutSuccessRate-critical: '02:32:00'
       ledger-ingress-EnvoyNotReady: '02:13:00'
       endpointd-ApplyLagSeconds-high: '02:37:00'
     logs:
-    - {t: '01:55:00', group: /vl/prod/checkout-api, message: "INFO checkout-api v2026.11.16-3 (PAY-881) ledger-client breaker=50%/20 open=10s outbox=vl-ledger-outbox replay_rate=400"}
+    - {t: '01:55:00', group: /vl/prod/checkout-api, message: "INFO checkout-api v2026.11.17-1 (PAY-881) ledger-client breaker=50%/20 open=10s outbox=vl-ledger-outbox replay_rate=400"}
     - {t: '02:09:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48177 endpoints=41 changes=0"}
     - {t: '02:09:05', group: /vl/platform/endpointd/enactor-b, message: "INFO enactor=b az=use1-az1 picked plan gen=48177 created=2026-11-17T07:09:00Z endpoints=41"}
     - {t: '02:09:05', group: /vl/platform/endpointd/enactor-b, message: "INFO enactor=b freshness check: plan gen=48177 > applied max gen=48176 -> proceed"}
     - {t: '02:09:06', group: /vl/platform/endpointd/enactor-b, message: "WARN enactor=b route53 ChangeResourceRecordSets endpoint=status-int.internal.vantleaf.io gen=48177 attempt=1 error=Throttling: Rate exceeded backoff=2.1s"}
     - {t: '02:12:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48180 changes=1 ledger.internal: 10.20.44.77 weight 100->0 (envoy /ready failing since 07:11:20Z: SDS reload failed to load certificate chain /etc/envoy/certs/ledger-ingress.pem)"}
     - {t: '02:18:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48186 changes=1 ledger.internal: remove 10.20.76.29 (instance terminated 07:16:12Z)"}
-    - {t: '02:21:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48189 changes=1 ledger.internal: add 10.20.76.144 weight 100 (li-use1c-1 ready)"}
+    - {t: '02:21:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48189 changes=1 ledger.internal: add 10.20.76.144 weight 100 (li-c-01 ready)"}
     - {t: '02:27:41', group: /vl/platform/endpointd/enactor-a, message: "INFO enactor=a applied gen=48195 41/41 verify=ok"}
     - {t: '02:31:00', group: /vl/platform/endpointd/planner, message: "INFO planner gen=48199 changes=0"}
     - {t: '02:31:02', group: /vl/platform/endpointd/enactor-c, message: "INFO enactor=c picked plan gen=48199 endpoints=41; freshness: 48199 > applied max 48195 -> proceed"}
@@ -3663,7 +3664,7 @@ timeline:
     args:
       channel: '#inc-4452'
       user: hannah.becker
-      text: '@sre-primary checkout is basically hard down. You shipped checkout-api v2026.11.17-1 at 01:55 (PAY-881, the new ledger-client breaker)
+      text: '@sre-primary checkout is basically hard down. We shipped checkout-api v2026.11.17-1 at 01:55 (PAY-881, the new ledger-client breaker)
         and the logs are full of CircuitBreakerOpenException. Can we roll back to :411 now? I have no prod write at night and every minute is
         lost GMV.'
 - id: ev-hannah-2
@@ -3727,7 +3728,7 @@ timeline:
         args.channel:
           equals: '#inc-4452'
         args.text:
-          regex: (?i)storm|herd|retry|reconnect|backlog|shed|max_concurrency|admission
+          regex: '(?i)\b(?:storm|herd|retr(?:y|ies|ying)|reconnect\w*|shed(?:ding|s)?|max_concurrency|admission)\b'
   actions:
   - op: chat.post_as
     args:

@@ -2,8 +2,11 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
+from awsbench_aws.cloudtrail import event
 from awsbench_aws.meter import parse_time
-from awsbench_aws.server import NO_SCENARIO, AwsServer, fleet_outcome, lookup_attributes_of
+from awsbench_aws.server import NO_SCENARIO, AwsServer, count_hosts, fleet_outcome, lookup_attributes_of, profiles_of
+from awsbench_aws.world import World, replay_seed
+from test_world_t01 import SCENARIO, FakeAws, FakeWs
 
 SRE, HARNESS = SimpleNamespace(role="sre-primary"), SimpleNamespace(role="harness")
 
@@ -96,3 +99,31 @@ async def test_configure_refuses_when_the_gateway_clock_is_past_the_start():
     with pytest.raises(ValueError, match="gateway clock .* is past the scenario start.*deploy a fresh env"):
         await server.configure(scenario="t01", seed="s")
     assert server.scenario is None and server.world is None
+
+
+@pytest.fixture
+def world():
+    aws = FakeAws()
+    replay_seed(SCENARIO, aws)
+    w = World(SCENARIO, "eval-seed-1", aws, FakeWs())
+    w.start()
+    return w
+
+
+@pytest.mark.parametrize("selector", ["vl-core,endpointd-enactor-a,endpointd-enactor-b", "use1-az6",
+                                      "vl-core:use1-az6", "vl-core,nope-*", "core-a-*", "*"])
+def test_count_hosts_is_the_worlds_selection(world, selector):
+    assert count_hosts(world, selector) == len(world.fleet.select(selector))
+
+
+def test_fleet_writes_carry_the_roles_aws_principal(world):
+    server = AwsServer()
+    server.bridge.profiles = profiles_of(SCENARIO)
+    caller = server._fleet_caller(SRE, {"call_no": 7, "t": "2026-11-17T02:49:00-05:00"})
+    assert caller["role"] == "sre-primary" and caller["principal"] == "assumed-role/SRE-OnCall/sre-primary"
+    world.aws.calls.clear()
+    world.fleet_exec("endpointd-enactor-a", "epctl pause all", caller)
+    puts = [c for c in world.aws.calls if c[1] == "PutParameter"]
+    assert puts and all(c[2] == caller["principal"] and not c[3] for c in puts)
+    ev = event(world.now, "ssm", "PutParameter", {"Name": "x"}, caller["principal"])
+    assert ":assumed-role/SRE-OnCall/sre-primary" in ev["CloudTrailEvent"] and ev["Username"] == "sre-primary"

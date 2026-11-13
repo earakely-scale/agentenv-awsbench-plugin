@@ -69,6 +69,7 @@ class World:
         self.on_records_changed(self.start_t)
         self.timeline.arm(self.start_t, self.horizon)
         self._tick(self.start_t)
+        self.telemetry.backfill(self.start_t)
         self._next_tick = self.start_t + timedelta(seconds=self.tick_s)
 
     def next_due(self) -> datetime | None:

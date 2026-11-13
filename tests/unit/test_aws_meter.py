@@ -262,3 +262,16 @@ async def test_end_logs_a_fleet_exit_code():
                 {"error": "exit code 1 on ep-enactor-a", "exit_code": 1})
     (row,) = log.export()
     assert row["exit_code"] == 1 and row["error"] == "exit code 1 on ep-enactor-a"
+
+
+@pytest.mark.parametrize("tool", ["chat_get_user", "chat_read", "chat_search", "chat_list_channels", "mail_read",
+                                  "mail_search", "pager_get", "pager_list", "pager_oncall", "repo_get", "repo_list",
+                                  "repo_log", "repo_read", "repo_search", "status_get", "tickets_get", "tickets_search",
+                                  "wiki_get", "wiki_history", "wiki_search"])
+def test_workspace_reads_are_point_reads(tool):
+    assert classify(tool, {}, T01_OVERRIDES, None) == "point_read"
+
+
+@pytest.mark.parametrize("tool", ["chat_post", "tickets_comment", "pager_page", "status_update"])
+def test_workspace_writes_are_writes(tool):
+    assert classify(tool, {}, T01_OVERRIDES, None) == "write"

@@ -56,14 +56,25 @@ class Fleet:
         return out
 
     def select(self, selector: str) -> list[str]:
-        sel = (selector or "").strip()
-        if sel in self.cfg:
-            return [h for h, v in self.hosts.items() if v["fleet"] == sel]
-        if ":" in sel:
-            fleet, az = sel.split(":", 1)
-            return [h for h, v in self.hosts.items() if v["fleet"] == fleet and fnmatch.fnmatchcase(v["az"], az)]
-        names = [s.strip() for s in sel.split(",") if s.strip()]
-        return [h for h in self.hosts if any(fnmatch.fnmatchcase(h, n) for n in names)]
+        return self.resolve(selector)[0]
+
+    def resolve(self, selector: str) -> tuple[list[str], list[str]]:
+        """(hosts, unmatched tokens) for a selector: comma- or space-separated `*`/`all`, fleet names, `fleet:azglob`,
+        AZ globs and host globs, the union in host order."""
+        chosen, unmatched = set(), []
+        for tok in re.split(r"[,\s]+", (selector or "").strip()):
+            if not tok:
+                continue
+            fleet, _, az = tok.partition(":")
+            got = {h for h, v in self.hosts.items()
+                   if tok in ("*", "all") or v["fleet"] == tok
+                   or az and v["fleet"] == fleet and fnmatch.fnmatchcase(v["az"], az)}
+            got = got or {h for h, v in self.hosts.items() if fnmatch.fnmatchcase(v["az"], tok)} or {
+                h for h in self.hosts if fnmatch.fnmatchcase(h, tok)}
+            chosen |= got
+            if not got:
+                unmatched.append(tok)
+        return [h for h in self.hosts if h in chosen], unmatched
 
     def inspect(self, host: str, now: datetime) -> dict:
         h = self.hosts.get(host)
@@ -77,7 +88,7 @@ class Fleet:
         if host in dns.hosts:
             dns.update(host, now)
             out["resolver"] = {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": dns.resolver,
-                               "cache": {dns.name: dns.short_answer(host, dns.name, now)}}
+                               "cache": {dns.name: self._cache_entry(host, now)}}
         out["services"] = {name: "active (running)" if self._running(host, name) else "inactive (dead)"
                            for name in self.units(host)}
         if h["fleet"] == "endpointd":
@@ -92,14 +103,14 @@ class Fleet:
     def exec(self, selector: str, command: str, caller: dict, now: datetime) -> dict:
         if SHELL_OPS.search(command or ""):
             return {"hosts": [], "exit_code": 2, "error": ONE_COMMAND}
-        hosts = self.select(selector)
+        hosts, unmatched = self.resolve(selector)
         if not hosts:
             return {"hosts": [], "error": f"no hosts match {selector!r}"}
         out = []
         for host in hosts:
             stdout, code = self.run(host, command, caller, now)
             out.append({"host": host, "stdout": stdout, "exit_code": code})
-        return {"hosts": out}
+        return {"hosts": out, **({"unmatched": unmatched} if unmatched else {})}
 
     def run(self, host: str, command: str, caller: dict, now: datetime) -> tuple[str, int]:
         h = self.hosts[host]
@@ -115,8 +126,12 @@ class Fleet:
             return self.dig(host, argv[1:], now)
         if cmd == "getent" and argv[1:2] == ["hosts"] and len(argv) == 3:
             return self.getent(host, argv[2], now)
-        if cmd == "unbound-control" and len(argv) >= 2 and argv[1] in ("flush", "flush_zone", "flush_negative"):
-            return self.flush(host, argv, now)
+        if cmd == "unbound-control":
+            if len(argv) >= 2 and argv[1] in ("flush", "flush_zone", "flush_negative"):
+                return self.flush(host, argv, now)
+            sub = argv[1] if len(argv) > 1 else "with no command"
+            return (f"unbound-control {sub}: not available in this environment "
+                    "(supported here: flush, flush_zone, flush_negative)\n"), 1
         if cmd == "systemctl":
             return self.systemctl_cmd(host, argv[1:], now)
         if cmd == "curl":
@@ -140,6 +155,13 @@ class Fleet:
             return ("ERROR sds secret ingress-tls not loaded: certsync bootstrap path missing on arm64 "
                     "(since 02:11:20); listener ledger_https NOT READY\n"), 1
         return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
+
+    def _cache_entry(self, host, now) -> str:
+        """What the host's unbound holds for the ledger name: its negative answer, else the one record its last
+        upstream query got, the same record dig shows this minute."""
+        dns = self.w.dns
+        status, ips, ttl = self._ns_answer(host, dns.name, now, False)
+        return f"{ips[0]} (ttl {ttl}s)" if status == "NOERROR" else dns.short_answer(host, dns.name, now)
 
     def _ns_answer(self, host, name, now, bypass):
         """(status, ips, ttl) for `name` as `host` sees it."""

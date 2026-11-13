@@ -384,3 +384,25 @@ def test_plan_archive_refuses_writes(world, op, p):
         s3(world, op, **p)
     assert (e.value.code, e.value.status) == ("AccessDenied", 403)
     assert world.serve_aws("s3", "GetObject", {"Bucket": "other", "Key": "k"}) is None
+
+
+@pytest.mark.parametrize("text,status", [
+    ("Webhook backlog alarm is a consequence of same DNS failure", "fired"),
+    ("Status page published; Hannah pushed the brainstorm notes", "fired"),
+    ("expect a reconnect herd on ledger-writer when DNS returns; shedding the dispatcher", "cancelled"),
+])
+def test_hannah_storm_is_cancelled_only_by_explaining_the_herd(world, text, status):
+    world.advance_to(at("02:50:15"))
+    world.observe({"t": at("02:50:15"), "tool": "chat_post", "role": "sre-primary", "server": "workspace",
+                   "args": {"channel": "#inc-4452", "text": text}})
+    ep(world, "epctl pause all", "02:52:00")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x", "02:58:30")
+    world.advance_to(at("03:10:00"))
+    first = datetime.fromisoformat(world.export()["ledger"]["regime_timeline"][1][0])
+    assert at("03:01:00") <= first <= at("03:04:00")
+    assert {e["id"]: e for e in world.export()["timeline"]}["ev-hannah-storm"]["status"] == status
+
+
+def test_hannah_says_we_shipped_the_deploy():
+    text = next(e for e in SCENARIO["timeline"] if e["id"] == "ev-hannah-1")["actions"][0]["args"]["text"]
+    assert "We shipped checkout-api v2026.11.17-1" in text and "You shipped" not in text
