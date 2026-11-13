@@ -4713,3 +4713,39 @@ npcs:
         - *refuse
       reply: Why not? I need the reason before I tell Hannah.
     default: What's the call on Hannah's rollback, and why?
+
+# Trail-only history: the pre-incident writes CloudTrail shows at their own times; never replayed, never logged. The
+# times are the world's: world.ingress_asg (refresh start and activities, as DescribeInstanceRefreshes and
+# DescribeScalingActivities serve them) and world.ecs (checkout-api :412 registered and deployed, acme-renewer's run);
+# the pipeline role is the one DescribeTaskDefinition's registeredBy names, the bots the ones #deploys shows.
+trail_history:
+- {t: '2026-11-16T16:30:00-05:00', principal: 'role:vl-terraform-apply', service: ec2,
+   operation: CreateLaunchTemplateVersion, params: {LaunchTemplateName: vl-ledger-ingress-lt, SourceVersion: '14',
+   VersionDescription: 'PLAT-405 Graviton (m7g, vl-al2023-arm64)'}}
+- {t: '2026-11-17T01:40:00-05:00', principal: assumed-role/vl-deploy-pipeline/graviton-bot, service: autoscaling,
+   operation: StartInstanceRefresh, params: {AutoScalingGroupName: vl-ledger-ingress-asg,
+   DesiredConfiguration: {LaunchTemplate: {LaunchTemplateName: vl-ledger-ingress-lt, Version: '15'}},
+   Preferences: {MinHealthyPercentage: 80, InstanceWarmup: 300, CheckpointPercentages: [50, 100],
+                 CheckpointDelay: 21600, SkipMatching: true, AutoRollback: false}}}
+- {t: '2026-11-17T01:42:00-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: TerminateInstances, params: {InstanceIds: [i-044927a475d00213d]}}
+- {t: '2026-11-17T01:42:05-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: RunInstances, params: {LaunchTemplate: {LaunchTemplateName: vl-ledger-ingress-lt, Version: '15'},
+   MinCount: 1, MaxCount: 1}}
+- {t: '2026-11-17T01:50:12-05:00', principal: assumed-role/vl-deploy-pipeline/deploy, service: ecs, operation: RegisterTaskDefinition,
+   params: {family: checkout-api}}
+- {t: '2026-11-17T01:55:00-05:00', principal: assumed-role/vl-deploy-pipeline/deploy, service: ecs, operation: UpdateService,
+   params: {cluster: vl-prod-core, service: checkout-api, taskDefinition: 'checkout-api:412'}}
+- {t: '2026-11-17T02:00:02-05:00', principal: assumed-role/vl-events-ecs-runtask/acme-renewer-nightly, service: ecs,
+   operation: RunTask, params: {cluster: vl-prod-core, taskDefinition: 'acme-renewer:8',
+   startedBy: 'events-rule/acme-renewer-nightly'}}
+- {t: '2026-11-17T02:03:00-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: TerminateInstances, params: {InstanceIds: [i-089a804412af9e917]}}
+- {t: '2026-11-17T02:03:05-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: RunInstances, params: {LaunchTemplate: {LaunchTemplateName: vl-ledger-ingress-lt, Version: '15'},
+   MinCount: 1, MaxCount: 1}}
+- {t: '2026-11-17T02:16:12-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: TerminateInstances, params: {InstanceIds: [i-04a81c5eba5dd76f6]}}
+- {t: '2026-11-17T02:16:17-05:00', principal: assumed-role/AWSServiceRoleForAutoScaling/AutoScaling, service: ec2,
+   operation: RunInstances, params: {LaunchTemplate: {LaunchTemplateName: vl-ledger-ingress-lt, Version: '15'},
+   MinCount: 1, MaxCount: 1}}

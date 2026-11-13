@@ -241,8 +241,11 @@ times their items record (`applied_at` by `applied_by`, else `created_at` by the
 enactor step after the last apply, by the enactor of the newest generation. That cleanup first deletes, in Route 53, the
 records the deleted plan carries for a name an `applied#` pointer still names (T01: the six `g48177-*` ledger records
 enactor-b had upserted). A scenario's `trail_history` rows (`{t, principal, service, operation, params}`; T03: PLAT-2291's
-resizes, the `bf-capacity-hold` and the 07:31 ledger-writer deploy) are trail-only history at their own times: never
-replayed and never in the action log. A world write is logged at the world's time. Every account id, in CloudTrail and in the world's
+resizes, the `bf-capacity-hold` and the 07:31 ledger-writer deploy; T01: PLAT-405's launch template version, its
+instance refresh and the three replacements, checkout-api :412's registration and deploy, and acme-renewer's 02:00 run)
+are trail-only history at their own times: never replayed and never in the action log. `aws_query source=cloudtrail`
+answers compact rows (the parsed `requestParameters` and the role in place of `CloudTrailEvent`, which `full: true` adds)
+of at most about 40,000 characters, with `truncated`, `next_offset` and the `end` it used when rows remain. A world write is logged at the world's time. Every account id, in CloudTrail and in the world's
 ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they agree with the ARNs the emulator returns. A scenario
 may declare its own `account` (T03: vl-prod's 444444444444); the aws server then shows that id in place of `ACCOUNT` in
 every tool result and maps it back to `ACCOUNT` in the arguments of `aws_cli`, `aws_api` and `aws_query`, so the agent

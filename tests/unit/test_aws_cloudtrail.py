@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -168,4 +168,29 @@ def test_t03_trail_has_the_pre_incident_writes():
     assert ecs[0]["EventTime"].astimezone(ET).strftime("%H:%M:%S") == "07:31:02" and ecs[0]["Username"] == \
         "vl-ci-deployer"
     assert json.loads(ecs[0]["CloudTrailEvent"])["requestParameters"]["taskDefinition"] == "ledger-writer:234"
-    assert "trail_history" not in load_scenario_file("t01", {})
+
+
+def test_t01_trail_has_the_ingress_refresh_and_tonights_deploys():
+    """R11-opus-6 CALL 106: LookupEvents EventName=StartInstanceRefresh returned [] while DescribeInstanceRefreshes
+    showed 4f1c8a52 InProgress since 06:40Z, and the agent wrote into PLAT-413 that who started it was unknown."""
+    t01 = load_scenario_file("t01", {})
+    trail = Trail(ActionLog(), seed_trail(t01, seed_rows(t01), {}))
+    refresh = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventName",
+                                                  "AttributeValue": "StartInstanceRefresh"}]})["Events"]
+    assert len(refresh) == 1 and refresh[0]["EventTime"] == datetime(2026, 11, 17, 6, 40, tzinfo=UTC)
+    assert refresh[0]["Username"] == "graviton-bot"
+    assert json.loads(refresh[0]["CloudTrailEvent"])["userIdentity"]["sessionContext"]["sessionIssuer"][
+        "userName"] == "vl-deploy-pipeline"
+    assert {"ResourceType": "AWS::AutoScaling::AutoScalingGroup", "ResourceName": "vl-ledger-ingress-asg"} in \
+        refresh[0]["Resources"]
+    by_asg = trail.lookup({"LookupAttributes": [{"AttributeKey": "ResourceName",
+                                                 "AttributeValue": "vl-ledger-ingress-asg"}]})["Events"]
+    assert [e["EventId"] for e in by_asg] == [refresh[0]["EventId"]]
+    ec2 = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventSource", "AttributeValue": "ec2.amazonaws.com"}]})
+    gone = [json.loads(e["CloudTrailEvent"])["requestParameters"]["instanceIds"] for e in ec2["Events"]
+            if e["EventName"] == "TerminateInstances"]
+    assert gone == [["i-04a81c5eba5dd76f6"], ["i-089a804412af9e917"], ["i-044927a475d00213d"]]
+    assert all(e["Username"] == "AutoScaling" for e in ec2["Events"] if e["EventName"] != "CreateLaunchTemplateVersion")
+    deploy = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventName", "AttributeValue": "UpdateService"}]})
+    assert [(e["EventTime"], json.loads(e["CloudTrailEvent"])["requestParameters"]["taskDefinition"])
+            for e in deploy["Events"]] == [(datetime(2026, 11, 17, 6, 55, tzinfo=UTC), "checkout-api:412")]
