@@ -1,6 +1,7 @@
 """T01 world physics, timeline and NPCs against in-memory AWS and workspace fakes."""
 
 import copy
+import json
 import re
 from datetime import datetime
 
@@ -317,3 +318,69 @@ def test_stop_counts_as_paused_and_resume_reapplies(world):
     world.advance_to(at("03:00:00"))
     assert any(e["event"] == "picked" for e in world.endpointd.apply_events)
     assert world.endpointd.correct(LEDGER)
+
+
+def test_restore_keeps_the_archived_created_time(world):
+    ep(world, "epctl pause all", "02:49:00")
+    out = ep(world, "epctl plan restore --gen 48177 --from-archive", "02:50:00")
+    assert out["exit_code"] == 0
+    listed = ep(world, "epctl plans list --since 48177", "02:50:20")["stdout"]
+    assert re.search(r"^48177\s+07:09:00Z\s+RESTORED", listed, re.MULTILINE)
+    shown = ep(world, f"epctl plan show 48177 --endpoint {LEDGER}", "02:50:40")["stdout"]
+    assert "created=07:09:00Z" in shown and "restored=07:50:00Z by sre-primary" in shown
+    item = world.mirror.plan(48177)
+    assert item["restored_from"] == "s3://vl-endpointd-plan-archive/prod/plans/gen=0000048177.json"
+
+
+def test_plan_show_prints_utc(world):
+    head = ep(world, f"epctl plan show 48199 --endpoint {LEDGER}", "02:45:00")["stdout"].splitlines()[0]
+    assert "created=07:31:00Z" in head
+
+
+def test_apply_refuses_dry_run_before_writing(world):
+    ep(world, "epctl pause all", "02:49:00")
+    before = world.mirror.live(LEDGER)
+    out = ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x --dry-run", "02:50:00")
+    assert out["exit_code"] == 2 and "unknown option --dry-run" in out["stdout"]
+    assert world.mirror.live(LEDGER) == before == []
+    assert int(world.mirror.pointers()[LEDGER]["generation"]) == 48177
+
+
+def s3(world, op, **p):
+    return world.serve_aws("s3", op, {"Bucket": "vl-endpointd-plan-archive", **p})
+
+
+def test_plan_archive_is_served_for_every_gen(world):
+    keys, token = [], None
+    while True:
+        page = s3(world, "ListObjectsV2", Prefix="prod/plans/", **({"ContinuationToken": token} if token else {}))
+        keys += [c["Key"] for c in page["Contents"]]
+        if not page["IsTruncated"]:
+            break
+        token = page["NextContinuationToken"]
+    gens = [int(k[len("prod/plans/gen="):-len(".json")]) for k in keys]
+    assert gens == sorted(world.endpointd.archive) and set(range(48170, 48209)) <= set(gens)
+    top = s3(world, "ListObjectsV2", Delimiter="/")
+    assert top["CommonPrefixes"] == [{"Prefix": "prod/"}] and "Contents" not in top
+    last = s3(world, "ListObjects", Prefix="prod/plans/gen=00000482")["Contents"][-1]
+    assert last["Key"].endswith("48208.json") and last["LastModified"] == "2026-11-17T07:40:00.000Z"
+    world.advance_to(at("02:41:30"))
+    assert s3(world, "HeadObject", Key="prod/plans/gen=0000048209.json")["ContentType"] == "application/json"
+    body = json.loads(s3(world, "GetObject", Key="prod/plans/gen=0000048190.json")["Body"].read())
+    shown = ep(world, f"epctl plan show 48190 --from-archive --endpoint {LEDGER}", "02:42:00")["stdout"]
+    assert [f"{r['set_id']} {r['ip']} w{r['weight']}" for r in body["ledger"]] == [
+        " ".join(line.split()) for line in shown.splitlines()[2:]]
+    with pytest.raises(Exception) as e:
+        s3(world, "GetObject", Key="prod/plans/gen=0000099999.json")
+    assert e.value.code == "NoSuchKey"
+
+
+@pytest.mark.parametrize("op,p", [("DeleteObject", {"Key": "prod/plans/gen=0000048177.json"}),
+                                  ("DeleteObjects", {"Delete": {"Objects": [{"Key": "x"}]}}),
+                                  ("PutObject", {"Key": "prod/plans/gen=0000048177.json", "Body": b"{}"}),
+                                  ("PutBucketLifecycleConfiguration", {})])
+def test_plan_archive_refuses_writes(world, op, p):
+    with pytest.raises(Exception) as e:
+        s3(world, op, **p)
+    assert (e.value.code, e.value.status) == ("AccessDenied", 403)
+    assert world.serve_aws("s3", "GetObject", {"Bucket": "other", "Key": "k"}) is None

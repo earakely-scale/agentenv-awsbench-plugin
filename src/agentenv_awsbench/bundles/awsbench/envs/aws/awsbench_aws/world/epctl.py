@@ -50,6 +50,14 @@ def _opts(args: list[str], flags=(), values=()) -> tuple[list[str], dict]:
     return pos, out
 
 
+def _archive_url(gen: int) -> str:
+    return f"s3://vl-endpointd-plan-archive/prod/plans/gen={gen:010d}.json"
+
+
+def _z(value) -> str:
+    return zulu(datetime.fromisoformat(value)) if value else "-"
+
+
 def _gen(value) -> int:
     try:
         return int(str(value).lstrip("g"))
@@ -106,7 +114,7 @@ class Epctl:
                 raise Usage(f"usage: epctl {cmd} planner|enactor-a|enactor-b|enactor-c|enactors|all")
             return self.switch(cmd, rest[0], caller)
         if cmd == "apply":
-            _, o = _opts(rest, ("--all", "--manual", "--dry-run"), ("--gen", "--endpoint", "--reason"))
+            _, o = _opts(rest, ("--all", "--manual"), ("--gen", "--endpoint", "--reason"))
             return self.apply(o, caller, now)
         if cmd == "set-applied":
             _, o = _opts(rest, (), ("--endpoint", "--gen", "--reason"))
@@ -157,7 +165,7 @@ class Epctl:
             if since is not None and g < since:
                 continue
             it = ep.m.plan(g)
-            created = zulu(datetime.fromisoformat(it["created_at"])) if it.get("created_at") else "-"
+            created = _z(it.get("created_at"))
             verified = (f"{zulu(datetime.fromisoformat(it['verified_at']))} verify={it.get('verify', '-')}"
                         if it.get("verified_at") else "-")
             rows.append(f"{g:<6} {created:<10} {it.get('status', '-'):<11} {it.get('applied_by', '-') or '-':<11} {verified}")
@@ -191,10 +199,12 @@ class Epctl:
             return f"plan gen={gen} not found in endpointd-plans (try --from-archive)\n", 1
         if item is None and gen not in ep.archive:
             return f"plan gen={gen} not found in endpointd-plans or s3://vl-endpointd-plan-archive\n", 1
-        src = "endpointd-plans" if item else f"s3://vl-endpointd-plan-archive/prod/plans/gen={gen:010d}.json"
+        src = "endpointd-plans" if item else _archive_url(gen)
         head = f"plan gen={gen} source={src}"
         if item:
-            head += f" status={item.get('status')} created={item.get('created_at')}"
+            head += f" status={item.get('status')} created={_z(item.get('created_at'))}"
+            if item.get("restored_at"):
+                head += f" restored={_z(item['restored_at'])} by {item.get('restored_by', '-')}"
         lines = [head]
         for fqdn in [endpoint] if endpoint else ep.order:
             recs = self._records(gen, fqdn, archive)
@@ -328,10 +338,9 @@ class Epctl:
         if ep.m.plan(gen) is not None:
             return f"plan gen={gen} is already in endpointd-plans (status {ep.m.plan(gen).get('status')})\n", 0
         if gen not in ep.archive:
-            return f"error: s3://vl-endpointd-plan-archive/prod/plans/gen={gen:010d}.json not found\n", 1
-        ep.m.put_item({"pk": f"plan#{gen:010d}", "generation": gen, "status": "RESTORED", "created_at": iso(now),
-                       "ledger": ep.archive[gen], "endpoints_ref": "endpoint-table/v1",
-                       "endpoint_count": len(ep.order), "restored_by": caller.get("role", "unknown")},
-                      **self._as(caller))
-        return (f"restored plan gen={gen} from s3://vl-endpointd-plan-archive/prod/plans/gen={gen:010d}.json "
-                f"(status RESTORED)\n"), 0
+            return f"error: {_archive_url(gen)} not found\n", 1
+        ep.m.put_item({"pk": f"plan#{gen:010d}", "generation": gen, "status": "RESTORED",
+                       "created_at": iso(ep.created[gen]), "ledger": ep.archive[gen], "endpoints_ref": "endpoint-table/v1",
+                       "endpoint_count": len(ep.order), "restored_at": iso(now), "restored_from": _archive_url(gen),
+                       "restored_by": caller.get("role", "unknown")}, **self._as(caller))
+        return f"restored plan gen={gen} from {_archive_url(gen)} (status RESTORED)\n", 0

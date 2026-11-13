@@ -18,6 +18,8 @@ ONE_COMMAND = "one command per call: shell operators are not supported"
 UNBOUND = {"pid": 612, "user": "unbound", "cmd": "/usr/sbin/unbound -d -p",
            "desc": "Validating, recursive, and caching DNS resolver"}
 BOOT = "Mon 2026-10-06 23:28:11 EDT"
+SYSTEMCTL_VALUED = {"-n", "--lines", "-p", "--property", "-t", "--type", "-o", "--output", "-H", "--host", "-M",
+                    "--machine", "--state"}
 
 
 def instance_id(host: str) -> str:
@@ -71,16 +73,19 @@ class Fleet:
                "state": h["state"],
                "os": h.get("os", self.cfg[h["fleet"]].get("os", "Ubuntu 22.04.4 LTS")),
                "instance_type": h.get("type", self.cfg[h["fleet"]].get("instance_type"))}
-        if host in self.w.dns.hosts:
-            self.w.dns.update(host, now)
-            out["resolver"] = {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": self.w.dns.resolver}
+        dns = self.w.dns
+        if host in dns.hosts:
+            dns.update(host, now)
+            out["resolver"] = {"local": "unbound 1.13.1 on 127.0.0.1", "forwards_to": dns.resolver,
+                               "cache": {dns.name: dns.short_answer(host, dns.name, now)}}
+        out["services"] = {name: "active (running)" if self._running(host, name) else "inactive (dead)"
+                           for name in self.units(host)}
         if h["fleet"] == "endpointd":
             comp = next(c for c in COMPONENTS if host_of(c) == host)
-            ep = self.w.endpointd
-            out["services"] = {f"endpointd-{comp}": "active (running)" if ep.processes[comp] else "inactive (dead)"}
-            out["kill_switch"] = "on" if ep.switch(comp) else "off"
+            out["kill_switch"] = "on" if self.w.endpointd.switch(comp) else "off"
         if h["fleet"] == "ledger-ingress":
             out["envoy_ready"] = bool(h.get("ready"))
+        out["recent_log"] = self.journal_lines(host, None, now)[-5:]
         return out
 
     # ---- exec ----
@@ -112,10 +117,8 @@ class Fleet:
             return self.getent(host, argv[2], now)
         if cmd == "unbound-control" and len(argv) >= 2 and argv[1] in ("flush", "flush_zone", "flush_negative"):
             return self.flush(host, argv, now)
-        if cmd == "systemctl" and len(argv) == 3 and h["fleet"] == "endpointd" and argv[1] != "status":
-            return self.systemctl(host, argv[1], argv[2], now)
-        if cmd == "systemctl" and len(argv) >= 3 and argv[1] == "status":
-            return self.status(host, argv[-1], now)
+        if cmd == "systemctl":
+            return self.systemctl_cmd(host, argv[1:], now)
         if cmd == "curl":
             return self.curl(host, argv[1:], now)
         if cmd == "epctl" and h["fleet"] == "endpointd":
@@ -200,6 +203,35 @@ class Fleet:
         if argv[1] == "flush_negative" or target in (self.w.dns.name, self.w.mirror.zone):
             self.w.dns.flush(host, now)
         return "ok\n", 0
+
+    def systemctl_cmd(self, host, args, now):
+        """systemctl as an operator types it: options anywhere (`--no-pager`, `--type=service`, `-n 20`), several units
+        for status."""
+        pos, i = [], 0
+        while i < len(args):
+            a = args[i]
+            if a in SYSTEMCTL_VALUED:
+                i += 1
+            elif not a.startswith("-"):
+                pos.append(a)
+            i += 1
+        verb, units = (pos[0], pos[1:]) if pos else ("list-units", [])
+        if verb == "status" and units:
+            outs = [self.status(host, u, now) for u in units]
+            return "\n".join(o for o, _ in outs), max(c for _, c in outs)
+        if verb in ("stop", "start", "restart") and len(units) == 1 and self.hosts[host]["fleet"] == "endpointd":
+            return self.systemctl(host, verb, units[0], now)
+        if verb == "is-active" and units:
+            states = [self._running(host, u.removesuffix(".service")) if u.removesuffix(".service") in self.units(host)
+                      else None for u in units]
+            text = "".join(("active" if s else "inactive" if s is False else "unknown") + "\n" for s in states)
+            return text, 0 if all(states) else 3
+        if verb == "list-units":
+            rows = [f"  {n + '.service':<32} loaded {'active   running' if self._running(host, n) else 'inactive dead   '} "
+                    f"{u.get('desc', n)}" for n, u in sorted(self.units(host).items())]
+            return ("  UNIT                             LOAD   ACTIVE   SUB     DESCRIPTION\n" + "\n".join(rows) +
+                    f"\n\n{len(rows)} loaded units listed.\n"), 0
+        return NOT_AVAILABLE.format(cmd=f"systemctl {verb}") + "\n", 127
 
     def systemctl(self, host, verb, unit_name, now):
         comp = next((c for c in COMPONENTS if host_of(c) == host), None)

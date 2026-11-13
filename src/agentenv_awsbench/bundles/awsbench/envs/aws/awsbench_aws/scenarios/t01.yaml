@@ -46,32 +46,11 @@ aws_seed:
   operation: CreateBucket
   params:
     Bucket: vl-endpointd-plan-archive
-- service: s3
-  operation: PutObject
-  params:
-    Bucket: vl-endpointd-plan-archive
-    Key: prod/plans/gen=0000048177.json
-    ContentType: application/json
-    Body: '{"generation":48177,"endpoint":"ledger.internal.vantleaf.io","ledger":[{"set_id":"g48177-use1-az6-1","ip":"10.20.11.152","weight":100},{"set_id":"g48177-use1-az6-2","ip":"10.20.11.38","weight":100},{"set_id":"g48177-use1-az1-1","ip":"10.20.44.77","weight":100},{"set_id":"g48177-use1-az1-2","ip":"10.20.44.40","weight":100},{"set_id":"g48177-use1-az4-1","ip":"10.20.76.29","weight":100},{"set_id":"g48177-use1-az4-2","ip":"10.20.76.30","weight":100}]}'
-- service: s3
-  operation: PutObject
-  params:
-    Bucket: vl-endpointd-plan-archive
-    Key: prod/plans/gen=0000048178.json
-    ContentType: application/json
-    Body: '{"generation":48178,"endpoint":"ledger.internal.vantleaf.io","ledger":[{"set_id":"g48178-use1-az6-1","ip":"10.20.11.152","weight":100},{"set_id":"g48178-use1-az6-2","ip":"10.20.11.38","weight":100},{"set_id":"g48178-use1-az1-1","ip":"10.20.44.77","weight":100},{"set_id":"g48178-use1-az1-2","ip":"10.20.44.40","weight":100},{"set_id":"g48178-use1-az4-1","ip":"10.20.76.29","weight":100},{"set_id":"g48178-use1-az4-2","ip":"10.20.76.30","weight":100}]}'
-- service: s3
-  operation: PutObject
-  params:
-    Bucket: vl-endpointd-plan-archive
-    Key: prod/plans/gen=0000048199.json
-    ContentType: application/json
-    Body: '{"generation":48199,"endpoint":"ledger.internal.vantleaf.io","ledger":[{"set_id":"g48199-use1-az6-1","ip":"10.20.11.152","weight":100},{"set_id":"g48199-use1-az6-2","ip":"10.20.11.38","weight":100},{"set_id":"g48199-use1-az1-1","ip":"10.20.44.77","weight":0},{"set_id":"g48199-use1-az1-2","ip":"10.20.44.40","weight":100},{"set_id":"g48199-use1-az4-1","ip":"10.20.76.144","weight":100},{"set_id":"g48199-use1-az4-2","ip":"10.20.76.30","weight":100}]}'
 - service: route53
   operation: CreateHostedZone
   params:
     Name: internal.vantleaf.io
-    CallerReference: awsbench-t01-internal-vantleaf-io
+    CallerReference: terraform-vl-network-internal-zone-20250311
     HostedZoneConfig:
       Comment: vantleaf internal service endpoints (managed by endpointd)
       PrivateZone: false
@@ -3345,6 +3324,8 @@ world:
     name: vl-ledger-ingress-asg
     fleet: ledger-ingress
     launch_template: vl-ledger-ingress-lt
+    launch_template_version: '15'
+    previous_launch_template_version: '14'
     min: 6
     max: 8
     desired: 6
@@ -3355,7 +3336,8 @@ world:
       use1-az4: us-east-1c
     refresh:
       id: 4f1c8a52-9d3e-4b7a-a6c1-2e8b0d7f9135
-      start: '01:38:12'
+      start: '01:40:00'
+      min_healthy_pct: 80
       percentage_complete: 50
       instances_to_update: 3
       checkpoint_delay_s: 21600

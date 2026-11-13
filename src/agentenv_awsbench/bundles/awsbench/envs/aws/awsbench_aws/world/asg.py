@@ -7,11 +7,10 @@ graded on knowing that.
 
 from datetime import UTC, datetime, timedelta
 
+ACCOUNT = "000000000000"
 from ..errors import AwsError
 from .fleet import instance_id
 from .util import iso, parse_time
-
-ACCOUNT = "000000000000"
 
 
 class IngressAsg:
@@ -24,6 +23,8 @@ class IngressAsg:
         self.refresh_start = parse_time(r["start"], start)
         self.resumes_at = parse_time(r["resumes_at"], start)
         self.cancel_s = float(r.get("cancel_s", 40))
+        self.lt_version = str(cfg["launch_template_version"])
+        self.previous_lt_version = str(cfg["previous_launch_template_version"])
         self.cancelled_at: datetime | None = None
         self.suspended: dict[str, datetime] = {}
         self.calls: list[dict] = []
@@ -45,14 +46,15 @@ class IngressAsg:
             "AutoScalingGroupName": self.name,
             "AutoScalingGroupARN": f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:autoScalingGroup:"
                                    f"5d2e7a1c-3b9f-4e60-8c4d-91a7f0e2b6d3:autoScalingGroupName/{self.name}",
-            "LaunchTemplate": self._lt("7"), "MinSize": self.cfg["min"], "MaxSize": self.cfg["max"],
+            "LaunchTemplate": self._lt(self.lt_version), "MinSize": self.cfg["min"], "MaxSize": self.cfg["max"],
             "DesiredCapacity": self.cfg["desired"], "DefaultCooldown": 300,
             "AvailabilityZones": sorted({az.get(h["az"], h["az"]) for h in hosts}),
             "HealthCheckType": "EC2", "HealthCheckGracePeriod": 300,
             "Instances": [{"InstanceId": instance_id(h["name"]), "InstanceType": h.get("type", "m6i.large"),
                            "AvailabilityZone": az.get(h["az"], h["az"]), "LifecycleState": "InService",
-                           "HealthStatus": "Healthy", "LaunchTemplate": self._lt("7" if h.get("type", "").startswith(
-                               "m7g") else "6"), "ProtectedFromScaleIn": False} for h in hosts],
+                           "HealthStatus": "Healthy", "LaunchTemplate": self._lt(
+                               self.lt_version if h.get("type", "").startswith("m7g") else self.previous_lt_version),
+                           "ProtectedFromScaleIn": False} for h in hosts],
             "CreatedTime": parse_time(self.cfg["created"], self.w.start_t),
             "SuspendedProcesses": [{"ProcessName": p, "SuspensionReason": f"User suspended at {iso(t)}"}
                                    for p, t in sorted(self.suspended.items())],
@@ -72,11 +74,11 @@ class IngressAsg:
         out = {"InstanceRefreshId": r["id"], "AutoScalingGroupName": self.name, "Status": status,
                "StartTime": self.refresh_start, "PercentageComplete": pct, "InstancesToUpdate": todo,
                "ProgressDetails": {"LivePoolProgress": {"PercentageComplete": pct, "InstancesToUpdate": todo}},
-               "Preferences": {"MinHealthyPercentage": 90, "InstanceWarmup": 300, "CheckpointPercentages": [50, 100],
+               "Preferences": {"MinHealthyPercentage": int(r["min_healthy_pct"]), "InstanceWarmup": 300, "CheckpointPercentages": [50, 100],
                                "CheckpointDelay": int(r["checkpoint_delay_s"]), "SkipMatching": True,
                                "AutoRollback": False, "ScaleInProtectedInstances": "Ignore",
                                "StandbyInstances": "Ignore"},
-               "DesiredConfiguration": {"LaunchTemplate": self._lt("7")}}
+               "DesiredConfiguration": {"LaunchTemplate": self._lt(self.lt_version)}}
         if status == "InProgress":
             out["StatusReason"] = ("Waiting for checkpoint delay to elapse (resumes "
                                    f"{self.resumes_at.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')})")
@@ -89,6 +91,8 @@ class IngressAsg:
     # ---- dispatch ----
     def serve(self, op: str, p: dict, now: datetime) -> dict | None:
         names = p.get("AutoScalingGroupNames")
+        if op == "DescribeScheduledActions":
+            return {"ScheduledUpdateGroupActions": []}
         if op == "DescribeAutoScalingGroups":
             return {"AutoScalingGroups": [self.group(now)] if not names or self.name in names else []}
         if op == "DescribeInstanceRefreshes":

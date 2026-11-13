@@ -46,10 +46,13 @@ class Endpointd:
             from .util import parse_time
             self.halted_since = parse_time(cfg["halted_since"], start)
         self.archive: dict[int, list[dict]] = {}
+        self.created: dict[int, datetime] = {}
         for seg in self.table.get("ledger_history", []):
             for gen in range(seg["from_gen"], seg["to_gen"] + 1):
                 self.archive[gen] = [{"set_id": f"g{gen}-{r['set_id_suffix']}", "ip": r["ip"], "weight": r["weight"]}
                                      for r in seg["records"]]
+                # The planner wrote one gen per plan_every up to the one at the start, as the seeded items record.
+                self.created[gen] = start - self.plan_every * (self.next_gen - 1 - gen)
         self.kill_switch_timeline: list[dict] = []
         self.apply_events: list[dict] = []
         self.ledger_correct: list[list] = []
@@ -62,6 +65,13 @@ class Endpointd:
 
     def active(self, c: str) -> bool:
         return self.switch(c) and self.processes[c]
+
+    def archive_key(self, gen: int) -> str:
+        return f"prod/plans/gen={gen:010d}.json"
+
+    def archive_body(self, gen: int) -> str:
+        return json.dumps({"generation": gen, "endpoint": self.ledger, "ledger": self.archive[gen]},
+                          separators=(",", ":"))
 
     def plan_records(self, gen: int, fqdn: str, item: dict | None = None) -> list[dict] | None:
         if fqdn == self.ledger:
@@ -144,6 +154,7 @@ class Endpointd:
                          "ledger": recs, "endpoints_ref": ENDPOINTS_REF, "endpoint_count": len(self.order)},
                         principal="role:vl-endpointd-planner-role")
         self.archive[gen] = recs
+        self.created[gen] = t
         self.next_gen += 1
         self.next_plan_at = t + self.plan_every
 

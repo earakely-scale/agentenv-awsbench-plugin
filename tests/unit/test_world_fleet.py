@@ -133,3 +133,52 @@ def test_sudo_is_stripped_since_hosts_run_as_root(world):
     plain = run(world, host, f"unbound-control flush {LEDGER}")
     assert run(world, host, f"sudo unbound-control flush {LEDGER}")[1] == plain[1] == 0
     assert "not available" not in run(world, host, f"sudo dig +short {LEDGER}")[0]
+
+
+@pytest.mark.parametrize("host,cmd,code,want", [
+    ("core-a-01", "systemctl status checkout-api --no-pager", 0, "Loaded:"),
+    ("core-a-01", "systemctl --no-pager status checkout-api", 0, "Loaded:"),
+    ("endpointd-enactor-b", "systemctl status endpointd-enactor-b --no-pager -n 5", 0, "Loaded:"),
+    ("endpointd-enactor-b", "systemctl list-units --type=service", 0, "endpointd-enactor-b.service"),
+    ("endpointd-enactor-b", "systemctl is-active endpointd-enactor-b", 0, "active"),
+    ("core-a-01", "systemctl status nope --no-pager", 4, "Unit nope.service could not be found"),
+])
+def test_systemctl_reads_flags_as_options(world, host, cmd, code, want):
+    world.advance_to(at("02:45:00"))
+    out, rc = run(world, host, cmd)
+    assert rc == code and want in out and "--no-pager" not in out and "--type" not in out
+
+
+def test_systemctl_status_of_several_units_and_stop_with_a_flag(world):
+    out, rc = run(world, "core-a-01", "systemctl status unbound checkout-api")
+    assert rc == 0 and "unbound.service" in out and "checkout-api.service" in out
+    out, rc = run(world, "endpointd-enactor-b", "systemctl stop endpointd-enactor-b --no-block")
+    assert rc == 0 and world.endpointd.processes["enactor-b"] is False
+    out, rc = run(world, "endpointd-enactor-b", "systemctl is-active endpointd-enactor-b.service")
+    assert (out, rc) == ("inactive\n", 3)
+
+
+def test_inspect_shows_services_cache_and_recent_log(world):
+    world.advance_to(at("02:45:00"))
+    core = world.fleet_inspect_host("core-a-01")
+    assert core["services"]["unbound"] == "active (running)"
+    assert core["resolver"]["cache"][LEDGER].startswith("NXDOMAIN (cached negative answer")
+    assert 0 < len(core["recent_log"]) <= 5
+    assert "envoy" in world.fleet_inspect_host("li-b-01")["services"]
+    enactor = world.fleet_inspect_host("endpointd-enactor-a")
+    assert enactor["services"]["endpointd-enactor-a"] == "active (running)" and enactor["kill_switch"] == "on"
+
+
+def test_scheduled_actions_are_served_empty(world):
+    for p in ({"AutoScalingGroupName": ASG}, {}):
+        assert world.serve_aws("autoscaling", "DescribeScheduledActions", p) == {"ScheduledUpdateGroupActions": []}
+
+
+def test_refresh_matches_plat_405(world):
+    r = world.serve_aws("autoscaling", "DescribeInstanceRefreshes", {"AutoScalingGroupName": ASG})["InstanceRefreshes"][0]
+    assert r["Preferences"]["MinHealthyPercentage"] == 80
+    assert r["DesiredConfiguration"]["LaunchTemplate"]["Version"] == "15"
+    assert r["StartTime"] <= at("01:40:15")
+    g = world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {})["AutoScalingGroups"][0]
+    versions = {i["InstanceType"][:3]: i["LaunchTemplate"]["Version"] for i in g["Instances"]}
+    assert versions == {"m7g": "15", "m6i": "14"} and g["LaunchTemplate"]["Version"] == "15"

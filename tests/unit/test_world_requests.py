@@ -177,15 +177,13 @@ def test_hannah_never_pushes_rollback_after_the_refusal(world):
 
 
 def test_plan_archive_bucket_holds_the_archived_plans(world):
-    aws = FakeAws()
-    replay_seed(SCENARIO, aws)
     s3 = [e for e in SCENARIO["aws_seed"] if e.get("service") == "s3"]
-    assert s3[0]["operation"] == "CreateBucket" and s3[0]["params"]["Bucket"] == "vl-endpointd-plan-archive"
-    objs = {e["params"]["Key"]: json.loads(e["params"]["Body"]) for e in s3 if e["operation"] == "PutObject"}
+    assert [(e["operation"], e["params"]["Bucket"]) for e in s3] == [("CreateBucket", "vl-endpointd-plan-archive")]
     for gen in (48177, 48199):
-        body = objs[f"prod/plans/gen={gen:010d}.json"]
+        got = world.serve_aws("s3", "GetObject", {"Bucket": "vl-endpointd-plan-archive",
+                                                  "Key": f"prod/plans/gen={gen:010d}.json"})
+        body = json.loads(got["Body"].read())
         assert body["generation"] == gen and body["ledger"] == world.endpointd.archive[gen]
-    assert ("s3", "PutObject", "world:seed", True) in aws.calls
     out, code = world.epctl.run("epctl plan show 48177 --from-archive --endpoint ledger.internal.vantleaf.io",
                                 "endpointd-planner-1", {"role": "sre-primary"}, at("02:50:00"))
     assert "s3://vl-endpointd-plan-archive/prod/plans/gen=0000048177.json" in out

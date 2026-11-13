@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 
+from .archive import PlanArchive
 from .asg import IngressAsg
 from .endpointd import COMPONENTS, Endpointd, host_of
 from .epctl import Epctl
@@ -42,6 +43,7 @@ class World:
         self.fleet = Fleet(self, w["fleets"])
         self.endpointd = Endpointd(ep, self.mirror, self.fleet.ingress, self.start_t)
         self.epctl = Epctl(self.endpointd, self)
+        self.archive = PlanArchive(self.endpointd)
         self.dns = Dns(w["dns"], self.start_t, self.seed, self.mode)
         self.dns.live_fn = self.mirror.live
         self.storm = Storm(w["ledger"], self.start_t)
@@ -237,6 +239,8 @@ class World:
     def serve_aws(self, service: str, operation: str, params: dict) -> dict | None:
         if service.lower() == "autoscaling" and self.asg is not None:
             return self.asg.serve(operation, params or {}, self.now)
+        if service.lower() == "s3":
+            return self.archive.serve(operation, params or {}, self.now)
         return self.telemetry.serve(service, operation, params or {}, self.now)
 
     # ---- exports ----
