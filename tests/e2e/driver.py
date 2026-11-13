@@ -125,6 +125,9 @@ def steps_for(mode):
             args = {**args, "text": (f"CHANGE: restored {LEDGER} from plan 48199 with epctl apply | why: EPD-RB-7 | "
                                      "undo: epctl apply previous gen | auth: PF 4.1(f)") if args["text"].startswith(
                 "CHANGE:") else "Checkout update: records restored; watching checkout."}
+        if mode == "weakshed" and args.get("text", "").startswith("CHANGE: restored"):
+            args = {**args, "text": args["text"].replace("CHANGE: ", "CHANGE: webhooks-dispatcher desired count 6; ")
+                    .replace("undo: ", "undo: desired count 40, ")}
         if mode == "early" and tool == "status_update":
             args = {**args, "status": "resolved", "body": "This incident has been resolved."}
         out.append((tool, args))
