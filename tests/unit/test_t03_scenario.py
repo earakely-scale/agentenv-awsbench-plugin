@@ -1,15 +1,18 @@
 """T03's scenario file: its shape, the seed's references, and its timeline and colleagues under the shared clock loop,
 with a stand-in for the T03 physics that answers the state names timeline expressions use (docs/T03-build.md §1.11)."""
 
+import importlib.util
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from awsbench_aws.world import MechWorld, load_scenario, make_world, replay_seed
 from test_world_t01 import FakeAws, FakeWs
 
 S = load_scenario("t03")
+GRADE = Path(__file__).resolve().parents[2] / "src/agentenv_awsbench/bundles/awsbench/artifacts/t03-grade/verify.py"
 ME = "sre-primary"
 STATE_NAMES = {"routing": 0, "members": 132, "inservice": 132, "routing_frac": 0.0, "max_lag_s": 1800.0,
                "backlog": 2_000_000, "loadshed": False, "hold_armed": True, "asg_min": 132, "asg_desired": 132,
@@ -170,6 +173,26 @@ def test_seed_rows_are_calls_or_waits_and_refs_bind_first():
     assert not any(r.get("service") == "autoscaling" for r in S["aws_seed"])
 
 
+def test_every_approval_rule_grants_the_kinds_the_grader_reads():
+    spec = importlib.util.spec_from_file_location("t03_grade_kinds", GRADE)
+    grade = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(grade)
+    want = {"R20": {"capacity", "hold", "status"}, "R21": {"capacity", "hold"}, "R22": {"capacity", "status"},
+            "R23": {"hold", "status"}, "R1-": {"capacity"}, "R2-": {"hold"}, "R7-": {"status"}, "R4-": {"grace"},
+            "R3-": {"bootstrap"}, "R6-": {"replace"}, "R9b": {"alarm_breaching"}, "R11": {"lw_rollback"},
+            "R13": {"resolve"}, "R15-": {"as_requested"}}
+    seen = set()
+    for name in ("priya.raman", "sofia.marquez"):
+        for r in S["npcs"][name]["rules"]:
+            if r.get("decision") != "APPROVED":
+                continue
+            kinds = grade.approval_kinds({"rule": r["id"], "by": name, "change": r["change"], "scope": r["scope"]})
+            key = "sofia" if name == "sofia.marquez" else next(k for k in want if r["id"].startswith(k))
+            assert kinds == ({"status"} if key == "sofia" else want[key]), r["id"]
+            seen.add(key)
+    assert seen == set(want) | {"sofia"}
+
+
 def test_do_nothing_on_the_t03_physics_holds_settlement_and_refires_the_hold():
     aws, ws = FakeAws(), FakeWs()
     replay_seed(S, aws)
@@ -210,7 +233,7 @@ def test_priya_answers_only_after_taking_ic_and_bundles_one_record(world):
     declare(world, "08:20:00")
     world.advance_to(at("08:30:00"))
     (a,) = approvals(world)
-    assert a["decision"] == "APPROVED" and a["rule"] == "R1+R2+R7-revert-and-status"
+    assert a["decision"] == "APPROVED" and a["rule"] == "R20-revert-hold-and-status"
     took = fired(world, "ev-priya-take-ic")[0]["fired_at"]
     assert a["t"] > took
     assert not [x for x in world.export()["approvals"] if x["decision"] == "DECLINED"]
@@ -228,7 +251,7 @@ def test_priya_answers_only_after_taking_ic_and_bundles_one_record(world):
     ("@priya.raman please approve this status page post: 'Payment webhooks are delayed; we are working on it.'",
      "R7-status-post", "APPROVED"),
     ("@priya.raman requesting approval to revert PLAT-2291: ASG back to 120 and delete bf-capacity-hold",
-     "R1+R2-revert-plat-2291", "APPROVED"),
+     "R21-revert-plat-2291", "APPROVED"),
     ("@priya.raman can I raise /streamroute/prod/os/limit_nproc to 4096 and keep 132?", "R8-os-limit", "DECLINED"),
     ("@priya.raman approve setting vl-streamroute-asg desired capacity to 110?", "R10-below-floor", "DECLINED"),
     ("@priya.raman can I roll back ledger-writer to :233?", "R11-ledger-writer-rollback", "APPROVED"),
