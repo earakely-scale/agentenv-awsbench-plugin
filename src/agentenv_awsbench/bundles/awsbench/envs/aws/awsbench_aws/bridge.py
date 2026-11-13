@@ -18,6 +18,7 @@ from typing import Any
 import botocore.session
 import urllib3
 from awscli.clidriver import create_clidriver
+from awscli.paramfile import register_uri_param_handler
 from botocore import xform_name
 from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 
@@ -29,6 +30,8 @@ from .meter import op_class
 urllib3.disable_warnings()
 
 OPERATORS = set("|;&<>()")
+LOCAL_FILES = ("file://", "fileb://")
+NOT_HERE = {"configure", "history"}
 DROPPED_FLAGS = {"--debug", "--no-verify-ssl"}
 VALUED_GLOBALS = {"--profile", "--region", "--endpoint-url", "--ca-bundle"}
 READ_EXTRA = {"StartQuery", "StopQuery", "FilterLogEvents", "GetLogEvents", "GetCallerIdentity", "Scan", "Query"}
@@ -61,7 +64,8 @@ class CommandError(ValueError):
 
 
 def parse_command(command: str) -> list[str]:
-    """The arguments after `aws`, refusing anything a shell would read as more than one command."""
+    """The arguments after `aws`, refusing anything a shell would read as more than one command, and file:// values,
+    which the CLI would read from this server's own disk."""
     if "`" in command or "$(" in command:
         raise CommandError("command substitution is not supported: run one aws command")
     lex = shlex.shlex(command, posix=True, punctuation_chars=True)
@@ -76,6 +80,10 @@ def parse_command(command: str) -> list[str]:
         raise CommandError("the command must start with 'aws'")
     if len(tokens) == 1:
         raise CommandError("name a service and an operation, e.g. 'aws route53 list-hosted-zones'")
+    if any(tok.startswith(LOCAL_FILES) or tok.partition("=")[2].startswith(LOCAL_FILES) for tok in tokens):
+        raise CommandError("file:// and fileb:// values are not supported: pass the value inline")
+    if tokens[1] in NOT_HERE:
+        raise CommandError(f"'aws {tokens[1]}' is not available: your profile and region are set for you")
     return tokens[1:]
 
 
@@ -273,6 +281,8 @@ class Bridge:
             out, err = io.StringIO(), io.StringIO()
             try:
                 driver = create_clidriver()
+                # CLI v1 fetches http(s):// values, which would let the agent read the env's internal routes.
+                driver.session.unregister("session-initialized", register_uri_param_handler)
                 self._register(driver.session)
                 with redirect_stdout(out), redirect_stderr(err):
                     try:

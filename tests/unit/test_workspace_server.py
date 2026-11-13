@@ -188,3 +188,10 @@ def test_add_data_accepts_docs():
     assert env.ws.scenario == "mini" and env.ws.ident("sre-primary", "chat") == "me"
     with pytest.raises(ValueError, match="no scenario folder"):
         env.add([DataPart(data={"scenario": "does-not-exist"})])
+
+
+async def test_without_a_scenario_calls_are_refused_and_not_metered():
+    fake = FakeAws()
+    env = WorkspaceEnv(aws_url="http://aws.test", transport=httpx.MockTransport(fake))
+    out = await call(env.create_app(), "tickets_get", {"key": "OPS-4452"})
+    assert "no scenario loaded" in out["error"] and fake.calls == []

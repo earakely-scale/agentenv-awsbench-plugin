@@ -175,3 +175,21 @@ def test_resources_of():
                                                 "Item": {"pk": {"S": "applied#ledger"}}}) == [
         "dynamodb:table/endpointd-plans/applied#ledger"]
     assert resources_of("ssm", "PutParameter", {"Name": "/platform/a"}) == ["ssm:parameter/platform/a"]
+
+
+@pytest.mark.parametrize("command", [
+    "aws ssm put-parameter --name /vl/prod/x --type String --value file:///etc/hostname",
+    "aws ssm put-parameter --name /vl/prod/x --type String --value=fileb:///etc/hostname",
+    "aws route53 list-hosted-zones --cli-input-json file:///app/awsbench_aws/scenarios/t01.yaml",
+    "aws configure set region eu-west-1",
+])
+def test_parse_refuses_local_files_and_configure(command):
+    with pytest.raises(CommandError):
+        parse_command(command)
+
+
+def test_cli_passes_urls_through_without_fetching_them(bridge):
+    out = bridge.run_cli("aws ssm put-parameter --name /vl/prod/x --type String --overwrite "
+                         "--value http://127.0.0.1:1/awsbench/inbox", role="sre-primary")
+    assert out["exit_code"] == 0, out["stderr"]
+    assert bridge.test_world.calls[-1][2]["Value"] == "http://127.0.0.1:1/awsbench/inbox"

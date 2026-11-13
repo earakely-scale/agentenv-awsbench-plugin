@@ -55,6 +55,10 @@ def cost_class(tool_name: str) -> str:
     return "point_read" if tool_name.endswith(READ_SUFFIXES) else "write"
 
 
+NO_SCENARIO = ("The workspace has no scenario loaded: it restarted or was reset and lost its records. Nothing more "
+               "can be done in this environment; reply DONE.")
+
+
 def _port() -> int:
     return int(os.environ.get("MCP_PORT", "18765"))
 
@@ -155,6 +159,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
         args = {k: v for k, v in args.items() if k not in ("self", "ctx")}
         role = ctx.role if ctx else None
         app = name.split("_", 1)[0]
+        if self.ws.scenario is None and not self.standalone:
+            return _json({"error": NO_SCENARIO, "_clock": self._local_banner(self.ws.clock(), None)})
         if self.ws.identities and not self.ws.role_known(role):
             return _json({"error": f"role {role!r} has no identity in this workspace "
                                    f"(roles: {', '.join(sorted(self.ws.identities))})"})

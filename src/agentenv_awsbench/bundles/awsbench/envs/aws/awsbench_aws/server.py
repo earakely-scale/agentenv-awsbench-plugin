@@ -47,6 +47,8 @@ CLOCK_URI = "urn:agentenv:clock/v1"
 SCENARIO_URI = "urn:scale:awsbench-scenario/v1"
 HORIZON_URI = "urn:scale:awsbench-horizon/v1"
 HARNESS = "harness"
+NO_SCENARIO = ("AwsBench has no scenario loaded: the aws server restarted or was reset and lost the episode's state. "
+               "Nothing more can be done in this environment; reply DONE.")
 SWEEP_TABLES = ("endpointd-plans",)
 _deser = TypeDeserializer()
 
@@ -275,9 +277,18 @@ class AwsServer(AgentEnvEnvironment):
 
     # metering
 
+    def _unconfigured(self, role: str | None) -> dict | None:
+        """A charged call with no scenario loaded is refused, uncharged: after a restart the AWS account is empty and
+        the clock is the host's, which an agent must not mistake for the incident."""
+        if self.scenario is not None or not self.meter.charged(role):
+            return None
+        return {"error": NO_SCENARIO, "_clock": self.meter.banner(drain=False)}
+
     async def _metered(self, ctx: ToolContext | None, tool_name: str, args: dict, work, *, hosts: int | None = None,
                        cost_class: str | None = None, logged: bool = False) -> str:
         role = _role(ctx)
+        if refused := self._unconfigured(role):
+            return _json(refused)
         meter = self.meter
         began = await meter.begin("aws", tool_name, args, role, hosts=hosts, cost_class=cost_class)
         if not began["ok"]:
@@ -444,6 +455,8 @@ class AwsServer(AgentEnvEnvironment):
           structured_output=False)
     async def wait(self, ctx: ToolContext, minutes: float | None = None, until: str | None = None) -> str:
         role, meter = _role(ctx), self.meter
+        if refused := self._unconfigured(role):
+            return _json(refused)
         args = {"minutes": minutes, "until": until}
         began = await meter.begin("aws", "wait", args, role, cost_class="free")
         if not began["ok"]:
@@ -470,9 +483,9 @@ class AwsServer(AgentEnvEnvironment):
             return parse_time(text)
         if minutes is None:
             raise ValueError("give minutes or until")
-        if minutes <= 0:
+        if not minutes > 0:
             raise ValueError("minutes must be positive")
-        return now + timedelta(minutes=float(minutes))
+        return now + timedelta(seconds=min(float(minutes) * 60, self.meter.cfg.wait_max_s))
 
     @tool(description="Harness control of the episode: status, end, turn_end.", hidden_by_default=True,
           structured_output=False)
@@ -729,8 +742,13 @@ class AwsServer(AgentEnvEnvironment):
 
     async def _route_begin(self, request: Request) -> JSONResponse:
         b = await self._body(request)
+        role = b.get("role")
+        if refused := self._unconfigured(role):
+            return JSONResponse(json.loads(_json({"ok": False, "refuse": refused["error"], "banner": refused["_clock"]})))
         out = await self.meter.begin(b.get("server", "workspace"), b.get("tool", ""), b.get("args") or {},
-                                     b.get("role"), hosts=b.get("hosts"), cost_class=b.get("cost_class"))
+                                     role, hosts=b.get("hosts"), cost_class=b.get("cost_class"))
+        if not out.get("ok"):
+            out["banner"] = self.meter.banner(drain=self.meter.charged(role))
         return JSONResponse(json.loads(_json(out)))
 
     async def _route_end(self, request: Request) -> JSONResponse:
