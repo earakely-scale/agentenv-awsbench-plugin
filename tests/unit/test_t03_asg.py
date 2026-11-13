@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from awsbench_aws.errors import AwsError
 from awsbench_aws.world.t03 import PLAT_LAUNCHES
-from test_t03_world import asg, at, revert, world
+from test_t03_world import ASG, asg, at, revert, world
 
 
 def terminate(w, host, dec=True):
@@ -66,3 +66,46 @@ def test_a_recurring_action_shows_its_next_run():
     assert hold_start(w) == datetime(2026, 11, 17, 19, tzinfo=UTC)
     snaps = w.mech.asg.snapshots
     assert snaps["13:00"][0]["StartTime"] == datetime(2026, 11, 16, 19, tzinfo=UTC)
+
+
+GROUP_READS = ["DescribePolicies", "DescribeLifecycleHooks", "DescribeTags", "DescribeNotificationConfigurations",
+               "DescribeWarmPool", "DescribeLoadBalancerTargetGroups", "DescribeLoadBalancers", "DescribeTrafficSources"]
+
+
+def test_every_group_read_is_served_for_the_group():
+    """opus-3 CALL 138: `aws autoscaling describe-policies --auto-scaling-group-name vl-streamroute-asg` answered
+    'AutoScalingGroup vl-streamroute-asg not found' while DescribeAutoScalingGroups listed it."""
+    w = world()
+    w.advance_to(at(w, "08:20:00"))
+    for op in GROUP_READS:
+        assert asg(w, op) is not None, op
+    assert asg(w, "DescribePolicies") == {"ScalingPolicies": []}
+    assert asg(w, "DescribeLifecycleHooks") == {"LifecycleHooks": []}
+    assert asg(w, "DescribeWarmPool") == {"Instances": []}
+    tags = w.serve_aws("autoscaling", "DescribeTags", {"Filters": [{"Name": "auto-scaling-group", "Values": [ASG]}]})
+    assert {t["Key"]: t["Value"] for t in tags["Tags"]}["Name"] == "streamroute"
+    assert w.serve_aws("autoscaling", "DescribeTags", {"Filters": [{"Name": "key", "Values": ["owner"]}]})["Tags"][0][
+        "Value"] == "platform"
+    with pytest.raises(AwsError, match="AutoScalingGroup vl-nope not found"):
+        w.serve_aws("autoscaling", "DescribePolicies", {"AutoScalingGroupName": "vl-nope"})
+
+
+def test_unmodelled_group_writes_are_kept_and_echoed():
+    w = world()
+    out = asg(w, "PutScalingPolicy", PolicyName="cpu-tt", PolicyType="TargetTrackingScaling",
+              TargetTrackingConfiguration={"TargetValue": 50.0})
+    assert out["PolicyARN"].endswith("policyName/cpu-tt")
+    (pol,) = asg(w, "DescribePolicies")["ScalingPolicies"]
+    assert pol["PolicyName"] == "cpu-tt" and pol["AutoScalingGroupName"] == ASG
+    asg(w, "PutLifecycleHook", LifecycleHookName="drain", LifecycleTransition="autoscaling:EC2_INSTANCE_TERMINATING")
+    assert asg(w, "DescribeLifecycleHooks")["LifecycleHooks"][0]["HeartbeatTimeout"] == 3600
+    w.serve_aws("autoscaling", "CreateOrUpdateTags", {"Tags": [{"ResourceId": ASG, "ResourceType": "auto-scaling-group",
+                                                                "Key": "incident", "Value": "INC-1"}]})
+    assert "incident" in {t["Key"] for t in asg(w, "DescribeAutoScalingGroups")["AutoScalingGroups"][0]["Tags"]}
+    asg(w, "AttachLoadBalancerTargetGroups", TargetGroupARNs=["arn:tg/1"])
+    assert asg(w, "DescribeLoadBalancerTargetGroups")["LoadBalancerTargetGroups"][0]["LoadBalancerTargetGroupARN"] == \
+        "arn:tg/1"
+    asg(w, "DeletePolicy", PolicyName="cpu-tt")
+    assert asg(w, "DescribePolicies") == {"ScalingPolicies": []}
+    assert {c["op"] for c in w.mech.asg.calls} >= {"PutScalingPolicy", "PutLifecycleHook", "CreateOrUpdateTags"}
+    assert w.mech.asg.desired == 132

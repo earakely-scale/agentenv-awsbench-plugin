@@ -68,6 +68,9 @@ class Asg:
         self.snapshots: dict[str, list] = {}
         self.next_reconcile: float | None = None
         self.calls: list[dict] = []
+        self.extras: dict[str, dict] = {}
+        self.tags = {"Name": ("streamroute", True), "owner": ("platform", True)}
+        self.metrics: list[str] = []
 
     # ---- roster ----
     def instances(self) -> list:
@@ -195,11 +198,12 @@ class Asg:
             "SuspendedProcesses": [{"ProcessName": p, "SuspensionReason": f"User suspended at {self._z(t)}"}
                                    for p, t in sorted(self.suspended.items())],
             "VPCZoneIdentifier": "subnet-0d4a1c7e9b2f36051,subnet-0e5b2d8f1c3a47062,subnet-0f6c3e9a2d4b58073",
-            "EnabledMetrics": [], "TerminationPolicies": ["NewestInstance"], "NewInstancesProtectedFromScaleIn": False,
+            "EnabledMetrics": [{"Metric": x, "Granularity": "1Minute"} for x in self.metrics],
+            "TerminationPolicies": ["NewestInstance"], "NewInstancesProtectedFromScaleIn": False,
             "ServiceLinkedRoleARN": f"arn:aws:iam::{ACCOUNT}:role/aws-service-role/autoscaling.amazonaws.com/"
                                     "AWSServiceRoleForAutoScaling",
             "Tags": [{"ResourceId": NAME, "ResourceType": "auto-scaling-group", "Key": k, "Value": v,
-                      "PropagateAtLaunch": True} for k, v in (("Name", "streamroute"), ("owner", "platform"))],
+                      "PropagateAtLaunch": prop} for k, (v, prop) in sorted(self.tags.items())],
         }
 
     def next_start(self, a: dict, now: float) -> float:
@@ -278,6 +282,18 @@ class Asg:
                                     "Progress": 100, "Details": "{}"} for a in rows[:100]]}
         if op == "DescribeInstanceRefreshes":
             return {"InstanceRefreshes": []}
+        if op == "DescribeTags":
+            return {"Tags": [t for t in self.group(now)["Tags"] if all(
+                t[TAG_FILTERS[f["Name"]]] in f.get("Values", []) for f in p.get("Filters") or []
+                if f.get("Name") in TAG_FILTERS)]}
+        if op in READS:
+            if p.get("AutoScalingGroupName") or op != "DescribePolicies":
+                self._check_group(p)
+            names = set(p.get("PolicyNames") or p.get("LifecycleHookNames") or [])
+            rows = [r for n, r in self.extras.get(op, {}).items() if not names or n in names]
+            if op == "DescribeWarmPool":
+                return {**({"WarmPoolConfiguration": rows[0]} if rows else {}), "Instances": []}
+            return {READS[op]: rows}
         if op in WRITES:
             if op != "TerminateInstanceInAutoScalingGroup":  # it names an instance, not its group
                 self._check_group(p)
@@ -285,7 +301,73 @@ class Asg:
             self.calls.append({"t": now, "op": op, "params": p})
             self.poke(now)
             return out
+        if op in KEPT or p.get("AutoScalingGroupName") == NAME:
+            for t in p.get("Tags") or [p]:
+                self._check_group({"AutoScalingGroupName": t.get("AutoScalingGroupName") or t.get("ResourceId")})
+            self.calls.append({"t": now, "op": op, "params": p})
+            return self._keep(op, p)
         return None
+
+    def _keep(self, op: str, p: dict) -> dict:
+        """Group settings with no physics: kept so the matching Describe shows them, as AWS would."""
+        def rows(read):
+            return self.extras.setdefault(read, {})
+        if op == "PutScalingPolicy":
+            arn = (f"arn:aws:autoscaling:us-east-1:{ACCOUNT}:scalingPolicy:7e2c9a41-3b5d-4f68-a0c1-9d8e7f6a5b4c:"
+                   f"autoScalingGroupName/{NAME}:policyName/{p['PolicyName']}")
+            rows("DescribePolicies")[p["PolicyName"]] = {"PolicyType": "SimpleScaling", **p, "PolicyARN": arn,
+                                                         "Alarms": [], "Enabled": p.get("Enabled", True)}
+            return {"PolicyARN": arn, "Alarms": []}
+        if op == "PutLifecycleHook":
+            rows("DescribeLifecycleHooks")[p["LifecycleHookName"]] = {"HeartbeatTimeout": 3600, "GlobalTimeout": 172800,
+                                                                      "DefaultResult": "ABANDON", **p}
+        elif op == "PutNotificationConfiguration":
+            for kind in p.get("NotificationTypes") or []:
+                rows("DescribeNotificationConfigurations")[f"{p['TopicARN']}|{kind}"] = {
+                    "AutoScalingGroupName": NAME, "TopicARN": p["TopicARN"], "NotificationType": kind}
+        elif op == "PutWarmPool":
+            rows("DescribeWarmPool")["pool"] = {"MinSize": 0, "PoolState": "Stopped", **{
+                k: v for k, v in p.items() if k != "AutoScalingGroupName"}}
+        elif op in ("AttachLoadBalancerTargetGroups", "AttachLoadBalancers", "AttachTrafficSources"):
+            read, key, field = ATTACH[op]
+            for x in p.get(key) or []:
+                name = x if isinstance(x, str) else x.get("Identifier")
+                rows(read)[name] = ({field: x} if isinstance(x, str) else {"TrafficSource": name, **x}) | {
+                    "State": "InService"}
+        elif op in ("DetachLoadBalancerTargetGroups", "DetachLoadBalancers", "DetachTrafficSources"):
+            read, key, _ = ATTACH[op.replace("Detach", "Attach")]
+            for x in p.get(key) or []:
+                rows(read).pop(x if isinstance(x, str) else x.get("Identifier"), None)
+        elif op in ("DeletePolicy", "DeleteLifecycleHook", "DeleteWarmPool"):
+            read, name = {"DeletePolicy": ("DescribePolicies", p.get("PolicyName")), "DeleteWarmPool": (
+                "DescribeWarmPool", "pool"), "DeleteLifecycleHook": ("DescribeLifecycleHooks",
+                                                                     p.get("LifecycleHookName"))}[op]
+            if rows(read).pop(name, None) is None and op != "DeleteWarmPool":
+                raise AwsError("ValidationError", f"{op.removeprefix('Delete')} {name} not found for {NAME}")
+        elif op == "DeleteNotificationConfiguration":
+            for k in [k for k in rows("DescribeNotificationConfigurations") if k.startswith(f"{p.get('TopicARN')}|")]:
+                rows("DescribeNotificationConfigurations").pop(k)
+        elif op == "CreateOrUpdateTags":
+            self.tags.update({t["Key"]: (t.get("Value", ""), t.get("PropagateAtLaunch", False)) for t in p["Tags"]})
+        elif op == "DeleteTags":
+            for t in p.get("Tags") or []:
+                self.tags.pop(t["Key"], None)
+        elif op in ("EnableMetricsCollection", "DisableMetricsCollection"):
+            names = p.get("Metrics") or METRICS
+            self.metrics = sorted(set(self.metrics) | set(names)) if op[0] == "E" else [
+                x for x in self.metrics if x not in names]
+        elif op == "CreateAutoScalingGroup":
+            raise AwsError("AlreadyExists", f"AutoScalingGroup by this name already exists - A group with the name "
+                                            f"{NAME} already exists")
+        elif op == "DeleteAutoScalingGroup":
+            raise AwsError("ResourceInUse", "You cannot delete an AutoScalingGroup while there are instances or "
+                                            "pending Spot instance request(s) still in the group.")
+        elif op == "ExecutePolicy" and p.get("PolicyName") not in self.extras.get("DescribePolicies", {}):
+            raise AwsError("ValidationError", f"No policy found for {p.get('PolicyName')}")
+        elif op in ("CompleteLifecycleAction", "RecordLifecycleActionHeartbeat"):
+            raise AwsError("ValidationError", f"No active Lifecycle Action found with instance ID "
+                                              f"{p.get('InstanceId') or p.get('LifecycleActionToken')}")
+        return {}
 
     def _UpdateAutoScalingGroup(self, p: dict, now: float) -> dict:
         mn, mx = int(p.get("MinSize", self.min)), int(p.get("MaxSize", self.max))
@@ -436,3 +518,18 @@ WRITES = {"UpdateAutoScalingGroup", "SetDesiredCapacity", "TerminateInstanceInAu
           "DeleteScheduledAction", "BatchDeleteScheduledAction", "PutScheduledUpdateGroupAction",
           "BatchPutScheduledUpdateGroupAction", "SuspendProcesses", "ResumeProcesses", "EnterStandby", "ExitStandby",
           "DetachInstances", "SetInstanceProtection", "StartInstanceRefresh", "CancelInstanceRefresh"}
+READS = {"DescribePolicies": "ScalingPolicies", "DescribeLifecycleHooks": "LifecycleHooks",
+         "DescribeNotificationConfigurations": "NotificationConfigurations", "DescribeWarmPool": "Instances",
+         "DescribeLoadBalancerTargetGroups": "LoadBalancerTargetGroups", "DescribeLoadBalancers": "LoadBalancers",
+         "DescribeTrafficSources": "TrafficSources"}
+ATTACH = {"AttachLoadBalancerTargetGroups": ("DescribeLoadBalancerTargetGroups", "TargetGroupARNs",
+                                             "LoadBalancerTargetGroupARN"),
+          "AttachLoadBalancers": ("DescribeLoadBalancers", "LoadBalancerNames", "LoadBalancerName"),
+          "AttachTrafficSources": ("DescribeTrafficSources", "TrafficSources", None)}
+KEPT = {"PutScalingPolicy", "DeletePolicy", "ExecutePolicy", "PutLifecycleHook", "DeleteLifecycleHook",
+        "PutNotificationConfiguration", "DeleteNotificationConfiguration", "PutWarmPool", "DeleteWarmPool",
+        "CreateOrUpdateTags", "DeleteTags", "EnableMetricsCollection", "DisableMetricsCollection",
+        *ATTACH, *(k.replace("Attach", "Detach") for k in ATTACH)}
+TAG_FILTERS = {"auto-scaling-group": "ResourceId", "key": "Key", "value": "Value"}
+METRICS = ["GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity", "GroupInServiceInstances", "GroupPendingInstances",
+           "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
