@@ -248,3 +248,60 @@ def test_aws_query_description_names_nothing_of_a_scenario():
         s = load_scenario_file(name, {})
         tokens |= set(s.get("npcs") or {}) | {r["operation"] for r in s.get("trail_history") or []}
     assert not [t for t in tokens if t in text]
+
+
+def t01_trail_api():
+    from awsbench_aws.actionlog import ActionLog
+    from awsbench_aws.cloudtrail import Trail, seed_trail
+    from awsbench_aws.server import load_scenario_file, seed_rows
+    t01 = load_scenario_file("t01", {})
+    trail = Trail(ActionLog(), seed_trail(t01, seed_rows(t01), {"internal.vantleaf.io": "ZVKATFGSZ8LHTCP"}))
+    return lambda service, op, params, **kw: trail.lookup(params)
+
+
+ROUTE53 = {"source": "cloudtrail", "lookup_attributes": {"EventSource": "route53.amazonaws.com"},
+           "start": "2026-11-16T12:00:00Z", "end": "2026-11-17T07:50:30Z", "limit": 30}
+
+
+async def test_cloudtrail_rows_are_compact_under_the_cap():
+    """R11-opus-2 CALL 18: this query, with full events, was 62,545 characters and the client spilled it to a file."""
+    server = AwsServer()
+    server.ready.set()
+    server.bridge.call_api = t01_trail_api()
+    text = await server.aws_query(HARNESS, **ROUTE53)
+    out = json.loads(text)
+    assert len(out["events"]) == 30 and "truncated" not in out
+    assert len(json.dumps(out["events"], ensure_ascii=False, separators=(",", ":"))) <= 40_000
+    row = out["events"][0]
+    assert "CloudTrailEvent" not in row and row["Role"] == "vl-endpointd-enactor-role"
+    assert row["requestParameters"]["changeBatch"]["Changes"]
+
+
+async def test_full_cloudtrail_events_page_by_end_and_offset():
+    server = AwsServer()
+    server.ready.set()
+    server.bridge.call_api = t01_trail_api()
+    seen, offset, pages = [], 0, 0
+    while True:
+        out = json.loads(await server.aws_query(HARNESS, **ROUTE53, full=True, offset=offset))
+        pages += 1
+        assert all("CloudTrailEvent" in e for e in out["events"])
+        assert len(json.dumps(out["events"], ensure_ascii=False, separators=(",", ":"))) <= 40_000
+        seen += [e["EventId"] for e in out["events"]]
+        if not out.get("truncated"):
+            break
+        assert out["end"] == "2026-11-17T07:50:30Z" and out["next_offset"] == offset + len(out["events"])
+        offset = out["next_offset"]
+    compact = json.loads(await server.aws_query(HARNESS, **ROUTE53))["events"]
+    assert pages > 1 and seen == [e["EventId"] for e in compact]
+
+
+def test_t01_restart_options_are_refused_before_the_meter(world):
+    """R11-opus-3 saw T03's wait_for and pause_seconds on T01, whose world refused them only after charging a write."""
+    from awsbench_aws.server import unrunnable
+    from test_t03_world import world as t03_world
+    out = unrunnable("fleet_restart", {"selector": "vl-core", "batch_size": 5, "pause_seconds": 60}, world)
+    assert out["charged"] is False and "about 90 s apart" in out["error"]
+    assert unrunnable("fleet_restart", {"selector": "vl-core", "batch_size": 5}, world) is None
+    assert unrunnable("fleet_restart", {"selector": "streamroute", "batch_size": 12, "wait_for": "ready",
+                                        "pause_seconds": 60}, t03_world()) is None

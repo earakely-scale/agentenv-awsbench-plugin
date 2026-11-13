@@ -57,7 +57,9 @@ NO_SCENARIO = ("AwsBench has no scenario loaded: the aws server restarted or was
                "Nothing more can be done in this environment; reply DONE.")
 SWEEP_TABLES = ("endpointd-plans",)
 FLEET_COMMANDS = ("fleet_exec", "fleet_restart")
+RESTART_OPTS = ("wait_for", "pause_seconds")
 EXPORT_MAX_CHARS = 20_000
+TRAIL_MAX_CHARS = 40_000
 _deser = TypeDeserializer()
 
 
@@ -247,7 +249,21 @@ def unrunnable(tool: str, args: dict, world: Any = None) -> dict | None:
             parse_query(str(args.get("query") or ""), extended=True)
         except AwsError as e:
             return {"error": e.as_dict(), "charged": False}
+    elif (tool == "fleet_restart" and world is not None and any(args.get(k) is not None for k in RESTART_OPTS)
+          and "wait_for" not in inspect.signature(world.fleet_restart).parameters):
+        return {"error": "this fleet's restart jobs take no wait_for or pause_seconds: each batch restarts in turn, "
+                         "about 90 s apart", "charged": False}
     return None
+
+
+def trail_row(e: dict) -> dict:
+    """A LookupEvents event without its CloudTrailEvent text: who, the role, what and the request, parsed."""
+    detail = json.loads(e.get("CloudTrailEvent") or "{}")
+    issuer = ((detail.get("userIdentity") or {}).get("sessionContext") or {}).get("sessionIssuer") or {}
+    return {**{k: e.get(k) for k in ("EventTime", "EventId", "EventName", "EventSource", "Username")},
+            "Role": issuer.get("userName"), "Resources": e.get("Resources") or [],
+            "requestParameters": detail.get("requestParameters"),
+            **{k: detail[k] for k in ("errorCode", "errorMessage") if detail.get(k)}}
 
 
 def count_hosts(world: Any, selector: str) -> int | None:
@@ -436,16 +452,20 @@ class AwsServer(AgentEnvEnvironment):
                       "`source=cloudtrail` looks up CloudTrail management events, filtered on one attribute: "
                       "`lookup_attributes` {\"EventName\": \"<API operation>\"} (or {\"AttributeKey\": "
                       "\"Username\", \"AttributeValue\": \"<user name>\"}); keys EventName, Username, EventSource, "
-                      "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId; newest first. `start`/`end` are "
+                      "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId; newest first; rows are compact "
+                      "(`full: true` adds each CloudTrailEvent). One cloudtrail answer holds at most about 40,000 "
+                      "characters of events: when `truncated` is true, call again with the same arguments plus "
+                      "the `end` it gave and `offset` = `next_offset`. `start`/`end` are "
                       "RFC 3339; the default window is the last hour for logs, everything until now for cloudtrail.",
           structured_output=False)
     async def aws_query(self, ctx: ToolContext, source: str = "logs", query: str = "",
                         log_groups: list[str] | None = None, start: str | None = None, end: str | None = None,
                         limit: int = 100, lookup_attributes: dict | list[dict] | None = None,
-                        region: str | None = None) -> str:
+                        region: str | None = None, full: bool = False, offset: int = 0) -> str:
         query, lookup_attributes = self.shown.inside(query), self.shown.inside(lookup_attributes)
         args = {"source": source, "query": query, "log_groups": log_groups, "start": start, "end": end,
-                "limit": limit, "lookup_attributes": lookup_attributes}
+                "limit": limit, "lookup_attributes": lookup_attributes,
+                **({"full": True} if full else {}), **({"offset": offset} if offset else {})}
 
         async def work(call: dict) -> dict:
             t_end = parse_time(end) if end else self.meter.now
@@ -468,7 +488,18 @@ class AwsServer(AgentEnvEnvironment):
                     if not out.get("NextToken"):
                         break
                     params["NextToken"] = out["NextToken"]
-                return {"source": "cloudtrail", "events": events[:limit]}
+                window = [e if full else trail_row(e) for e in events[max(0, int(offset)):limit]]
+                page, size = [], 1
+                for e in window:
+                    if page and size + len(_json(e)) + 1 > TRAIL_MAX_CHARS:
+                        break
+                    page.append(e)
+                    size += len(_json(e)) + 1
+                if len(page) == len(window):
+                    return {"source": "cloudtrail", "events": page}
+                return {"source": "cloudtrail", "events": page, "truncated": True,
+                        "next_offset": max(0, int(offset)) + len(page),
+                        "end": t_end.astimezone(UTC).isoformat().replace("+00:00", "Z")}
             if source != "logs":
                 return {"error": f"unknown source {source!r}: logs or cloudtrail"}
             params = {"logGroupNames": log_groups or [], "queryString": query, "limit": int(limit),
@@ -571,16 +602,15 @@ class AwsServer(AgentEnvEnvironment):
     @tool(description="Restart the hosts a selector names, `batch_size` at a time, as a background job; "
                       "fleet_job_status follows it. The next batch starts `pause_seconds` (default 0) after every host "
                       "of the previous one meets `wait_for`: `ready` (the default: in service, or failed its readiness "
-                      "for good) or `process_up` (its process has started).", structured_output=False)
+                      "for good) or `process_up` (its process has started), on fleets whose restart jobs take them; "
+                      "elsewhere those options are refused, uncharged.", structured_output=False)
     async def fleet_restart(self, selector: str, ctx: ToolContext, batch_size: int = 1, wait_for: str | None = None,
                             pause_seconds: int | None = None) -> str:
-        opts = {k: v for k, v in (("wait_for", wait_for), ("pause_seconds", pause_seconds)) if v is not None}
+        opts = {k: v for k, v in zip(RESTART_OPTS, (wait_for, pause_seconds)) if v is not None}
 
         async def work(call: dict) -> dict:
             caller = self._fleet_caller(ctx, call)
             world = self._need_world()
-            if opts and "wait_for" not in inspect.signature(world.fleet_restart).parameters:
-                return {"error": "this fleet's restart jobs take no wait_for or pause_seconds"}
             return await self._world_call(self._acting, caller, functools.partial(world.fleet_restart, **opts),
                                           selector, batch_size, caller)
         return await self._metered(ctx, "fleet_restart", {"selector": selector, "batch_size": batch_size, **opts}, work)
