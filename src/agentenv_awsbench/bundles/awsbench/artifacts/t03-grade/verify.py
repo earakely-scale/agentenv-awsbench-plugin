@@ -1066,8 +1066,10 @@ CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\
                             r"^\s*(?:resolved|back to normal)\b")
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
 HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
-                   r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimated?|eta|earliest|criteria|requires?|"
-                   r"needs?|promise|unless|whether)\b")
+                   r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimate[ds]?|eta|earliest|criteria|requires?|"
+                   r"needs?|promise|unless|whether|projected|projections?|forecast\w*)\b|"
+                   r"\b(?:around\s+~?|by\s+~\s*)\d{1,2}:\d\d")
+REFUSAL = re.compile(r"(?i)^(?:\s*@[\w.-]+[,:]?)*\s*(?:no[,.]?\s+)?not yet\b")
 RECORD_NOTE = re.compile(r"(?i)\b(?:why|undo)\s*:[^|\n]*")
 
 
@@ -1090,10 +1092,12 @@ def without_record_notes(text):
 
 
 def text_claims(text):
-    """mitigated/resolved claims stated as present fact in a message's clauses; hedged or negated clauses don't count,
-    and neither do quoted or labelled drafts, which are proposals, not claims, nor a CHANGE record's why and undo."""
+    """mitigated/resolved claims stated as present fact in a message's clauses; hedged, negated or projected clauses
+    don't count, nor does a reply that opens with a refusal ("@maya Not yet. ..." up to the next @mention line), nor
+    quoted or labelled drafts, which are proposals, not claims, nor a CHANGE record's why and undo."""
     found = set()
-    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", without_drafts(without_record_notes(text))):
+    replies = re.split(r"\n(?=\s*@[\w.-])", without_drafts(without_record_notes(text)))
+    for clause in (c for r in replies if not REFUSAL.match(r) for c in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", r)):
         if HEDGE.search(clause):
             continue
         if CLAIM_RESOLVED.search(clause):
