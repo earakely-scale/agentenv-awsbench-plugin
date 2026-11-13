@@ -180,6 +180,8 @@ def test_seed_rows_are_calls_or_waits_and_refs_bind_first():
             bound.add(row["bind"])
     ops = [(r.get("service"), r.get("operation")) for r in S["aws_seed"]]
     assert ops.count(("ecs", "RegisterTaskDefinition")) == 234 and ops.count(("cloudwatch", "PutMetricAlarm")) == 10
+    retention = ("kinesis", "IncreaseStreamRetentionPeriod")  # only once the stream is ACTIVE, never while CREATING
+    assert ops.count(retention) == 1 and ops.index(retention) > ops.index(("kinesis", "DescribeStreamSummary"))
     names = {r["params"]["Name"]: r["params"]["Value"] for r in S["aws_seed"] if r.get("operation") == "PutParameter"}
     assert names["/streamroute/prod/os/limit_nproc"] == "1024" and names["/streamroute/prod/jvm/xmx"] == "6g"
     assert names["/streamroute/prod/shardmap/bootstrap_source"] == "peers"
