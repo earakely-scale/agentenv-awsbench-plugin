@@ -105,8 +105,10 @@ JUDGE_FACTS = {  # rubrics/C11.yaml's facts; F2 and X2 name what the plan store 
           "webhooks dispatcher autoscaled to 40 tasks nacking with visibility 0, plus the outbox replay) are context "
           "the note need not repeat.",
     "F6": "Node-local negative DNS caching delayed recovery after the records were correct: the note says NXDOMAIN "
-          "(negative) answers stayed cached for a stated time (the SOA negative TTL, 900 s or ~15 min), or that the "
-          "caches had to expire or be flushed before clients recovered.",
+          "(negative) answers stayed cached, or that the caches had to expire or be flushed, before clients "
+          "recovered. A stated time is not required. The SOA negative TTL is 900 s, but the caches expire on a shared "
+          "schedule, so the wait after a fix is anything up to 900 s: a stated delay that fits GROUND TRUTH's recovery "
+          "times is accurate, a shorter one included.",
     "F7": "At least two of these four follow-ups: the race fix (PR platform-endpointd#97 / PLAT-412), an alarm on an "
           "empty managed endpoint (EndpointRecordCount = 0), PAY-702 backoff, OPS-4398 acme-renewer batching.",
 }
@@ -124,7 +126,8 @@ KEY_TERMS = {  # (n, patterns): a credited fact's quote matches n of them, so it
     "F4": (2, (r"refresh", r"li-b-01|arm64|10\.20\.44\.77")),
     "F5": (1, (r"storm|herd|surge|spike|stampede|flood|burst|retr(y|ie)|reconnect|nack|backlog|replay(?![ _]rate)",)),
     "F6": (2, (r"negative|nxdomain|cach",
-               r"(?<!\d)900(?!\d)|\b15[ -]?min|\b15 ?m\b|fifteen min|expir|flush|lapse|ran out|aged? out")),
+               r"\b(?:delay|lag|wait|slow|until|before|recover|held|hold|kept|keep|stayed|stuck|persist|linger)|expir|"
+               r"flush|lapse|ran out|aged? out|\bttl\b|\d ?(?:s|sec|seconds?|m|min|minutes?)\b|minute|second")),
     "F7": (2, (r"#97|plat-412|\brace", r"alarm|alert|endpointrecordcount", r"pay-702|back-?off", r"ops-4398|acme")),
 }
 JUDGE_SAMPLES = 3
@@ -1005,7 +1008,27 @@ def judge_truth(inp):
                  + f"; its lowest 1-minute value was {_pct(min(values, default=0.04))}"
                  + (f", about {_pct(collapsed[len(collapsed) // 2])} while ledger-writer was collapsed" if collapsed else "")
                  + ".")
-    return "\n".join(lines)
+    recovery = recovery_truth(inp)
+    return "\n".join(lines + ([recovery] if recovery else []))
+
+
+def recovery_truth(inp):
+    """When ledger.internal had records again and when the hosts' negative caches let them see it: each recovers at
+    its first cache expiry after the fix, or a flush, so the lag depends on when the fix landed."""
+    back = (series(path(inp.world, "dns.ledger_nonempty_history"))
+            or series(path(inp.world, "endpointd.ledger_correct_series")))
+    fixed = next((at for at, v in back if v is True and at >= et(IMPACT_START)), None)
+    recovered = sorted(t for t in (ts(v) for v in (path(inp.world, "dns.per_host_recovered_at", {}) or {}).values())
+                       if t and fixed and t >= fixed)
+    if not recovered:
+        return ""
+    lag = [round((t - fixed).total_seconds()) for t in (recovered[0], recovered[-1])]
+    flushed = len(path(inp.world, "dns.flushes", {}) or {})
+    return (f"ledger.internal had records again at {hm(fixed)}; the hosts' node-local caches answered NXDOMAIN until "
+            "their cached negative answers expired (the SOA negative TTL is 900 s, but the caches expire on a shared "
+            "schedule, so the wait after a fix is anything up to 900 s) or were flushed. In this run the hosts "
+            f"recovered from {hm(recovered[0])} to {hm(recovered[-1])}, {lag[0]}-{lag[1]} s after the records returned"
+            + (f", {flushed} of them flushed" if flushed else "") + ".")
 
 
 async def judge_c11(text, truth=""):
