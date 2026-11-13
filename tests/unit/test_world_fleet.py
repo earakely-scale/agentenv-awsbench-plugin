@@ -48,7 +48,8 @@ def test_read_commands_work_on_every_host(world, host):
 def test_systemctl_and_curl_reflect_the_outage(world):
     world.advance_to(at("02:45:00"))
     out, code = run(world, "core-a-01", "systemctl status checkout-api")
-    assert code == 0 and "active (running)" in out and "UnknownHostException" in out
+    assert code == 0 and "active (running)" in out and "CircuitBreakerOpenException" in out
+    assert "UnknownHostException" in run(world, "core-a-01", "journalctl -u checkout-api")[0]
     body = json.loads(run(world, "core-a-01", "curl -s localhost:8080/health")[0])
     assert body["status"] == "DOWN" and "UnknownHostException" in body["components"]["ledger"]["error"]
     assert run(world, "core-a-01", "curl -sf localhost:8080/health")[1] == 22
@@ -64,8 +65,8 @@ def test_systemctl_and_curl_reflect_the_outage(world):
 
 def test_journal_shows_the_outage_then_the_storm(world):
     world.advance_to(at("02:45:00"))
-    out, _ = run(world, "core-a-01", "journalctl -u checkout-api -n 4")
-    assert out.count("\n") == 4 and "UnknownHostException" in out and "core-a-01 checkout-api[3011]" in out
+    out, _ = run(world, "core-a-01", "journalctl -u checkout-api -n 12")
+    assert out.count("\n") == 12 and out.count("UnknownHostException") == 1 and "core-a-01 checkout-api[3011]" in out
     assert "inbound" in run(world, "lw-a-01", "journalctl -u ledger-writer -n 3")[0]
     assert "NXDOMAIN" in run(world, "core-a-01", "journalctl -u unbound")[0]
     assert "halt latch engaged" in run(world, "endpointd-enactor-b", "journalctl -u endpointd-enactor-b")[0]
@@ -236,3 +237,22 @@ def test_every_epctl_subcommand_prints_its_usage_on_help_and_writes_nothing(worl
     assert run(world, "endpointd-enactor-a", "epctl --help")[0].startswith("epctl 2.3.0")
     assert run(world, "endpointd-enactor-a", "epctl nope --help")[1] == 2
     assert not [c for c in world.aws.calls[writes:] if not c[1].startswith(("Get", "List", "Describe", "Query", "Scan"))]
+
+
+def test_list_hosts_refuses_an_unknown_group_or_zone_and_takes_zone_names(world):
+    with pytest.raises(ValueError, match="unknown fleet 'checkout-api'; fleets: .*vl-core"):
+        world.fleet_list_hosts(fleet="checkout-api")
+    with pytest.raises(ValueError, match=r"unknown availability zone 'use1-az9'; zones: .*use1-az6 \(us-east-1a\)"):
+        world.fleet_list_hosts(az="use1-az9")
+    assert world.fleet_list_hosts(az="us-east-1a") == world.fleet_list_hosts(az="use1-az6")
+    assert world.fleet_list_hosts(fleet="vl-core", az="us-east-1b") == world.fleet_list_hosts("vl-core", "use1-az1")
+    ingress = world.fleet_list_hosts(fleet="ledger-ingress")
+    assert len(ingress) == 6 and all("ready" in h for h in ingress)
+    assert world.fleet.select("vl-core:us-east-1c") == world.fleet.select("vl-core:use1-az4")
+
+
+def test_graviton_ingress_hosts_run_al2023_arm64(world):
+    li = world.fleet_inspect_host("li-b-01")
+    assert "Amazon Linux 2023" in li["os"] and li["arch"] == "aarch64"
+    li = world.fleet_inspect_host("li-a-02")
+    assert li["os"].startswith("Ubuntu") and li["arch"] == "x86_64"

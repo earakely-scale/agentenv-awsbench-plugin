@@ -3472,6 +3472,8 @@ world:
       activities:
       - {at: 02:34:00, from: 6, to: 18}
       - {at: 02:38:00, from: 18, to: 40}
+    fleet_asgs:
+    - {name: vl-core-asg, fleet: vl-core, launch_template: vl-core-lt, capacity_provider: cp-core, created: '2025-03-12T09:56:00-05:00'}
     ledger_writer_asg:
       name: vl-ledgerwriter-asg
       min: 12
@@ -3661,6 +3663,7 @@ world:
       - name: li-a-01
         ip: 10.20.11.152
         type: m7g.large
+        os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az6
         ready: true
       - name: li-a-02
@@ -3671,6 +3674,7 @@ world:
       - name: li-b-01
         ip: 10.20.44.77
         type: m7g.large
+        os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az1
         ready: false
         journal:
@@ -3688,6 +3692,7 @@ world:
       - name: li-c-01
         ip: 10.20.76.144
         type: m7g.large
+        os: Amazon Linux 2023 (aarch64, vl-al2023-arm64)
         az: use1-az4
         ready: true
       - name: li-c-02

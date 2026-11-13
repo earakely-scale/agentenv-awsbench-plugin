@@ -208,3 +208,18 @@ def test_c7_fails_while_the_outbox_is_stranded():
     aws_exp["world"]["ledger"].update(outbox_frozen=True, checkout_revision=411)
     c7 = {r["id"]: r for r in grade.grade_from_inputs(aws_exp, ws_exp)["rows"]}["C7"]
     assert c7["result"] is False and "checkout-api:411 does not read it" in c7["detail"]
+
+
+def test_every_capacity_provider_group_is_served_and_cp_core_holds_the_core_hosts(world):
+    cps = world.serve_aws("ecs", "DescribeCapacityProviders", {})["capacityProviders"]
+    groups = {g["AutoScalingGroupARN"]: g for g in world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {})[
+        "AutoScalingGroups"]}
+    assert {cp["autoScalingGroupProvider"]["autoScalingGroupArn"] for cp in cps} <= set(groups)
+    core = world.serve_aws("autoscaling", "DescribeAutoScalingGroups", {"AutoScalingGroupNames": ["vl-core-asg"]})[
+        "AutoScalingGroups"]
+    assert [g["AutoScalingGroupName"] for g in core] == ["vl-core-asg"]
+    ids = {i["InstanceId"] for i in core[0]["Instances"] if i["LifecycleState"] == "InService"}
+    assert len(ids) == core[0]["DesiredCapacity"] == 30
+    assert ids == {world.fleet_inspect_host(h)["instance_id"] for h in world.core_hosts}
+    assert {i["AvailabilityZone"] for i in core[0]["Instances"]} == {"us-east-1a", "us-east-1b", "us-east-1c"}
+    assert {"Key": "ecs-capacity-provider", "Value": "cp-core"}.items() <= core[0]["Tags"][1].items()

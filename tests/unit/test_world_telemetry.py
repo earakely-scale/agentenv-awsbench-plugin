@@ -273,3 +273,114 @@ def test_seeded_logs_name_real_versions_and_hosts(world):
     assert tags and all(t in repo for t in tags)
     names = re.findall(r"\b(?:li|lw|core)-[abc]-\d{2}\b", msgs)
     assert names and all(n in world.fleet.hosts for n in names)
+
+
+# ---- admission ----
+def test_rejected_429_is_a_metric_and_a_log_line_only_under_admission(world):
+    ep(world, "epctl pause all", "02:49:00")
+    set_param(world, "/vl/prod/ledger-writer/admission/enabled", "true", "02:50:00")
+    set_param(world, "/vl/prod/ledger-writer/admission/quota/webhooks-dispatcher", "60", "02:50:30")
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason OPS-4452", "02:52:30")
+    world.advance_to(at("03:10:00"))
+    pts = stats(world, "Vantleaf/LedgerWriter", "Rejected429", "03:05:00", "03:08:00", 60, ["Sum"])
+    assert len(pts) == 3 and all(p["Sum"] > 0 for p in pts)
+    assert stats(world, "Vantleaf/LedgerWriter", "Rejected429", "02:00:00", "02:50:00", 60, ["Sum"])[0]["Sum"] == 0
+    assert any("429 Retry-After: 1" in m for m in messages(world, "/vl/prod/ledger-writer", "03:05:00", "03:06:00"))
+    assert any("429" in m for m in messages(world, "/vl/prod/webhooks-dispatcher", "03:05:00", "03:06:00"))
+    listed = world.serve_aws("cloudwatch", "ListMetrics", {"Namespace": "Vantleaf/LedgerWriter"})["Metrics"]
+    assert "Rejected429" in {m["MetricName"] for m in listed}
+
+
+def test_no_rejections_without_admission(world):
+    oracle(world)
+    world.advance_to(at("03:30:00"))
+    assert all(m["rejected"] == 0 for m in world.telemetry.minutes)
+    assert not any("429" in m for m in messages(world, "/vl/prod/ledger-writer", "02:40:00", "03:30:00"))
+
+
+# ---- outbox table ----
+def outbox(w, op, **p):
+    return w.serve_aws("dynamodb", op, {"TableName": "vl-ledger-outbox", **p})
+
+
+def test_outbox_reads_apply_their_filter_and_key_condition(world):
+    world.advance_to(at("02:50:00"))
+    n = round(world.storm.outbox)
+    by = {"ExpressionAttributeNames": {"#s": "status"}}
+    for status, count in (("PENDING", 0), ("PENDING_POSTING", n), ("POSTED", 0)):
+        out = outbox(world, "Scan", Select="COUNT", FilterExpression="#s = :p",
+                     ExpressionAttributeValues={":p": {"S": status}}, **by)
+        assert (out["Count"], out["ScannedCount"]) == (count, n)
+    page = outbox(world, "Scan", Limit=3, FilterExpression="#s = :p", ExpressionAttributeValues={
+        ":p": {"S": "POSTED"}}, **by)
+    assert (page["Items"], page["Count"], page["ScannedCount"]) == ([], 0, 3) and page["LastEvaluatedKey"]
+    item = world.telemetry._outbox_item(5)
+    pid = {":id": item["payment_id"]}
+    got = outbox(world, "Query", KeyConditionExpression="payment_id = :id", ExpressionAttributeValues=pid)
+    assert (got["Items"], got["Count"]) == ([item], 1)
+    assert outbox(world, "GetItem", Key={"payment_id": item["payment_id"]})["Item"] == item
+    missing = {":id": {"S": "pi_ffffff000000000000000000"}}
+    assert outbox(world, "Query", Select="COUNT", KeyConditionExpression="payment_id = :id",
+                  ExpressionAttributeValues=missing)["Count"] == 0
+    early = outbox(world, "Scan", Limit=50, FilterExpression="begins_with(payment_id, :p) AND NOT (#s <> :s)",
+                   ExpressionAttributeValues={":p": {"S": "pi_00000"}, ":s": {"S": "PENDING_POSTING"}}, **by)
+    assert early["Count"] == 16 and early["ScannedCount"] == 50
+
+
+@pytest.mark.parametrize("p, says", [
+    ({"FilterExpression": "status = :p", "ExpressionAttributeValues": {":p": {"S": "x"}}}, "reserved keyword: status"),
+    ({"FilterExpression": "#s = :p", "ExpressionAttributeValues": {":p": {"S": "x"}}}, "attribute name: #s"),
+    ({"FilterExpression": "authorized_at BETWEEN :a AND :b", "ExpressionAttributeValues": {
+        ":a": {"S": "a"}, ":b": {"S": "b"}}}, "unsupported in this environment: BETWEEN"),
+    ({"FilterExpression": "size(payment_id) > :a", "ExpressionAttributeValues": {":a": {"N": "3"}}},
+     "unsupported in this environment: size"),
+    ({"ScanFilter": {"status": {"ComparisonOperator": "EQ"}}}, "ScanFilter is unsupported"),
+])
+def test_outbox_filters_outside_the_subset_are_refused(world, p, says):
+    world.advance_to(at("02:50:00"))
+    with pytest.raises(AwsError, match=says) as e:
+        outbox(world, "Scan", Select="COUNT", **p)
+    assert e.value.code == "ValidationException"
+    with pytest.raises(AwsError, match="missed key schema element: payment_id"):
+        outbox(world, "Query", KeyConditionExpression="authorized_at = :a", ExpressionAttributeValues={
+            ":a": {"S": "x"}})
+
+
+# ---- Insights statistics ----
+def test_insights_counts_every_record_it_scans(world):
+    oracle(world)
+    world.advance_to(at("03:58:00"))
+    lw = "/vl/prod/ledger-writer"
+    events = world.telemetry.log_events(lw, at("03:25:00"), at("03:58:00"), None, world.now, 10000)
+    r = query(world, "filter @message like /NO_SUCH_TEXT/", [lw], "03:25:00", "03:58:00")
+    assert r["statistics"] == {"recordsMatched": 0.0, "recordsScanned": float(len(events)),
+                               "bytesScanned": float(sum(len(e["message"].encode()) for e in events))}
+    assert len(events) > 0
+    r = query(world, "fields @message", [lw], "03:25:00", "03:58:00")
+    assert r["statistics"]["recordsScanned"] == r["statistics"]["recordsMatched"] == len(events)
+
+
+# ---- the breaker decoy ----
+def test_breaker_errors_outnumber_the_cause_but_the_first_error_is_the_cause(world):
+    world.advance_to(at("03:00:00"))
+    events = world.telemetry.log_events(CK, at("02:31:00"), at("03:00:00"), None, world.now, 10000)
+    breaker = sum("CircuitBreakerOpenException" in e["message"] for e in events)
+    cause = [e for e in events if "UnknownHostException" in e["message"]]
+    assert 10 <= breaker / len(cause) <= 12
+    assert cause[0]["timestamp"] == int(at("02:31:42").timestamp() * 1000) == events[0]["timestamp"]
+    newest = query(world, "filter @message like /Exception/ | sort @timestamp desc | limit 24", [CK], "02:40:00",
+                   "03:00:00")["results"]
+    assert sum("UnknownHostException" in r[1]["value"] for r in newest) == 2
+    assert not any("hosts)" in e["message"] for e in events)
+
+
+def test_a_rollback_to_411_has_no_breaker_lines(world):
+    world.advance_to(at("02:45:00"))
+    world.serve_aws("ecs", "UpdateService", {"cluster": "vl-prod-core", "service": "checkout-api",
+                                             "taskDefinition": "checkout-api:411"})
+    world.ecs.apply({"service": "ecs", "operation": "UpdateService", "params": {
+        "cluster": "vl-prod-core", "service": "checkout-api", "taskDefinition": "checkout-api:411"}}, at("02:45:00"))
+    world.advance_to(at("02:55:00"))
+    late = messages(world, CK, "02:50:00", "02:55:00")
+    assert late and not any("CircuitBreaker" in m for m in late) and all("UnknownHost" in m for m in late
+                                                                          if m.startswith("ERROR"))

@@ -2,12 +2,14 @@
 
 import hashlib
 import math
+import operator
 import re
 from bisect import bisect_right
 from datetime import UTC, datetime, timedelta
 
 from ..account import ACCOUNT
 from ..errors import AwsError
+from .physics import FAILURE
 from .util import iso, parse_time
 
 # name, namespace, metric, comparison, threshold, evaluation periods
@@ -22,6 +24,8 @@ ALARMS = [
 APP_GROUPS = {"/vl/prod/checkout-api": "checkout", "/vl/prod/webhooks-dispatcher": "dispatcher",
               "/vl/prod/ledger-writer": "ledger"}
 OUTBOX = "vl-ledger-outbox"
+LEDGER = "ledger.internal.vantleaf.io"
+BREAKER_REVISION = 412
 SUPPORTED = "supported: fields, filter @message like/=~, sort @timestamp, limit, stats count() by bin()/@log"
 _FIELDS = ("@timestamp", "@message", "@log", "@logStream")
 ACME_LOG = "/vl/platform/acme-renewer"
@@ -29,6 +33,116 @@ _TERM = re.compile(r"\s*(?:(and|or)\s+)?@message\s+(not\s+like|like|=~)\s+(/(?:\
                    re.IGNORECASE)
 _BIN = re.compile(r"bin\(\s*(\d+)\s*(s|m|h)\s*\)$")
 _STATS = re.compile(r"(count\(\s*\*?\s*\))\s*(?:as\s+(\w+))?\s*(?:by\s+(.+))?")
+
+
+_DDB_TOKEN = re.compile(r"\s*(<>|<=|>=|[=<>(),]|[#:]?[A-Za-z_][\w.-]*)")
+_DDB_CMP = {"=": operator.eq, "<>": operator.ne, "<": operator.lt, "<=": operator.le, ">": operator.gt,
+            ">=": operator.ge}
+_DDB_FUNCS = {"attribute_exists": (1, lambda a: a is not None), "attribute_not_exists": (1, lambda a: a is None),
+              "begins_with": (2, lambda a, b: _ddb_same(a, b) and a[1].startswith(b[1])),
+              "contains": (2, lambda a, b: _ddb_same(a, b) and b[1] in a[1])}
+_DDB_RESERVED = {"status", "state", "name", "date", "time", "timestamp", "type", "value", "data", "count", "key"}
+DDB_SUPPORTED = ("supported: = <> < <= > >=, begins_with, contains, attribute_exists, attribute_not_exists, AND, OR, "
+                 "NOT, parentheses")
+
+
+def _ddb_same(a, b) -> bool:
+    return a is not None and b is not None and a[0] == b[0]
+
+
+class DdbCondition:
+    """A DynamoDB condition expression over an item's string attributes, as a predicate (`test`); anything outside
+    the subset is a ValidationException naming it, so no read is answered unfiltered."""
+
+    def __init__(self, text: str, names: dict | None, values: dict | None, what: str):
+        self.names, self.values, self.what, self.attrs = names or {}, values or {}, what, set()
+        self.toks, pos = [], 0
+        while text[pos:].strip():
+            m = _DDB_TOKEN.match(text, pos)
+            if not m:
+                self._bad(text[pos:].split()[0])
+            self.toks.append(m.group(1))
+            pos = m.end()
+        self.i = 0
+        self.test = self._join("OR", any)
+        if self.i < len(self.toks):
+            self._bad(self.toks[self.i])
+
+    def _bad(self, tok):
+        raise AwsError("ValidationException", f"Invalid {self.what}: unsupported in this environment: {tok}; "
+                                              f"{DDB_SUPPORTED}")
+
+    def _err(self, msg):
+        raise AwsError("ValidationException", f"Invalid {self.what}: {msg}")
+
+    def _peek(self, k: int = 0) -> str:
+        return self.toks[self.i + k] if self.i + k < len(self.toks) else ""
+
+    def _take(self, want: str | None = None) -> str:
+        tok = self._peek()
+        if not tok or want and tok != want:
+            self._bad(tok or "end of expression")
+        self.i += 1
+        return tok
+
+    def _join(self, word: str, fold):
+        parts = [self._join("AND", all) if word == "OR" else self._not()]
+        while self._peek().upper() == word:
+            self.i += 1
+            parts.append(self._join("AND", all) if word == "OR" else self._not())
+        return parts[0] if len(parts) == 1 else lambda it: fold(p(it) for p in parts)
+
+    def _not(self):
+        if self._peek().upper() == "NOT":
+            self.i += 1
+            inner = self._not()
+            return lambda it: not inner(it)
+        if self._peek() == "(":
+            self.i += 1
+            inner = self._join("OR", any)
+            self._take(")")
+            return inner
+        if self._peek(1) == "(":
+            name = self._take()
+            arity, fn = _DDB_FUNCS.get(name.lower()) or self._bad(name)
+            self.i += 1
+            args = [self._operand()]
+            while self._peek() == ",":
+                self.i += 1
+                args.append(self._operand())
+            self._take(")")
+            if len(args) != arity:
+                self._bad(name)
+            return lambda it: fn(*(a(it) for a in args))
+        left, op = self._operand(), self._take()
+        if op not in _DDB_CMP:
+            self._bad(op)
+        right = self._operand()
+        if op == "<>":
+            return lambda it: not (_ddb_same(a := left(it), b := right(it)) and a[1] == b[1])
+        return lambda it: _ddb_same(a := left(it), b := right(it)) and _DDB_CMP[op](a[1], b[1])
+
+    def _operand(self):
+        tok = self._take()
+        if tok.startswith(":"):
+            if tok not in self.values:
+                self._err(f"An expression attribute value used in expression is not defined; attribute value: {tok}")
+            kind, raw = next(iter(self.values[tok].items()))
+            val = (kind, float(raw) if kind == "N" else raw)
+            return lambda it: val
+        if tok.startswith("#"):
+            if tok not in self.names:
+                self._err(f"An expression attribute name used in the document path is not defined; attribute name: "
+                          f"{tok}")
+            name = self.names[tok]
+        elif tok.lower() in _DDB_RESERVED:
+            self._err(f"Attribute name is a reserved keyword; reserved keyword: {tok}")
+        elif not tok[0].isalpha() and tok[0] != "_" or tok.upper() in ("AND", "OR", "NOT", "BETWEEN", "IN"):
+            self._bad(tok)
+        else:
+            name = tok
+        self.attrs.add(name)
+        return lambda it: ("S", it[name]["S"]) if name in it else None
 
 
 def _utc(t) -> datetime:
@@ -154,13 +268,14 @@ class Telemetry:
         self._planner_lines(t)
         if t.second >= self.w.tick_s and self.minutes:
             return
-        s, ep = self.w.storm, self.w.endpointd
+        s, ep, lev = self.w.storm, self.w.endpointd, self.w.levers()
         m = {"t": t.replace(second=0, microsecond=0), "checkout": self.w.checkout_success_1m(),
              "p99": s.latency_ms(), "backlog": s.backlog, "offered": s.offered, "capacity": s.capacity,
              "regime": s.regime, "lw_tasks": s.lw_running, "conns": min(400, s.lw_running * 25),
              "outbox": s.outbox, "records": len(self.w.mirror.live(ep.ledger)),
              "ledger_correct": ep.correct(ep.ledger), "latch": (ep.latch_reasons() or [None])[0],
-             "paused": self.w.levers()["consumer_paused"],
+             "paused": lev["consumer_paused"], "rejected": s.rejected, "quota": lev["dispatcher_quota"],
+             "rev": s.checkout_rev,
              "envoy": sum(1 for h in self.w.fleet.ingress() if not h.get("ready")),
              "recovered": [h for h in self.w.core_hosts if self.w.dns.resolves(h, t)]}
         if self.minutes and self.minutes[-1]["t"] == m["t"]:
@@ -232,6 +347,8 @@ class Telemetry:
             return 120.0 if pre else m["p99"]
         if key == ("Vantleaf/LedgerWriter", "Requests"):
             return round(self.baseline_req_s() * 60) if pre else round(m["offered"] * 60)
+        if key == ("Vantleaf/LedgerWriter", "Rejected429"):
+            return 0.0 if pre else float(round(m["rejected"] * 60))
         if key == ("AWS/SQS", "ApproximateNumberOfMessagesVisible"):
             return 0.0 if pre else round(m["backlog"])
         if key == ("Vantleaf/Webhooks", "BacklogPerTask"):
@@ -324,6 +441,7 @@ class Telemetry:
                      ("Vantleaf/Checkout", "OutboxPending", [{"Name": "Service", "Value": "checkout-api"}]),
                      ("Vantleaf/LedgerWriter", "P99LatencyMs", [{"Name": "Service", "Value": "ledger-writer"}]),
                      ("Vantleaf/LedgerWriter", "Requests", [{"Name": "Service", "Value": "ledger-writer"}]),
+                     ("Vantleaf/LedgerWriter", "Rejected429", [{"Name": "Service", "Value": "ledger-writer"}]),
                      ("Vantleaf/Webhooks", "BacklogPerTask", [{"Name": "Service", "Value": "webhooks-dispatcher"}]),
                      ("Vantleaf/Endpointd", "EndpointRecordCount",
                       [{"Name": "Endpoint", "Value": "ledger.internal.vantleaf.io"}]),
@@ -395,18 +513,46 @@ class Telemetry:
                               "AttributeDefinitions": [{"AttributeName": "payment_id", "AttributeType": "S"}],
                               "BillingModeSummary": {"BillingMode": "PAY_PER_REQUEST"},
                               "TableArn": f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/{OUTBOX}"}}
-        if op in ("Scan", "Query") and p.get("Select") == "COUNT":
-            return {"Count": n, "ScannedCount": n}
-        if op != "Scan":
+        if op == "GetItem":
+            item = self._outbox_find(((p.get("Key") or {}).get("payment_id") or {}).get("S"), n)
+            return {"Item": item} if item else {}
+        if op not in ("Scan", "Query"):
             return None
-        start = (p.get("ExclusiveStartKey") or {}).get("payment_id", {}).get("S")
-        lo = int(start[3:9], 16) + 1 if start else 0
-        hi = min(n, lo + min(int(p.get("Limit") or 1000), 1000))
-        items = [self._outbox_item(i) for i in range(lo, hi)]
-        out = {"Items": items, "Count": len(items), "ScannedCount": len(items)}
-        if hi < n:
-            out["LastEvaluatedKey"] = {"payment_id": items[-1]["payment_id"]}
+        if legacy := next((k for k in ("ScanFilter", "QueryFilter", "KeyConditions") if p.get(k)), None):
+            raise AwsError("ValidationException", f"{legacy} is unsupported in this environment; use FilterExpression "
+                                                  "and KeyConditionExpression")
+        names, values = p.get("ExpressionAttributeNames"), p.get("ExpressionAttributeValues")
+        flt = DdbCondition(p["FilterExpression"], names, values, "FilterExpression") if p.get(
+            "FilterExpression") else None
+        count, hi = p.get("Select") == "COUNT", 0
+        if op == "Query":
+            m = re.fullmatch(r"\s*(#\w+|payment_id)\s*=\s*(:\w+)\s*", p.get("KeyConditionExpression") or "")
+            if not m or (names or {}).get(m.group(1), m.group(1)) != "payment_id":
+                raise AwsError("ValidationException", "Query condition missed key schema element: payment_id")
+            read = [x for x in [self._outbox_find(((values or {}).get(m.group(2)) or {}).get("S"), n)] if x]
+        else:
+            start = (p.get("ExclusiveStartKey") or {}).get("payment_id", {}).get("S")
+            lo = int(start[3:9], 16) + 1 if start else 0
+            hi = min(n, lo + (int(p["Limit"]) if p.get("Limit") else n if count else 1000))
+            if not count:
+                hi = min(hi, lo + 1000)
+            if count and (flt is None or flt.attrs <= {"status"}):
+                read = range(lo, hi)
+                hits = len(read) if flt is None or flt.test(self._outbox_item(0)) else 0
+                return {"Count": hits, "ScannedCount": len(read),
+                        **({"LastEvaluatedKey": {"payment_id": self._outbox_item(hi - 1)["payment_id"]}} if hi < n
+                           else {})}
+            read = [self._outbox_item(i) for i in range(lo, hi)]
+        items = [x for x in read if flt is None or flt.test(x)]
+        out = {"Count": len(items), "ScannedCount": len(read), **({} if count else {"Items": items})}
+        if op == "Scan" and hi < n:
+            out["LastEvaluatedKey"] = {"payment_id": self._outbox_item(hi - 1)["payment_id"]}
         return out
+
+    def _outbox_find(self, pid: str | None, n: int) -> dict | None:
+        i = int(pid[3:9], 16) if re.fullmatch(r"pi_[0-9a-f]{24}", pid or "") else n
+        item = self._outbox_item(i) if i < n else None
+        return item if item and item["payment_id"]["S"] == pid else None
 
     def _outbox_item(self, i: int) -> dict:
         h = hashlib.sha256(f"{self.w.seed}|outbox|{i}".encode()).hexdigest()
@@ -416,51 +562,71 @@ class Telemetry:
 
     # ---- logs ----
     def lines(self, group: str, t: datetime, host: str | None = None) -> list[str]:
-        """The app log lines `group` writes in the minute of `t`, across the fleet or, given `host`, on that host.
+        """The app log lines `group` writes in the minute of `t`, across the fleet or, given `host`, on that host. The
+        outage's own minute is the scenario's seeded lines.
 
         They read only that minute's record, never live state, so log history never changes after the fact."""
         w = self.w
-        if t < self.outage_start or not self.minutes:
+        if t < self.outage_start.replace(second=0, microsecond=0) + timedelta(minutes=1) or not self.minutes:
             return []
         m = self._minute(t) or self.minutes[0]
-        n_unrec = len(w.core_hosts) - len(m["recovered"])
+        unrec = [h for h in w.core_hosts if h not in m["recovered"]]
         if host is not None and host in w.core_hosts:
-            n_unrec = int(host not in m["recovered"])
+            unrec = [host] if host in unrec else []
+        reaches = host is None or host in m["recovered"]
         kind = APP_GROUPS.get(group) or ("endpointd" if group.startswith("/vl/platform/endpointd/") else None)
         if kind == "checkout":
-            out = []
-            if n_unrec:
-                out.append("ERROR c.v.ledger.LedgerClient - post failed: java.net.UnknownHostException: "
-                           "ledger.internal.vantleaf.io: Name or service not known"
-                           + ("" if host else f" ({n_unrec} hosts)"))
-                out.append("WARN c.v.ledger.LedgerClient - CircuitBreakerOpenException: ledger-client breaker OPEN "
-                           "(failure rate 100.0% > 50.0%)")
-            if m["regime"] == "collapsed":
-                out.append("ERROR c.v.ledger.LedgerClient - post failed: java.net.SocketTimeoutException: "
-                           "Read timed out after 2000ms (ledger.internal.vantleaf.io)")
-                out.append("ERROR c.v.ledger.LedgerClient - HTTP 503 from ledger-writer: db pool exhausted")
+            out = self._checkout_lines(m, unrec[int(m["t"].timestamp()) // 60 % len(unrec)]) if unrec else []
+            if m["regime"] == "collapsed" and reaches:
+                out += [f"ERROR [ledger-client] POST https://{LEDGER}/v1/postings failed: "
+                        + "java.net.SocketTimeoutException: Read timed out after 2000ms",
+                        "ERROR [ledger-client] HTTP 503 from ledger-writer: db pool exhausted"]
+                if m["rev"] >= BREAKER_REVISION:
+                    out.append(f"WARN [ledger-client] circuit ledger OPEN (failure rate {100 * FAILURE['collapsed']:.1f}% "
+                               "> 50.0% over 20 calls); short-circuiting for 10s")
             return out
         if kind == "dispatcher":
             out = []
-            if n_unrec and not m["paused"]:
-                out.append("ERROR dispatcher - deliver failed: getaddrinfo ENOTFOUND ledger.internal.vantleaf.io; "
-                           "nack visibility=0")
+            if unrec and not m["paused"]:
+                out.append(f"ERROR dispatcher - deliver failed: getaddrinfo ENOTFOUND {LEDGER}; nack visibility=0")
             if m["regime"] == "collapsed" and not m["paused"]:
                 out.append("ERROR dispatcher - ledger post timeout after 2000ms; retrying immediately")
+            if m["rejected"] >= 0.5 and not m["paused"]:
+                out.append("WARN dispatcher - ledger lookup 429 Too Many Requests (Retry-After: 1); nack visibility=0")
             return out
         if kind == "ledger":
             tasks = max(1, m["lw_tasks"])
             if m["regime"] == "collapsed":
                 waiting = round(1.5 * m["offered"] / tasks)
-                return [f"WARN db pool exhausted: waited 1500ms for connection (active=25 idle=0 waiting={waiting})",
-                        "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
-            active = min(25, math.ceil(25 * m["offered"] / max(1.0, m["capacity"])))
-            line = (f"INFO inbound {m['offered'] / tasks:.1f} req/s per task (1m avg, baseline "
-                    f"~{self.baseline_req_s() / tasks:.0f}); pool active={active} idle={25 - active} waiting=0")
-            return [line + ("" if m["recovered"] else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
+                out = [f"WARN db pool exhausted: waited 1500ms for connection (active=25 idle=0 waiting={waiting})",
+                       "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
+            else:
+                active = min(25, math.ceil(25 * m["offered"] / max(1.0, m["capacity"])))
+                out = [f"INFO inbound {m['offered'] / tasks:.1f} req/s per task (1m avg, baseline "
+                       f"~{self.baseline_req_s() / tasks:.0f}); pool active={active} idle={25 - active} waiting=0"
+                       + ("" if m["recovered"] else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
+            if m["rejected"] >= 0.5:
+                out.append(f"WARN admission: 429 Retry-After: 1 to webhooks-dispatcher for {m['rejected']:.0f} req/s "
+                           f"over its quota of {m['quota']:.0f} req/s")
+            return out
         if kind == "endpointd" and not group.endswith("/planner") and m["latch"]:
             return [f"WARN halt latch engaged: {m['latch']}; writing nothing"]
         return []
+
+    def _checkout_lines(self, m: dict, host: str) -> list[str]:
+        """One unrecovered host's checkout-api lines in the minute: from :412 on, a failed half-open probe re-opens the
+        ledger-client breaker and the next 11 payments short-circuit behind it, so the breaker's exception outnumbers
+        the cause 11:1; before :412 each posting fails after its retries."""
+        cause = f"java.net.UnknownHostException: {LEDGER}: Name or service not known"
+        if m["rev"] < BREAKER_REVISION:
+            return [f"ERROR [ledger-client] POST https://{LEDGER}/v1/postings failed after 5 attempts: {cause} "
+                    + f"(host={host})"]
+        out = [f"ERROR [ledger-client] POST https://{LEDGER}/v1/postings failed: {cause} (half-open probe, host={host})"]
+        for i in range(11):
+            h = hashlib.sha256(f"{self.w.seed}|payment|{m['t'].isoformat()}|{i}".encode()).hexdigest()
+            out.append(f"ERROR [checkout] payment pi_{h[:8]} authorize ok, posting deferred: CircuitBreakerOpenException: "
+                       f"ledger-client circuit OPEN -> 503 PAYMENT_NOT_COMPLETED (outbox ob_{h[8:14]}, host={host})")
+        return out
 
     def log_events(self, group, start, end, pattern, now, limit) -> list[dict]:
         start_t = _utc(start) if start else (now - timedelta(minutes=30)).astimezone(UTC)
@@ -471,13 +637,15 @@ class Telemetry:
         t = gen_t.replace(second=42, microsecond=0)
         if t < gen_t:
             t += timedelta(minutes=1)
+        stream = f"{group.rsplit('/', 1)[-1]}/{hashlib.sha256(group.encode()).hexdigest()[:16]}"
         while t <= end_t and len(out) < limit:
-            for i, line in enumerate(self.lines(group, t)):
-                if needle and needle not in line.lower():
+            lines = self.lines(group, t)
+            for i, line in enumerate(lines):
+                ms = int(t.timestamp() * 1000) + i * (17000 // len(lines))
+                if needle and needle not in line.lower() or ms > end_t.timestamp() * 1000:
                     continue
-                ms = int(t.timestamp() * 1000) + i
-                out.append({"logStreamName": f"{group.rsplit('/', 1)[-1]}/i-0{abs(hash(group)) % 10**7:07d}",
-                            "timestamp": ms, "message": line, "ingestionTime": ms + 400, "eventId": f"{ms}{i}"})
+                out.append({"logStreamName": stream, "timestamp": ms, "message": line, "ingestionTime": ms + 400,
+                            "eventId": f"{ms}{i}"})
             t += timedelta(minutes=1)
         for ts, g, msg in self.extra_logs + self.acme_lines(now):
             if g == group and start_t <= ts.astimezone(UTC) <= end_t and (not needle or needle in msg.lower()):
@@ -519,9 +687,9 @@ class Telemetry:
 
     def run_query(self, q: dict, now: datetime) -> dict:
         plan, groups = q["plan"], q["groups"]
-        rows = [(g, e) for g in groups
-                for e in self.log_events(g, q.get("startTime"), q.get("endTime"), None, now, 10000)
-                if all(f(e["message"]) for f in plan["filters"])]
+        scanned = [(g, e) for g in groups for e in self.log_events(g, q.get("startTime"), q.get("endTime"), None, now,
+                                                                     10000)]
+        rows = [(g, e) for g, e in scanned if all(f(e["message"]) for f in plan["filters"])]
         limit = min(plan["limit"] or 10000, int(q.get("limit") or 10000))
         if plan["stats"]:
             st, buckets = plan["stats"], {}
@@ -540,8 +708,8 @@ class Telemetry:
                    "@log": lambda g, e: g, "@logStream": lambda g, e: e["logStreamName"]}
             results = [[{"field": f, "value": val[f](g, e)} for f in fields] for g, e in rows[:limit]]
         return {"status": "Complete", "results": results,
-                "statistics": {"recordsMatched": float(len(rows)), "recordsScanned": float(len(rows) * 4),
-                               "bytesScanned": float(len(rows) * 600)}}
+                "statistics": {"recordsMatched": float(len(rows)), "recordsScanned": float(len(scanned)),
+                               "bytesScanned": float(sum(len(e["message"].encode()) for _, e in scanned))}}
 
     def export(self) -> dict:
         return {"alarms": {k: {"state": v["state"], "since": iso(v["since"])} for k, v in self.alarms.items()}}

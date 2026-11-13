@@ -44,7 +44,25 @@ class Fleet:
     def ingress(self) -> list[dict]:
         return [h for h in self.hosts.values() if h["fleet"] == "ledger-ingress"]
 
+    def az_names(self) -> dict[str, str]:
+        """Zone id -> availability zone name, as the scenario's ingress ASG names them."""
+        return ((self.w.scenario.get("world") or {}).get("ingress_asg") or {}).get("az_names") or {}
+
+    def zone(self, az: str) -> str:
+        """A zone id for an availability zone given as either its id (use1-az6) or its name (us-east-1a)."""
+        return next((z for z, n in self.az_names().items() if n == az), az)
+
     def list_hosts(self, fleet=None, az=None) -> list[dict]:
+        """The hosts of one fleet group and/or zone; an unknown group or zone is a ValueError naming the valid ones,
+        never an empty list that reads as 'no hosts'."""
+        fleets, zones, names = sorted({h["fleet"] for h in self.hosts.values()}), sorted(
+            {h["az"] for h in self.hosts.values()}), self.az_names()
+        if fleet and fleet not in fleets:
+            raise ValueError(f"unknown fleet {fleet!r}; fleets: {', '.join(fleets)}")
+        az = az and self.zone(az)
+        if az and az not in zones:
+            raise ValueError(f"unknown availability zone {az!r}; zones: "
+                             + ", ".join(f"{z} ({names.get(z, '?')})" for z in zones))
         out = []
         for h in self.hosts.values():
             if fleet and h["fleet"] != fleet or az and h["az"] != az:
@@ -68,8 +86,8 @@ class Fleet:
             fleet, _, az = tok.partition(":")
             got = {h for h, v in self.hosts.items()
                    if tok in ("*", "all") or v["fleet"] == tok
-                   or az and v["fleet"] == fleet and fnmatch.fnmatchcase(v["az"], az)}
-            got = got or {h for h, v in self.hosts.items() if fnmatch.fnmatchcase(v["az"], tok)} or {
+                   or az and v["fleet"] == fleet and fnmatch.fnmatchcase(v["az"], self.zone(az))}
+            got = got or {h for h, v in self.hosts.items() if fnmatch.fnmatchcase(v["az"], self.zone(tok))} or {
                 h for h in self.hosts if fnmatch.fnmatchcase(h, tok)}
             chosen |= got
             if not got:
@@ -84,6 +102,7 @@ class Fleet:
                "state": h["state"],
                "os": h.get("os", self.cfg[h["fleet"]].get("os", "Ubuntu 22.04.4 LTS")),
                "instance_type": h.get("type", self.cfg[h["fleet"]].get("instance_type"))}
+        out["arch"] = "aarch64" if re.match(r"[a-z]+\d+[a-z]*g", out["instance_type"] or "") else "x86_64"
         dns = self.w.dns
         if host in dns.hosts:
             dns.update(host, now)
@@ -322,8 +341,8 @@ class Fleet:
                 continue
             t = (now - timedelta(minutes=30)).replace(second=42 - off, microsecond=0)
             while t <= now:
-                rows += [(hms(t.astimezone(tz)), f"{name}[{u['pid']}]: {line}")
-                         for line in self.w.telemetry.lines(u["log_group"], t, host)]
+                rows += [(hms((t + timedelta(seconds=4 * i)).astimezone(tz)), f"{name}[{u['pid']}]: {line}")
+                         for i, line in enumerate(self.w.telemetry.lines(u["log_group"], t, host))]
                 t += timedelta(minutes=1)
 
         def owner(rest: str) -> str:
