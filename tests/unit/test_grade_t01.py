@@ -584,8 +584,9 @@ def test_handoff_text_is_what_the_calls_wrote_not_their_keys_or_fields():
 
 def test_c11_folds_typographic_punctuation_and_keeps_the_verdict():
     aws, ws = base_exports(Log(), done="04:30")
-    note = "Refresh held — before 08:21 → day shift; li-b-01 arm64"
-    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "Refresh held - before 08:21 -> day shift; li-b-01"}
+    note = "Refresh held — before 08:21 → day shift; li-b-01 arm64 → retry storm"
+    verdict = {"facts": {f"F{i}": {"conveyed": True, "quote": "Refresh held - before 08:21 -> day shift; li-b-01 arm64 -> "
+                                                              "retry storm"}
                          for i in range(1, 6)}, "forbidden": {}}
     c11 = grade.c11_from(verdict, note)
     assert c11["result"] and c11["judge"]["samples"][0]["facts"]["F4"]["quote_found"] and c11["judge"]["error"] is None
@@ -635,6 +636,26 @@ def test_c11_credits_a_fact_only_when_its_quote_carries_the_key_terms():
     assert not c11["result"] and "facts ['F1', 'F2', 'F3', 'F5']" in c11["detail"]
     found = {k: v["credited"] for k, v in c11["judge"]["samples"][0]["facts"].items()}
     assert found == {"F1": True, "F2": True, "F3": True, "F4": False, "F5": True, "F6": False, "F7": False}
+
+
+@pytest.mark.parametrize(("fact", "quote", "credited"), [
+    ("F5", "max_concurrency 25 -> 4 (03:10), replay_rate 400 -> 100", False),
+    ("F5", "max_concurrency 25 -> 4 to pre-empt the reconnect storm", True),
+    ("F5", "the outbox replay plus webhook retries exhausted the DB pool; max_concurrency 5", True),
+    ("F5", "DNS recovery caused a thundering herd that exhausted the ledger-writer DB pool", True),
+    ("F6", "negative cache", False),
+    ("F6", "Checkout success 99.7% continuously (>15 min)", False),
+    ("F6", "held NXDOMAIN for the SOA negative TTL (900s)", True),
+    ("F6", "unbound-control flush ledger.internal on all hosts (negative cache)", True),
+    ("F6", "clients kept the cached NXDOMAIN until it expired", True),
+    ("F7", "Follow-ups: PR #97 / PLAT-412", False),
+    ("F7", "land PLAT-412 fix (PR platform-endpointd#97); alerting on endpoint-with-zero-records", True),
+    ("F7", "PAY-702 backoff on ledger errors; OPS-4398 spread acme-renewer batches", True),
+    ("F7", "PLAT-413: fix the cleanup/stale-apply race ... dispatcher immediate retry should get backoff/jitter", True),
+])
+def test_c11_key_terms(fact, quote, credited):
+    c11 = grade.c11_from({"facts": {fact: {"conveyed": True, "quote": quote}}}, quote)
+    assert c11["judge"]["samples"][0]["facts"][fact]["credited"] is credited
 
 
 def test_c11_takes_each_items_majority_over_the_samples():
