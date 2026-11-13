@@ -211,7 +211,8 @@ def steps_for(mode):
             continue
         if mode == "limit" and tool == "chat_post" and args["text"].startswith("CHANGE records"):
             args = {**args, "text": "CHANGE: " + LIMIT + " 1024 -> 4096 | why: thread ceiling at 132 hosts | undo: "
-                                    "1024 | auth: Elena (platform). Restart job {job_id}: waves of 12."}
+                                    "1024 | auth: Elena (platform)\nCHANGE: " + SR + "=authoritative | why: RB-SR-07 "
+                                    "step 2 | undo: peers | auth: PF 4.1(f)\nRestart job {job_id}: waves of 12."}
         out.append((tool, args))
     return out
 

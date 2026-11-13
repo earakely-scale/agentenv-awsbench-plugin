@@ -309,3 +309,14 @@ plus `timeline`, `approvals`, `world_flags`, `workspace_errors` from `MechWorld`
 6. Telemetry, ASG and Kinesis reads are world-served (the emulator's ASG is a stub and replaces on wall clock).
 7. `systemctl restart streamroute` skips sr-apply-limits (the unit's `After=` does not re-run a oneshot), so only
    `srctl restart` or a relaunch applies a new `limit_nproc`; the design leaves this unspecified.
+8. The scenario carries its own `iam` (design `reference/iam_cases.yaml`): T01's default policy denies
+   `DeleteScheduledAction` and `/streamroute/prod/*` SSM writes, which made the oracle's hold delete and bootstrap
+   switch fail.
+9. Our NPC engine answers a message with one rule, first from its ask clauses: in a request list where only one item
+   says "approve", that item alone would draw its rule. Priya's bundle rules (R20-R23) take `read: context`, which
+   reads every clause from the first pass on.
+10. `srctl fleet status|lag|membership|leases --summary|config` read srcoord and answer from any streamroute host, even one
+    whose process is stopped (the design says "from any streamroute host"); only `srctl host status` needs the process.
+11. Our `fleet_restart` waits for each wave to be ready, so a bounce with it stalls on its first wave. The driver's
+    bounce (TR2) restarts every host at once with `srctl restart`, then restarts the hosts left out after their
+    quarantine, as the design's replay does.
