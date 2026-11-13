@@ -73,6 +73,7 @@ h1{margin:0;font:600 22px/1.2 var(--font-text);letter-spacing:-.01em;text-wrap:b
 .dot.bad{background:var(--red)} .dot.warn{background:var(--amber)} .dot.ok{background:var(--teal)} .dot.agent{background:var(--blue)}
 .cd{font:600 11px var(--font-mono);padding:1px 6px;border-radius:4px;background:var(--red-soft);color:var(--red-ink);white-space:nowrap}
 .cd.ok{background:var(--teal-soft);color:var(--teal-ink)} .cd.ff{background:var(--blue-soft);color:var(--blue-text)}
+.cd.warn{background:var(--amber-soft);color:var(--amber-ink)}
 
 /* stage */
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
@@ -199,6 +200,8 @@ h1{margin:0;font:600 22px/1.2 var(--font-text);letter-spacing:-.01em;text-wrap:b
   h1{font-size:19px}
   .feed .bubble:nth-child(n+4){display:none}
   .cells .k{display:none}
+  .cd{white-space:normal;text-align:center}
+  .scrub .gl.g1230 span{display:none}
 }
 @media (prefers-reduced-motion: reduce){ .bubble{animation:none} .chip{transition:none} }
 html{overflow-x:hidden}
@@ -275,7 +278,7 @@ html{overflow-x:hidden}
   </div>
 
   <footer class="foot">
-    <p><b>About this data.</b> Every cell is a streamroute host of a recorded AwsBench T03 run. The world export keeps per-minute host counts, not each host's state, so each run's own calls (the aws server's action log at the times the meter charged them) are replayed through the world package in process, with in-memory AWS and workspace fakes; the replay's per-minute counts match the run's export at every minute, and the board shows the replay's per-host states every 30 s. The sample host's thread count against its limit comes from the same replay. Lag, backlog, the ASG, the canary and settlement come from the world's exported series; colleagues, pages and approvals from the workspace export; checks from the grader's rows. The reference is the scripted oracle path, replayed the same way; its process and communication marks are the ones it is built to pass. The T03 runs shown are development runs on a build whose env bugs are still being fixed.</p>
+    <p><b>About this data.</b> Every cell is a streamroute host of a recorded AwsBench T03 run. The world export keeps per-minute host counts, not each host's state, so each run's own calls (the aws server's action log at the times the meter charged them) are replayed through the world package as the run's own build had it, in process, with in-memory AWS and workspace fakes; the replay's per-minute counts match the run's export at every minute, and the board shows the replay's per-host states every 30 s. The sample host's thread count against its limit comes from the same replay. Lag, backlog, the ASG, the canary and settlement come from the world's exported series; colleagues, pages and approvals from the workspace export; checks from the grader's rows. The reference is the scripted oracle path, replayed the same way; its outcome and runbook (C16) checks are graded by the grader's own rules on that replay, and its other process and communication marks are the ones it is built to pass. Runs marked dev are development runs on older builds, whose env and grader bugs are fixed since; where the final grader changes a run's score, the note under the timeline says so and why.</p>
   </footer>
 </div>
 
@@ -305,6 +308,7 @@ const hm = s => { s = Math.round(s); return pad(Math.floor(s/3600)) + ':' + pad(
 const nf = new Intl.NumberFormat('en-US');
 const dur = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h ? h + ' h ' + pad(m) + ' min' : m ? m + ' min' : s + ' s'; };
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const d12 = v => v == null ? '–' : Number(v).toFixed([2, 3, 4].find(n => Math.abs(v * 10 ** n - Math.round(v * 10 ** n)) < 1e-6) || 4);
 const initials = n => String(n || '?').split(/[\s.\-]+/).filter(Boolean).slice(0,2).map(w => w[0].toUpperCase()).join('');
 
 let IDX, T3;
@@ -342,16 +346,17 @@ const NAME = {R:'routing', S:'stale map, still routing', B:'broken', W:'restarti
 const AZGAP = 18, TOPY = 16;
 function boardSvg(V, key){
   const azs = ['a','b','c'];
-  const big = !(mode === 'both' || innerWidth < 640);
-  const COLS = big ? 8 : 11, ROWS = Math.ceil(44 / COLS), CW = big ? 30 : 16, GAP = big ? 5 : 3, AZW = COLS * (CW + GAP) - GAP;
-  const W = 3 * AZW + 2 * AZGAP, H = TOPY + ROWS * (CW + GAP) + 2;
+  const stack = innerWidth < 640, big = !stack && mode !== 'both';
+  const COLS = stack ? 15 : big ? 8 : 11, ROWS = Math.ceil(44 / COLS), CW = big ? 30 : 16, GAP = big ? 5 : 3, AZW = COLS * (CW + GAP) - GAP;
+  const AZH = TOPY + ROWS * (CW + GAP) + (stack ? 6 : 2);
+  const W = stack ? AZW : 3 * AZW + 2 * AZGAP, H = stack ? 3 * AZH : AZH;
   let s = `<svg viewBox="-1 0 ${W + 2} ${H}" role="img" aria-label="${esc(key)}"><defs><pattern id="qhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" style="fill:var(--red-soft)"/><rect width="1.6" height="4" style="fill:var(--red-ink)"/></pattern></defs>`;
   azs.forEach((az, k) => {
-    const x0 = k * (AZW + AZGAP);
-    s += `<text x="${x0}" y="10">us-east-1${az}</text>`;
+    const x0 = stack ? 0 : k * (AZW + AZGAP), y0 = stack ? k * AZH : 0;
+    s += `<text x="${x0}" y="${y0 + 10}">us-east-1${az}</text>`;
     const hosts = V.fleet.hosts.filter(h => h.az === az).sort((a, b) => a.name.localeCompare(b.name));
     hosts.slice(0, ROWS * COLS).forEach((h, i) => {
-      const x = x0 + (i % COLS) * (CW + GAP), y = TOPY + Math.floor(i / COLS) * (CW + GAP);
+      const x = x0 + (i % COLS) * (CW + GAP), y = y0 + TOPY + Math.floor(i / COLS) * (CW + GAP);
       s += `<rect class="hc" data-h="${esc(h.name)}" x="${x}" y="${y}" width="${CW}" height="${CW}" rx="2.5"/>`;
       if (h.plat) s += `<rect x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CW - 2}" rx="2" style="fill:none;stroke:var(--violet);stroke-width:1.3" pointer-events="none"/>`;
     });
@@ -393,25 +398,31 @@ function paintBoard(b){
   S.cells.forEach((arr, k) => { const v = arr[i]; const bar = b._bars[k]; if (!bar) return;
     bar.style.height = clamp(v / 9000 * 100, v > 0 ? 3 : 0, 100) + '%'; bar.className = v < 300 ? 'ok' : ''; bar.parentNode.title = S.cell_names[k] + ': ' + dur(v) + ' behind'; });
   const vt = b.querySelector('.vt'), vd = b.querySelector('.verdict');
-  vt.textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2);
+  vt.textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + d12(V.score.d12);
   vt.className = 'vt' + (t >= HZ - 1 ? (V.score.pass ? ' pass' : ' fail') : '');
   if (t >= HZ - 1){
     vd.hidden = false; vd.className = 'verdict ' + (V.score.pass ? 'pass' : 'fail');
     const lost = V.checks.filter(c => !c.gate && c.result === false).map(c => c.id), fired = V.checks.filter(c => c.gate && c.fired).map(c => c.id);
-    vd.querySelector('b').textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2);
-    vd.querySelector('p').textContent = (lost.length ? 'Missed ' + lost.join(', ') : 'Every check held') + (fired.length ? '; gate ' + fired.join(', ') + ' fired' : '') + '. Graded at 16:15.';
+    vd.querySelector('b').textContent = (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + d12(V.score.d12);
+    const f = V.regrade, moved = f && !(Math.abs(f.d12 - V.score.d12) < 1e-6 && f.pass === V.score.pass);
+    vd.querySelector('p').textContent = (lost.length ? 'Missed ' + lost.join(', ') : 'Every check held') + (fired.length ? '; gate ' + fired.join(', ') + ' fired' : '') + '. Graded at 16:15.' + (moved ? ' Final grader: D12 ' + d12(f.d12) + (f.pass ? ', pass.' : ', fail.') : '');
   } else vd.hidden = true;
 }
 
 /* ---------- HUD, console, feed, checks ---------- */
 function holdState(V){
   const i = SI(V, t), armed = V.series.hold[i];
-  const log = V.t03.hold_log.filter(e => e.t <= t);
-  const last = log[log.length - 1];
-  if (t >= H14){ const f = V.t03.hold_log.find(e => e.t === H14 || /14:00/.test(e.what));
-    return f ? {txt: 'hold ' + f.what.replace(/ at 14:00/, ''), bad: V.series.des[i] > 124} : {txt: 'hold gone at 14:00', bad:false}; }
-  if (armed) return {txt: 'hold re-adds 132 at 14:00 · in ' + dur(H14 - t), bad:true};
-  return {txt: 'hold neutralised' + (last && last.by === 'agent' ? ' ' + hm(last.t) + ' (' + last.what.split(':')[0] + ')' : ''), bad:false};
+  const mine = V.t03.hold_log.filter(e => e.by === 'agent' && e.t <= t), last = mine[mine.length - 1];
+  const suspended = last && /^suspended/.test(last.what);
+  if (t >= H14){
+    const f = V.t03.hold_log.find(e => e.by === 'world' && e.t >= H14 - 60);
+    if (!f) return {txt: 'hold ' + (last ? last.what.split(':')[0] + ' ' + hm(last.t) : 'gone') + ' · nothing fired at 14:00', cls:'ok'};
+    if (f.what.startsWith('skipped')) return {txt: 'hold skipped at 14:00 (suspended), still scheduled', cls:'warn'};
+    return {txt: 'hold ' + f.what.replace('at 14:00: ', 'at 14:00 · '), cls: V.series.des[i] > 124 ? '' : 'ok'};
+  }
+  if (armed) return {txt: 'hold re-adds 132 at 14:00 · in ' + dur(H14 - t), cls:''};
+  if (suspended) return {txt: 'hold suspended ' + hm(last.t) + ', still scheduled', cls:'warn'};
+  return {txt: 'hold neutralised' + (last ? ' ' + hm(last.t) + ' (' + last.what.split(':')[0] + ')' : ''), cls:'ok'};
 }
 function phaseOf(V){
   const i = SI(V, t), S = V.series, ff = V.fleet.first_failure, R = S.R[i] + S.S[i], ins = S.ins[i];
@@ -420,7 +431,7 @@ function phaseOf(V){
   if (t < S0 && R > 0) return ['bad', 'Shard-map builds fail: no thread left under the 1,024 limit; maps expire one by one'];
   if (t < S0) return ['bad', 'No host is routing; the ledger canary pages at 08:09'];
   if (S.W[i] > 0) return ['agent', S.W[i] + ' hosts restarting · ' + R + ' of ' + ins + ' routing'];
-  if (R === 0) return ['bad', 'Fleet wedged: no host routing, ledger lag growing a minute a minute'];
+  if (R === 0) return ['bad', 'Fleet wedged: no host routing, ledger lag growing a minute every minute'];
   if (S.lag[i] >= 300) return [R >= 0.95 * ins ? 'warn' : 'bad', R + ' of ' + ins + ' routing · ledger catching up'];
   return ['ok', R + ' of ' + ins + ' routing · every ledger cell under 5 min'];
 }
@@ -435,7 +446,7 @@ function renderHud(){
   $('thrv').textContent = nf.format(S.thr[i]) + ' / ' + nf.format(S.lim[i]);
   $('thrv').style.color = S.thr[i] >= S.lim[i] ? 'var(--red-ink)' : '';
   const [cls, txt] = phaseOf(V); $('phDot').className = 'dot ' + cls; $('phase').textContent = txt;
-  const hs = holdState(V), cd = $('cd'); cd.hidden = false; cd.textContent = hs.txt; cd.className = 'cd' + (hs.bad ? '' : ' ok');
+  const hs = holdState(V), cd = $('cd'); cd.hidden = false; cd.textContent = hs.txt; cd.className = 'cd' + (hs.cls ? ' ' + hs.cls : '');
 }
 function stepAt(V){ let best = null; for (const s of V.steps){ if (s.at <= t && t < s.end){ if (!best || best.cls === 'wait') best = s; } } return best; }
 function renderConsole(){
@@ -469,7 +480,7 @@ function renderChecks(){
     else if (c.at != null && t >= c.at) st = c.result ? 'pass' : 'fail';
     return `<span class="chip${c.gate ? ' gate' : ''} ${st}" role="listitem" title="${esc(c.id + ' · ' + (c.title || c.name) + (c.gate ? ' · gate ' + c.gate : ' · ' + c.w + ' pts') + ' — ' + c.detail)}">${mark}<b>${id}</b> ${esc(c.short)}</span>`; };
   const end = t >= HZ - 1;
-  $('checks').innerHTML = `<span class="grp">Core</span>${CORE.map(chip).join('')}<span class="grp g2">Process · comms</span>${MORE.map(chip).join('')}<span class="grp g2">Gates</span>${GATES.map(chip).join('')}<span class="vchip ${end ? (V.score.pass ? 'pass' : 'fail') : ''}">${end ? (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + Number(V.score.d12).toFixed(2) : 'graded at 16:15'}</span>`;
+  $('checks').innerHTML = `<span class="grp">Core</span>${CORE.map(chip).join('')}<span class="grp g2">Process · comms</span>${MORE.map(chip).join('')}<span class="grp g2">Gates</span>${GATES.map(chip).join('')}<span class="vchip ${end ? (V.score.pass ? 'pass' : 'fail') : ''}">${end ? (V.score.pass ? 'PASS' : 'FAIL') + ' · D12 ' + d12(V.score.d12) : 'graded at 16:15'}</span>`;
 }
 
 /* ---------- timeline ---------- */
@@ -490,12 +501,12 @@ function renderTrack(){
   for (const st of V.steps){ if (st.cls === 'wait') continue; ev += `<span class="tick${st.prod ? ' write' : ''}" style="left:${X(st.at).toFixed(2)}%"></span>`; }
   for (const e of V.evs){ if (e.kind === 'bot') continue; ev += `<span class="mk ${e.k}" style="left:${X(e.t).toFixed(2)}%" title="${esc(hm(e.t) + ' ' + e.who + ': ' + e.text.slice(0, 120))}"></span>`; }
   $('evLane').innerHTML = ev;
-  const G = [[S0, 'page'], [R1230, '12:30 gate'], [WE, '13:00'], [H14, '14:00 hold']];
-  $('glines').innerHTML = G.map(([tt, l]) => `<span class="gl" style="left:${X(tt)}%"><span>${l}</span></span>`).join('');
+  const G = [[S0, 'page'], [R1230, '12:30', ' g1230'], [WE, '13:00'], [H14, '14:00 hold']];
+  $('glines').innerHTML = G.map(([tt, l, c]) => `<span class="gl${c || ''}" style="left:${X(tt)}%" title="${tt === R1230 ? '12:30 settlement gate' : l}"><span>${l}</span></span>`).join('');
   let ax = ''; for (let h = 6; h <= 15; h++){ const tt = h * 3600; if (tt < T0) continue; const cls = h === 6 ? 'l' : (h % 2 ? 'mn' : ''); ax += `<span class="${cls}" style="left:${X(tt)}%">${pad(h)}:00</span>`; }
   ax += `<span class="r" style="left:100%">16:15</span>`;
   $('axis').innerHTML = ax;
-  $('scnote').innerHTML = V.kind === 'reference' ? '<b>Reference.</b> ' + esc(V.note) : `<b>${esc(V.model)} · ${esc(V.id)}.</b> ${esc(V.label)} on build ${esc(V.build)}${V.dev ? ' (development run)' : ''}. ${esc(V.score.why)}. ` + (V.t03.replay_check ? `Replay matches the run's host counts at ${V.t03.replay_check.minutes - V.t03.replay_check.mismatched} of ${V.t03.replay_check.minutes} minutes. ` : '') + (mode !== 'ref' ? 'Dotted line on the track: the reference\'s routing share.' : '');
+  $('scnote').innerHTML = V.kind === 'reference' ? '<b>Reference.</b> ' + esc(V.note) : `<b>${esc(V.model)} · ${esc(V.id)}.</b> Build ${esc(V.build)}${V.dev ? ' (development run)' : ''}. ${esc(V.score.why)}. ` + (V.clock.said_done && V.clock.end_reason !== 'done' ? `Said <code>RESULT: DONE</code> at ${hms(V.clock.said_done)}; the turn hook missed it, so the episode ran to 13:00. ` : '') + (V.t03.replay_check ? `Replay matches the run's host counts at ${V.t03.replay_check.minutes - V.t03.replay_check.mismatched} of ${V.t03.replay_check.minutes} minutes. ` : '') + (V.regrade && (V.regrade.losses || Math.abs(V.regrade.d12 - V.score.d12) > 1e-6) ? `<b>Final grader ${esc(V.regrade.grader || '')}:</b> D12 ${d12(V.regrade.d12)}${V.regrade.pass ? ' pass' : ' fail'}${V.regrade.losses ? ' (' + ({fair: 'fair', env: 'environment', mixed: 'partly environment'}[V.regrade.losses]) + ')' : ''}. ${esc(V.regrade.why)} ` : '') + (mode !== 'ref' ? 'Dotted line on the track: the reference\'s routing share.' : '');
 }
 function renderHead(){
   $('head').style.left = X(t) + '%';
@@ -543,7 +554,7 @@ $('scRun').addEventListener('click', () => setMode('run'));
 $('scRef').addEventListener('click', () => setMode('ref'));
 $('scBoth').addEventListener('click', () => setMode('both'));
 const sel = $('runPick');
-sel.innerHTML = T3.runs.map(r => `<option value="${esc(r.id)}"${r.id === runRow.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + Number(r.d12).toFixed(2))}</option>`).join('');
+sel.innerHTML = T3.runs.map(r => `<option value="${esc(r.id)}"${r.id === runRow.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + d12(r.d12) + (r.final && Math.abs(r.final.d12 - r.d12) > 1e-6 ? ' → ' + d12(r.final.d12) : ''))}</option>`).join('');
 sel.addEventListener('change', async () => {
   runRow = T3.runs.find(r => r.id === sel.value) || runRow;
   try { RUN = await load(runRow.id); } catch (e) { return; }

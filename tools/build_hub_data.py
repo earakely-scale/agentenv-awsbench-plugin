@@ -217,6 +217,33 @@ def _head(root: Path = ROOT, paths=("src", "tests/e2e/driver.py", "tests/unit/te
 
 # ---------------------------------------------------------------- runs
 
+def build_of(folder: Path) -> str:
+    """The commit in a run folder's BUILD file: a bare sha, or a ``commit <sha>`` first line, shortened to 7."""
+    text = (folder / "BUILD").read_text().strip() if (folder / "BUILD").exists() else ""
+    m = re.match(r"(?:commit\s+)?([0-9a-f]{7,40})\b", text)
+    return m.group(1)[:7] if m else text.splitlines()[0] if text else ""
+
+
+def world_at(root: Path, build: str, work: Path) -> Path:
+    """The T03 world as the run's own build had it (``git archive`` of ``src`` and ``tests``), so a run's calls are
+    replayed through the physics it met; ``root`` itself when that build is its head or isn't in its history."""
+    git = ["git", "-C", str(root)]
+    try:
+        sha = subprocess.run(git + ["rev-parse", "--verify", build + "^{commit}"], capture_output=True, text=True,
+                             check=True).stdout.strip()
+        head = subprocess.run(git + ["rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return root
+    if sha == head:
+        return root
+    out = work / "worlds" / sha[:12]
+    if not out.exists():
+        out.mkdir(parents=True)
+        tar = subprocess.run(git + ["archive", sha, "src", "tests"], capture_output=True, check=True).stdout
+        subprocess.run(["tar", "-x", "-C", str(out)], input=tar, check=True)
+    return out
+
+
 def run_folders(runs_dir: Path) -> list[Path]:
     return sorted(p for p in runs_dir.iterdir() if (p / "aws-export.json").exists() and (p / "instance-context.json").exists())
 
@@ -233,10 +260,14 @@ def index_row(v: dict) -> dict:
            "build": v["build"], "dev": v["dev"], "note": v["note"], "d12": v["score"]["d12"], "raw": v["score"]["raw"],
            "pass": v["score"]["pass"], "caps": v["score"]["caps"], "failed": fails, "gates": gates,
            "core_failed": [c for c in fails if c in CORE[v.get("task", "T01")]],
-           "calls": v["clock"]["calls_used"], "done": X.hms(v["clock"]["done"]), "end_reason": v["clock"]["end_reason"]}
+           "calls": v["clock"]["calls_used"], "done": X.hms(v["clock"]["done"]), "end_reason": v["clock"]["end_reason"],
+           "final": v.get("regrade")}
     sm = v["summary"]
     if v.get("task") == "T03":
-        row.update(routing_from=X.hms(sm["routing_from"]), lag_clear_at=X.hms(sm["lag_clear_at"]),
+        row.update(said_done=X.hms(v["clock"].get("said_done")) if v["clock"].get("said_done") else None,
+                   partial={c["id"]: [c["earned"], c["w"]] for c in v["checks"]
+                            if not c["gate"] and c["result"] is False and c.get("earned")},
+                   routing_from=X.hms(sm["routing_from"]), lag_clear_at=X.hms(sm["lag_clear_at"]),
                    settlement=sm["settlement"].get("readiness_1230"), agent_restarts=sm["agent_restarts"],
                    peak_conc=sm["peak_conc"], ejections=sm["ejections"], hold=sm["hold"])
     else:
@@ -249,16 +280,68 @@ def results_table(index: dict) -> str:
     out = []
     for task, t in index["tasks"].items():
         out += ["", f"**{task} · {t['title']}**", "",
-                "| Run | Model | Build | D12 | Pass | Checks lost | Gates fired | Calls | End |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+                "| Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for r in t["runs"] + [t["reference"]]:
-            d12 = "" if r["d12"] is None else f"{r['d12']:.2f}"
+            d12 = "" if r["d12"] is None else d12_text(r["d12"])
             dev = " (dev)" if r["dev"] else ""
-            end = (f"DONE {r['done']}" if r["end_reason"] == "done" and r["done"] else
-                   "13:00 window" if r["end_reason"] == "window_end" else (r["end_reason"] or ""))
             out.append(f"| `{r['id']}` | {r['model']} | `{r['build']}`{dev} | {d12} | {'pass' if r['pass'] else 'fail'} | "
-                       f"{', '.join(r['failed']) or 'none'} | {', '.join(r['gates']) or 'none'} | {r['calls']} | {end} |")
+                       f"{lost_text(r)} | {', '.join(r['gates']) or 'none'} | {final_text(r)} | {r['calls']} | {end_text(r)} |")
+        notes = [r for r in t["runs"] if r.get("final") and (r["final"]["losses"] or not same_grade(r))]
+        if notes:
+            out += ["", f"**Final grader** (`{index['final_grader']['build']}`). Why a run's final D12 differs from the "
+                        "grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a "
+                        "world or colleague defect fixed since):", ""]
+            out += [f"- `{r['id']}`: {final_text(r)}{' · ' + LOSSES[r['final']['losses']] if r['final']['losses'] else ''}. "
+                    f"{r['final']['why']}" for r in notes]
+        if any(r.get("partial") for r in t["runs"]):
+            out += ["", "A check lost with points in brackets was given part of them."]
+        said = [r for r in t["runs"] if r.get("said_done")]
+        if said:
+            builds = sorted({r["build"] for r in said})
+            out += ["", f"The runs on build{'s' if len(builds) > 1 else ''} {', '.join(f'`{b}`' for b in builds)} replied "
+                        "`RESULT: DONE` before the window closed, at the time in brackets, but that build's turn hook looked "
+                        "for DONE on a reply's last line and T03's prompt puts a two-line summary after it, so it missed "
+                        "the reply and the episode ran on to the window's end (fixed since). Calls after it count against "
+                        "the budget and are graded like any other."]
     return "\n".join(out[1:])
+
+
+LOSSES = {"fair": "fair", "env": "environment", "mixed": "partly environment"}
+
+
+def same_grade(r: dict) -> bool:
+    f = r.get("final") or {}
+    return f.get("d12") is not None and abs(f["d12"] - r["d12"]) < 1e-6 and f["pass"] == r["pass"]
+
+
+def final_text(r: dict) -> str:
+    """The final grader's D12, marked when it changes the grade ("**1.00** (was 0.40, now a pass)")."""
+    f = r.get("final")
+    if not f:
+        return "" if r.get("kind") == "reference" else "not regraded"
+    flip = "" if f["pass"] == r["pass"] else ", now a pass" if f["pass"] else ", now a fail"
+    return d12_text(f["d12"]) if same_grade(r) else f"**{d12_text(f['d12'])}** (was {d12_text(r['d12'])}{flip})"
+
+
+def d12_text(d12: float) -> str:
+    """Two decimals, or as many as the grade has, up to four (0.935 is not 0.94, 0.9875 is not 0.988)."""
+    return next(f"{d12:.{n}f}" for n in (2, 3, 4, 6) if n == 6 or abs(d12 * 10 ** n - round(d12 * 10 ** n)) < 1e-6)
+
+
+def lost_text(r: dict) -> str:
+    """The checks a run didn't get in full, with the points of a partial one ("C11 (2.5 of 5)")."""
+    part = r.get("partial") or {}
+    return ", ".join(f"{c} ({part[c][0]:g} of {part[c][1]:g})" if c in part else c for c in r["failed"]) or "none"
+
+
+def end_text(r: dict) -> str:
+    if r["end_reason"] == "done" and r["done"]:
+        return f"DONE {r['done']}"
+    if r["end_reason"] == "window_end":
+        window = "13:00" if r.get("task") == "T03" else "05:10"
+        return f"{window} window" + (f" (said DONE {r['said_done']})" if r.get("said_done") else "")
+    return r["end_reason"] or ""
 
 
 def fill_card(index: dict) -> Path:
@@ -283,9 +366,12 @@ def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[d
         runs.append({"run": v["id"], "task": v.get("task", "T01"), "kind": v["kind"], "model": v["model"], "build": v["build"],
                      "development_run": v["dev"],
                      "d12": v["score"]["d12"], "raw": v["score"]["raw"], "passed": v["score"]["pass"],
+                     "final_d12": (v.get("regrade") or {}).get("d12"), "final_passed": (v.get("regrade") or {}).get("pass"),
+                     "final_why": (v.get("regrade") or {}).get("why"), "final_losses": (v.get("regrade") or {}).get("losses"),
                      "caps": ", ".join(str(c) for c in v["score"]["caps"]), "checks_lost": ", ".join(row["failed"]),
                      "gates_fired": ", ".join(row["gates"]), "calls": v["clock"]["calls_used"], "done_at": _hms(v["clock"]["done"]),
                      "end_reason": v["clock"]["end_reason"],
+                     "said_done_at": _hms(v["clock"].get("said_done")) if t03 else None,
                      "restore_at": None if t03 else _hms(sm.get("restore_at")),
                      "collapsed_min": None if t03 else float(sm["collapsed_min"] or 0),
                      "checkout_stable_from": None if t03 else (sm["stable_from"] or ""),
@@ -305,7 +391,7 @@ def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[d
         for c in v["checks"]:
             g = rows.get(c["id"], {})
             checks.append({"run": v["id"], "task": v.get("task", "T01"), "check": c["id"], "name": c["name"], "bucket": g.get("bucket") or c.get("bucket") or "",
-                           "points": c["w"], "core": bool(c["core"]), "gate_cap": X.GATE_CAP.get(c["gate"]) if c["gate"] else None,
+                           "points": c["w"], "earned": c.get("earned"), "core": bool(c["core"]), "gate_cap": X.GATE_CAP.get(c["gate"]) if c["gate"] else None,
                            "passed": bool(c["result"]), "fired": bool(c["fired"]), "detail": g.get("detail") or c.get("detail") or "",
                            "graded": "grader" if g else ("grader rule on the replay" if c.get("graded") else "scripted")})
     return {"runs": runs, "calls": calls, "checks": checks}
@@ -336,7 +422,7 @@ def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
     builds = {}
     for folder in folders:
         meta = manifest.get("runs", {}).get(folder.name, {})
-        build_id = meta.get("build") or ((folder / "BUILD").read_text().strip() if (folder / "BUILD").exists() else "")
+        build_id = meta.get("build") or build_of(folder)
         if not re.fullmatch(r"[0-9a-f]{7,40}", build_id):
             raise SystemExit(f"{folder.name}: BUILD holds {build_id!r}, not the commit the env was built from; write it "
                              f"there or as \"build\" in hub/runs.json")
@@ -355,8 +441,11 @@ def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
     grades: dict[str, list[dict]] = {}
     for folder in sorted(folders, key=lambda p: (tasks[p.name], order_key(p.name))):
         meta = manifest.get("runs", {}).get(folder.name, {})
+        root = world_at(t03_root, builds[folder.name], work) if tasks[folder.name] == "T03" else t03_root
         view = X.export_run(folder, folder.name, meta.get("label"), bool(meta.get("dev")), meta.get("note", ""),
-                            build=builds[folder.name], t03_root=t03_root, work=work)
+                            build=builds[folder.name], t03_root=root, work=work)
+        if meta.get("final"):
+            view["regrade"] = dict(meta["final"], grader=manifest.get("final_grader", {}).get("build"))
         views.append(view)
         written.append(write_json(SPACE_DATA / "runs" / f"{view['id']}.json", view))
         out = DATASET / "runs" / view["id"]
@@ -391,6 +480,7 @@ def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
     by_task = {task: {"title": TASKS[task], "reference": index_row(refs[task]),
                       "runs": [index_row(v) for v in views if v.get("task", "T01") == task]} for task in sorted(refs)}
     index = {"schema": "awsincidentsbench.index/v2", "generated_from": [v["id"] for v in views], "tasks": by_task,
+             "final_grader": manifest.get("final_grader"),
              "task": "T01", "reference": by_task["T01"]["reference"], "runs": by_task["T01"]["runs"]}
     written.append(write_json(SPACE_DATA / "index.json", index))
     written.append(write_json(DATASET / "index.json", index))

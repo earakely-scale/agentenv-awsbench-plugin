@@ -9,3 +9,17 @@
 [data-theme="dark"] .aib-results td.fail { color: #f0645a; }
 .aib-results td.dev { color: var(--muted-color); }
 .aib-slot { border: 1px dashed var(--border-color); border-radius: 10px; padding: 14px 16px; color: var(--muted-color); }
+.aib-results td.fin.up { color: #1d9a57; }
+.aib-results td.fin.down { color: #b9770e; }
+[data-theme="dark"] .aib-results td.fin.up { color: #3cc47a; }
+[data-theme="dark"] .aib-results td.fin.down { color: #e3a83b; }
+.aib-results td .na { color: var(--muted-color); font-size: .9em; }
+.aib-notes { font-size: .92em; }
+.aib-notes li { margin: .35em 0; }
+.aib-notes .loss { display: inline-block; margin-left: .45em; padding: 0 .45em; border-radius: 4px; font-size: .82em; font-weight: 600; line-height: 1.6; border: 1px solid currentColor; }
+.aib-notes .loss.fair { color: #1d6fb8; }
+.aib-notes .loss.env { color: #b9770e; }
+.aib-notes .loss.mixed { color: #8a5cc2; }
+[data-theme="dark"] .aib-notes .loss.fair { color: #6cb2f0; }
+[data-theme="dark"] .aib-notes .loss.env { color: #e3a83b; }
+[data-theme="dark"] .aib-notes .loss.mixed { color: #b994e6; }

@@ -315,7 +315,7 @@ body{background:var(--bg)}
   </div>
 
   <footer class="foot">
-    <p><b>About this data.</b> The replay is driven by recorded runs of the AwsBench T01 environment, not by a simulator: the agent's calls and their virtual times from the aws server's meter, its chat lines from its own posts, checkout, backlog, ledger-writer load and dispatcher concurrency from the world's exported series, each host's recovery from the run's DNS export, colleagues' lines from the timeline and the workspace records (as written, only the four named colleagues get a figure), the board from the ticket and status-page history, and the check chips from the grader's rows. The 02:31 to 02:40 prologue is the scenario's seeded race, back-filled. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs; the final runs will replace them.</p>
+    <p><b>About this data.</b> The replay is driven by recorded runs of the AwsBench T01 environment, not by a simulator: the agent's calls and their virtual times from the aws server's meter, its chat lines from its own posts, checkout, backlog, ledger-writer load and dispatcher concurrency from the world's exported series, each host's recovery from the run's DNS export, colleagues' lines from the timeline and the workspace records (as written, only the four named colleagues get a figure), the board from the ticket and status-page history, and the check chips from the grader's rows. The 02:31 to 02:40 prologue is the scenario's seeded race, back-filled. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs, whose env bugs are fixed since.</p>
   </footer>
 </div>
 
@@ -389,7 +389,8 @@ function scenOf(V){
     label: V.kind === 'reference' ? 'Reference run' : V.model + ' · ' + V.id,
     outcome: (pass ? 'PASS' : 'FAIL') + ' · D12 ' + d12, pass, lost, fired,
     note: V.kind === 'reference' ? V.note : (V.model + ' on build ' + V.build + (V.dev ? ' (development run)' : '') + '. ' + (lost.length ? 'Missed ' + lost.join(', ') + '. ' : 'Every check held. ') + (fired.length ? 'Gate ' + fired.join(', ') + ' fired. ' : '') + (V.note || '')),
-    final: V.final || '' };
+    final: V.final || '',
+    regrade: V.regrade && !(Math.abs(V.regrade.d12 - V.score.d12) < 1e-6 && V.regrade.pass === V.score.pass) ? 'Final grader: D12 ' + Number(V.regrade.d12).toFixed(2) + (V.regrade.pass ? ', pass.' : ', fail.') : '' };
 }
 const SCN = { oracle: scenOf(REFV), run: scenOf(RUNV) };
 const D = { topo:{ cap: 1500 } };
@@ -1279,7 +1280,7 @@ function updateHUD(st){
     el.verdict.hidden = false; const ok = SCN[scen].pass;
     setClass(el.verdict, 'vc', 'verdict ' + (ok ? 'pass' : 'fail'));
     setText(el.vTitle, 'vt', SCN[scen].outcome);
-    setText(el.vText, 'vx', (SCN[scen].lost.length ? 'Missed ' + SCN[scen].lost.join(', ') + '. ' : 'Every check held at 05:10. ') + (SCN[scen].fired.length ? 'Gate ' + SCN[scen].fired.join(', ') + ' capped the score.' : 'No gate tripped.'));
+    setText(el.vText, 'vx', (SCN[scen].lost.length ? 'Missed ' + SCN[scen].lost.join(', ') + '. ' : 'Every check held at 05:10. ') + (SCN[scen].fired.length ? 'Gate ' + SCN[scen].fired.join(', ') + ' capped the score.' : 'No gate tripped.') + (SCN[scen].regrade ? ' ' + SCN[scen].regrade : ''));
   } else el.verdict.hidden = true;
   el.head.style.left = pct(tt);
   if (last.aria !== Math.round(tt)){ last.aria = Math.round(tt); el.scrub.setAttribute('aria-valuenow', String(Math.round(tt))); el.scrub.setAttribute('aria-valuetext', fmt(tt) + ' ET'); }

@@ -212,7 +212,7 @@ def replay_run(root: Path, run_dir: Path) -> dict:
         elif tool == "fleet_exec":
             world.fleet_exec(args.get("selector") or args.get("host") or "", args.get("command") or args.get("cmd") or "",
                              AGENT)
-        cli = next((r for r in mine if r.get("tool") == "aws_cli"), None)
+        cli = next((r for r in mine if r.get("tool") in ("aws_cli", "aws_api") and r.get("service")), None)
         obs_args = dict(args)
         if cli is not None:
             obs_args = {"service": cli.get("service"), "operation": cli.get("operation"), "params": cli.get("params") or {}}

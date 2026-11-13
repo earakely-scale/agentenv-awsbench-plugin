@@ -1,3 +1,10 @@
+import IDX from "../../../public/data/index.json";
+
+export const T03RUNS = (IDX.tasks && IDX.tasks.T03 && IDX.tasks.T03.runs) || [];
+export const SAID = T03RUNS.filter((r) => r.end_reason !== "done" && r.said_done);
+export const SAIDB = [...new Set(SAID.map((r) => r.build))].join(", ");
+export const FG = IDX.final_grader || {};
+
 ## Methods and caveats
 
 **How the runs were made.** Each run deploys the AwsBench bundle with AgentEnv, arms the gateway clock at the task's
@@ -18,7 +25,8 @@ other than the emulator's) and checked before publishing.
 
 **T03's per-host states.** T03's world export keeps the fleet's host counts per minute, not each host's state, and no
 export records a host's threads. So `tools/t03_replay.py` replays each T03 run's own calls (the AWS writes, fleet
-commands and restarts in its action log, at the times the meter charged them) through the world package in process,
+commands and restarts in its action log, at the times the meter charged them) through the world package as the run's
+own build had it, in process,
 with in-memory fakes, and samples every host's state, a sample host's threads against its limit and the state of the
 scheduled action every 30 s. Each replay is checked against the run's export: its per-minute host counts match the
 run's at every minute from 08:15 to 16:15 for every T03 run shown. The stretch from 06:00 to 08:15 is the scenario's
@@ -27,19 +35,25 @@ own presimulation, the same in every run.
 **The references.** Each task's scripted oracle path from the repository's end-to-end driver, replayed by
 `tools/build_hub_data.py` through the world package in process with in-memory AWS and workspace fakes: the same
 physics, timeline and colleagues, timed by the same meter, with waits run to their full length. On a deployed env T01's
-path grades D12 1.0. T03's outcome checks (C02 to C06, C15, C16) are computed by the grader's own rules on the replayed
-world; its process and communication marks are the ones the path is built to pass.
+path grades D12 1.0. T03's outcome checks (C02 to C06, C15) are computed by the grader's own rules on the replayed
+world, and so is its runbook check (C16); its other process and communication marks are the ones the path is built to
+pass.
+
+**The final grader.** Every run since R8 was graded again offline, from its own exports, by the grader at build
+`{FG.build}`. A judged check keeps its recorded votes when the final grader sends the judge the same prompt; otherwise
+it is judged again once, three samples, with the final prompt. Only grader changes can move a score this way: world and
+colleague fixes can't change what a recorded run did. The results table shows both scores, and each run whose score
+moves, or that still loses points, has a note saying why and whose the loss is.
 
 **Caveats.**
 
 - **Development runs.** Runs on older builds met env and grader bugs that the runs themselves found; they are kept for
-  what they show, and the final runs will replace them. All T03 runs shown are development runs: the first runs on the
-  T03 build, while its known env bugs are being fixed.
-- **Builds.** The R8 and T03 run folders' build files were left blank by the run script; the commit shown is the
+  what they show. The latest runs are R10 for T01 and T03R3 for T03.
+- **Builds.** The R8 and T03R1 run folders' build files were left blank by the run script; the commit shown is the
   branch's head when each run started.
-- **One run each.** A single run per model and build is an example, not a rate.
-- **Calibration is open.** T01 is meant to sit near a 10–18 % frontier pass rate; on the latest build Opus passed all
-  three of its runs and Sonnet one of two, and the levers (the cost of shedding late, the approval process, colleague
-  pressure) are being tuned. Three of T03's five first runs pass; the other two recovered the fleet but were capped at
-  0.4 by a gate.
-- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve.
+- **Few runs.** Three Opus and two Sonnet runs per build show where a task bites, not a rate.
+- **Calibration.** Both tasks are easier than their designs intend; see Results for the numbers and the reasons.
+- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve. The final grader's
+  re-judged rows are single samples of three votes each.
+
+{SAID.length > 0 && <ul class="aib-tail"><li><strong>T03R1's DONE was missed.</strong> T03's prompt asks for <code>RESULT: DONE</code> followed by a two-line summary, and the {SAID.length} agents on build {SAIDB} replied that way, between {SAID.map((r) => r.said_done).sort()[0].slice(0, 5)} and {SAID.map((r) => r.said_done).sort().slice(-1)[0].slice(0, 5)}. That build's turn hook looked for DONE on a reply's last line, so it didn't see it: it kept waking the agent every ten minutes, and the episode ran on to the 13:00 window. The results table gives each agent's first <code>RESULT: DONE</code>; calls after it count against the budget and are graded like any other. Later builds end the episode on it.</li></ul>}

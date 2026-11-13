@@ -180,6 +180,8 @@ def scrub_problems(text: str) -> list[str]:
 
 
 def _account_context(text: str, i: int) -> bool:
+    if text.endswith("shardId-", 0, i):
+        return False
     window = text[max(0, i - 40):i]
     return bool(re.search(r"(arn:aws|ccount|owner|Owner)[^\n]{0,40}$", window))
 

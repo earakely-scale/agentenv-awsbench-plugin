@@ -94,6 +94,10 @@ h1 .tid{font-family:var(--mono);font-weight:500;color:var(--muted);font-size:20p
 .v-score b{font-size:22px;color:var(--ink);font-weight:600;margin-left:4px}
 .v-scn{margin-left:auto;font:500 11px/1.2 var(--mono);color:var(--muted);text-align:right}
 .v-why{font:400 11.5px/1.35 var(--mono);color:var(--text2)}
+.v-final{font:400 12px/1.45 var(--font-text,inherit);color:var(--text2);border-top:1px dashed var(--line);padding-top:8px}
+.v-final b{color:var(--text);font-weight:600}
+.v-loss{display:inline-block;padding:0 6px;border-radius:4px;border:1px solid currentColor;font-size:11px;font-weight:600;line-height:1.5}
+.v-loss.fair{color:var(--blue-ink,#1d6fb8)} .v-loss.env{color:var(--amber-ink,#b9770e)} .v-loss.mixed{color:var(--violet,#8a5cc2)}
 .v-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .v-k{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);width:44px;flex:none}
 .ck{font:500 11px/1 var(--mono);padding:4px 6px;border-radius:5px;border:1px solid var(--line);color:var(--text2);display:inline-flex;gap:4px;align-items:center}
@@ -307,8 +311,8 @@ html{overflow-x:hidden}
   <section class="summary" id="summary" aria-label="Run summary"></section>
 
   <footer class="about">
-    <p id="aboutT03" hidden><b>About this data (T03).</b> Every lane comes from a recorded run of the AwsBench T03 environment: the agent lane from the aws server's meter and action log (each call's virtual cost of 20, 45 or 75 s) with arguments and results from the agent's session; routing share, per-cell ledger lag and backlog, the ASG, concurrent restarts, cellmap load-shed, the canary and settlement from the world's exported series (one sample a minute, ten seconds for routing share and restarts, shown every 30 s); host states by state and the sample host's threads against its <code>limit_nproc</code> from an in-process replay of the run's own calls through the world package, which matches the run's exported host counts at every minute; the hold's armed state from the same replay; people, pages and world events from the timeline and the workspace's records; checks from the grader's rows. The stretch before 08:15 is the scenario's own presimulation from 06:00, the same in every run. Which checks a call "bears on" is a heuristic over its tool and arguments. The reference is the scripted oracle path replayed in process; its outcome rows are the grader's own rules on the replayed world. The T03 runs are development runs on a build whose env bugs are still being fixed.</p>
-    <p id="aboutT01"><b>About this data (T01).</b> Every lane comes from a recorded run of the AwsBench T01 environment, not a simulation of one: the agent lane from the aws server's meter and action log (each call's virtual cost of 20, 45 or 75 s) with arguments and results from the agent's session; checkout, ledger-writer load and capacity, backlog, host recovery and the DNS record from the world's exported series (one sample a minute, ten seconds for the DNS state, shown every 30 s); people, pages and world events from the timeline and the workspace's records; checks from the grader's rows. The 02:30–02:40 stretch is the scenario's seeded prologue, back-filled. Which checks a call "bears on" is a heuristic over its tool and arguments, not the grader's attribution. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs: their env bugs are fixed since, and the final runs will replace them.</p>
+    <p id="aboutT03" hidden><b>About this data (T03).</b> Every lane comes from a recorded run of the AwsBench T03 environment: the agent lane from the aws server's meter and action log (each call's virtual cost of 20, 45 or 75 s) with arguments and results from the agent's session; routing share, per-cell ledger lag and backlog, the ASG, concurrent restarts, cellmap load-shed, the canary and settlement from the world's exported series (one sample a minute, ten seconds for routing share and restarts, shown every 30 s); host states by state and the sample host's threads against its <code>limit_nproc</code> from an in-process replay of the run's own calls through the world package as the run's build had it, which matches the run's exported host counts at every minute; the hold's armed state from the same replay; people, pages and world events from the timeline and the workspace's records; checks from the grader's rows. The stretch before 08:15 is the scenario's own presimulation from 06:00, the same in every run. Which checks a call "bears on" is a heuristic over its tool and arguments. The reference is the scripted oracle path replayed in process; its outcome rows are the grader's own rules on the replayed world. Runs marked dev are development runs on older builds whose env and grader bugs are fixed since; the final grader's score, where it differs, is under the verdict.</p>
+    <p id="aboutT01"><b>About this data (T01).</b> Every lane comes from a recorded run of the AwsBench T01 environment, not a simulation of one: the agent lane from the aws server's meter and action log (each call's virtual cost of 20, 45 or 75 s) with arguments and results from the agent's session; checkout, ledger-writer load and capacity, backlog, host recovery and the DNS record from the world's exported series (one sample a minute, ten seconds for the DNS state, shown every 30 s); people, pages and world events from the timeline and the workspace's records; checks from the grader's rows. The 02:30–02:40 stretch is the scenario's seeded prologue, back-filled. Which checks a call "bears on" is a heuristic over its tool and arguments, not the grader's attribution. The reference is the scripted oracle path replayed through the world package in process. Runs on older builds are development runs: their env bugs are fixed since. The final grader's score, where it differs, is under the verdict.</p>
   </footer>
 </div>
 
@@ -997,8 +1001,9 @@ function lanesT03(ser, ref, cmp, v0, v1){
     for (let i = 0; i < NS; i++){ const t0 = SER0 + i*30; if (t0 + 30 < v0 || t0 > v1) continue;
       s += Rc(X(t0), ln.y + ln.h - 5, X(Math.min(t0 + 30, HZ)) - X(t0) + .3, 4, `fill:var(${ser.can[i] ? '--teal' : '--red'})`); }
     const stl = V.t03.settlement || {};
-    for (const [tt, ok, l] of [[R1230, stl.readiness_1230 === 'ready', '12:30 ' + (stl.readiness_1230 || '–')], [WE3, stl.run_1300 === 'ran', '13:00 ' + (stl.run_1300 || '–')]]) if (tt >= v0 && tt <= v1){
-      const x = X(tt); s += `<path d="M${f1(x)},${f1(ln.y + 4)}l5,5l-5,5l-5,-5z" style="fill:var(${ok ? '--teal-ink' : '--red-ink'})"/>` + Tx(x + 7, ln.y + 13, l, `fill:var(${ok ? '--teal-ink' : '--red-ink'})`); }
+    const l1230 = '12:30 ' + (stl.readiness_1230 || '–'), crowd = X(WE3) - X(R1230) < tw(l1230) + 16;
+    for (const [tt, ok, l, left] of [[R1230, stl.readiness_1230 === 'ready', l1230, crowd], [WE3, stl.run_1300 === 'ran', '13:00 ' + (stl.run_1300 || '–'), false]]) if (tt >= v0 && tt <= v1){
+      const x = X(tt); s += `<path d="M${f1(x)},${f1(ln.y + 4)}l5,5l-5,5l-5,-5z" style="fill:var(${ok ? '--teal-ink' : '--red-ink'})"/>` + Tx(left ? x - 7 : x + 7, ln.y + 13, l, `fill:var(${ok ? '--teal-ink' : '--red-ink'})`, left ? 'end' : ''); }
     s += '</g>';
     o += s; }
   return o;
@@ -1035,7 +1040,7 @@ function renderSummaryT03(){
   const hand = V.handoff ? `<details class="hand"><summary>Root-cause write-up on ${esc(V.incident || 'the incident')}</summary><pre>${esc(V.handoff)}</pre></details>` : '';
   const st = sm.settlement || {};
   $('summary').innerHTML = `
-    <div class="sm"><span class="k">Calls used</span><span class="v">${c.calls_used} <small>of ${c.max_calls} · ${c.end_reason === 'done' ? 'DONE ' + hms(c.done) : c.end_reason === 'window_end' ? 'window closed 13:00' : esc(c.end_reason || '')}</small></span></div>
+    <div class="sm"><span class="k">Calls used</span><span class="v">${c.calls_used} <small>of ${c.max_calls} · ${c.end_reason === 'done' ? 'DONE ' + hms(c.done) : c.end_reason === 'window_end' ? 'window closed 13:00' + (c.said_done ? ' · said DONE ' + hms(c.said_done) + ', missed by the hook' : '') : esc(c.end_reason || '')}</small></span></div>
     <div class="sm"><span class="k">≥ 95 % routing from</span>${tv(sm.routing_from, 'never')}</div>
     <div class="sm"><span class="k">Lag under 5 min</span>${tv(sm.lag_clear_at, 'never')}</div>
     <div class="sm"><span class="k">Settlement 12:30</span><span class="v ${st.readiness_1230 === 'ready' ? 'ok' : 'bad'}">${esc(st.readiness_1230 || '–')} <small>run ${esc(st.run_1300 || '–')}</small></span></div>
@@ -1075,6 +1080,15 @@ function renderGutter(){
 
 /* ---------- header, verdict ---------- */
 function runFailed(row){ return !row.pass; }
+function fmtD12(v){ return v == null ? '–' : Number(v).toFixed([2, 3, 4].find(n => Math.abs(v * 10 ** n - Math.round(v * 10 ** n)) < 1e-6) || 4); }
+function finalLine(V, sc){
+  const f = V.regrade; if (!f) return '';
+  const fd = fmtD12(f.d12);
+  const same = Math.abs(f.d12 - V.score.d12) < 1e-6 && f.pass === V.score.pass;
+  if (same && !f.losses) return '';
+  const tag = {fair: 'fair', env: 'environment', mixed: 'partly environment'}[f.losses];
+  return `<div class="v-final"><b>Final grader ${esc(f.grader || '')}:</b> D12 ${esc(fd)}${same ? ', unchanged' : ' ' + (f.pass ? 'pass' : 'fail') + ' (graded ' + esc(sc) + ')'}${tag ? ` <span class="v-loss ${esc(f.losses)}">${tag}</span>` : ''}<br>${esc(f.why)}</div>`;
+}
 function renderHeader(){
   const grp = $('scenarioGroup');
   if (!grp.childElementCount){
@@ -1090,13 +1104,13 @@ function renderHeader(){
   const fail = !V.score.pass;
   const coreChips = CORE.map(id => { const c = CHK[id]; const bad = c && !c.result;
     return `<span class="ck ${bad ? 'fail' : 'pass'}" title="${esc(c ? c.title || c.name : id)} · weight ${c ? c.w : ''}">${bad ? '✕' : '✓'} ${id}</span>`; }).join('');
-  const failedOther = V.checks.filter(c => !c.gate && !CORE.includes(c.id) && c.result === false).map(c => `<span class="ck fail" title="${esc(c.title || c.name)}">✕ ${c.id}</span>`).join('');
+  const failedOther = V.checks.filter(c => !c.gate && !CORE.includes(c.id) && c.result === false).map(c => `<span class="ck fail" title="${esc((c.title || c.name) + (c.earned ? ' · ' + c.earned + ' of ' + c.w + ' points' : ''))}">✕ ${c.id}${c.earned ? ' <small>' + c.earned + '/' + c.w + '</small>' : ''}</span>`).join('');
   const gateChips = GATEIDS.map(id => { const c = CHK[id]; const fired = c && c.fired;
     return `<span class="ck ${fired?'fired':''}" title="${esc(c ? c.title || c.name : id)} · ${GATECAP[c ? c.gate : 'C']}">${fired?'◆ ':''}${id}${fired?' · '+c.gate:''}</span>`; }).join('');
-  const sc = V.score.d12 == null ? '–' : Number(V.score.d12).toFixed(2);
+  const sc = fmtD12(V.score.d12);
   $('verdict').innerHTML = `
     <div class="v-top"><span class="v-badge ${fail?'fail':'pass'}">${fail?'FAIL':'PASS'}</span><span class="v-score">D12<b>${esc(sc)}</b></span><span class="v-scn">${esc(V.label)}</span></div>
-    <div class="v-why">${esc(V.score.why)}${V.score.caps && V.score.caps.length ? '' : ''}</div>
+    <div class="v-why">${esc(V.score.why)}${V.score.caps && V.score.caps.length ? '' : ''}</div>${finalLine(V, sc)}
     <div class="v-row"><span class="v-k">Core</span>${coreChips}</div>
     ${failedOther ? `<div class="v-row"><span class="v-k">Lost</span>${failedOther}</div>` : ''}
     <div class="v-row"><span class="v-k">Gates</span>${gateChips}</div>
@@ -1191,7 +1205,7 @@ function stepLine(it){
 function renderInspector(it){
   const el = $('insp'); $('unpin').hidden = !st.pin;
   if (!it){
-    el.innerHTML = `<div class="insp-head"><span class="chip">No call at ${hms(st.t)}</span></div><p class="insp-state">The agent works from the page at ${hms(V.clock.start)}${DONE ? ' to DONE at ' + hms(DONE) : V.clock.end_reason === 'window_end' ? ' to the window\'s end at ' + hms(V.clock.window_end) : ''}. Between its turns the harness lets up to ten minutes pass. Click a bar in the agent lane, or use the arrow keys, to inspect a call.</p>`;
+    el.innerHTML = `<div class="insp-head"><span class="chip">No call at ${hms(st.t)}</span></div><p class="insp-state">The agent works from the page at ${hms(V.clock.start)}${DONE ? ' to DONE at ' + hms(DONE) : V.clock.end_reason === 'window_end' ? ' to the window\'s end at ' + hms(V.clock.window_end) + (V.clock.said_done ? ' (it said RESULT: DONE at ' + hms(V.clock.said_done) + ', but the turn hook missed it)' : '') : ''}. Between its turns the harness lets up to ten minutes pass. Click a bar in the agent lane, or use the arrow keys, to inspect a call.</p>`;
     return;
   }
   const cls = it.cls;
