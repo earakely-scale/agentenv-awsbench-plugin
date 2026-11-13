@@ -12,6 +12,10 @@ then, with the gateway URL the run prints:
     python tests/e2e/driver.py --gateway ... --mode noshed    # the oracle without the dispatcher cut: fails C6, no gate
     python tests/e2e/driver.py --gateway ... --mode early     # the oracle posting "resolved" too early: G3, capped at 0.4
 
+T03 (deploy with tasks/t03-e2e-env.json): `--scenario t03` (or `--task t03`) with --mode oracle (pass, >= 0.9), nothing
+(<= 0.1), bounce (restart all before the revert: fails C06 and C16), heap (xmx 8g: OOM kills) or early (resolve at
+Maya's push: G4, <= 0.4); the paths are in tests/e2e/t03_oracle.py.
+
 Each mode needs a freshly configured env (the episode ends at the horizon). Exits 1 when an expectation fails or a host
 command exits non-zero, since a path that silently fails grades as a different path.
 """
@@ -23,6 +27,7 @@ from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import t03_oracle
 from gw import Gateway, load_grade
 
 LEDGER = "ledger.internal.vantleaf.io"
@@ -148,7 +153,7 @@ async def wait_through(gw, args):
     return result
 
 
-async def play(gw, steps, check_clock=True):
+async def play(gw, steps, check_clock=True, harvest=harvest):
     found, problems = {}, []
     for tool, args in steps:
         before = await gw.now()
@@ -169,14 +174,14 @@ async def play(gw, steps, check_clock=True):
     return problems
 
 
-async def finish(gw):
+async def finish(gw, grade=None):
     """End as the hook would on DONE, run the horizon twice (idempotent), grade."""
     print("  harness end:", await gw.call("awsbench_control", {"op": "end", "reason": "done"}, role="harness"))
     first = await gw.aws_extension(HORIZON_URI, {}, method="run")
     second = await gw.aws_extension(HORIZON_URI, {}, method="run")
     print("  horizon:", json.dumps(first)[:200], "| again:", json.dumps(second)[:120])
     aws, ws = await gw.exports()
-    graded = load_grade().grade_from_inputs(aws, ws, skip_reason="the driver path grades without the judge")
+    graded = (grade or load_grade()).grade_from_inputs(aws, ws, None, "the driver path grades without the judge")
     for r in graded["rows"] + graded["gates"]:
         print(f"  {r['id']:4} {r['result']!s:5} {r['detail'][:140]}")
     print("  D12:", graded["d12"]["description"])
@@ -186,9 +191,14 @@ async def finish(gw):
 async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
-    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early"), default="oracle")
+    parser.add_argument("--scenario", "--task", choices=("t01", "t03"), default="t01")
+    parser.add_argument("--mode", choices=("oracle", "nothing", "trap", "noshed", "early", "bounce", "heap"),
+                        default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
+    t03 = args.scenario == "t03"
+    if args.mode not in (t03_oracle.MODES if t03 else ("oracle", "nothing", "trap", "noshed", "early")):
+        parser.error(f"--mode {args.mode} is not a {args.scenario} mode")
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
     problems = []
     try:
@@ -200,12 +210,19 @@ async def main(argv=None):
         problems += ["sre-primary can see awsbench_control"] if "awsbench_control" in sre else []
         problems += ["harness lacks awsbench_control"] if "awsbench_control" not in harness else []
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
-        problems += await play(gw, steps_for(args.mode))
-        graded = await finish(gw)
+        if t03:
+            problems += await play(gw, t03_oracle.steps_for(args.mode), harvest=t03_oracle.harvest)
+            graded = await finish(gw, t03_oracle.load_grade())
+            if not t03_oracle.expected(args.mode, graded):
+                problems.append(f"t03 {args.mode}: unexpected D12 {graded['d12']['score']} "
+                                f"(pass={graded['d12']['result']})")
+        else:
+            problems += await play(gw, steps_for(args.mode))
+            graded = await finish(gw)
         score, passed = graded["d12"]["score"], graded["d12"]["result"]
         rows = {r["id"]: r for r in graded["rows"] + graded["gates"]}
         fired = {g["id"] for g in graded["gates"] if g["fired"]}
-        expected = {"oracle": score >= 0.9 and passed, "nothing": score <= 0.1,
+        expected = t03 or {"oracle": score >= 0.9 and passed, "nothing": score <= 0.1,
                     "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
                     "noshed": not passed and not rows["C6"]["result"] and not fired,
                     "early": score <= 0.4 and fired == {"G3"}}[args.mode]
