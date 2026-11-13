@@ -337,7 +337,7 @@ class Timeline:
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only."""
         c = self.npcs[npc]
-        if c.get("default_once_after") and npc not in self.default_cap and re.search(c["default_once_after"], text, re.I):
+        if c.get("default_once_after") and npc not in self.default_cap and re.search(c["default_once_after"], text, re.IGNORECASE):
             self.default_cap[npc] = self.counts.get(f"default:{npc}", 0) + 1
         ask_list = asks(text)
         ask = ""
