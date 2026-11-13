@@ -391,7 +391,11 @@ class AwsServer(AgentEnvEnvironment):
         return await self._metered(ctx, "aws_api", args, work, logged=True)
 
     @tool(description="A broad query. `source=logs` runs the CloudWatch Logs Insights `query` over `log_groups`, e.g. "
-                      "query `fields @timestamp, @message | filter @message like /NXDOMAIN/ | limit 20`. "
+                      "query `fields @timestamp, @message | filter @message like /NXDOMAIN/ | limit 20`. Supported "
+                      "Logs Insights subset: `fields`, `filter` with `like`/`not like` (/regex/ or \"text\") and "
+                      "`=~`, joined by and/or; `sort @timestamp asc|desc` (default newest first); `limit`; and "
+                      "`stats count()` by `bin(<n>m)` and/or `@log`. Log group names must exist "
+                      "(`aws logs describe-log-groups`). "
                       "`source=cloudtrail` looks up CloudTrail management events, filtered on one attribute: "
                       "`lookup_attributes` {\"EventName\": \"ChangeResourceRecordSets\"} (or {\"AttributeKey\": "
                       "\"Username\", \"AttributeValue\": \"kwame.asante\"}); keys EventName, Username, EventSource, "
