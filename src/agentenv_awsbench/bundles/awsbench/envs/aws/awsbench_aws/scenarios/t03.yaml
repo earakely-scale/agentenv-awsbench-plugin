@@ -1866,10 +1866,11 @@ timeline:
       id: g-freya-0905
       from: freya.lindqvist@northwindcycle.example
       to: [oncall@vantleaf.com]
-      subject: Webhooks delayed since ~7:40 ET - status page says all green?
+      subject: Webhooks delayed since ~7:40 ET - status page was all green
       body: "Hello,\n\nSince about 7:40 ET this morning we have not received payment.succeeded or charge.captured webhooks, and our\n\
         merchant dashboard shows no transactions after 7:38. Our checkout is still taking orders and customers are being\n\
-        charged, so we think payments are going through, but status.vantleaf.com says \"All Systems Operational\".\n\n\
+        charged, so we think payments are going through. When this started, status.vantleaf.com said \"All Systems\n\
+        Operational\", and it still tells us nothing about webhooks.\n\n\
         We start an early Black Friday e-bike drop at 11:00 ET today and our fulfilment and inventory holds run off your\n\
         webhooks. What is going on, and when will webhooks catch up?\n\nFreya Lindqvist\nHead of E-commerce, Northwind Cycle\
         \ Co. (merchant mch_22764)\n+1-555-0147\n"
@@ -1934,7 +1935,7 @@ timeline:
       id: g-freya-followup
       from: freya.lindqvist@northwindcycle.example
       to: [oncall@vantleaf.com]
-      subject: 'Re: Webhooks delayed since ~7:40 ET - status page says all green?'
+      subject: 'Re: Webhooks delayed since ~7:40 ET - status page was all green'
       body: "Following up: the drop starts in 40 minutes and we still have no webhooks and no word from anyone. Should we\
         \ pause\nthe sale? Please call me at +1-555-0147.\n\nFreya\n"
       untrusted: true

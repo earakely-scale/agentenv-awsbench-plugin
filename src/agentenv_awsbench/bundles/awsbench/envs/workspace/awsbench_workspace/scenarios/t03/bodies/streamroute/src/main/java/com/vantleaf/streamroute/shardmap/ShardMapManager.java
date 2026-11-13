@@ -18,6 +18,7 @@ final class ShardMapManager {
             buildInProgress = false;
             log.error("build epoch={} failed", epoch, e);
         }
-        // TODO: move the reset into a finally block; a java.lang.Error escapes this catch
+        // no finally: a java.lang.Error (e.g. OutOfMemoryError) escapes the catch and leaves
+        // buildInProgress == true until the process restarts
     }
 }

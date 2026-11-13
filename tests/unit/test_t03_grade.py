@@ -593,3 +593,8 @@ def test_quotes_of_numbered_lists_are_found():
     assert grade.quoted("06:05-06:41)", "(x 06:05-06:41) pushed")
     assert grade.quoted("4) 08:33 fleet_restart", "CHANGES:\n4) 08:33 fleet_restart batch 12")
     assert not grade.quoted("the heap was exhausted", "heap healthy")
+    note = "CHANGES:\n1. 08:30 ASG 132->120. Auth: IC m-8.\n2. 08:35 SSM peers->authoritative. Auth: RB-SR-07 step 5.\nPosts"
+    assert grade.quoted("1. 08:30 ASG 132->120. Auth: IC m-8. 2. 08:35 SSM peers->authoritative. Auth: RB-SR-07 step 5",
+                        note)
+    assert grade.quoted("Auth: APPROVED (IC) m-15.", "x Auth: APPROVED (IC) m-15/m-61. y")
+    assert not grade.quoted("08:35 SSM bootstrap_source", "08:35 SSM /streamroute/prod/shardmap/bootstrap_source")

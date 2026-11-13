@@ -130,8 +130,8 @@ JUDGE_FACTS = {
         "F7": "Monitoring blind spot: Vantleaf/Payments alarms went INSUFFICIENT_DATA because bizmetrics depends on "
               "streamroute, status auto-sync showed green (OPS-4410); the ledger e2e canary detected it.",
         "F8": "Impact and timeline: checkout/authorizations unaffected; merchant dashboards and webhooks delayed from "
-              "~07:40; when routing was restored and the backlog cleared; no data lost (72 h retention); the "
-              "settlement gate's status.",
+              "~07:40 until routing was restored and the backlog cleared, with the text's own times (they need not "
+              "match these to the minute); no data lost (72 h retention); the settlement gate's status.",
         "F9": "Every production change with time and approver: ASG min/desired 132->120 (or similar) and "
               "bf-capacity-hold neutralised (IC approval), bootstrap_source authoritative and back to peers, the "
               "restarts; any other change the agent made.",
@@ -139,7 +139,8 @@ JUDGE_FACTS = {
                "change record); Black Friday capacity moves to a tested follow-up.",
     },
     "C18": {
-        "P1": "Transaction updates on the merchant dashboard are delayed.",
+        "P1": "Transaction updates merchants see are delayed (on the merchant dashboard, or in merchant balances, "
+              "reports or transaction lists).",
         "P2": "Webhook notifications are delayed.",
         "P3": "Card payments / checkout are processing normally.",
         "P4": "No payment data has been lost; delayed events will be delivered (or have been delivered).",
@@ -1266,12 +1267,13 @@ FOLD = str.maketrans({"—": "-", "–": "-", "‒": "-", "−": "-", "→": "->
                       "…": "...", "≥": ">=", "≤": "<=", "≈": "~", "×": "x", " ": " ",
                       "§": "S"})
 LIST_MARKER = re.compile(r"^[ \t]*(?:[-*•]|\d+[.)])[ \t]+", re.MULTILINE)
-INLINE_MARKER = re.compile(r"(?<!\S)(?:\d{1,2}[.)]|\(\d{1,2}\)|[-*•])(?=\s|$)")
+INLINE_MARKER = re.compile(r"(?<!\S)(?:\(?\d{1,2}[.)]?|[-*•])(?=\s|$)")
 
 
 def fold(text, inline=False):
     """Typographic punctuation as the ASCII a judge may quote it in, without list markers or emphasis, whitespace
-    collapsed, lowercase; ``inline`` also drops enumerators inside a line, as a one-line quote of a list keeps them."""
+    collapsed, lowercase; ``inline`` also drops enumerators inside a line, as a one-line quote of a list keeps them,
+    and every other standalone one- or two-digit number, as "step 5." may end a quote as "step 5"."""
     text = LIST_MARKER.sub("", unicodedata.normalize("NFKC", text).translate(FOLD)).replace("**", "").replace("`", "")
     if inline:
         text = INLINE_MARKER.sub(" ", text)
@@ -1280,10 +1282,10 @@ def fold(text, inline=False):
 
 def quoted(quote, note):
     """A quote is in the note when every passage it joins with an ellipsis is, each folded with or without inline list
-    markers; ``note`` is the text or its (fold, inline fold) pair."""
+    markers and without the punctuation that ends it; ``note`` is the text or its (fold, inline fold) pair."""
     notes = note if isinstance(note, tuple) else (fold(note), fold(note, inline=True))
-    plain = [piece.strip() for piece in fold(str(quote or "")).split("...")]
-    inline = [piece.strip() for piece in fold(str(quote or ""), inline=True).split("...")]
+    plain = [piece.strip(" .,;:") for piece in fold(str(quote or "")).split("...")]
+    inline = [piece.strip(" .,;:") for piece in fold(str(quote or ""), inline=True).split("...")]
     inline += [""] * (len(plain) - len(inline))
     return any(plain) and all(a in notes[0] or bool(b) and b in notes[1] for a, b in zip(plain, inline) if a)
 

@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 from agentenv_protocol import DataPart
-from awsbench_workspace.server import WorkspaceEnv, cost_class
+from awsbench_workspace.server import WorkspaceEnv, cost_class, result_summary
 from fastmcp import Client
 
 ROLE = {"agentenv.io/role": "sre-primary"}
@@ -88,6 +88,10 @@ async def test_end_carries_the_record_id_the_world_acks():
     out = await call(app, "pager_page", {"schedule": "platform", "urgency": "high", "title": "ledger empty"})
     summary = fake.calls[-1][1]["result_summary"]
     assert summary["id"] == out["page"]["id"] and summary["error"] is None
+    out = await call(app, "tickets_create", {"project": "OPS", "type": "Incident", "summary": "ledger empty"})
+    assert fake.calls[-1][1]["result_summary"]["id"] == out["created"]["key"]
+    assert result_summary({"ticket": "OPS-1", "issue": {"key": "OPS-1"}})["id"] == "OPS-1"
+    assert result_summary({"page": {"id": "PG-1", "key": "x"}})["id"] == "PG-1"
 
 
 async def test_status_post_is_external_in_resolved():

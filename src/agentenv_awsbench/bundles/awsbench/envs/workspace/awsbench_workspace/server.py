@@ -43,11 +43,15 @@ def _json(obj: Any) -> str:
 
 
 def result_summary(result: dict) -> dict:
-    """What the world reads of a result (`{call.result.id}` in timeline actions): the record's id, at the top level
-    or one level down (`{"page": {"id": ...}}`), its error, and the start of its text."""
-    rid = result.get("id")
+    """What the world reads of a result (`{call.result.id}` in timeline actions): the record's id, else a ticket's
+    key, at the top level or one level down (`{"page": {"id": ...}}`, `{"created": {"key": ...}}`), its error, and
+    the start of its text."""
+    def ident(d: dict):
+        return d["id"] if d.get("id") is not None else d.get("key")
+
+    rid = ident(result)
     if rid is None:
-        rid = next((v["id"] for v in result.values() if isinstance(v, dict) and v.get("id") is not None), None)
+        rid = next((ident(v) for v in result.values() if isinstance(v, dict) and ident(v) is not None), None)
     return {"id": rid, "error": result.get("error"), "text": _json(result)[:500]}
 
 
