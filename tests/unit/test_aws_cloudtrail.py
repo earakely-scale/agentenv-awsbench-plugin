@@ -9,6 +9,8 @@ from awsbench_aws.cloudtrail import Trail, seed_trail
 from awsbench_aws.emulator import Emulator
 from awsbench_aws.errors import AwsError
 from awsbench_aws.server import load_scenario_file, seed_rows
+from awsbench_aws.world import asg
+from awsbench_aws.world.telemetry import Telemetry
 
 ET = ZoneInfo("America/New_York")
 T0 = datetime(2026, 11, 17, 2, 50, tzinfo=ET)
@@ -97,6 +99,15 @@ def test_the_seed_leaves_the_race_in_the_trail():
                                               "AttributeValue": "ledger.internal.vantleaf.io"}]})["Events"]
     assert any("enactor-b gen=48177" in e["CloudTrailEvent"] for e in dns)
     assert all(e["EventTime"] <= datetime.fromisoformat(scenario["start"]) for e in history)
+
+
+def test_one_account_in_the_trail_and_the_world():
+    detail = json.loads(Trail(log()).lookup({})["Events"][0]["CloudTrailEvent"])
+    ident = detail["userIdentity"]
+    assert ident["accountId"] == detail["recipientAccountId"] == asg.ACCOUNT
+    assert {ident["arn"].split(":")[4], ident["sessionContext"]["sessionIssuer"]["arn"].split(":")[4]} == {asg.ACCOUNT}
+    alarms = Telemetry(None, {}).serve("cloudwatch", "DescribeAlarms", {}, T0)["MetricAlarms"]
+    assert alarms and {a["AlarmArn"].split(":")[4] for a in alarms} == {asg.ACCOUNT}
 
 
 def test_the_cli_and_the_api_both_read_the_trail():

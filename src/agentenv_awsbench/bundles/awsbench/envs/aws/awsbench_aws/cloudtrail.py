@@ -7,11 +7,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from .account import ACCOUNT
 from .actionlog import ActionLog
 from .errors import AwsError
 from .meter import is_read
 
-ACCOUNT = "111122223333"
 READ_EXTRA = {"StartQuery", "StopQuery"}
 SOURCES = {"cloudwatch": "monitoring"}
 PLANNER, ENACTOR = "role:vl-endpointd-planner-role", "role:vl-endpointd-enactor-role"

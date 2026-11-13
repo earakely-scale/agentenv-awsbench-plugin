@@ -3,6 +3,7 @@
 import re
 from datetime import UTC, datetime, timedelta
 
+from ..account import ACCOUNT
 from .util import iso
 
 ALARMS = [
@@ -160,7 +161,7 @@ class Telemetry:
                     a = self.alarms.get(name) or {"state": "INSUFFICIENT_DATA", "since": now}
                     if p.get("StateValue") and p["StateValue"] != a["state"]:
                         continue
-                    out.append({"AlarmName": name, "AlarmArn": f"arn:aws:cloudwatch:us-east-1:000000000000:alarm:{name}",
+                    out.append({"AlarmName": name, "AlarmArn": f"arn:aws:cloudwatch:us-east-1:{ACCOUNT}:alarm:{name}",
                                 "Namespace": ns, "MetricName": metric, "ComparisonOperator": cmp, "Threshold": thr,
                                 "StateValue": a["state"], "StateUpdatedTimestamp": a["since"],
                                 "StateReason": f"Threshold Crossed: datapoint {'breached' if a['state'] == 'ALARM' else 'within'} the threshold ({thr})",
