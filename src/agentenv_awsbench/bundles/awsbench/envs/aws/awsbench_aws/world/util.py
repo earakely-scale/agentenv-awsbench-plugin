@@ -53,7 +53,7 @@ def pick(seed: str, key: str, variants):
 
 
 def iso(t: datetime | None) -> str | None:
-    return t.isoformat() if t else None
+    return t.replace(microsecond=0).isoformat() if t else None
 
 
 def hms(t: datetime) -> str:

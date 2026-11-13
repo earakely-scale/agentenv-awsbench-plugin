@@ -12,20 +12,21 @@ from datetime import datetime, timedelta
 from .util import dig, glob_match, iso, jitter, parse_time, pick, seconds, text_of, unit
 
 ASK = re.compile(r"(?i)\b(?:ask(?:ing)?|approve|approvals?|permission|ok(?:ay)? to|can i|may i|please confirm|"
-                 r"requesting|request (?:your |an? )?(?:approval|sign[- ]?off|decision)|sign[- ]?off|need your)\b")
+                 r"request(?:ed|ing)?|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
 CLAUSE = re.compile(r"(?<=[.!?])\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
 ASIDE = re.compile(r"(?i)^(?:(?:undo|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|not\b|no\b|"
                    r"never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
          "without", "nobody"}
 GEN = re.compile(r"\b(\d{5})\b")
+BULLET = re.compile(r"^(?:[\u2022\u00b7*-]|\(?\d+[.)])\s+")
 
 
 def clauses(text: str) -> list[str]:
     """The message's clauses without leading @mentions, minus asides (undo plans, holds, negations)."""
     out = []
     for c in CLAUSE.split((text or "").replace("\u2019", "'")):
-        c = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", c).strip()
+        c = BULLET.sub("", re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", c).strip())
         if c and not ASIDE.match(c):
             out.append(c)
     return out
@@ -44,6 +45,12 @@ def asks(text: str) -> list[str]:
             if c.endswith("?"):
                 out.append(c)
     return out
+
+
+def context(text: str) -> list[str]:
+    """Every clause a request is read in: the change often sits in one sentence and the ask in another. Hedged
+    statements ("paused until Kwame approves a resume", "which I didn't request") stay out; a bare "not" doesn't hedge."""
+    return [c for c in clauses(text) if asks(c) or not (HEDGE - {"not", "no"}) & set(re.findall(r"[\w']+", c.lower()))]
 
 
 def _matches(m: dict, text: str) -> bool:
@@ -105,6 +112,7 @@ class Timeline:
         self.awake = {n: bool(c.get("awake", True)) for n, c in self.npcs.items()}
         self.replied: dict[tuple[str, str], set[str]] = {}
         self.awaiting: set[str] = set()
+        self.default_cap: dict[str, int] = {}
         self.waiting: dict[str, list[dict]] = {n: [] for n in self.npcs}
         self.world_flags: dict[str, bool] = {}
 
@@ -323,31 +331,39 @@ class Timeline:
     def classify(self, npc: str, text: str) -> tuple[dict, str, dict] | None:
         """The rule that answers `text`, the request it answers and its template values, or None for silence.
 
-        Rules with a `decision` or `on_request` read only what the message asks for; the others read the whole text.
+        Rules with a `decision` or `on_request` answer only a message that asks something (or details awaited): first
+        its ask clauses, then all its clauses (`context`); the others read the whole text. `default_once_after` caps
+        the default at one more reply once a message matches it.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
         a rule whose `unless_state` holds is skipped. The default answers requests only."""
         c = self.npcs[npc]
+        if c.get("default_once_after") and npc not in self.default_cap and re.search(c["default_once_after"], text, re.I):
+            self.default_cap[npc] = self.counts.get(f"default:{npc}", 0) + 1
         ask_list = asks(text)
-        if npc in self.awaiting:
+        ask = ""
+        if ask_list or npc in self.awaiting:
             self.awaiting.discard(npc)
-            ask_list = ask_list or clauses(text)
-        ask = " ".join(ask_list)
+            ask = " ".join(context(text))
         key = " ".join(ask.lower().split())
-        for rule in c.get("rules", []):
-            on_request = bool(rule.get("on_request")) or "decision" in rule
-            if on_request and not ask or not _matches(rule.get("match", {}), ask if on_request else text):
-                continue
-            values = {}
-            if "plan_gen" in rule:
-                values = self._plan_gen(rule["plan_gen"], ask if on_request else text)
-                if values is None:
+        for i, scope in enumerate((" ".join(ask_list), ask)):
+            for rule in c.get("rules", []):
+                on_request = bool(rule.get("on_request")) or "decision" in rule
+                if i and not on_request or on_request and not scope or not _matches(rule.get("match", {}),
+                                                                                    scope if on_request else text):
                     continue
-            if self._spent(npc, rule, key):
-                if on_request:
-                    return None
-                continue
-            return rule, ask, values
+                values = {}
+                if "plan_gen" in rule:
+                    values = self._plan_gen(rule["plan_gen"], ask if on_request else text)
+                    if values is None:
+                        continue
+                if self._spent(npc, rule, key):
+                    if on_request:
+                        return None
+                    continue
+                return rule, ask, values
         if not ask or c.get("default_unless_state") and self.w.eval_state(c["default_unless_state"]):
+            return None
+        if self.counts.get(f"default:{npc}", 0) >= self.default_cap.get(npc, 1 << 30):
             return None
         rule = {"id": "default", "reply": c.get("default", "Noted."), "asks_details": True}
         return None if self._spent(npc, rule, key) else (rule, ask, {})
@@ -381,6 +397,7 @@ class Timeline:
         self.replied.setdefault((npc, rule["id"]), set()).add(" ".join(ask.lower().split()))
         if rule.get("asks_details"):
             self.awaiting.add(npc)
+            self.counts[f"default:{npc}"] = self.counts.get(f"default:{npc}", 0) + 1
 
         def fill(s: str) -> str:
             for k, v in values.items():

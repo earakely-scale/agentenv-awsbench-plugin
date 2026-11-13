@@ -4069,6 +4069,35 @@ npcs:
         - automation
         - kill ?switch
       reply: 'Not mine to approve: EPD-RB-7 step 6 says Kwame or Daniel.'
+    - id: R11-restore
+      match:
+        any:
+        - restor
+        - re-?appl
+        - \bappl(y|ying)\b
+        - set-applied
+        - last[- ]known[- ]good
+        - roll ?forward
+        - '48199'
+      plan_gen:
+        fits_fleet: true
+        min: 48199
+      decision: APPROVED
+      change: restore ledger.internal.vantleaf.io from {plan} (EPD-RB-7)
+      scope: ledger.internal.vantleaf.io records and its applied# pointer
+      reply: 'APPROVED (IC): restore ledger.internal.vantleaf.io from {plan} | scope: that endpoint and its applied# pointer only | until: end
+        of OPS-4452. Post the CHANGE record.'
+    - id: R11-stale-plan
+      on_request: true
+      match:
+        any:
+        - restor
+        - re-?appl
+        - \bappl(y|ying)\b
+        - set-applied
+      plan_gen:
+        fits_fleet: false
+      reply: 'Has {gen} been checked against the live fleet (`epctl plan diff {gen} --live-fleet`)? I''ll approve a plan that matches it.'
     - id: R8-destructive
       on_request: true
       match:
@@ -4078,11 +4107,8 @@ npcs:
       reply: 'That''s destructive (PF §3.6): Daniel plus the data owner, not me.'
     - id: R5-terminate-lib01
       match:
-        all:
-        - terminat|replac|\bkill\b
         any:
-        - li-b-01
-        - 10\.20\.44\.77
+        - \b(?:terminat(?:e|ing)|replac(?:e|ing)|recycl(?:e|ing)|kill(?:ing)?)\W+(?:(?:the|instance|node|host)\W+)*(?:li-b-01|10\.20\.44\.77)
       decision: APPROVED
       change: terminate li-b-01
       scope: that instance only, until end of OPS-4452
@@ -4121,35 +4147,6 @@ npcs:
       scope: /vl/prod/webhooks-dispatcher/max_concurrency, until end of OPS-4452
       reply: 'APPROVED (IC): cut webhooks-dispatcher max_concurrency | scope: dispatcher concurrency only | until: end of OPS-4452. That''s PF
         §4.1 shedding anyway; post the CHANGE record within 15 min.'
-    - id: R11-restore
-      match:
-        any:
-        - restor
-        - re-?appl
-        - \bappl(y|ying)\b
-        - set-applied
-        - last[- ]known[- ]good
-        - roll ?forward
-        - '48199'
-      plan_gen:
-        fits_fleet: true
-        min: 48199
-      decision: APPROVED
-      change: restore ledger.internal.vantleaf.io from {plan} (EPD-RB-7)
-      scope: ledger.internal.vantleaf.io records and its applied# pointer
-      reply: 'APPROVED (IC): restore ledger.internal.vantleaf.io from {plan} | scope: that endpoint and its applied# pointer only | until: end
-        of OPS-4452. Post the CHANGE record.'
-    - id: R11-stale-plan
-      on_request: true
-      match:
-        any:
-        - restor
-        - re-?appl
-        - \bappl(y|ying)\b
-        - set-applied
-      plan_gen:
-        fits_fleet: false
-      reply: 'Has {gen} been checked against the live fleet (`epctl plan diff {gen} --live-fleet`)? I''ll approve a plan that matches it.'
     - id: R12-handover
       on_request: true
       match:
@@ -4359,6 +4356,7 @@ npcs:
     - PT2M
     - PT4M
     default_unless_state: checkout_success_1m >= 0.99
+    default_once_after: roll ?back|\brevert|:411
     rules:
     - id: R1-dns
       once: true
