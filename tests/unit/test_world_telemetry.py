@@ -384,3 +384,19 @@ def test_a_rollback_to_411_has_no_breaker_lines(world):
     late = messages(world, CK, "02:50:00", "02:55:00")
     assert late and not any("CircuitBreaker" in m for m in late) and all("UnknownHost" in m for m in late
                                                                           if m.startswith("ERROR"))
+
+
+def test_an_overloaded_pool_logs_its_queue(world):
+    """R10-opus-2 CALL 47: '08:03:42 INFO inbound 144.5 req/s per task ...; pool active=25 idle=0 waiting=0' in the
+    minute the ledger was degraded, offered 1734 against capacity 1500."""
+    ep(world, "epctl pause all", "02:51:00")
+    set_param(world, "/vl/prod/checkout-api/outbox/replay_rate", "50", "02:58:15")
+    ep(world, f"epctl apply --gen 48219 --endpoint {LEDGER} --manual --reason OPS-4452", "03:02:05")
+    world.advance_to(at("03:12:00"))
+    lines = [x for x in messages(world, "/vl/prod/ledger-writer", "02:40:00", "03:12:00") if "inbound" in x]
+    over = [m for m in world.telemetry.minutes if m["regime"] != "collapsed" and m["offered"] > m["capacity"]]
+    assert [m["t"].strftime("%H:%M") for m in over] == ["03:03"]
+    waits = [int(re.search(r"waiting=(\d+)", x)[1]) for x in lines]
+    hot = [x for x in lines if "waiting=0" not in x]
+    assert len(hot) == 1 and hot[0].startswith("WARN inbound 144.5 req/s per task") and max(waits) > 0
+    assert waits.count(0) == len(lines) - 1

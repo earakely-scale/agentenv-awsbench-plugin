@@ -193,13 +193,15 @@ class Fleet:
         if not live:
             return "NXDOMAIN", [], int(dns.neg_ttl.total_seconds())
         total = sum(r["Weight"] for r in live)
-        u = unit(self.w.seed, "dig", host, name, int(now.timestamp()) // 60) * total
+        ttl, epoch = max(1, int(live[0]["TTL"])), int(now.timestamp())
+        u = unit(self.w.seed, "dig", host, name, epoch // ttl) * total
+        left = ttl if bypass or host not in dns.hosts else ttl - epoch % ttl
         acc = 0
         for r in sorted(live, key=lambda r: r["SetIdentifier"] or r["Value"]):
             acc += r["Weight"]
             if u < acc:
-                return "NOERROR", [r["Value"]], int(r["TTL"])
-        return "NOERROR", [live[-1]["Value"]], int(live[-1]["TTL"])
+                return "NOERROR", [r["Value"]], left
+        return "NOERROR", [live[-1]["Value"]], left
 
     def dig(self, host, args, now):
         short = "+short" in args

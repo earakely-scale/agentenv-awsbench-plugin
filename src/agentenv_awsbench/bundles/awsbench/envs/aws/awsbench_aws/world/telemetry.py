@@ -602,8 +602,10 @@ class Telemetry:
                        "WARN client cancelled after 2000ms; query still running (no context propagation, PAY-655)"]
             else:
                 active = min(25, math.ceil(25 * m["offered"] / max(1.0, m["capacity"])))
-                out = [f"INFO inbound {m['offered'] / tasks:.1f} req/s per task (1m avg, baseline "
-                       f"~{self.baseline_req_s() / tasks:.0f}); pool active={active} idle={25 - active} waiting=0"
+                waiting = round(m["p99"] / 1000 * max(0.0, m["offered"] - m["capacity"]) / tasks)
+                out = [f"{'WARN' if waiting else 'INFO'} inbound {m['offered'] / tasks:.1f} req/s per task (1m avg, "
+                       f"baseline ~{self.baseline_req_s() / tasks:.0f}); pool active={active} idle={25 - active} "
+                       f"waiting={waiting}"
                        + ("" if m["recovered"] else " (callers: checkout-api 0, webhooks-dispatcher 0)")]
             if m["rejected"] >= 0.5:
                 out.append(f"WARN admission: 429 Retry-After: 1 to webhooks-dispatcher for {m['rejected']:.0f} req/s "

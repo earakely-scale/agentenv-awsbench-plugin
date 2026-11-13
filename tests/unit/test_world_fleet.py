@@ -256,3 +256,23 @@ def test_graviton_ingress_hosts_run_al2023_arm64(world):
     assert "Amazon Linux 2023" in li["os"] and li["arch"] == "aarch64"
     li = world.fleet_inspect_host("li-a-02")
     assert li["os"].startswith("Ubuntu") and li["arch"] == "x86_64"
+
+
+def test_a_cached_answer_counts_down_its_ttl(world):
+    """R10-opus-1: getent on core-b-08 gave 10.20.11.38 at 03:06:40 and inspect showed 10.20.76.30 '(ttl 60s)' 20 s
+    later. A host keeps one weighted pick until its TTL runs out and shows the time left."""
+    ep(world, f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason x", "02:52:30")
+    world.advance_to(at("02:58:00"))
+    run(world, "core-a-01", f"unbound-control flush {LEDGER}")
+    world.advance_to(at("02:58:40"))
+    answer = [x for x in run(world, "core-a-01", f"dig {LEDGER}")[0].splitlines() if x.startswith(LEDGER + ".")]
+    assert answer and answer[0].split()[1] == "20"
+    ip = answer[0].split()[-1]
+    assert world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER] == f"{ip} (ttl 20s)"
+    assert run(world, "core-a-01", f"dig +short {LEDGER}")[0] == ip + "\n"
+    direct = [x for x in run(world, "core-a-01", f"dig @10.20.0.2 {LEDGER}")[0].splitlines()
+              if x.startswith(LEDGER + ".")]
+    assert direct[0].split()[1] == "60"
+    world.advance_to(at("02:59:00"))
+    fresh = run(world, "core-a-01", f"dig +short {LEDGER}")[0].strip()
+    assert world.fleet_inspect_host("core-a-01")["resolver"]["cache"][LEDGER] == f"{fresh} (ttl 60s)"
