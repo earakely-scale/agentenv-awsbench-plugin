@@ -2,7 +2,8 @@
 from the physics in virtual time, the canary Lambda and the streamroute-leases table."""
 
 import json
-from datetime import timedelta
+import re
+from datetime import datetime, timedelta
 
 import pytest
 from awsbench_aws.errors import AwsError
@@ -199,3 +200,44 @@ def test_times_render_in_new_york(opening):
     hosts = {h["name"]: h for h in opening.fleet_list_hosts("streamroute")}
     assert hosts["sr-a-001"]["launched"] == "2026-10-26T09:12:40-04:00"
     assert opening.mech.iso(opening.mech.t_start) == "2026-11-16T08:15:00-05:00"
+
+
+def test_a_state_reason_lists_only_the_datapoints_behind_its_state(opening):
+    """opus-3 CALL 94: '5 out of the last 5 datapoints [491, 672, 687, 684, 766] were not greater than the threshold
+    (500)'. CloudWatch counts and lists only the non-breaching points for OK and the breaching ones for ALARM."""
+    tel = opening.mech.tel
+    d = {**tel.defs["streamroute-route-errors-high"], "Period": 60, "EvaluationPeriods": 5, "DatapointsToAlarm": 3,
+         "Threshold": 500.0, "ComparisonOperator": "GreaterThanThreshold"}
+    ts = opening.mech.at("08:10")
+    for vals, state, want in (([491, 672, 687, 684, 766], "OK", "1 out of the last 5 datapoints [491.0 ("),
+                              ([491, 672, 687, 684, 766], "ALARM", "4 out of the last 5 datapoints [672.0 ("),
+                              ([600, 300, 700, 200, 800], "ALARM", "3 out of the last 5 datapoints [600.0 (")):
+        series = dict(zip(range(int(ts - ts % 60) - 60, int(ts - ts % 60) - 361, -60), vals))
+        tel.value, real = (lambda ns, mn, dims, x, now: series.get(x)), tel.value
+        try:
+            reason = tel._eval(d, ts, state)["reason"]
+        finally:
+            tel.value = real
+        assert reason.startswith(f"Threshold Crossed: {want}"), reason
+        assert reason.count("(") - 2 == int(want.split()[0])
+        assert (" was " if want.startswith("1 ") else " were ") in reason and "threshold (500.0)" in reason
+
+
+def test_bizmetrics_says_the_watermark_catches_up(opening, oracle):
+    """opus-1 CALL 79/86: 'watermark stalled at 07:49:55', then '08:16:25' minutes later; CALL 110 '(cells
+    lc-04..lc-04 behind)'."""
+    text = [x[2] for w, a, b in ((opening, "07:30", "08:15"), (oracle, "08:15", "11:05"))
+            for x in w.mech.tel.lines("/vl/prod/bizmetrics", w.mech.at(a), w.mech.at(b))]
+    assert not any(re.search(r"lc-0\d\.\.lc-0\d", x) for x in text)
+    stalls = [x for x in text if "watermark" in x and "WARN" in x]
+    assert stalls and all("cells behind: lc-" in x or "cell behind: lc-" in x for x in stalls)
+    wms = [datetime.strptime(re.search(r"at (\d\d:\d\d:\d\d)", x)[1], "%H:%M:%S") for x in stalls]
+    for prev, cur, x in zip(wms, wms[1:], stalls[1:]):
+        assert ("catching up" in x) == ((cur - prev).total_seconds() > 10) or cur < prev, x
+    assert any("catching up" in x for x in stalls) and any("holding windows" in x for x in stalls)
+
+
+def test_log_groups_report_stored_bytes(opening):
+    groups = opening.serve_aws("logs", "DescribeLogGroups", {})["logGroups"]
+    assert len(groups) == 7 and all(g["storedBytes"] > 0 for g in groups)
+    assert opening.serve_aws("logs", "DescribeLogGroups", {"logGroupNamePrefix": "/vl/prod/stream"})["logGroups"]

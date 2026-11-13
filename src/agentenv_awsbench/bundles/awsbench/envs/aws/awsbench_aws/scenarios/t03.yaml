@@ -49,9 +49,6 @@ aws_seed:
 - service: kinesis
   operation: CreateStream
   params: {StreamName: vl-payment-events, ShardCount: 240}
-- service: kinesis
-  operation: IncreaseStreamRetentionPeriod
-  params: {StreamName: vl-payment-events, RetentionPeriodHours: 72}
 - service: ec2
   operation: CreateVpc
   params:

@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from ..account import ACCOUNT
 from ..errors import AwsError
 from .t03_fleet import BROKEN, EJECTED, SERVING, STALE
-from .telemetry import _fmt, _group, _stat, _utc, parse_query
+from .telemetry import _group, _stat, _utc, parse_query
 from .util import parse_time, unit
 
 ASG_DIM = ("AutoScalingGroupName", "vl-streamroute-asg")
@@ -45,6 +45,11 @@ def _ms(t: float) -> int:
 
 def _z(t: float) -> str:
     return datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "+0000"
+
+
+def _cw(v: float) -> str:
+    """A value as CloudWatch writes it in a StateReason: a double, `491.0`."""
+    return str(round(float(v), 4))
 
 
 def _s(t) -> float:
@@ -273,12 +278,14 @@ class Telemetry:
         elif state == "INSUFFICIENT_DATA":
             reason = f"Insufficient Data: {n} datapoint{'s were' if n > 1 else ' was'} unknown."
         else:
-            listed = ", ".join(f"{_fmt(v)} ({datetime.fromtimestamp(a, UTC):%d/%m/%y %H:%M:%S})" for a, v, _ in have)
-            m = need if state == "ALARM" else 1
-            reason = (f"Threshold Crossed: {len(have)} out of the last {n} datapoints [{listed}] "
-                      f"{'were' if state == 'ALARM' else 'were not'} {word} the threshold ({_fmt(thr)}) "
-                      f"(minimum {m} datapoint{'s' * (m > 1)} for {'OK -> ALARM' if state == 'ALARM' else 'ALARM -> OK'}"
-                      " transition).")
+            alarm = state == "ALARM"
+            pick = [(a, v) for a, v, _ in have if op(float(v), thr) == alarm] or [(a, v) for a, v, _ in have]
+            listed = ", ".join(f"{_cw(v)} ({datetime.fromtimestamp(a, UTC):%d/%m/%y %H:%M:%S})" for a, v in pick)
+            m = need if alarm else 1
+            reason = (f"Threshold Crossed: {len(pick)} out of the last {n} datapoint{'s' * (n > 1)} [{listed}] "
+                      f"{'was' if len(pick) == 1 else 'were'}{'' if alarm else ' not'} {word} the threshold "
+                      f"({_cw(thr)}) (minimum {m} datapoint{'s' * (m > 1)} for "
+                      f"{'OK -> ALARM' if alarm else 'ALARM -> OK'} transition).")
         data = {"version": "1.0", "queryDate": _z(ts), "startDate": _z(pts[-1][0]), "statistic": stat,
                 "period": period, "recentDatapoints": [v for _, v, _ in reversed(have)], "threshold": thr,
                 "evaluatedDatapoints": [{"timestamp": _z(a), **({"sampleCount": float(c), "value": v} if v is not None
@@ -422,10 +429,12 @@ class Telemetry:
             elif group == "/vl/prod/bizmetrics":
                 behind = [f"lc-{c + 1:02d}" for c, lag in enumerate(s["cells"]) if lag > 120]
                 wm = datetime.fromtimestamp(s["wm"], self.m.tz).strftime("%H:%M:%S")
-                out.append((t + 20, STREAMS[group], f"WARN watermark stalled at {wm} (cells {behind[0]}..{behind[-1]} "
-                            "behind); holding windows" if behind else
-                            f"INFO window {datetime.fromtimestamp(t - 60, self.m.tz):%H:%M} closed "
-                            f"(watermark {wm}, all cells)"))
+                moved = i > 0 and s["wm"] > self.samples[i - 1]["wm"] + 10
+                why = f"({len(behind)} cell{'s' * (len(behind) > 1)} behind: {','.join(behind)})"
+                out.append((t + 20, STREAMS[group], (f"WARN watermark behind at {wm} {why}; catching up" if moved else
+                                                     f"WARN watermark stalled at {wm} {why}; holding windows")
+                            if behind else f"INFO window {datetime.fromtimestamp(t - 60, self.m.tz):%H:%M} closed "
+                                           f"(watermark {wm}, all cells)"))
             elif group == "/vl/prod/cellmap" and (s["boot"][0] or s["boot"][1] or s["boot"][2] or n % 5 == 0):
                 out.append((t + 1, STREAMS[group], "ERROR BootstrapSnapshot load-shed active: answering 503"
                             if s["boot"][2] else f"INFO BootstrapSnapshot in_flight={s['boot'][0]}/12 "
@@ -435,6 +444,13 @@ class Telemetry:
                                                    f"{2 + 3 * unit('t03-canary', n):.1f}s" if s["canary"] else
                             f"ERROR event evt_canary_{n} not visible in ledger after 120s"))
         return sorted(x for x in out if a <= x[0] <= b)
+
+    def stored(self, group: str, now: float) -> int:
+        """A group's storedBytes: the lines generated up to `now`, over two weeks kept at the 06:00 rate."""
+        def size(a, b):
+            return sum(len(x[2]) + 26 for x in self.lines(group, a, b))
+        t0 = self.m.t0
+        return max(1 << 20, size(t0, t0 + 600) * 6 * 24 * 14) + size(t0, now)
 
     def _known(self, g) -> str:
         g = _group(g)
@@ -462,6 +478,18 @@ class Telemetry:
                         "nextForwardToken": f"f/{off + len(page)}", "nextBackwardToken": f"b/{max(0, off - PAGE)}"}
             more = off + len(page) < len(evs)
             return {"events": items, "searchedLogStreams": [], **({"nextToken": f"t/{off + len(page)}"} if more else {})}
+        if op == "DescribeLogGroups":
+            try:
+                out = self.m.w.aws.call("logs", op, p, principal="awsbench:world", world_made=True, log_call=False)
+            except (AwsError, TypeError):
+                out = {}
+            pre = p.get("logGroupNamePrefix") or ""
+            rows = (out or {}).get("logGroups") or [
+                {"logGroupName": g, "creationTime": _ms(self.created), "metricFilterCount": 0,
+                 "arn": f"arn:aws:logs:us-east-1:{ACCOUNT}:log-group:{g}:*", "logGroupClass": "STANDARD"}
+                for g in sorted(self.groups) if g.startswith(pre)]
+            return {**(out or {}), "logGroups": [{**r, "storedBytes": self.stored(r["logGroupName"], now)}
+                                                 if r.get("logGroupName") in self.groups else r for r in rows]}
         if op == "DescribeLogStreams":
             g = self._known(p.get("logGroupName") or p.get("logGroupIdentifier"))
             names = sorted(self.m.fleet.hosts) if g in ("/vl/prod/streamroute", "/vl/prod/streamroute-gc") else [
