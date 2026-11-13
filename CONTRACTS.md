@@ -134,7 +134,9 @@ class AwsPort(Protocol):
 ```
 The world reads and writes all AWS state it shares with the agent through this port: Route 53 records, the
 `endpointd-plans` DynamoDB table, SSM parameters (kill switches, dispatcher concurrency), SQS. `epctl` writes made by
-the agent use `principal` = the agent's role and `world_made=False`, so they are attributed to the agent.
+the agent use `principal` = the agent's role and `world_made=False`, so they are attributed to the agent; their
+action-log rows carry the `call_no` and `role` of the `fleet_exec` that ran them, so a command and its writes are one
+change.
 
 `WorkspacePort` (implemented in `ports.py` over the workspace server's internal route, faked in unit tests):
 ```python
@@ -167,7 +169,8 @@ The acting identity of a role comes from the scenario's `identities` (T01: role 
 
 **Meter delegation.** For a charged call, the workspace POSTs `{aws}/awsbench/meter/begin` before executing and
 `{aws}/awsbench/meter/end` after, with `resolved` = `{app, recipients, channel, mentions, ticket, fields_changed,
-external: bool}`; it stamps the record with `t_exec` and puts the returned banner into the result. `{aws}` is
+external: bool}` and `result_summary` = `{id, error, text}` (the record's id, top level or one level down, which
+timeline actions read as `{call.result.id}`); it stamps the record with `t_exec` and puts the returned banner into the result. `{aws}` is
 `http://aws:$MCP_PORT` (override: `AWSBENCH_AWS_URL`). The `aws` server finds the workspace at
 `http://workspace:$MCP_PORT` (override: `AWSBENCH_WORKSPACE_URL`).
 
