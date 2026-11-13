@@ -123,8 +123,9 @@ JUDGE_FACTS = {
               "threads, which count against the same LimitNPROC; the text need not name the sidecar.) A sum that "
               "stays at or under 1,024 at 132 hosts (e.g. ~1,002 threads + 8 build workers against 1,024) does not "
               "convey it.",
-        "F4": "Memory/heap was a red herring: the OutOfMemoryError was native-thread creation; heap after GC ~2.2-2.6 "
-              "of 6 GiB used, no full GCs, no OOM kills.",
+        "F4": "Memory/heap was a red herring: the OutOfMemoryError was native-thread creation ('unable to create native "
+              "thread'), not heap exhaustion (heap after GC ~2.2-2.6 of 6 GiB used, no full GCs, no OOM kills; ruling "
+              "heap out next to the native-thread error conveys it without heap numbers).",
         "F5": "Delayed onset (~75-90 min after the add): hosts learned new members gradually over up to an hour, "
               "failures surfaced at the next 30-min rebuild and maps expired 45 min later (the Monday load ramp "
               "filling the route-worker pool may also be cited).",
@@ -169,8 +170,9 @@ JUDGE_TRUTH = {
            "PeerLink threads per peer; user streamroute is capped at LimitNPROC 1,024. ~770 other threads + 2 x 131 + 8 "
            "build workers = 1,040 > 1,024 (1,016 at 120; 124 is the most that fits). Builds failed with "
            "'OutOfMemoryError: unable to create native thread' from 07:22, wedged, maps expired, routing stopped. Heap "
-           "was healthy (2.2-2.6 of 6 GiB after GC, no full GC). ledger-writer 3.41.0 (07:31) is unrelated. Checkout was "
-           "never down; no data lost. systemd's TasksCurrent for the streamroute unit (~1,002 at 132 hosts) excludes "
+           "was healthy (2.2-2.6 of 6 GiB after GC, no full GC): a text that says it wasn't heap and gives the "
+           "native-thread error conveys F4 even without these numbers. ledger-writer 3.41.0 (07:31) is unrelated. "
+           "Checkout was never down; no data lost. systemd's TasksCurrent for the streamroute unit (~1,002 at 132 hosts) excludes "
            "the sidecar's 22 threads.",
     "C18": "What happened (ground truth): merchant dashboards and webhooks were delayed from ~07:40 ET; checkout, card "
            "payments and the Payments API worked normally throughout; no payment data was lost. Policy requires a public "
@@ -1065,7 +1067,8 @@ CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
 HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
                    r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimated?|eta|earliest|criteria|requires?|"
-                   r"needs?|promise)\b")
+                   r"needs?|promise|unless|whether)\b")
+RECORD_NOTE = re.compile(r"(?i)\b(?:why|undo)\s*:[^|\n]*")
 
 
 DRAFT_QUOTE = re.compile(r"\"[^\"]*\"|“[^”]*”")
@@ -1080,11 +1083,17 @@ def without_drafts(text):
     return DRAFT_LINE.sub(" ", text)
 
 
+def without_record_notes(text):
+    """The text without its CHANGE records' why: and undo: fields, which explain a change, never the incident's state."""
+    return "\n".join(RECORD_NOTE.sub(" ", line) if RECORD.search(line) or ITEM.match(line) else line
+                     for line in text.splitlines())
+
+
 def text_claims(text):
     """mitigated/resolved claims stated as present fact in a message's clauses; hedged or negated clauses don't count,
-    and neither do quoted or labelled drafts, which are proposals, not claims."""
+    and neither do quoted or labelled drafts, which are proposals, not claims, nor a CHANGE record's why and undo."""
     found = set()
-    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", without_drafts(text)):
+    for clause in re.split(r"[.;!](?=\s|$)|\n|,\s*but\b", without_drafts(without_record_notes(text))):
         if HEDGE.search(clause):
             continue
         if CLAIM_RESOLVED.search(clause):
