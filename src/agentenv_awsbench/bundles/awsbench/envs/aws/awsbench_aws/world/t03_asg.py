@@ -176,7 +176,8 @@ class Asg:
             self.next_reconcile = t + self.reconcile_s
 
     def record(self, t: float) -> None:
-        self.timeline.append([t, {"min": self.min, "desired": self.desired, "max": self.max,
+        size = None if t >= _ts(PLAT_2291[-1][0]) else next((s for at, s, _ in reversed(PLAT_2291) if t >= _ts(at)), 120)
+        self.timeline.append([t, {"min": size or self.min, "desired": size or self.desired, "max": self.max,
                                   "inservice": len(self.inservice())}])
 
     # ---- AWS shapes ----

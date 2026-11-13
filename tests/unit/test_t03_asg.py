@@ -125,3 +125,12 @@ def test_the_trail_history_agrees_with_the_group():
                 in causes
         elif r["operation"] == "PutScheduledUpdateGroupAction":
             assert datetime.fromisoformat(r["t"]).timestamp() == w.mech.asg.actions["bf-capacity-hold"]["created"]
+
+
+def test_the_exported_group_steps_through_plat_2291s_resizes():
+    """T03R4: the export showed min/desired 132 from 06:01, before PLAT-2291's stepped resizes."""
+    w = world()
+    w.advance_to(at(w, "12:31:00"))
+    sizes = {t[11:16]: (v["min"], v["desired"]) for t, v in w.export()["t03"]["sr_asg"]["timeline"]}
+    assert [sizes[t] for t in ("06:01", "06:06", "06:19", "06:32")] == [(120, 120), (124, 124), (128, 128), (132, 132)]
+    assert sizes["12:30"] == (132, 132)

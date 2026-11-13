@@ -268,7 +268,8 @@ class Telemetry:
         thr, treat = float(d.get("Threshold", 0)), d.get("TreatMissingData") or "missing"
         have = [(a, v, c) for a, v, c in pts if v is not None]
         bad = sum(op(float(v), thr) for _, v, _ in have) + (len(pts) - len(have)) * (treat == "breaching")
-        state = ("ALARM" if bad >= need else "OK" if have or treat in ("breaching", "notBreaching") else
+        partial = treat == "missing" and 0 < len(have) < need and all(op(float(v), thr) for _, v, _ in have)
+        state = ("ALARM" if bad >= need or partial else "OK" if have or treat in ("breaching", "notBreaching") else
                  None if treat == "ignore" else "INSUFFICIENT_DATA")
         state = force or state
         if not have and state != "INSUFFICIENT_DATA":

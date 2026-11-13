@@ -577,6 +577,27 @@ class Commands:
         lines = [(t, f"streamroute[{self.pid(h, t)}]:", line)
                  for t, _, line in self.m.tel.lines("/vl/prod/streamroute", h.launched, now, host=h.name)]
         lines = sorted(lines + self.lifecycle(h, now), key=lambda x: x[0])
+        opt = {}
+        for i, a in enumerate(args):
+            for flag, key in (("--since", "since"), ("-S", "since"), ("--until", "until"), ("-U", "until"),
+                              ("-g", "grep"), ("--grep", "grep")):
+                if a == flag and i + 1 < len(args):
+                    opt[key] = args[i + 1]
+                elif a.startswith(flag + "=") and flag.startswith("--"):
+                    opt[key] = a.split("=", 1)[1]
+        day = datetime.fromtimestamp(now, self.m.tz)
+        def when(v):
+            m = re.fullmatch(r"(?:\d{4}-\d\d-\d\d[ T])?(\d{1,2}):(\d\d)(?::(\d\d))?", v.strip())
+            return m and day.replace(hour=int(m[1]), minute=int(m[2]), second=int(m[3] or 0)).timestamp()
+        if (t0 := opt.get("since") and when(opt["since"])):
+            lines = [x for x in lines if x[0] >= t0]
+        if (t1 := opt.get("until") and when(opt["until"])):
+            lines = [x for x in lines if x[0] <= t1]
+        if pat := opt.get("grep"):
+            rx = re.compile(pat, 0 if pat != pat.lower() else re.IGNORECASE)
+            lines = [x for x in lines if rx.search(x[2])]
+        if not any(a in ("-n", "--lines") for a in args) and (opt.get("since") or opt.get("grep")):
+            n = len(lines)
         return "".join(f"{datetime.fromtimestamp(t, self.m.tz).strftime('%b %d %H:%M:%S')} {h.name} {who} {line}\n"
                        for t, who, line in lines[-n:]) or "-- No entries --\n", 0
 

@@ -265,7 +265,9 @@ Rules with `decision` or `on_request` read passes 1-3 (`decision` rules skip pas
 plain rules read pass 4 only, so an acknowledgement never answers what a request rule answers. The `default` reply
 answers a request only. Each (npc, rule) answers a request once (`once` rules never repeat); an NPC told FYI or cc
 answers only through plain rules; an NPC whose last reply asked for details reads the next message whole as the request
-unless it says it asks nothing. Asides (`undo:`, `why:`, `auth:`, negations) are never clauses.
+unless it says it asks nothing, and one that quotes a draft beside its own ask adds the clauses that refer to the draft;
+"the post above" or "as drafted" reads the last draft sent to that NPC. Asides (`undo:`, `why:`, `auth:`, negations)
+are never clauses.
 
 NPC keys: `ask_extra` (regex of extra ask words); `ask_lists` (the request is the ask clauses plus a list the ask opens
 or names: "need APPROVED for: (1) ...", "approve 1 and 2"); `answers_direct`; `decide_on_request` (decides on the
@@ -286,7 +288,8 @@ don't each say "approve" is answered whole); `per_clause` (matches when one clau
 required|missing` (the message must, or must not, quote a draft: quoted text after "post"/"draft", a `Body:`/`Draft:`/
 `Text:` line, or "drafted in m-N") and `draft_match` (read against that draft alone); `capture` {name: regex with one
 group} + `capture_default` (template values for the reply and change); `once` (`true`: never repeats; `silent`: a
-later match gets silence, not the default); `after_refusal`; `unless_state` (skipped while the expression holds);
+later match gets silence, not the default); `queued_silent` (no answer to a message the NPC read only on waking);
+`after_refusal`; `unless_state` (skipped while the expression holds);
 `when_held` / `unless_held` {state, for} (only when, or unless, `state` has held at every tick for at least `for`).
 
 ## 3. Workspace records `awsbench_workspace/scenarios/t03/` [workspace]

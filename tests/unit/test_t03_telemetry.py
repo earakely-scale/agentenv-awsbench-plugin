@@ -241,3 +241,15 @@ def test_log_groups_report_stored_bytes(opening):
     groups = opening.serve_aws("logs", "DescribeLogGroups", {})["logGroups"]
     assert len(groups) == 7 and all(g["storedBytes"] > 0 for g in groups)
     assert opening.serve_aws("logs", "DescribeLogGroups", {"logGroupNamePrefix": "/vl/prod/stream"})["logGroups"]
+
+
+def test_too_few_datapoints_all_breaching_alarm_when_missing_data_is_missing():
+    """T03R4-opus-6 CALL 113: 2 of 5 points, both breaching, read OK with the breaching values 'not greater'."""
+    w = world()
+    w.advance_to(at(w, "10:05:00"))
+    tel, ts = w.mech.tel, w.now.timestamp()
+    tel.value = lambda ns, metric, dims, x, now: 591.5 if x >= ts - ts % 60 - 120 else None
+    ev = tel._eval({"Namespace": "Vantleaf/Payments", "MetricName": "LedgerFreshnessP99Seconds", "Period": 60,
+                    "EvaluationPeriods": 5, "DatapointsToAlarm": 5, "Threshold": 120.0,
+                    "ComparisonOperator": "GreaterThanThreshold", "TreatMissingData": "missing"}, ts)
+    assert ev["state"] == "ALARM" and "not greater" not in ev["reason"] and "were greater" in ev["reason"]

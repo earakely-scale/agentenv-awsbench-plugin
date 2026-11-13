@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from .util import dig, glob_match, iso, jitter, parse_time, pick, seconds, text_of, unit
 
 ASK = re.compile(r"(?i)\b(?:ask(?:ing)?|approve|approvals?|permission|ok(?:ay)? to|can i|may i|please confirm|"
-                 r"request(?:ing)?|requested(?!\s+by\b)|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
+                 r"requesting|request(?!\s+(?:volume|counts?|rates?|latency|errors?|throughput|sizes?)\b)|requested(?!\s+by\b)|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
 CLAUSE = re.compile(r"(?<=[.!?])\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
 ASIDE = re.compile(r"(?i)^(?:(?:undo|why|auth|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|"
                    r"not\b|no\b|never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
@@ -40,11 +40,12 @@ BULLET = re.compile(r"^(?:[\u2022\u00b7*-]|\(?\d+[.)])\s+")
 ITEM = re.compile(r"^(?:[\u2022\u00b7*-]|\(?(?:\d+|[a-z])[.)])\s+")
 LIST_REF = re.compile(r"(?i)\b(?:approv\w*|sign[- ]?off|ok)\b\W+(?:\w+\W+){0,2}?(?:\d+\s*(?:and|&|,|\+)\s*\d+|both|each|all "
                       r"(?:of )?(?:them|these|items)|these|them|the above|items?)\b")
+ITEMS_NAMED = re.compile(r"(?i)\b(?:items?|changes?|steps?)\s+\(?\d+\)?\s*(?:and|&|,|\+)\s*\(?\d+\)?\b")
 DRAFT = re.compile(r"\"([^\"]*)\"|\u201c([^\u201d]*)\u201d|(?<!\w)'([^'\n]*)'(?!\w)|"
                    r"^\s*(?:body|draft|text)\s*:\s*(\S[^\n]{19,})$|"
                    r"\b(?:draft(?:ed)?|text)\s+(?:(?:above|earlier)\s+)?(?:(?:in|at|from)\s+)?\(?(m-\d+)\b", re.I | re.M)
 QUOTE_BLOCK = re.compile(r"(?:(?:^|\n)\s*>[^\n]*)+\Z")
-OPENS_LIST = re.compile(r":[*_]*\s*(?:\(?(?:1|a)[.)]\s.*)?$")
+OPENS_LIST = re.compile(r"(?::[*_]*|\bfor)\s*(?:\(?(?:1|a)[.)]\s.*)?$")
 BACKREF = re.compile(r"(?i)\b(?:that|this|the|these) (?:class [a-d] )?changes?\b|\bthe above\b|"
                      r"\b(?:delet|remov|suspend|approv|chang)\w* (?:it|them)\b|\b(?:ok|okay|fine) to (?:post|publish)\b|"
                      r"\bpost (?:it|this)\b|\bas drafted\b")
@@ -57,6 +58,7 @@ MSG_REF = re.compile(r"\bm-\d+\b")
 LIST_HEAD = re.compile(r"(?i)^(?:(?:my|the|two|three|\d)\s+)?(?:requests?|asks?)\s*:$")
 UPCOMING = re.compile(r"(?i)\bupcoming\s+(?:\w+\s+)?$")
 CLAUSE_END = re.compile(r"(?<=[.!?;])\s+")
+DRAFT_BACK = re.compile(r"(?i)\b(?:post|draft|text|wording)\s+(?:above|earlier|I sent)\b|\bas drafted\b")
 
 
 def clauses(text: str) -> list[str]:
@@ -79,7 +81,8 @@ def request(text: str, extra: re.Pattern | None = None, earlier=lambda mid: "") 
     for line in (text or "").replace("\u2019", "'").splitlines():
         line = re.sub(r"^(?:\s*@[\w.-]+[,:]?)+\s*", "", line).strip()
         lines.append((bool(ITEM.match(line)), [(c, asks(c, extra)) for c in clauses(ITEM.sub("", line))], line))
-    named = any(LIST_REF.search(x) for _, parts, _ in lines for _, a in parts for x in a)
+    named = any(LIST_REF.search(x) for _, parts, _ in lines for _, a in parts for x in a) or any(
+        a and ITEMS_NAMED.search(c) for _, parts, _ in lines for c, a in parts)
     out, tail, alone, refs = [], False, False, []
     for item, parts, line in lines:
         for c, a in parts:
@@ -132,7 +135,7 @@ def asks(text: str, extra: re.Pattern | None = None) -> list[str]:
     for c in clauses(text):
         for m in sorted([*ASK.finditer(c), *(extra.finditer(c) if extra else ())], key=lambda m: m.start()):
             before = c[:m.start()]
-            if not (HEDGE & set(re.findall(r"[\w']+", before.lower())[-4:])
+            if not (HEDGE & set(re.findall(r"[\w']+", re.sub(r"\([^()]*\)", " ", before).lower())[-4:])
                     or m.group(0).lower().startswith("approval") and NOUN_HEDGE.search(before)
                     or NOUN_ASK.fullmatch(m.group(0)) and UPCOMING.search(before)):
                 head = re.split(r"[,(:]", before)[-1] if NOUN_ASK.fullmatch(m.group(0)) else ""
@@ -262,6 +265,7 @@ class Timeline:
         self.awaiting: set[str] = set()
         self.default_cap: dict[str, int] = {}
         self.waiting: dict[str, list[dict]] = {n: [] for n in self.npcs}
+        self.last_draft: dict[str, str] = {}
         self.world_flags: dict[str, bool] = {}
         self.last_said: dict[str, tuple[datetime, str]] = {}
         self.catch_up: dict[str, datetime] = {}
@@ -489,6 +493,8 @@ class Timeline:
                 continue
             seen.add(npc)
             self._note_refusal(npc, text)
+            if quoted := draft(text, self.msgs.get):
+                self.last_draft[npc] = quoted
             msg = {"t": call["t"], "text": text, **how, "fyi": how["via"] == "channel" and self._fyi_only(npc, text)}
             if self.awake.get(npc, True):
                 self._schedule_reply(npc, msg, call["t"])
@@ -560,10 +566,10 @@ class Timeline:
             self.catch_up[npc] = t + timedelta(seconds=seconds(self.npcs[npc]["catch_up"]["for"]))
             prev = self.catch_up[npc] - timedelta(seconds=15)
         for msg in self.waiting.pop(npc, []):
-            prev = self._schedule_reply(npc, msg, t, prev)
+            prev = self._schedule_reply(npc, {**msg, "queued": True}, t, prev)
         self.waiting[npc] = []
 
-    def classify(self, npc: str, text: str, skip: frozenset = frozenset(), fyi: bool = False
+    def classify(self, npc: str, text: str, skip: frozenset = frozenset(), fyi: bool = False, queued: bool = False
                  ) -> tuple[dict, str, dict] | None:
         """The rule that answers `text`, the request it answers and its template values, or None for silence.
 
@@ -586,7 +592,9 @@ class Timeline:
         `per_clause` rule matches when one clause of what it reads does. A `decide_on_request` NPC decides on the
         request alone, reading its context only for a request that points back ("approve that change", "deleting it").
         An NPC awaiting details (its last reply asked for them) reads the next message whole as the request, unless it
-        says it asks nothing ("I'm not requesting anything")."""
+        says it asks nothing ("I'm not requesting anything"); one that quotes a draft beside its own ask adds the clauses
+        that refer to the draft. A message that points back at a draft ("the post above", "as drafted") reads the last
+        draft sent to the NPC. A `queued_silent` rule doesn't answer a message the NPC read only on waking (`queued`)."""
         c = self.npcs[npc]
         self._note_refusal(npc, text)
         extra = re.compile(c["ask_extra"], re.IGNORECASE) if c.get("ask_extra") else None
@@ -596,10 +604,12 @@ class Timeline:
             text = re.sub(c["ignore"], " ", text or "", flags=re.IGNORECASE)
         ask_list, ask, loose = [] if fyi else request(text, extra, self.msgs.get) if c.get("ask_lists") else asks(
             text, extra), "", ""
-        quoted = draft(text, self.msgs.get)
+        quoted = draft(text, self.msgs.get) or (DRAFT_BACK.search(text or "") and self.last_draft.get(npc, ""))
         waited = not fyi and npc in self.awaiting and not ASKS_NOTHING.search(text)
         if waited and not ask_list:
             ask_list = context(text, extra)
+        elif waited and quoted:
+            ask_list = [*ask_list, *(c for c in context(text, extra) if c not in ask_list and REFERS.search(c))]
         if not fyi and (ask_list or npc in self.awaiting):
             self.awaiting.discard(npc)
             ask = " ".join(context(text, extra))
@@ -634,6 +644,8 @@ class Timeline:
                 if rule.get("names_change"):
                     values = {**values, "change": asked_change(
                         req if gated else text, text, lambda g: self.w.endpointd.plan_fits_fleet(g) is not None)}
+                if queued and rule.get("queued_silent"):
+                    return None
                 if self._spent(npc, rule, key):
                     if gated and not only and i < 2 or rule.get("once") == "silent":
                         return None
@@ -717,7 +729,7 @@ class Timeline:
             return self._catching_up(npc, item, until, t)
         was_awaiting, skip, again = npc in self.awaiting, set(), False
         while True:
-            hit = self.classify(npc, msg["text"], frozenset(skip), bool(msg.get("fyi")))
+            hit = self.classify(npc, msg["text"], frozenset(skip), bool(msg.get("fyi")), bool(msg.get("queued")))
             last = self.last_said.get(npc)
             if hit and self.npcs[npc].get("repeat_once") and self.counts.get(self._again_key(npc, *hit[::2])):
                 skip |= {hit[0]["id"], "default"}

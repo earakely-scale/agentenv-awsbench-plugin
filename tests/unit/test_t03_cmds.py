@@ -180,3 +180,15 @@ def test_host_outputs_carry_only_the_design_templates_fields():
     fleet, _ = sh(w, "srctl fleet status", "sr-a-001")
     assert "  sr-a-001 WARMING\n" in fleet and "(jvm)" not in fleet and "(bootstrap" not in fleet
     assert sh(w, "systemctl stop streamroute", "sr-b-017") == ("systemctl stop streamroute: refused by srcoord fencing\n", 1)
+
+
+def test_the_journal_takes_since_and_grep(opening):
+    """T03R4-opus-2 CALL 109: `--since 09:20 -g ShardMap` printed the last 50 lines, `route.no_shardmap` among them."""
+    w = world()
+    w.advance_to(at(w, "08:30:00"))
+    since = sh(w, "journalctl -u streamroute --since 08:20 --no-pager")[0].splitlines()
+    assert since and all(line[7:15] >= "08:20:00" for line in since)
+    assert sh(w, "journalctl -u streamroute --since=08:29:59")[0].count("\n") < len(since)
+    case = sh(w, "journalctl -u streamroute -g ShardMap")[0].splitlines()
+    assert case and not [line for line in case if "no_shardmap" in line]
+    assert [line for line in sh(w, "journalctl -u streamroute -g shardmap")[0].splitlines() if "no_shardmap" in line]
