@@ -26,6 +26,7 @@ Each mode needs a freshly configured env (the episode ends at the horizon). Exit
 command exits non-zero, since a path that silently fails grades as a different path.
 """
 import argparse
+from zoneinfo import ZoneInfo
 import asyncio
 import json
 import sys
@@ -37,6 +38,7 @@ import t03_oracle
 import t04_oracle
 from gw import Gateway, load_grade
 
+ET = ZoneInfo("America/New_York")
 LEDGER = "ledger.internal.vantleaf.io"
 HORIZON_URI = "urn:scale:awsbench-horizon/v1"
 FREE = {"get_time", "awsbench_control"}
@@ -277,6 +279,10 @@ async def play(gw, steps, check_clock=True, harvest=harvest):
             continue
         before = await gw.now()
         args = fill(args, found)
+        if tool == "wait" and args.get("until") and len(args["until"]) <= 8 and before.astimezone(ET).strftime(
+                "%H:%M:%S") >= args["until"].rjust(8, "0"):
+            print(f"  {before.isoformat()}  skip wait until {args['until']} (already past)")
+            continue
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
         after = await gw.now()
         harvest(tool, result, found)

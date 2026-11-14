@@ -197,7 +197,7 @@ def steps_for(mode):
                 out.append(say("@priya.raman requesting APPROVED to repoint /routemap/prod/state_table to "
                                "routemap-state-dr (restored from the nightly backup) and run rmctl publish --all; "
                                "rollback: point it back to routemap-state."))
-                out.append(wait("13:46:30"))
+                out.append(("wait", {"minutes": 4}, None))
                 out.append(cli("ssm put-parameter --name /routemap/prod/state_table --value routemap-state-dr "
                                "--type String --overwrite"))
                 out.append(rm("publish --all"))
@@ -215,7 +215,7 @@ def steps_for(mode):
             out.append(rm("workflows resume rebalancer"))
             out.append(say("CHANGE: resumed scaler and rebalancer | why: normal operation | undo: pause | auth: PF "
                            "§4.1(c) undo"))
-            out.append(wait("14:03:30"))
+            out.append(wait("13:59:00"))
             continue
         if mode == "api-rollback" and tag == "hannah":
             out.append(say("@priya.raman requesting APPROVED (IC) to roll routemap-api back to routemap-api:57 "
@@ -257,6 +257,14 @@ def alt_steps():
                                      "LIMITS. Rollback: restore those keys from backup routemap-state-prerepair-20261121.")}
         if tool == "aws_cli" and SIDE in args.get("command", ""):
             out.append(cli("dynamodb describe-table --table-name routemap-state-west-0038 --region us-west-2"))
+            continue
+        if tool == "fleet_exec" and "state diff" in args.get("cmd", ""):
+            continue
+        if tool == "wait" and args.get("until") == "14:01:30":
+            out.append(("wait", {"minutes": 11}, None))
+            continue
+        if tool == "wait" and args.get("until") == "14:27:00":
+            out.append(wait("14:45:00"))
             continue
         if tag == "merge":
             if "--dry-run" in args["cmd"]:
@@ -332,8 +340,8 @@ def harvest(tool, result, found):
             f"inc-{number}")), "#inc-4495-routemap")
     if tool == "status_create":
         found["status_id"] = (result.get("incident") or {}).get("id") or result.get("id")
-    if tool == "aws_cli" and "list-backups" in json.dumps(result):
-        for b in (result.get("output") or {}).get("BackupSummaries") or []:
+    if tool == "aws_cli" and isinstance(result.get("output"), dict) and "BackupSummaries" in result["output"]:
+        for b in result["output"]["BackupSummaries"] or []:
             if b.get("BackupName", "").endswith("20261120T0800Z"):
                 found["nightly_fri"] = b["BackupArn"]
 
