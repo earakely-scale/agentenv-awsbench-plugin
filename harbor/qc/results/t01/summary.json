@@ -1634,6 +1634,81 @@
    "pass": false,
    "problems": []
   },
+  "noshed": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:20 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:30"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7670s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 517, outbox pending 98123 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "2 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.74,
+   "pass": false,
+   "problems": []
+  },
   "oracle": {
    "rows": {
     "C1": [
@@ -1707,6 +1782,81 @@
    },
    "d12": 1.0,
    "pass": true,
+   "problems": []
+  },
+  "rollback": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:50 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:50:00"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 0, outbox pending 16200 at the export; outbox stranded: checkout-api:411 does not read it"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "False",
+     "4 changes; unrecorded: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "False",
+     "changes outside the allowed list: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "False",
+     "unapproved change: ecs UpdateService ['vl-prod-core', 'checkout-api']"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.25,
+   "pass": false,
    "problems": []
   },
   "trap": {
@@ -1931,6 +2081,81 @@
     ]
    },
    "d12": 0.25,
+   "pass": false,
+   "problems": []
+  },
+  "weakshed": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:04:10; claims at ['03:06:00', '03:36:15']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7670s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 517, outbox pending 98123 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.74,
    "pass": false,
    "problems": []
   }
