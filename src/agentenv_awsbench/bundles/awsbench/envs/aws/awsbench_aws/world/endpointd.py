@@ -152,7 +152,7 @@ class Endpointd:
                          "weight": 100 if inst.get("ready") else 0})
         self.m.put_item({"pk": f"plan#{gen:010d}", "generation": gen, "status": "PENDING", "created_at": iso(t),
                          "ledger": recs, "endpoints_ref": ENDPOINTS_REF, "endpoint_count": len(self.order)},
-                        principal="role:vl-endpointd-planner-role")
+                        principal="assumed-role/vl-endpointd-planner-role/planner")
         self.archive[gen] = recs
         self.created[gen] = t
         self.next_gen += 1
@@ -183,7 +183,7 @@ class Endpointd:
             self.batches[e] = None
             return
         fqdn = self.order[batch["idx"]]
-        role = "role:vl-endpointd-enactor-role"
+        role = f"assumed-role/vl-endpointd-enactor-role/{e}"
         self.m.put_item({"pk": "applied#" + fqdn, "generation": batch["gen"], "state": "APPLYING", "applied_by": e},
                         principal=role)
         self.m.replace_records(fqdn, self.ttl, self.plan_records(batch["gen"], fqdn, item),

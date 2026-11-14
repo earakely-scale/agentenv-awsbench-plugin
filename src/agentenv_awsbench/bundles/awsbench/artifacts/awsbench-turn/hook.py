@@ -13,7 +13,8 @@ from zoneinfo import ZoneInfo
 
 PARAMS = ("env_id", "role", "done_regex", "done_text", "turn_end_max_s", "chunk_s", "max_chunks")
 DONE = r"\bDONE\b[.!]?\s*$"
-DONE_FIRST = re.compile(r"^DONE(?:[.!:]|\s+[-\u2013\u2014]|$)")
+DONE_ALONE = re.compile(r"^DONE(?:[.!:,;]|\s*[\u2013\u2014]|\s+-|$)")
+DONE_LAST = re.compile(r"(?:^|[.!?]\s+|\bI(?:['\u2019]m| am)\s+)DONE[.!]?$")
 MARKDOWN = re.compile(r"^[\s>#*_`~-]+|[\s*_`~]+$")
 ET = ZoneInfo("America/New_York")
 WAKE_KINDS = ("dm", "mention", "page", "email", "job_done")
@@ -63,14 +64,16 @@ def find_env(envs, want):
 
 
 def said_done(reply, pattern=DONE):
-    """With the default pattern: the agent's last non-empty line, markdown stripped, ends in DONE, or its first starts
-    with DONE standing alone ("DONE." or "DONE: ..." then a summary), not "DONE with step 1". A task's own done_regex
-    (T03's "^RESULT:\\s*DONE\\b") may match any line, as its token is followed by a summary."""
+    """With the default pattern, markdown stripped: DONE standing alone at the start of the first or last non-empty line
+    (then . ! : , ; a dash or nothing: "DONE, with one caveat", "DONE \u2014 handoff on ..."), or DONE as the last line's
+    final sentence ("All set. DONE.", "I'm DONE!"); not "DONE with step 1", "...then reply DONE." or "I'm not replying
+    DONE". A task's own done_regex (T03's "^RESULT:\\s*DONE\\b") may match any line, as its token is followed by a
+    summary."""
     lines = [MARKDOWN.sub("", line).strip() for line in (reply or "").splitlines()]
     lines = [line for line in lines if line]
     if pattern != DONE:
         return any(re.search(pattern, line) for line in lines)
-    return bool(lines) and (re.search(pattern, lines[-1]) is not None or DONE_FIRST.match(lines[0]) is not None)
+    return bool(lines) and bool(DONE_ALONE.match(lines[0]) or DONE_ALONE.match(lines[-1]) or DONE_LAST.search(lines[-1]))
 
 
 def out_of_time(status):

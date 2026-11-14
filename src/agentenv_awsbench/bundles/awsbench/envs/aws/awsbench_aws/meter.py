@@ -336,7 +336,7 @@ class Meter:
                     cost_class: str | None = None) -> dict:
         if not self.charged(role):
             return {"ok": True, "charged": False, "call_no": None, "t_exec": rfc3339(self.now),
-                    "calls_left": self.calls_left}
+                    "t_issue": self.now, "calls_left": self.calls_left}
         await self.lane.acquire()
         try:
             if reason := self.refuse(role):
@@ -354,7 +354,7 @@ class Meter:
             self.rows.append(row)
             self.pending[call_no] = {**row, "server": server, "role": role, "args": dict(args)}
             return {"ok": True, "charged": True, "call_no": call_no, "t_exec": rfc3339(self.now),
-                    "calls_left": self.calls_left}
+                    "t_issue": t_issue, "calls_left": self.calls_left}
         except BaseException:
             self.lane.release()
             raise

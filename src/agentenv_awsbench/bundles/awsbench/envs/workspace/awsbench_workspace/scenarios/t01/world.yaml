@@ -31,3 +31,4 @@ users:
   - {id: deploy-bot, name: deploy-bot, title: bot, team: bots}
   - {id: graviton-bot, name: graviton-bot, title: bot, team: bots}
   - {id: alert-integration, name: alert-integration, title: bot, team: bots}
+  - {id: support-desk, name: support-desk, title: bot, team: bots}

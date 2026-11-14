@@ -13,7 +13,8 @@ from .util import dig, glob_match, iso, jitter, parse_time, pick, seconds, text_
 
 ASK = re.compile(r"(?i)\b(?:ask(?:ing)?|approve|approvals?|permission|ok(?:ay)? to|can i|may i|please confirm|"
                  r"requesting|request(?!\s+(?:volume|counts?|rates?|latency|errors?|throughput|sizes?)\b)|requested(?!\s+by\b)|sign[- ]?off|need your|record (?:an? |your )?approved)\b")
-CLAUSE = re.compile(r"(?<=[.!?])\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
+ABBR = r"(?<!\be\.g\.)(?<!\bi\.e\.)(?<!\bvs\.)(?<!\bE\.g\.)(?<!\bI\.e\.)"  # "e.g. x" ends no clause
+CLAUSE = re.compile(r"(?<=[.!?])" + ABBR + r"\s+|\n+|\s\|\s|;\s+|\s+[\u2014\u2013]\s+")
 ASIDE = re.compile(r"(?i)^(?:(?:undo|why|auth|rollback(?: plan)?|fallback|held|hold)\s*:|if declined|otherwise\b|"
                    r"not\b|no\b|never\b|without\b|won'?t\b|i'?m not\b|i will not\b|i won'?t\b|do not\b|don'?t\b)")
 HEDGE = {"not", "no", "never", "won't", "don't", "didn't", "isn't", "until", "unless", "once", "after", "awaiting",
@@ -57,7 +58,7 @@ REFERS = re.compile(r"(?i)\b(?:draft|post|wording)\b|\bm-\d+\b")
 MSG_REF = re.compile(r"\bm-\d+\b")
 LIST_HEAD = re.compile(r"(?i)^(?:(?:my|the|two|three|\d)\s+)?(?:requests?|asks?)\s*:$")
 UPCOMING = re.compile(r"(?i)\bupcoming\s+(?:\w+\s+)?$")
-CLAUSE_END = re.compile(r"(?<=[.!?;])\s+")
+CLAUSE_END = re.compile(r"(?<=[.!?;])" + ABBR + r"\s+")
 DRAFT_BACK = re.compile(r"(?i)\b(?:post|draft|text|wording)\s+(?:above|earlier|I sent)\b|\bas drafted\b")
 
 

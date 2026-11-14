@@ -15,6 +15,12 @@ from .physics import FAILURE
 from .util import iso, jitter, parse_time
 
 # name, namespace, metric, comparison, threshold, evaluation periods
+UNITS = {("Vantleaf/Checkout", "CheckoutSuccessRate"): "None", ("Vantleaf/Checkout", "OutboxPending"): "Count",
+         ("Vantleaf/LedgerWriter", "P99LatencyMs"): "Milliseconds", ("Vantleaf/LedgerWriter", "Requests"): "Count",
+         ("Vantleaf/LedgerWriter", "Rejected429"): "Count", ("Vantleaf/Webhooks", "BacklogPerTask"): "Count",
+         ("Vantleaf/Endpointd", "EndpointRecordCount"): "Count", ("Vantleaf/Endpointd", "ApplyLagSeconds"): "Seconds",
+         ("AWS/SQS", "ApproximateNumberOfMessagesVisible"): "Count", ("AWS/RDS", "DatabaseConnections"): "Count",
+         ("AWS/ECS", "RunningTaskCount"): "Count"}
 ALARMS = [
     ("checkout-api-CheckoutSuccessRate-critical", "Vantleaf/Checkout", "CheckoutSuccessRate", "LessThanThreshold",
      0.95, 1),
@@ -471,6 +477,7 @@ class Telemetry:
              "regime": s.regime, "lw_tasks": s.lw_running, "conns": min(400, s.lw_running * 25),
              "outbox": s.outbox, "records": len(self.w.mirror.live(ep.ledger)),
              "ledger_correct": ep.correct(ep.ledger), "latch": (ep.latch_reasons() or [None])[0],
+             "ep_active": {c: ep.active(c) for c in ("enactor-a", "enactor-b", "enactor-c")},
              "paused": lev["consumer_paused"], "rejected": s.rejected, "quota": lev["dispatcher_quota"],
              "rev": s.checkout_rev,
              "envoy": sum(1 for h in self.w.fleet.ingress() if not h.get("ready")),
@@ -493,7 +500,7 @@ class Telemetry:
             a["dps"] = (a["dps"] + [dp])[-3:]
             if a["state"] != v:
                 since = self.alarm_since.get(name) if a["state"] is None and on else None
-                a.update(state=v, since=since or t)
+                a.update(state=v, since=since or t, reason_dps=list(a["dps"]))
 
     def backfill(self, start: datetime) -> None:
         """Minute records from the outage to the episode start, which the world never ticks: the start's own state, with
@@ -642,8 +649,10 @@ class Telemetry:
                 met = ms.get("Metric") or {}
                 dims = {d["Name"]: d["Value"] for d in met.get("Dimensions", [])}
                 stat = ms.get("Stat") or "Average"
-                pts = self.aggregate(met.get("Namespace"), met.get("MetricName"), dims, p["StartTime"], p["EndTime"],
-                                     ms.get("Period", 60), [stat])
+                pts = [] if ms.get("Unit") and ms["Unit"] != UNITS.get((met.get("Namespace"), met.get("MetricName")),
+                                                                         "None") else self.aggregate(
+                    met.get("Namespace"), met.get("MetricName"), dims, p["StartTime"], p["EndTime"], ms.get("Period", 60),
+                    [stat])
                 pts = pts if p.get("ScanBy") == "TimestampAscending" else pts[::-1]
                 res.append({"Id": q.get("Id"), "Label": q.get("Label") or met.get("MetricName"),
                             "Timestamps": [t for t, _ in pts], "Values": [v[stat] for _, v in pts],
@@ -655,11 +664,12 @@ class Telemetry:
                 return None
             ext = p.get("ExtendedStatistics") or []
             stats = p.get("Statistics") or ([] if ext else ["Average"])
-            pts = self.aggregate(p["Namespace"], p["MetricName"], dims, p["StartTime"], p["EndTime"],
-                                 p.get("Period", 60), stats + ext)
+            unit_ = UNITS.get((p["Namespace"], p["MetricName"]), "None")
+            pts = [] if p.get("Unit") and p["Unit"] != unit_ else self.aggregate(
+                p["Namespace"], p["MetricName"], dims, p["StartTime"], p["EndTime"], p.get("Period", 60), stats + ext)
             return {"Label": p["MetricName"], "Datapoints": [
-                {"Timestamp": t, **{s: v[s] for s in stats},
-                 **({"ExtendedStatistics": {e: v[e] for e in ext}} if ext else {}), "Unit": "None"}
+                {"Timestamp": t, **{s: float(v[s]) for s in stats},
+                 **({"ExtendedStatistics": {e: float(v[e]) for e in ext}} if ext else {}), "Unit": unit_}
                 for t, v in pts[::-1]]}
         if op == "ListMetrics":
             names = [("Vantleaf/Checkout", "CheckoutSuccessRate", [{"Name": "Service", "Value": "checkout-api"}]),
@@ -687,7 +697,7 @@ class Telemetry:
                 a = self.alarms.get(name) or {"state": "INSUFFICIENT_DATA", "since": now, "dps": []}
                 if p.get("StateValue") and p["StateValue"] != a["state"]:
                     continue
-                dps = a["dps"][-periods:]
+                dps = a.get("reason_dps", a["dps"])[-periods:]
                 reason = (f"Threshold Crossed: {len(dps)} datapoint{'' if len(dps) == 1 else 's'} "
                           f"[{', '.join(_fmt(v) for v in dps)}] was {'' if a['state'] == 'ALARM' else 'not '}"
                           f"{'less' if cmp.startswith('Less') else 'greater'} than the threshold ({_fmt(thr)}).")
@@ -851,7 +861,8 @@ class Telemetry:
                 out.append(f"WARN admission: 429 Retry-After: 1 to webhooks-dispatcher for {m['rejected']:.0f} req/s "
                            f"over its quota of {m['quota']:.0f} req/s")
             return out
-        if kind == "endpointd" and not group.endswith("/planner") and m["latch"]:
+        if kind == "endpointd" and not group.endswith("/planner") and m["latch"] and \
+                m.get("ep_active", {}).get(group.rsplit("/", 1)[-1], True):
             return [f"WARN halt latch engaged: {m['latch']}; writing nothing"]
         return []
 

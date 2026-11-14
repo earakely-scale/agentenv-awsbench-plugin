@@ -37,7 +37,7 @@ from starlette.responses import JSONResponse
 
 from .account import Shown
 from .actionlog import ActionLog
-from .bridge import Bridge, CommandError, Faults, WallTimes, WorldPort, parse_command, split_globals
+from .bridge import Bridge, CommandError, Faults, WallTimes, WorldPort, operation_name, parse_command, split_globals
 from .cloudtrail import seed_trail
 from .emulator import Emulator
 from .errors import AwsError
@@ -375,16 +375,18 @@ class AwsServer(AgentEnvEnvironment):
         return {"_clock": self.meter.banner(drain=False), "error": NO_SCENARIO}
 
     async def _metered(self, ctx: ToolContext | None, tool_name: str, args: dict, work, *, hosts: int | None = None,
-                       cost_class: str | None = None, logged: bool = False) -> str:
+                       cost_class: str | None = None, logged: bool = False, profile: str | None = None) -> str:
         role = _role(ctx)
-        if refused := self._unconfigured(role) or unrunnable(tool_name, args, self.world):
+        if refused := (self._unconfigured(role) or unrunnable(tool_name, args, self.world)
+                       or self._unknown_profile(tool_name, args, role, profile)):
             return _json({"_clock": self.meter.banner(drain=self.meter.charged(role)),
                           **{k: v for k, v in refused.items() if k != "_clock"}})
         meter = self.meter
         began = await meter.begin("aws", tool_name, args, role, hosts=hosts, cost_class=cost_class)
         if not began["ok"]:
             return _json({"_clock": meter.banner(drain=meter.charged(role)), "error": began["refuse"]})
-        call = {"call_no": began["call_no"], "t": meter.now, "t_issue": meter.now, "tool": tool_name, "role": role}
+        call = {"call_no": began["call_no"], "t": meter.now, "t_issue": began["t_issue"], "tool": tool_name,
+                "role": role}
         result: Any = None
         try:
             await self._ready()
@@ -405,6 +407,22 @@ class AwsServer(AgentEnvEnvironment):
                                     drain=meter.charged(role))
         out = result if isinstance(result, dict) else {"result": result}
         return self.shown.out(_json({"_clock": ended["banner"], **out}))
+
+    def _unknown_profile(self, tool_name: str, args: dict, role: str, profile: str | None) -> dict | None:
+        """An AWS call naming a profile the caller lacks fails in the CLI before it reaches AWS: uncharged."""
+        if tool_name == "aws_cli":
+            profile = split_globals(parse_command(str(args.get("command") or "")))[1]
+        if tool_name not in ("aws_cli", "aws_api") or profile is None:
+            return None
+        try:
+            self.bridge.profile(role, profile)
+        except AwsError:
+            mine = ", ".join(p.get("profile", "?") for p in self.bridge.profiles.get(role or "") or [])
+            message = f"The config profile ({profile}) could not be found; your profiles: {mine}"
+            if tool_name == "aws_cli":
+                return {"exit_code": 255, "stderr": f"\n{message}\n", "charged": False}
+            return {"error": {"Code": "ProfileNotFound", "Message": message}, "charged": False}
+        return None
 
     def _need_world(self) -> Any:
         if self.world is None:
@@ -431,17 +449,19 @@ class AwsServer(AgentEnvEnvironment):
             return out
         return await self._metered(ctx, "aws_cli", {"command": command}, work, logged=True)
 
-    @tool(description="Call one AWS API operation through botocore: service (e.g. `route53`), operation (e.g. "
-                      "`ListResourceRecordSets`) and its parameters as the API names them.", structured_output=False)
+    @tool(description="Call one AWS API operation through botocore: service (e.g. `route53`), operation (the API "
+                      "name, e.g. `ListResourceRecordSets`, or its snake_case form) and its parameters as the API "
+                      "names them.", structured_output=False)
     async def aws_api(self, service: str, operation: str, ctx: ToolContext, params: dict | None = None,
                       profile: str | None = None, region: str | None = None) -> str:
+        operation = operation_name(service, operation)
         params = self.shown.inside(params or {})
         args = {"service": service, "operation": operation, "params": params}
 
         async def work(call: dict) -> dict:
             return await asyncio.to_thread(self.bridge.call_api, service, operation, params, role=_role(ctx),
                                            profile=profile, region=region, call=call)
-        return await self._metered(ctx, "aws_api", args, work, logged=True)
+        return await self._metered(ctx, "aws_api", args, work, logged=True, profile=profile)
 
     @tool(description="A broad query. `source=logs` runs the CloudWatch Logs Insights `query` over `log_groups`, e.g. "
                       "query `fields @timestamp, @message | filter @message like /<text>/ | limit 20`. Supported "
@@ -453,9 +473,9 @@ class AwsServer(AgentEnvEnvironment):
                       "`lookup_attributes` {\"EventName\": \"<API operation>\"} (or {\"AttributeKey\": "
                       "\"Username\", \"AttributeValue\": \"<user name>\"}); keys EventName, Username, EventSource, "
                       "ResourceType, ResourceName, EventId, ReadOnly, AccessKeyId; newest first; rows are compact "
-                      "(`full: true` adds each CloudTrailEvent). One cloudtrail answer holds at most about 40,000 "
-                      "characters of events: when `truncated` is true, call again with the same arguments plus "
-                      "the `end` it gave and `offset` = `next_offset`. `start`/`end` are "
+                      "(`full: true` adds each CloudTrailEvent). One cloudtrail answer holds at most `limit` events "
+                      "(default 100) and about 40,000 characters: when `truncated` is true there are more, so call "
+                      "again with the same arguments plus the `end` it gave and `offset` = `next_offset`. `start`/`end` are "
                       "RFC 3339; the default window is the last hour for logs, everything until now for cloudtrail.",
           structured_output=False)
     async def aws_query(self, ctx: ToolContext, source: str = "logs", query: str = "",
@@ -477,28 +497,31 @@ class AwsServer(AgentEnvEnvironment):
                     attrs = lookup_attributes_of(lookup_attributes)
                 except (TypeError, ValueError) as e:
                     return {"error": str(e)}
-                params = {**({"StartTime": t_start} if t_start else {}), "EndTime": t_end, "MaxResults": min(int(limit), 50),
+                off, lim = max(0, int(offset)), max(1, int(limit))
+                params = {**({"StartTime": t_start} if t_start else {}), "EndTime": t_end, "MaxResults": 50,
                           **({"LookupAttributes": attrs} if attrs else {})}
                 events: list = []
-                while len(events) < limit:
+                token = None
+                while len(events) < off + lim + 1:
                     out = await asyncio.to_thread(api, "cloudtrail", "LookupEvents", params, **kw)
                     if "error" in out:
                         return out
                     events += out.get("Events", [])
-                    if not out.get("NextToken"):
+                    token = out.get("NextToken")
+                    if not token:
                         break
-                    params["NextToken"] = out["NextToken"]
-                window = [e if full else trail_row(e) for e in events[max(0, int(offset)):limit]]
+                    params["NextToken"] = token
+                more = len(events) > off + lim or bool(token)
+                window = [e if full else trail_row(e) for e in events[off:off + lim]]
                 page, size = [], 1
                 for e in window:
                     if page and size + len(_json(e)) + 1 > TRAIL_MAX_CHARS:
                         break
                     page.append(e)
                     size += len(_json(e)) + 1
-                if len(page) == len(window):
+                if len(page) == len(window) and not more:
                     return {"source": "cloudtrail", "events": page}
-                return {"source": "cloudtrail", "events": page, "truncated": True,
-                        "next_offset": max(0, int(offset)) + len(page),
+                return {"source": "cloudtrail", "events": page, "truncated": True, "next_offset": off + len(page),
                         "end": t_end.astimezone(UTC).isoformat().replace("+00:00", "Z")}
             if source != "logs":
                 return {"error": f"unknown source {source!r}: logs or cloudtrail"}
@@ -580,7 +603,7 @@ class AwsServer(AgentEnvEnvironment):
         AWS credentials give, as aws_cli's writes have."""
         role = _role(ctx)
         return {"role": role, "principal": self.bridge.principal(role, self.bridge.profile(role, None)),
-                "call_no": call["call_no"], "t": call["t"]}
+                "call_no": call["call_no"], "t": call["t"], "t_issue": call.get("t_issue", call["t"])}
 
     @tool(description="Run one command on the hosts a selector names (a host, a glob, a fleet group or an AZ; "
                       "comma-separated). Each host answers with its stdout and exit code. One command per call: shell "

@@ -74,7 +74,8 @@ class AwsPort:
             if self.actionlog is not None and should_log:
                 t = self.now()
                 acting = {} if world_made else (self.acting or {})
-                self.actionlog.record(t=t, t_issue=t, principal=principal, world_made=world_made, server="aws",
+                self.actionlog.record(t=t, t_issue=acting.get("t_issue") or t, principal=principal,
+                                      world_made=world_made, server="aws",
                                       role="world" if world_made else acting.get("role"), call_no=acting.get("call_no"),
                                       service=service, operation=operation, params=params, error=error)
 

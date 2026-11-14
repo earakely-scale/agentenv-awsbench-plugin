@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from awsbench_aws.account import ACCOUNT, Shown
+from awsbench_aws.bridge import operation_name
 from awsbench_aws.cloudtrail import event
 from awsbench_aws.meter import parse_time
 from awsbench_aws.server import (
@@ -270,7 +271,7 @@ async def test_cloudtrail_rows_are_compact_under_the_cap():
     server.bridge.call_api = t01_trail_api()
     text = await server.aws_query(HARNESS, **ROUTE53)
     out = json.loads(text)
-    assert len(out["events"]) == 30 and "truncated" not in out
+    assert len(out["events"]) == 30 and out["truncated"] is True and out["next_offset"] == 30
     assert len(json.dumps(out["events"], ensure_ascii=False, separators=(",", ":"))) <= 40_000
     row = out["events"][0]
     assert "CloudTrailEvent" not in row and row["Role"] == "vl-endpointd-enactor-role"
@@ -281,19 +282,36 @@ async def test_full_cloudtrail_events_page_by_end_and_offset():
     server = AwsServer()
     server.ready.set()
     server.bridge.call_api = t01_trail_api()
-    seen, offset, pages = [], 0, 0
-    while True:
-        out = json.loads(await server.aws_query(HARNESS, **ROUTE53, full=True, offset=offset))
-        pages += 1
-        assert all("CloudTrailEvent" in e for e in out["events"])
-        assert len(json.dumps(out["events"], ensure_ascii=False, separators=(",", ":"))) <= 40_000
-        seen += [e["EventId"] for e in out["events"]]
-        if not out.get("truncated"):
-            break
-        assert out["end"] == "2026-11-17T07:50:30Z" and out["next_offset"] == offset + len(out["events"])
-        offset = out["next_offset"]
-    compact = json.loads(await server.aws_query(HARNESS, **ROUTE53))["events"]
-    assert pages > 1 and seen == [e["EventId"] for e in compact]
+
+    async def pages(**kw):
+        seen, offset, n = [], 0, 0
+        while True:
+            out = json.loads(await server.aws_query(HARNESS, **ROUTE53, **kw, offset=offset))
+            n += 1
+            assert len(json.dumps(out["events"], ensure_ascii=False, separators=(",", ":"))) <= 40_000
+            seen += [e["EventId"] for e in out["events"]]
+            if not out.get("truncated"):
+                return seen, n
+            assert out["end"] == "2026-11-17T07:50:30Z" and out["next_offset"] == offset + len(out["events"])
+            offset = out["next_offset"]
+    full, n_full = await pages(full=True)
+    compact, n_compact = await pages()
+    assert n_full > 1 and n_compact > 1 and full == compact and len(set(full)) == len(full)
+
+
+async def test_cloudtrail_says_when_limit_stopped_it():
+    """R13-fable CALL 37: limit 10 returned exactly 10 events with nothing to say more existed."""
+    server = AwsServer()
+    server.ready.set()
+    server.bridge.call_api = t01_trail_api()
+    first = json.loads(await server.aws_query(HARNESS, **{**ROUTE53, "limit": 10}))
+    assert len(first["events"]) == 10 and first["truncated"] is True and first["next_offset"] == 10
+    second = json.loads(await server.aws_query(HARNESS, **{**ROUTE53, "limit": 10}, offset=10))
+    ids = {e["EventId"] for e in first["events"]}
+    assert len(second["events"]) == 10 and not ids & {e["EventId"] for e in second["events"]}
+    whole = json.loads(await server.aws_query(HARNESS, **{**ROUTE53, "limit": 1000}))
+    assert [e["EventId"] for e in whole["events"]][:20] == [
+        e["EventId"] for e in first["events"] + second["events"]]
 
 
 def test_t01_restart_options_are_refused_before_the_meter(world):
@@ -305,3 +323,61 @@ def test_t01_restart_options_are_refused_before_the_meter(world):
     assert unrunnable("fleet_restart", {"selector": "vl-core", "batch_size": 5}, world) is None
     assert unrunnable("fleet_restart", {"selector": "streamroute", "batch_size": 12, "wait_for": "ready",
                                         "pause_seconds": 60}, t03_world()) is None
+
+
+def api_server():
+    server = AwsServer()
+    server.ready.set()
+    server.scenario = {}
+    server.bridge.profiles = profiles_of(SCENARIO)
+    server.bridge.call_api = lambda service, operation, params, **kw: {}
+    return server
+
+
+@pytest.mark.parametrize("operation,cls", [("describe_alarms", "point_read"), ("DescribeAlarms", "point_read"),
+                                           ("get_metric_statistics", "point_read"), ("start_query", "broad"),
+                                           ("put_parameter", "write")])
+async def test_aws_api_meters_snake_case_by_the_api_name(operation, cls):
+    """R12-haiku-1: 26 reads given in snake_case were charged as 45 s writes."""
+    server, seen = api_server(), []
+    server.bridge.call_api = lambda service, operation, params, **kw: seen.append(operation) or {}
+    service = {"start_query": "logs", "put_parameter": "ssm"}.get(operation, "cloudwatch")
+    await server.aws_api(service, operation, SRE, params={})
+    assert server.meter.rows[-1]["cost_class"] == cls and seen == [operation_name(service, operation)]
+    assert seen[0][0].isupper()
+
+
+def test_operation_names():
+    assert operation_name("cloudwatch", "describe_alarms") == "DescribeAlarms"
+    assert operation_name("route53", "test_dns_answer") == "TestDNSAnswer"
+    assert operation_name("logs", "start_query") == "StartQuery"
+    assert operation_name("ssm", "put_parameter") == "PutParameter"
+    assert operation_name("nosuch", "x") == "x"
+
+
+async def test_an_unknown_profile_fails_in_the_cli_uncharged():
+    """R12-haiku-1 CALLs 22-23: `--profile vl-prod` answered a fake AccessDenied and was charged 20 s."""
+    server = api_server()
+    server.bridge.run_cli = lambda command, **kw: {"exit_code": 0, "stdout": "{}", "stderr": ""}
+    out = json.loads(await server.aws_cli("aws logs describe-log-groups --profile vl-prod", SRE))
+    assert out["exit_code"] == 255 and out["charged"] is False and "could not be found" in out["stderr"]
+    assert server.meter.calls_used == 0 and not server.meter.rows
+    out = json.loads(await server.aws_api("cloudwatch", "DescribeAlarms", SRE, profile="vl-prod"))
+    assert out["error"]["Code"] == "ProfileNotFound" and out["charged"] is False and server.meter.calls_used == 0
+    await server.aws_cli("aws logs describe-log-groups --profile vl-prod/SRE-OnCall", SRE)
+    assert server.meter.calls_used == 1
+
+
+async def test_an_aws_row_records_when_the_call_was_issued():
+    """R13-fable-1 seq 70: an ssm PutParameter row had t_issue = t, the execution time."""
+    server = api_server()
+    seen = {}
+
+    async def work(call):
+        seen.update(call)
+        return {}
+    await server._metered(SRE, "aws_cli", {"command": "aws ssm put-parameter --name /vl/prod/x --value 1 --overwrite"},
+                          work)
+    row = server.meter.rows[-1]
+    assert seen["t_issue"] == parse_time(row["t_issue"]) and seen["t"] == parse_time(row["t_exec"])
+    assert (seen["t"] - seen["t_issue"]).total_seconds() == row["cost_s"] > 0

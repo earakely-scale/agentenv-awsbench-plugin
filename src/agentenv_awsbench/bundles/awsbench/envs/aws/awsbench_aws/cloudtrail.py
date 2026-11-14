@@ -79,6 +79,11 @@ def resources(service: str, params: dict | None) -> list[dict]:
     return out
 
 
+def _role_id(role: str) -> str:
+    """A role's unique id, as IAM gives it: the same on every event the role's sessions make."""
+    return hashlib.sha256(role.encode()).hexdigest()[:17].upper()
+
+
 def event(t: datetime, service: str, operation: str, params: dict | None, principal: str | None, *,
           error: dict | None = None, session: str | None = None, key: str = "", region: str = "us-east-1") -> dict:
     """One LookupEvents event, with its CloudTrailEvent JSON as CloudTrail writes it."""
@@ -86,7 +91,7 @@ def event(t: datetime, service: str, operation: str, params: dict | None, princi
     role, user = identity(principal, session)
     source = f"{SOURCES.get(service, service)}.amazonaws.com"
     detail = {"eventVersion": "1.08",
-              "userIdentity": {"type": "AssumedRole", "principalId": f"AROA{eid[:13].upper()}:{user}",
+              "userIdentity": {"type": "AssumedRole", "principalId": f"AROA{_role_id(role)}:{user}",
                                "arn": f"arn:aws:sts::{ACCOUNT}:assumed-role/{role}/{user}", "accountId": ACCOUNT,
                                "sessionContext": {"sessionIssuer": {"type": "Role", "userName": role,
                                                                     "arn": f"arn:aws:iam::{ACCOUNT}:role/{role}"}}},

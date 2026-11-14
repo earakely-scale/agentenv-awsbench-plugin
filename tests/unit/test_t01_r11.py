@@ -61,7 +61,7 @@ def test_ingress_cert_directories_answer_as_the_hosts_hold_them(world):  # noqa:
     out, code = run(world, "li-b-01", "ls -l /etc/envoy/certs/")
     assert (out, code) == ("ls: cannot access '/etc/envoy/certs/': No such file or directory\n", 2)
     out, code = run(world, "li-b-01", "ls /etc/envoy/tls")
-    assert code == 0 and out.split() == ["ledger-ingress.pem", "ledger-ingress.key"]
+    assert code == 0 and out.split() == ["ledger-ingress.key", "ledger-ingress.pem"]
     for host in ("li-a-01", "li-a-02", "li-c-01"):
         out, code = run(world, host, "ls -l /etc/envoy/certs/")
         assert code == 0 and out.startswith("total 8\n") and "ledger-ingress.pem" in out, host

@@ -352,13 +352,20 @@ def test_support_wave_posts_tickets_that_exist():
     w = World(SCENARIO, "eval-seed-1", aws, port)
     w.start()
     w.advance_to(at("02:56:30"))
-    texts = [m["text"] for m in port.ws.store.items("chat.message") if m["channel"] == "#support-escalations"
-             and m["user"] == "support-desk"]
-    keys = [re.search(r"ticket (\S+):", t).group(1) for t in texts]
-    assert keys[:3] == ["SUP-88001", "SUP-88002", "SUP-88003"]
-    for k in keys:
-        issue = port.ws.store.get("tickets.issue", k)
+    seeded = {i["key"] for i in RealWs().ws.store.items("tickets.issue")}
+    issues = [i for i in port.ws.store.items("tickets.issue") if i.get("reporter") == "support-desk"
+              and i["key"] not in seeded]
+    assert [i["key"] for i in issues][:3] == ["SUP-88001", "SUP-88002", "SUP-88003"]
+    for issue in issues:
         assert issue["project"] == "SUP" and issue["status"] == "New" and issue["untrusted"] is True
+    assert not port.ws.store.get("chat.channel", "#support-escalations")
+
+
+def test_every_channel_the_timeline_posts_to_is_seeded():
+    seeded = {c["name"] if isinstance(c, dict) else c for c in RealWs().ws.store.items("chat.channel")}
+    posted = {a["args"]["channel"] for ev in SCENARIO["timeline"] for a in ev.get("actions") or []
+              if a.get("op") == "chat.post_as" and str(a["args"].get("channel", "")).startswith("#")}
+    assert posted and posted <= seeded, posted - seeded
 
 
 R8_S1_0255 = (  # R8-sonnet-1 m-11, 02:55:20

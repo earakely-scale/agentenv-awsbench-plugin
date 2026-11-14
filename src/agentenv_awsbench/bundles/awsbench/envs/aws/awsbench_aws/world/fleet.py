@@ -236,7 +236,10 @@ class Fleet:
         used = server or "127.0.0.1"
         c, lines = show["comments"], []
         if show["cmd"]:
-            lines += [f"; <<>> DiG 9.18.28-0ubuntu0.22.04.1-Ubuntu <<>> {' '.join(args)}", ";; global options: +cmd"]
+            os_name = self.inspect(host, now).get("os", "")
+            ver = ("9.18.33" if "Amazon Linux" in os_name else "9.18.28-0ubuntu0.20.04.1-Ubuntu" if "20.04" in os_name
+                   else "9.18.28-0ubuntu0.22.04.1-Ubuntu")
+            lines += [f"; <<>> DiG {ver} <<>> {' '.join(args)}", ";; global options: +cmd"]
         if c:
             lines += [";; Got answer:", f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: {qid}",
                       f";; flags: qr rd ra; QUERY: 1, ANSWER: {len(ips)}, AUTHORITY: {0 if ips else 1}, ADDITIONAL: 1",
@@ -276,9 +279,12 @@ class Fleet:
         if host not in self.w.dns.hosts:
             return "ok\n", 0
         target = argv[2].rstrip(".") if len(argv) > 2 else ""
+        neg = int(not self.w.dns.resolves(host, now))
         if argv[1] == "flush_negative" or target in (self.w.dns.name, self.w.mirror.zone):
             self.w.dns.flush(host, now)
-        return "ok\n", 0
+        if argv[1] == "flush":
+            return "ok\n", 0
+        return f"ok removed {neg} rrsets, {neg} messages and 0 key entries\n", 0
 
     def systemctl_cmd(self, host, args, now):
         """systemctl as an operator types it: options anywhere (`--no-pager`, `--type=service`, `-n 20`), several units
@@ -348,16 +354,24 @@ class Fleet:
         paths = {a: a.rstrip("/") for a in args if not a.startswith("-")}
         if not paths:
             return NOT_AVAILABLE.format(cmd="ls") + "\n", 127
-        if unknown := [a for a, d in paths.items() if d not in dirs]:
+        if all(d not in dirs for d in paths.values()):
             return "".join(f"ls: cannot open directory '{a}': not available in this environment\n"
-                           for a in unknown), 127
-        long = any(a.startswith("-") and not a.startswith("--") and "l" in a for a in args)
-        out = [f"ls: cannot access '{a}': No such file or directory" for a, d in paths.items() if dirs[d] is None]
+                           for a in paths), 127
+        flags = "".join(a[1:] for a in args if a.startswith("-") and not a.startswith("--"))
+        long, every = "l" in flags, "a" in flags
+        out = [f"ls: cannot open directory '{a}': not available in this environment" if d not in dirs else
+               f"ls: cannot access '{a}': No such file or directory" for a, d in paths.items() if dirs.get(d) is None]
         for a, d in paths.items():
-            if dirs[d] is not None:
+            if dirs.get(d) is not None:
+                rows = sorted(dirs[d], key=lambda e: e.split()[-1])
+                if every and rows:
+                    e = rows[0].split()
+                    stamp = max(" ".join(r.split()[5:8]) for r in rows)
+                    dot = f"drwxr-x--- 2 {e[2]} {e[3]} 4096 {stamp}"
+                    rows = [f"{dot} .", f"{dot} ..", *rows]
                 out += [f"{a}:"] * (len(paths) > 1) + (
-                    [f"total {4 * len(dirs[d])}", *dirs[d]] if long else [e.split()[-1] for e in dirs[d]])
-        return "\n".join(out) + "\n", 2 if any(dirs[d] is None for d in paths.values()) else 0
+                    [f"total {4 * len(rows)}", *rows] if long else [e.split()[-1] for e in rows])
+        return "\n".join(out) + "\n", 2 if any(dirs.get(d) is None for d in paths.values()) else 0
 
     # ---- units: systemctl status, journalctl, ps, curl ----
     def units(self, host: str) -> dict[str, dict]:
@@ -413,9 +427,12 @@ class Fleet:
         comp = next((c for c in COMPONENTS if host_of(c) == host), None)
         if comp:
             ep = self.w.endpointd
-            if comp != "planner" and ep.engaged() and ep.processes[comp]:
-                why = ep.latch_reasons()[0]
-                rows.append((hms(now), f"endpointd[2147]: WARN halt latch engaged: {why}; writing nothing"))
+            if comp != "planner":
+                t = (now - timedelta(minutes=30)).replace(second=42, microsecond=0)
+                while t <= now:
+                    rows += [(hms(t.astimezone(tz)), f"endpointd[2147]: {line}")
+                             for line in self.w.telemetry.lines(f"/vl/platform/endpointd/{comp}", t)]
+                    t += timedelta(minutes=1)
             rows += [(ev["t"][11:19], f"endpointd[2147]: INFO batch gen {ev['gen']} {ev['event']}")
                      for ev in ep.apply_events[-5:] if ev["enactor"] == comp]
             rows += [(hms(t.astimezone(tz)), f"endpointd[2147]: {msg}") for t, g, msg in self.w.telemetry.extra_logs

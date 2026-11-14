@@ -5,6 +5,7 @@ world answer the reads it serves (metrics, logs, queue depths) before the emulat
 
 import copy
 import fnmatch
+import functools
 import hashlib
 import io
 import math
@@ -94,6 +95,21 @@ def parse_command(command: str) -> list[str]:
     if tokens[1] in NOT_HERE:
         raise CommandError(f"'aws {tokens[1]}' is not available: your profile and region are set for you")
     return tokens[1:]
+
+
+_SESSION = botocore.session.get_session()
+
+
+@functools.lru_cache(maxsize=256)
+def operation_name(service: str, operation: str) -> str:
+    """The API name of an operation given as the API names it or in snake_case (`describe_alarms`), so the meter, the
+    action log and the world see one name; unchanged when the service or operation is unknown."""
+    try:
+        model = _SESSION.get_service_model(service)
+    except BotoCoreError:
+        return operation
+    want = xform_name(operation)
+    return next((name for name in model.operation_names if xform_name(name) == want), operation)
 
 
 def split_globals(argv: list[str]) -> tuple[list[str], str | None, str | None]:
@@ -272,7 +288,8 @@ class WorldPort(AwsPort):
                                   t and t + timedelta(seconds=float(acting.get("retry_s") or 0)))
             except AwsError as e:
                 if self.actionlog is not None:
-                    self.actionlog.record(t=t, t_issue=t, principal=principal, world_made=False, server="aws",
+                    self.actionlog.record(t=t, t_issue=acting.get("t_issue") or t, principal=principal,
+                                          world_made=False, server="aws",
                                           role=acting.get("role"), call_no=acting.get("call_no"), service=service,
                                           operation=operation, params=params, error=e.as_dict())
                 raise

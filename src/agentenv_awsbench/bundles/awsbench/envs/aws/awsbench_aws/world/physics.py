@@ -226,7 +226,7 @@ class Storm:
         if lev["admission"]:
             delivered = min(delivered, lev["dispatcher_quota"])
         self.backlog = max(0.0, self.backlog + (arrivals - delivered) * dt)
-        inflow = float(self.cfg.get("outbox_inflow_per_s", 15)) * (1 - rs) if reads else 0.0
+        inflow = float(self.cfg.get("outbox_inflow_per_s", 15)) * (1 - rs + rs * FAILURE[self.regime]) if reads else 0.0
         drain = lev["replay_rate"] * rs if self.regime != "collapsed" and reads else 0.0
         self.outbox = max(0.0, self.outbox + (inflow - drain) * dt)
 

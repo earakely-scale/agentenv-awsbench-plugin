@@ -82,7 +82,7 @@ Each charged call:
    ended, the budget is spent, or the clock is at `window_end`. It counts the call (`call_no`), picks its cost class,
    draws jitter, and advances the world and the gateway clock to `t_exec = min(now + cost, window_end)`, the cost
    rounded to whole seconds. It returns
-   `{ok, call_no, t_exec, calls_left}`, or `{ok: false, refuse: "<message>"}`.
+   `{ok, call_no, t_issue, t_exec, calls_left}`, or `{ok: false, refuse: "<message>"}`.
 2. The tool executes at `t_exec` (effect time = done time).
 3. `end(call_no, tool, args, result_summary, resolved)`. It records the call, lets the world observe it (action
    events, NPC routing, unless-cancels), releases the lane, and returns `{banner}`.
@@ -99,8 +99,10 @@ Each charged call:
 
 **Budget.** `max_calls` (T01: 250) counts every admitted charged call. Later calls get an error result
 `"Call budget exhausted (250/250); write nothing more and reply DONE"` and are neither executed nor charged.
-A call whose text can't run (an `aws_cli` command the CLI won't parse, a `fleet_exec` with shell operators or nothing to
-run) is refused before the meter the same way, uncharged and uncounted; a command that runs and fails is charged.
+A call whose text can't run (an `aws_cli` command the CLI won't parse, an `aws_cli` or `aws_api` call naming an unknown
+`--profile`, a `fleet_exec` with shell operators or nothing to run) is refused before the meter the same way, uncharged
+and uncounted; a command that runs and fails is charged. `aws_api` takes an operation's API name or its snake_case form
+and meters, logs and records it under the API name.
 
 **Banner.** Every tool result of either server is a single JSON text block (`structured_output=False`). The top-level
 object carries, as its first key, `"_clock": {"now": "<HH:MM:SS ET>", "call": n, "calls_left": m, "new": [<inbound items since the last

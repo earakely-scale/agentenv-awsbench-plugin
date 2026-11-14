@@ -97,13 +97,14 @@ def update(ws: Workspace, actor: str, t: datetime, page: str, body: str, comment
     if p is None:
         if not space:
             raise ToolError(f"no wiki page {page!r}; give space to create it")
-        pid = f"{space.upper()}-{ws.next_id('wiki', 1)}"
+        pid = f"{space.upper()}-PAGE-{ws.next_id('wiki', 1)}"
         p = ws.store.create(K_PAGE, pid, {
             "id": pid, "space": space.upper(), "title": title or page, "labels": [], "author": actor,
             "created": ws.iso(t), "updated": ws.iso(t), "version": 1, "body": body,
             "versions": [{"version": 1, "author": actor, "ts": ws.iso(t), "body": body, "comment": comment}],
             "comments": []}, by=actor, t=t)
-        return {"created": {"id": pid, "version": 1}}, _resolved(p, ["created"])
+        return {"created": {"id": pid, "space": space.upper(), "title": title or page, "version": 1}}, _resolved(
+            p, ["created"])
     if body == p["body"] and not title:
         raise ToolError("the body is unchanged")
     v = _new_version(ws, p, body, actor, t, comment, title)

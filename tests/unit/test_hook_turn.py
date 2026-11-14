@@ -51,6 +51,19 @@ def test_said_done():
     assert hook.said_done("# DONE:\nhandoff on OPS-4452")
     assert not hook.said_done("DONE with step 1\nnow checking the plan store")
     assert not hook.said_done("UNDONE\nstill rolling back")
+    assert not hook.said_done("x\n...resolve si-1 and the ticket, then reply DONE.")
+    assert not hook.said_done("I'm not DONE.")
+    assert hook.said_done("All set. DONE.") and hook.said_done("I\u2019m DONE.")
+
+
+R12 = json.loads((Path(__file__).parent / "test_t01_r12_texts.json").read_text())
+
+
+def test_said_done_on_the_r12_replies():
+    """haiku-1 and haiku-3 said DONE and ran on to the window's end; haiku-5 refused DONE and was ended as done."""
+    for key in ("haiku1_turn1", "haiku1_turn4", "haiku3_turn1", "haiku3_turn2"):
+        assert hook.said_done(R12[key]), key
+    assert not hook.said_done(R12["haiku5_final"])
 
 
 async def test_done_ends_the_episode():

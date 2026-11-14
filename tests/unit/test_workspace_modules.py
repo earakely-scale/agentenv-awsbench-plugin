@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 import pytest
@@ -147,7 +148,9 @@ def test_wiki_versions_history_restore_comment(ws):
     wiki.comment(ws, ME, later(ws), "PLAT/endpointd design", "step 3 should say last-known-good")
     assert wiki.get(ws, ME, ws.clock(), "PLAT-DOC-ENDPOINTD")["page"]["comments"][0]["author"] == ME
     created, _ = wiki.update(ws, ME, later(ws), "OPS-4452 timeline", "02:31 race", space="OPS")
-    assert created["created"]["version"] == 1
+    assert created["created"]["version"] == 1 and created["created"]["id"] == "OPS-PAGE-1"
+    assert not re.fullmatch(r"[A-Za-z]+-\d+", created["created"]["id"])
+    assert wiki.get(ws, ME, ws.clock(), "OPS-PAGE-1")["page"]["title"] == "OPS-4452 timeline"
     assert "PLAT-DOC-ENDPOINTD" in [p["id"] for p in wiki.search(ws, ME, ws.clock(), "last-known-good")["pages"]]
     with pytest.raises(ToolError):
         wiki.get(ws, ME, ws.clock(), "no such page at all")
