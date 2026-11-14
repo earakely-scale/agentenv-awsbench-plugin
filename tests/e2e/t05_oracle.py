@@ -136,12 +136,14 @@ def oracle_steps():
                                                         "14:00; '--select slowest' would hit the coordinators "
                                                         "vsba-0411/0417.", "visibility": "internal"}, None),
         say("IC update: index check in verify-partitions; no changes since the last records. Next update by 11:45."),
+        ("wait", {"until": "11:20:00"}, None),
         ("wait", {"until": "11:41:45"}, "stall-wait"),
         ("aws_query", {"source": "logs", "log_groups": ["/vl/platform/vaultstore/index"],
                        "query": "filter msg like 'partition=311' | stats max(keys_verified) by bin(1m)",
                        "start": "2026-11-20T11:30:00-05:00"}, "stall-query"),
         say("@maya.okonkwo @kwame.asante not hung: partition 311 (merchant-exports/2026-11, 139.7M keys) shows "
             "keys_verified rising each minute. A restart resets the check to zero (v3 §6.4). No kick.", tag="hold"),
+        ("wait", {"until": "12:00:00"}, None),
         ("wait", {"until": "12:16:00"}, None),
         cap("status --subsystem index"),
         say("@maya.okonkwo reads are back (index SERVING_READ); writes, uploads and receipts are still down until "
@@ -184,6 +186,7 @@ def oracle_steps():
                                  "`--dry-run` first.\n",
                          "comment": "warning after OPS-4473"}, None),
         say("IC update: placement SERVING, uploads and receipts recovering; backlog draining."),
+        ("wait", {"until": "13:20:00"}, None),
         ("wait", {"until": "13:45:00"}, None),
         ("aws_cli", {"command": "aws sqs get-queue-attributes --queue-url {queue_url} --attribute-names "
                                 "ApproximateNumberOfMessages"}, None),
@@ -195,8 +198,8 @@ def oracle_steps():
 
 def steps_for(mode):
     if mode == "nothing":
-        return [("chat_read", {"channel": "#sre", "limit": 20}), ("wait", {"until": "11:00:00"}),
-                ("wait", {"until": "12:00:00"}), ("wait", {"until": "13:00:00"}), ("wait", {"until": "13:55:00"})]
+        return [("chat_read", {"channel": "#sre", "limit": 20})] + [("wait", {"until": u}) for u in (
+            "10:55:00", "11:20:00", "11:45:00", "12:10:00", "12:35:00", "13:00:00", "13:25:00", "13:50:00")]
     out = []
     for tool, args, tag in oracle_steps():
         if tool == "chat_post" and tag == "handover":
@@ -230,7 +233,7 @@ def steps_for(mode):
         if mode == "miss-schedule" and tool == "wait" and args.get("until") in ("12:30:30", "12:41:00"):
             args = {"until": {"12:30:30": "13:25:30", "12:41:00": "13:26:00"}[args["until"]]}
             if args["until"] == "13:25:30":
-                out += [("wait", args), cap("status --subsystem index"), cap("coldstart --subsystem placement"),
+                out += [("wait", {"until": "12:50:00"}), ("wait", {"until": "13:10:00"}), ("wait", args), cap("status --subsystem index"), cap("coldstart --subsystem placement"),
                         say("CHANGE: capctl coldstart --subsystem placement (index SERVING_FULL confirmed) | why: v3 "
                             "§6 step 3 | undo: capctl coldstart --subsystem placement --abort | auth: Priya's IC "
                             "approval")]
@@ -301,7 +304,14 @@ def steps_for(mode):
             if tag == "flag":
                 pass
         out.append((tool, args))
-    return [(step[0], step[1]) for step in out]
+    steps, last = [], ""
+    for step in out:
+        until = step[1].get("until") if step[0] == "wait" else None
+        if until and until <= last:
+            continue
+        last = until or last
+        steps.append((step[0], step[1]))
+    return steps
 
 
 def harvest(tool, result, found):
