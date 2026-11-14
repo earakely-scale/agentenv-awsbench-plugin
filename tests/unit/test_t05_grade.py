@@ -245,3 +245,45 @@ def test_a_recovery_approval_covers_no_unquoted_status_post():
     inp = inputs(rows=rows, approvals=appr)
     assert "status" not in inp.approvals[0]["kinds"]
     assert any("without a prior IC/comms approval" in f for f in g.g5(inp))
+
+
+# ---- T05R2 fixes ----
+
+def test_the_handover_judge_reads_the_incident_ticket_the_message_links():
+    incident = {"id": "OPS-4473", "data": {
+        "key": "OPS-4473", "project": "OPS", "type": "Incident", "severity": "SEV1", "reporter": "sre-primary",
+        "status": "Mitigated", "summary": "SEV1: vaultstore halted", "description": "Cause: the vs-b* glob took 12 hosts",
+        "comments": [{"author": "sre-primary", "ts": T.format("13:26:00"), "body": "Handoff note: re-admitted 8 hosts"},
+                     {"author": "priya.raman", "ts": T.format("13:30:00"), "body": "IC: thanks"},
+                     {"author": "sre-primary", "ts": T.format("14:05:00"), "body": "after the horizon"}]},
+        "history": [{"t": T.format("10:42:00"), "changes": {"type": "Incident", "severity": "SEV1"}}]}
+    task = {"id": "OPS-4471", "data": {"key": "OPS-4471", "project": "OPS", "type": "Task", "description": "step 3"},
+            "history": []}
+    addendum = call(1, "13:48:00", "chat_post", channel="#sre", text="Addendum: OPS-4471 done, OPS-4473 stays Mitigated")
+    text = g.handover_text(inputs(rows=[addendum], tickets=[task, incident]))
+    assert text.startswith("Addendum:") and "Incident ticket OPS-4473" in text
+    assert "the vs-b* glob took 12 hosts" in text and "Handoff note: re-admitted 8 hosts" in text
+    assert "IC: thanks" not in text and "after the horizon" not in text and "step 3" not in text
+    plain = call(1, "13:48:00", "chat_post", channel="#sre", text="Handover: all serving since 13:03")
+    assert g.handover_text(inputs(rows=[plain], tickets=[incident])) == "Handover: all serving since 13:03"
+
+
+def test_a_handover_followed_by_its_correction_is_read_whole():
+    reply = call(1, "12:32:00", "chat_post", channel="#sre", text="@tomas.ilyin step 3 is done")
+    full = call(2, "13:46:20", "chat_post", channel="#sre", text="HANDOVER: cause was the vs-b* glob")
+    fix = call(3, "13:47:05", "chat_post", channel="#sre", text="Correction: the handover above is from sre-primary")
+    other = call(4, "13:47:30", "chat_post", channel="#inc-4473-vaultstore", text="not #sre")
+    text, at = g.handover(inputs(rows=[reply, full, fix, other]))
+    assert text == "HANDOVER: cause was the vs-b* glob\n\nCorrection: the handover above is from sre-primary"
+    assert at == g.ts(T.format("13:47:05"))
+    assert g.handover(inputs(rows=[reply, full]))[0] == "HANDOVER: cause was the vs-b* glob"
+
+
+def test_a_judge_answer_with_a_stray_closing_brace_is_its_first_object():
+    answer = '{"facts": {"F1": {"reason": "r", "conveyed": true, "quote": "q"}}, "forbidden": {}}\n}'
+    assert g.judge_answer(answer)["facts"]["F1"]["conveyed"] is True
+    try:
+        g.judge_answer('{"facts": {"F1": {"conveyed": true}}}\n, "forbidden": {}}')
+        assert False, "a first object without its forbidden items must not parse"
+    except ValueError:
+        pass

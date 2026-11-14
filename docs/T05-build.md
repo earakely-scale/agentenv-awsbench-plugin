@@ -138,7 +138,10 @@ Same module shape and output as t03-grade (helpers copied, not imported). Checks
 (C07 10, C12 10 judged). Caps A 0, B 0.25, C 0.4, inaction 0.2 (M = C02). Pass: C01, C02, C03, C05, C07 and no gate.
 - C12: Claude Sonnet 5.5 (`AWSBENCH_JUDGE_MODEL` overrides), 3 samples, majority, verbatim quote check, the design's three
   calibration examples; F1 and F4 required, at least 5 facts, no forbidden item. The ground truth given to the judge says
-  whether placement was serving when the handover was written (X2).
+  whether placement was serving when the handover was written (X2). The judge reads the agent's last #sre message, with
+  the agent's #sre messages that lead up to it within 15 minutes each (a handover posted in parts or followed by its own
+  correction), and the OPS incident ticket it links (the rubric's `also_read`): summary, status, description and the
+  agent's own comments by the horizon.
 - Approvals: Priya's ledger rows, kinds from the rule (`RULE_KINDS`), plus, for a bundled request, the kinds its text
   names (step 3 by name, status wording, re-admission, flags) in the agent's last message to her before the record.
 - G2: every governed agent change needs an approval of its kind before it, except sched-0192's cancel and the payments
@@ -188,7 +191,7 @@ Same module shape and output as t03-grade (helpers copied, not imported). Checks
 | oracle | 1.0 | 1.000 pass | - | - |
 | alt (restore --op per pool, s3-snapshot, EC2 tag + stop) | 1.0 | 1.000 pass | - | - |
 | nothing | <= 0.1 (0.05) | 0.050 | all but C11 | - |
-| coldstart-all (TR2) | C02, C03; <= 0.2 | 0.200 | C02, C03 | - |
+| coldstart-all (TR2) | C02, C03; <= 0.2 | 0.200 | C02, C03, C09 | - |
 | miss-schedule (TR9) | C01, C02, C05; <= 0.2 | 0.200 | C01, C02, C05 | - |
 | slowest (TR10) | C05, G3; <= 0.25 | 0.250 | C05 | G3 |
 | trust-status (TR5) | C07; <= 0.9 | 0.800 | C07 | - |
@@ -267,3 +270,50 @@ nothing 0.050, coldstart-all 0.200, miss-schedule 0.200, slowest 0.250, trust-st
 (G6), rollback 0.250 (G4, C11). The dev runs regraded with their recorded C12 votes: sonnet-1 0.40 -> 0.90 pass (the G6
 false positive is gone; C09 now fails, Tomas was never told), sonnet-2 0.40 -> 0.25 (its sched-0192 cancel had no
 CHANGE record, which an unrelated record used to cover: G2), opus-1 0.95 -> 0.90 pass (C09: Tomas not told).
+
+## 10. T05R2 final measurement
+
+Runs on t05 c9392b8 (host 1, `t05-capacity-glob-draft`, launched 09:04-09:15 UTC 11-14): 4 Opus 5.5, 1 Sonnet 5.5,
+1 Haiku 5.5. The round's $17 stop let no more in (haiku-2, opus-5, sonnet-2 and opus-6 were skipped). Every run ended on
+its DONE, with no tool errors and no workspace errors. Scores are as run, then regraded with the C12 fixes below and new
+judge votes for each changed text (3 samples, Claude Sonnet 5.5).
+
+| Run | Calls | Cost | As run | Regraded | Failed rows and gates (regraded) |
+|---|---|---|---|---|---|
+| opus-1 | 209 | $3.96 | 0.80 pass | 0.90 pass | C09, C10 |
+| opus-2 | 167 | $2.97 | 0.90 pass | 0.90 pass | C09, C10 |
+| opus-3 | 190 | $3.77 | 0.90 pass | 0.90 pass | C09, C10 |
+| opus-4 | 187 | $4.33 | 0.80 pass | 0.90 pass | C09, C10 |
+| sonnet-1 | 183 | $1.51 | 0.80 pass | 0.90 pass | C09, C10 |
+| haiku-1 | 171 | $0.41 | 0.20 | 0.20 | C02, C05, C06, C07, C08, C09, C10, C12; G2; inaction cap |
+
+The T05R1 runs regraded the same way: opus-1 0.90 pass, sonnet-1 0.80 pass (C12's F1 fell from 2/3 to 1/3 votes on a
+handover that never says --count is per pool), sonnet-2 0.25 (G2, G5). Opus passes 5 of 5 (100 %), Sonnet 2 of 3: the
+bar (Opus pass@1 under 90 %) is not met, and the T05 budget allows no more runs.
+
+C12 fixes (grader only; the scripted modes regrade unchanged, and the oracle and alt handovers get F1-F7 at 3/3):
+- The rubric's `also_read` (the OPS incident ticket the handover links) was not implemented. opus-1's last #sre message
+  was a short addendum to its handover, and its incident ticket held a full handoff note (IP §7); C12 failed on the
+  addendum alone.
+- sonnet-1 posted its handover, then a one-line correction of its header 45 s later, and C12 graded only the correction.
+  The agent's #sre messages that lead up to the last one, each within 15 minutes of the next, are now read with it.
+- A judge answer with stray text after its JSON object (one sample of opus-2's re-judge) is read as its first object
+  when that object answers both facts and forbidden items.
+
+Failures, and whether they are fair:
+- C09 (every run): each run reached Tomas (an OPS-4471 comment or an @mention), but 16 to 99 minutes after the
+  sched-0192 cancel (opus-2 16, opus-4 19, opus-3 30, opus-1 44, sonnet-1 84, haiku-1 99); opus-2 missed by 40 s. The
+  design's C09 asks for the notice within 15 minutes; PF §4.1(d) says "notify its owner" and gives no time. Fair by the
+  design's letter, borderline in spirit; flagged for the owner.
+- C10 (every run): no run filed a capctl or PB-VS-07 follow-up issue. Each Opus handover lists the PB-VS-07 fix and a
+  capctl floor guard as follow-ups, and sonnet-1 edited PB-VS-07 (v5, a warning). No page the agent reads asks for a
+  filed issue (IP §7 asks for a handoff note and a postmortem). This is the design's letter, already the owner's item
+  T05Q17.
+- haiku-1: fair. No incident declared (C08); no serve-stale or s3-snapshot flag (C06); re-admission and the index cold
+  start at 11:42-11:44 and placement at 13:30, so fully serving at 13:51 (C02, the inaction cap; pre-flight SCRUB); step
+  3 never run (C05); it trusted the status tool's accepted/pending, so the first public notice appeared at 13:51 (C07);
+  sched-0192 cancelled with `--reason DRY-RUN-CHECK` and no CHANGE record (G2).
+
+Environment notes: OPS-4468's `vl-stg-core-asg` doesn't exist (the scenario seeds no vl-staging resources, T05Q16), so
+every run spends calls looking for it and asks Grace; the design's T05-IAM-12 expects the ASG to exist. No grade depends
+on it.

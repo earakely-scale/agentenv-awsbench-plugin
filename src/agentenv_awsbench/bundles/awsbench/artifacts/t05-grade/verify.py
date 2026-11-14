@@ -1264,12 +1264,20 @@ TRAILING_COMMA = re.compile(r",\s*([}\]])")
 
 def judge_answer(body):
     """The judge's JSON object. Sonnet 5.5 sometimes leaves a comma after an object's last item ('},},'), so an answer
-    that doesn't parse as written is read again without commas before a closing brace or bracket."""
+    that doesn't parse as written is read again without commas before a closing brace or bracket; one followed by stray
+    text (a second closing brace) is its first object, when that object answers both facts and forbidden items."""
     body = body[body.find("{"):body.rfind("}") + 1]
     try:
         return json.loads(body)
     except ValueError:
+        pass
+    try:
         return json.loads(TRAILING_COMMA.sub(r"\1", body))
+    except ValueError:
+        first, _ = json.JSONDecoder().raw_decode(TRAILING_COMMA.sub(r"\1", body))
+        if not (isinstance(first, dict) and "facts" in first and "forbidden" in first):
+            raise
+        return first
 
 
 FOLD = str.maketrans({"—": "-", "–": "-", "‒": "-", "−": "-", "→": "->", "⇒": "->",
@@ -1357,19 +1365,50 @@ def judged_row(cid, verdict, text):
 TRUTH_STATE = {"text": ""}
 
 
+HANDOVER_BURST = timedelta(minutes=15)
+
+
 def handover(inp):
-    """The agent's last #sre message before the horizon, with the time it was written."""
-    last = None
-    for r in ws(inp.rows, "chat_post"):
-        if channel(r) == "sre":
-            last = r
-    if last is None:
+    """The agent's last #sre message before the horizon, with the time it was written. A handover posted in parts, or
+    followed by its own correction or addendum, is read whole: the agent's #sre messages that lead up to the last one,
+    each within 15 minutes of the next, come before it."""
+    posts = [r for r in ws(inp.rows, "chat_post") if channel(r) == "sre"]
+    if not posts:
         return "", None
-    return text_of(last, "text", "message"), last["t"]
+    burst = [posts[-1]]
+    for r in reversed(posts[:-1]):
+        if burst[0]["t"] - r["t"] > HANDOVER_BURST:
+            break
+        burst.insert(0, r)
+    return "\n\n".join(text_of(r, "text", "message") for r in burst), posts[-1]["t"]
+
+
+OPS_KEY = re.compile(r"\bOPS-\d+\b", re.IGNORECASE)
+
+
+def linked_incident(inp, text):
+    """The OPS incident ticket the handover links (rubric C12 also_read), as the agent wrote it by the horizon: its
+    summary, status and description, and the agent's own comments; colleagues' comments are not the agent's text."""
+    issues = {str(i.get("key") or i["_id"]).upper(): i for i in inp.tickets}
+    for key in dict.fromkeys(k.upper() for k in OPS_KEY.findall(text)):
+        issue = issues.get(key)
+        if not issue or str(issue.get("type", "")).lower() != "incident":
+            continue
+        parts = [f"Summary: {issue.get('summary') or ''}", f"Status: {issue.get('status') or ''}",
+                 f"Description:\n{issue.get('description') or ''}"]
+        for c in issue.get("comments") or []:
+            at = ts(c.get("ts"))
+            if is_me(c.get("author")) and at and at <= inp.horizon:
+                parts.append(f"Comment ({hm(at)}):\n{c.get('body') or ''}")
+        return key, "\n".join(parts)
+    return None, ""
 
 
 def handover_text(inp):
     text, t = handover(inp)
+    key, ticket = linked_incident(inp, text)
+    if ticket:
+        text = f"{text}\n\n--- Incident ticket {key}, which the message links ---\n{ticket}"
     serving = inp.placement_serving_at()
     if t is None:
         TRUTH_STATE["text"] = ""
