@@ -40,7 +40,7 @@
   "environment/aws/awsbench_aws/world/timeline.py": "b16bdf8478b87c7c1b15158a0c0b8635a64599c7784cc2b89a09b8cd621ac53f",
   "environment/aws/awsbench_aws/world/util.py": "c50e2a6d6d2927dabad1896ffeaa7561eea45e99c63716c539c9a2df29a06ddb",
   "environment/aws/requirements.txt": "b68da9a0cd5132d57fa4660a1fbb2430dfe439f8d297f1e9d06263b5e7909d84",
-  "environment/docker-compose.yaml": "96ecfe76ff54d6d989515da64c09d85f93f457492dba59e1cad1c6169dc990c9",
+  "environment/docker-compose.yaml": "b8ccc56529bcf7f3f832bd41114d89ff51748cc05b1385a343449713a6639603",
   "environment/harness/Dockerfile": "598f3b73b87cf979fd3fd3c412ff3af1e65eb36373bf0a4ed233b7ca2924e270",
   "environment/harness/awsbench_harness/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "environment/harness/awsbench_harness/__main__.py": "fbd7d1bc5084e8bd46c5b138dee8d44a3e6618e0bc79e0ce9b08dd37dedfea85",

@@ -60,7 +60,8 @@ def test_compose_keeps_the_rendered_blocks():
     text = (PKG / "environment/docker-compose.yaml").read_text()
     ours = yaml.safe_load(text)["services"]
     for name in ("aws", "workspace"):
-        assert {k: v for k, v in ours[name].items() if k not in ("build", "image")} == \
+        assert ours[name].pop("build") == {"context": f"./{name}"} and "image" not in ours[name]
+        assert {k: v for k, v in ours[name].items()} == \
                {k: v for k, v in rendered["services"][name].items() if k != "image"}
     gateway = dict(ours["gateway"])
     assert gateway.pop("entrypoint")[:2] == ["sh", "-c"] and gateway.pop("volumes") == ["ctl:/ctl"]

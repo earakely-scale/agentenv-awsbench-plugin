@@ -20,7 +20,6 @@ services:
     networks:
     - env-network
   aws:
-    image: awsbench-harbor/aws:c9f7f21dba9f
     depends_on:
       servicedb:
         condition: service_healthy
@@ -43,7 +42,6 @@ services:
     build:
       context: ./aws
   workspace:
-    image: awsbench-harbor/workspace:aaaae84c2d20
     depends_on:
       servicedb:
         condition: service_healthy
@@ -105,7 +103,6 @@ services:
   mcp:
     build:
       context: ./mcp
-    image: awsbench-harbor/mcp:3178df578ee2
     depends_on:
       gateway:
         condition: service_healthy
@@ -115,7 +112,6 @@ services:
   harness:
     build:
       context: ./harness
-    image: awsbench-harbor/harness:5f70f292c044
     depends_on:
       gateway:
         condition: service_healthy

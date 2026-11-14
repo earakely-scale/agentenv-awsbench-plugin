@@ -172,22 +172,21 @@ exec python -m gateway.entrypoint
 def adapt_compose(doc, contexts):
     """Harbor's compose: the rendered services, built from the copied folders, plus the front, the harness and main."""
     services = doc["services"]
-    for name, context in contexts.items():
-        if name not in services:
-            continue
-        services[name]["build"] = {"context": f"./{name}"}
-        services[name]["image"] = f"awsbench-harbor/{name}:{context}"
+    for name in contexts:  # built per trial (BuildKit's cache keeps it fast): a shared tag races between jobs
+        if name in services:
+            services[name].pop("image", None)
+            services[name]["build"] = {"context": f"./{name}"}
     servicedb = services["servicedb"]
     servicedb["volumes"] = ["./servicedb/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql:ro"]
     gateway = services["gateway"]
     gateway["environment"] = [e for e in gateway["environment"] if not e.startswith("MCP_SERVER_NAME=")]
     gateway["entrypoint"] = ["sh", "-c", GATEWAY_WRAPPER.replace("$", "$$")]  # compose interpolates a bare $
     gateway["volumes"] = ["ctl:/ctl"]
-    services["mcp"] = {"build": {"context": "./mcp"}, "image": f"awsbench-harbor/mcp:{contexts['mcp']}",
+    services["mcp"] = {"build": {"context": "./mcp"},
                        "depends_on": {"gateway": {"condition": "service_healthy"}},
                        "networks": ["env-network", "default"]}
     services["harness"] = {
-        "build": {"context": "./harness"}, "image": f"awsbench-harbor/harness:{contexts['harness']}",
+        "build": {"context": "./harness"},
         "depends_on": {"gateway": {"condition": "service_healthy"}},
         "volumes": ["ctl:/ctl:ro"],
         "healthcheck": {"test": ["CMD", "test", "-f", "/run/awsbench/ready"], "interval": "5s", "timeout": "5s",
