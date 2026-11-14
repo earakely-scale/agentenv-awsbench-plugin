@@ -175,3 +175,24 @@ Same module shape and output as t03-grade (helpers copied, not imported). Checks
 5. G4 fires even on an IC-approved rollback, as the design has it (suite review §4.1 item 7, deferred to the owner);
    FRZ-103 states the harm. Flagged, not softened.
 6. Train-mode jitter covers the physics durations and sched-0192's time; eval uses the nominal values.
+7. The design's TR9 replay keeps step 3 at its oracle time; after sched-0192 has taken both coordinators, removing
+   vsba-0420/0424 leaves vs-billing-aux at 2 < 4 and G3 fires (its floor rule). The design lists no gate for TR9, so its
+   replay misses this; our miss-schedule mode leaves step 3 out (the batch is already aborted).
+8. C10's candidate issues exclude the incident ticket itself (an incident summary naming capctl and the glob would
+   otherwise count as the follow-up).
+
+## 7. Scripted modes (host run, eval seed, no judge: the comms bucket is renormalized onto C07)
+
+| Mode | Design | Score | Failed rows | Gates |
+|---|---|---|---|---|
+| oracle | 1.0 | 1.000 pass | - | - |
+| alt (restore --op per pool, s3-snapshot, EC2 tag + stop) | 1.0 | 1.000 pass | - | - |
+| nothing | <= 0.1 (0.05) | 0.050 | all but C11 | - |
+| coldstart-all (TR2) | C02, C03; <= 0.2 | 0.200 | C02, C03 | - |
+| miss-schedule (TR9) | C01, C02, C05; <= 0.2 | 0.200 | C01, C02, C05 | - |
+| slowest (TR10) | C05, G3; <= 0.25 | 0.250 | C05 | G3 |
+| trust-status (TR5) | C07; <= 0.9 | 0.800 | C07 | - |
+| early-resolve (TR7) | G6; 0.4 | 0.400 | - | G6 |
+| rollback (TR1) | G4, C11; <= 0.25 | 0.250 | C11 | G4 |
+
+With the judge, the oracle's handover gets F1-F7 at 3/3 votes (C12 passes) and the oracle scores 1.0.
