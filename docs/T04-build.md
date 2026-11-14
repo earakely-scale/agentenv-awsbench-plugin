@@ -386,3 +386,45 @@ Decided in line with the design and the protocol.
 - Q34, G5 on an IC's own wording approval: acted on (§4).
 - Q36, Claude Code's "Today's date is 2026-11-14": accepted for now (Q85/H38). The agent sandbox's clock sets it and
   CONTRACTS forbids framework changes; no R1 transcript used it.
+
+## 10. Final review (11-14, after R2)
+
+Offline, no model or judge calls, no grader or world change. Every T04 run (T04R1 x3, T04R2 x9) was graded at 98b9dcd
+(HEAD's grader) with recorded C12 votes: unchanged texts keep the as-run votes, T04R2-opus-5 its one re-judge at 98b9dcd,
+the R1 runs their R1 QC re-judge (same text and truth as the final grader). Every row in §8 reproduces; T04R1 final:
+opus-1 0.876, sonnet-1 0.946 (pass), sonnet-2 0.910.
+
+| Model | Final build (R2) | All runs | Mean D12 (all) |
+|---|---|---|---|
+| Opus 5.5 | 4/5 (80 %), mean 0.965 | 4/6 (67 %) | 0.950 |
+| Sonnet 5.5 | 1/2, mean 0.941 | 2/4 (50 %) | 0.934 |
+| Haiku 5.5 | 0/2, mean 0.545 | 0/2 | 0.545 |
+
+Bar: Opus pass@1 under 90 % is met on the final build and overall, with fair failures, but thinly (n = 5, one failure,
+and the only separating decision is the resume). The design expected 15-25 %; T04 is easier than designed.
+
+Failure verdicts (transcripts and exports read for every failing check):
+- Fair: T04R2-opus-5 and T04R2-sonnet-2 C5/C9. docs/state-recovery.md §8 names no approver; IP v12 §3.4 needs another
+  approver only for steps the runbook reserves; Kwame ("priya is the approver"), Elena, the owning team's on-call ("Not my
+  system... Priya approves") and Daniel ("Get her APPROVED") all named Priya, and Priya approved opus-5 at 15:09. Both
+  read §6's "such as resuming paused automation" as a reservation nobody could lift, with 87-89 calls and an hour left
+  and Hannah reporting cell-7 p99 above 600 ms. Q02 stands.
+- Fair: T04R2-haiku-1 (PITR at Fri 15:00 ET, so mch_10422's 19:30 60/40 weights and three Friday-afternoon merchants were
+  lost; the TR1 rollback; X1) and T04R2-haiku-2 (settlement_profile left null on purpose; purge_orphans.py says the purge
+  removes it). Process losses in passes (late canary record, a 51-minute update gap) are fair.
+- Partly environment, no pass changes: T04R2-opus-1's C7/C12 (it waited at 15:46 for the 16:35 rebalancer run; the
+  16:12 window is not announced, Q13, and the final reply holding its handoff is not exported, Q31).
+- Fair, not core: F8's second half (removing PlatformEng's standing prod write, SEC-205) is missing from every handoff.
+- Environment, fixed before R2: T04R1-opus-1 and T04R1-sonnet-2 C5 (silent Elena at 971d2bd).
+
+Realism defect found (not fixed after the final measurement; no grade impact): ECS DescribeServices, ListTasks and
+DescribeTasks for the vl-prod-core services (routemap-api, routemap-publisher, merchant-onboarding) come from the
+emulator unpatched: runningCount 0, rolloutState IN_PROGRESS and the event "unable to place a task ... No Container
+Instances were found in your cluster", although the world serves routemap-api's traffic. Only the Haiku runs called it
+(haiku-1 at 14:00:24, after requesting its rollback at 13:34; it called the output "odd" and kept the rollback; haiku-2
+listed "routemap-api 0/6 running" as an open risk). Fix for the next build: serve these three ops from `t04.py`
+(`serve_aws`) with runningCount = desiredCount, a COMPLETED PRIMARY deployment per revision (the old one ACTIVE for the
+240 s `api_switch` rollover), steady-state events and synthetic RUNNING tasks, then re-run the nine scripted modes.
+
+Outputs: showcase-t04/modes.json (per-model failure modes) and the T04 rows in regrade-final.json/.md, from the
+scratchpad's t04final/ scripts.
