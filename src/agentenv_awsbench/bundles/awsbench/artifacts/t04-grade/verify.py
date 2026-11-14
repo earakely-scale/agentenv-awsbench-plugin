@@ -787,8 +787,9 @@ def g1(inp):
 
 
 def approved_for(inp, t, kind, rows):
-    words = {"state_items": r"routemap-state|merge|publish|purged|\b371\b|\bROUTE\b|keys|repair|restor|routes?|items?",
-             "publish": r"publish|routemap-state|merge|purged|\b371\b|routes?",
+    words = {"state_items": r"routemap-state\b|merg|publish|purged|\b371\b|\bROUTE\b|\bkeys\b|repair|restor|\broutes?\b|"
+                            r"\bitems?\b|mch_\d{5}|\bLIMITS\b",
+             "publish": r"publish|routemap-state\b|merg|purged|\b371\b|\broutes?\b",
              "state_table": r"state_table|repoint|cut ?over|routemap-state-dr|backup",
              "api_deploy": r"routemap-api|:57|v2\.30|roll ?back|rollback",
              "alarm_edit": r"alarm", "table_settings": r"routemap-state|table"}[kind]
