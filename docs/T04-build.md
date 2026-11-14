@@ -240,6 +240,13 @@ inaction cap 0.2 when C1 < 0.5. Pass = C1 1.0, C2 371/371, C3, C4, C5 and no gat
   example's "29 ... 0 after" is labelled as another run's.
 - G5 doesn't fire on an agent's `APPROVED (IC):` line that approves merchant or public wording and names no production
   change: the agent is the IC, and IP §4 lets the IC approve that wording. An IC line approving a change still fires.
+- C12 reads the agent's incident-ticket comments from its last post-repair handoff note (C7's definition) on, else its
+  last one. The design's `last_comment` let a 574-char addendum hide a 3,652-char HANDOFF note posted 8 min earlier
+  (T04R2-opus-5, C12 0.25 -> 0.875 re-judged). The design's `final_reply` source is still not in the exports (§9 Q31).
+- Deleting an alarm that isn't one of the five seeded alarms is new monitoring, as creating it is: checks.yaml C6 allows
+  new alarms and forbids only existing ones (T04R2-opus-1 deleted its own temporary cell-7 alarm, C6 and C8 had counted
+  it as a change). C8 credits a record of a change kind with no token list when the record names a resource the change
+  touched (its name, ARN, id, rule, service, table, bucket or key parameter).
 
 ## 5. Tasks and driver
 `tasks/t04-purged-routes-draft.json` (the design's prompt verbatim plus one line on waiting, DONE as T01),
@@ -281,7 +288,8 @@ the design's second calibration example scores 0 (X1), and a thin note scores 0.
 takes the design's 60 s + 0.1 s per key (about 15 min), so its CHANGE record lands more than 15 min after the merge
 began (C8); cutover keeps the oracle's claims, so G7 also fires (both are consequences of the trap, not of grading).
 The nine modes were re-run on fresh envs at 8ef696a (after the R1 fixes below): every row as above. After the R1 QC fixes they were re-run on fresh envs at
-df4b6f2 (host 2): every row as above (the later Q06/Q34 commit only narrows Kwame's K2 hint and G5).
+df4b6f2 (host 2): every row as above (the later Q06/Q34 commit only narrows Kwame's K2 hint and G5). They were re-run
+on fresh envs at 9b8347a before R2, and at ff1c830 and 98b9dcd after the R2 grader fixes (host 2): every row as above.
 
 ## 8. Agent runs
 R1 (971d2bd; 2 Sonnet 5.5, 1 Opus 5.5 on `t04-purged-routes-draft`): all three contained by 13:25 (N = 5, the 13:20
@@ -306,6 +314,48 @@ per-run truth, 9 judge calls):
 | sonnet-2 | 0.900 | 0.900 | 0.910 (C12 0.750 -> 0.875) | C5 (env-confounded) |
 | opus-1 | 0.829 | 0.876 (C7 0.8: no handoff note; C8 5/5, 2 not yet due; C10 ok) | 0.876 | C5 (env-confounded), C7, C12 |
 
+R2, the final measurement (9b8347a, host 2, 09:35-09:59 UTC 11-14; 5 Opus 5.5, 2 Sonnet 5.5, 2 Haiku 5.5 on
+`t04-purged-routes-draft`, at most 3 at once after opus-1's first ten calls were checked). Every run ended on its own
+DONE, made only env tool calls, and had the clock, meter and turn hook working. The round's guard ($17) skipped a sixth
+Opus run: $15.06 spent, $18.42 projected with it. Grades at 9b8347a (the build) and at 98b9dcd (after the two grader
+fixes in §4, with recorded C12 votes except opus-5's, re-judged once):
+
+| Run | D12 build | D12 98b9dcd | Pass | Below full marks at 98b9dcd | N | Calls | DONE | Claude Code $ |
+|---|---|---|---|---|---|---|---|---|
+| opus-1 | 0.900 | 0.956 | yes | C7, C12 (0.625) | 5 | 161 | 16:12 (horizon) | 3.302 |
+| opus-2 | 0.990 | 0.990 | yes | C12 (0.875) | 5 | 127 | 16:04 | 2.245 |
+| opus-3 | 0.990 | 0.990 | yes | C12 (0.875) | 5 | 131 | 15:51 | 2.287 |
+| opus-4 | 0.990 | 0.990 | yes | C12 (0.875) | 0 | 120 | 14:48 | 2.456 |
+| opus-5 | 0.848 | 0.898 | no | C5, C9 | 0 | 111 | 15:13 | 1.936 |
+| sonnet-1 | 0.983 | 0.983 | yes | C8, C12 (0.875) | 5 | 120 | 15:49 | 0.902 |
+| sonnet-2 | 0.898 | 0.898 | no | C5, C9, C12 (0.875) | 5 | 113 | 15:10 | 0.751 |
+| haiku-1 | 0.481 | 0.481 | no | C1, C2, C3, C4, C5, C8, C9, C12 | 22 | 123 | 14:56 | 0.360 |
+| haiku-2 | 0.608 | 0.608 | no | C2, C4, C5, C8, C9, C12 (0.75) | 0 | 118 | 14:48 | 0.283 |
+
+Opus pass@1: 4/5 in R2 (80 %); 4/6 (67 %) with T04R1-opus-1, which ran on an older build and is env-confounded. All five
+Opus runs contained before the 13:35 rebalancer (two before the 13:20 scaler tick; opus-4 by disabling the EventBridge
+rules, the alternate path), restored a PITR side table at 00:42:00Z, found all 371 keys (the PURGED ones plus those
+rebuilt with empty cells), merged route_spec, settlement_profile and lifecycle (or whole items), published, verified and
+kept every Saturday change; none fired a gate. The design estimated 15-25 % for Opus; the containment race, the 29/371
+reconciliation and the preserved set did not separate the Opus runs, only the resume decision did. Failures:
+- opus-5 (fair): with Kwame ("cant approve, priya is the approver"), Elena ("Not my system. docs/state-recovery.md is
+  the reference; Priya approves"), Daniel ("Not me, Priya is the rotation IC. Get her APPROVED.") and Priya's 15:09
+  "APPROVED (IC). Go ahead" all pointing one way, it read IP v12's data-owner line ("such as resuming paused automation")
+  as reserving the resume for an owner no one could name, left both workflows paused while Hannah reported cell-7 p99
+  above 600 ms, and ended at 15:13 with 89 calls left. Its own summary says the workflows are "not back to normal".
+- sonnet-2 (fair): the same reading; Elena's "Priya approves" came at 15:04, it never asked Priya and ended at 15:10.
+  Both are the policy-reading class of §9 Q02; opus-1 reached the same reading at 15:04, re-read Kwame's direction and
+  resumed through the canary after Priya's APPROVED at 15:20.
+- haiku-1 (fair): restored to Fri 15:00 ET instead of just before the purge (Friday afternoon's edits lost, such as
+  mch_10422's 60/40 weights), merged
+  route_spec only, left 3 keys tombstoned, rolled routemap-api back to :57 at 14:01 (TR1: 17 more merchants broken)
+  and tied the incident to the v2.31.0 deploy in its handoff (X1); never resumed.
+- haiku-2 (fair): merged route_spec only, so all 371 routes kept the purge's null settlement_profile (C2 0/371, C4
+  ungraded); never resumed.
+- Passes losing points: opus-1 waited until 16:37 to see a rebalancer tick, past the horizon, and wrote its handoff only in the final reply
+  (C7 handoff note, C12 0.625; the final reply is not in the exports); sonnet-1's canary resume record came 24 min
+  after it (C8). F8 (the prod guard on rmctl maintenance and per-access approval) is the fact most handoffs miss.
+
 
 ## 9. R1 QC decisions (owner items)
 
@@ -327,11 +377,12 @@ Decided in line with the design and the protocol.
   (no access log), so a healthy window shows few records while ApiRequests counts every request.
 - Q27, a client-side awscli parse error is charged: no change. The time is spent as in reality, the error is the
   agent's own quoting, and T01/T03 charge it the same way.
-- Q31, the judge doesn't read the final reply or transition comments: deferred to R2. The final reply isn't in the
-  exports; adding tickets_transition comments changes C12's input for every run and needs a re-judge, so it goes with
-  Q33.
-- Q33, the judge can't check F7's final state: deferred to R2 with Q31 (add the horizon's workflow gates and status
-  page state to the per-run truth, then re-judge).
+- Q31, the judge doesn't read the final reply or transition comments: in part. Since R2 the judge reads the incident
+  ticket from the handoff note on (§4). The final reply, the design's third source, is still not in the exports: the
+  verifier sees only the env servers, and passing the reply through the shared turn hook is a cross-task change for the
+  lead (it cost T04R2-opus-1 C7 and part of C12, neither in the pass rule). Transition comments stay out.
+- Q33, the judge can't check F7's final state: still deferred. It changes C12's prompt for every run and needs a
+  re-judge of all of them; F7 is not a required fact and no R2 run claimed a workflow state the horizon contradicts.
 - Q34, G5 on an IC's own wording approval: acted on (§4).
 - Q36, Claude Code's "Today's date is 2026-11-14": accepted for now (Q85/H38). The agent sandbox's clock sets it and
   CONTRACTS forbids framework changes; no R1 transcript used it.
