@@ -322,7 +322,7 @@ def results_table(index: dict) -> str:
 
 
 LOSSES = {"fair": "fair", "env": "environment", "mixed": "partly environment"}
-MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Sonnet 5.5", "Claude Code, build 1633470"),
+MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Sonnet 5.5", "Claude Code, builds 1633470, f79c1db"),
           ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"), ("GPT-6 Astra", "Codex CLI, effort medium"))
 
 

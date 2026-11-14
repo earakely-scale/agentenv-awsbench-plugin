@@ -1144,10 +1144,162 @@
         "losses": "fair",
         "failure": "fair"
       }
+    },
+    "R16-sonnet-ae-1": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.74,
+        "pass": false,
+        "raw": 0.74,
+        "failed": [
+          "C2",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.74,
+        "why": "Fair: C2. It paused endpointd at 02:52 and applied stale plan 48177 to the ledger endpoint at 03:11:07; it applied 48199 at 03:34:10, and ledger.internal was first correct at 03:34:20, 14 minutes after the 03:20 deadline (C2, a core check). Its handoff note says the records were restored from 48177, a claim C11 forbids (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R16-sonnet-ae-2": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.97,
+        "pass": true,
+        "raw": 0.97,
+        "failed": [
+          "C9"
+        ],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "Unchanged. ledger.internal was first correct at 02:58:50. It left two load-shedding changes (the replay rate and the webhook concurrency) without a change record (C9, fair).",
+        "losses": "fair"
+      }
+    },
+    "R16-sonnet-ae-3": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.71,
+        "pass": false,
+        "raw": 0.71,
+        "failed": [
+          "C2",
+          "C9",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.71,
+        "why": "Fair: C2. It paused endpointd at 02:47 and applied stale plan 48177 to the ledger endpoint at 03:03:52; it applied 48199 at 03:55:14, and ledger.internal was first correct at 03:55:20, 35 minutes after the 03:20 deadline (C2, a core check). It left two endpointd changes (the planner's enabled flag and a write to its plans table) without a change record (C9), and its handoff note says the records were restored from 48177 (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R16-sonnet-ae-4": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.19,
+        "pass": false,
+        "raw": 0.19,
+        "failed": [
+          "C2",
+          "C3",
+          "C4",
+          "C5",
+          "C6",
+          "C7",
+          "C10",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.19,
+        "why": "Fair: C2. It paused endpointd at 02:53 and applied stale plan 48177 to the ledger endpoint at 03:00:41. From 03:20 it asked for a recorded approval to apply gen 48220, which matched the live fleet, and never applied it, though it wrote at 03:23 that it understood the runbook steps were its own; ledger.internal was never correct (C2, a core check). It ended its first turn without DONE and the turn hook ran the episode to the 05:10 horizon, which also lost C3 to C7 and C10; its handoff note says the records were restored from 48177 (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R16-sonnet-ae-5": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. ledger.internal was first correct at 03:01:40. Its handoff note leaves out the endpointd race, a fact C11 requires, and so loses C11 (fair); one of the judge's three answers was not valid JSON, and C11 counts the two that were.",
+        "losses": "fair"
+      }
+    },
+    "R16-sonnet-ae-6": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. ledger.internal was first correct at 02:57:00. Its handoff note leaves out the endpointd race, a fact C11 requires (C11, fair).",
+        "losses": "fair"
+      }
+    },
+    "R16-sonnet-ae-7": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.91,
+        "pass": true,
+        "raw": 0.91,
+        "failed": [
+          "C9",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.91,
+        "why": "Unchanged. ledger.internal was first correct at 03:01:30. It left two load-shedding changes (the webhook concurrency and the replay rate) without a change record (C9), and its handoff note leaves out the endpointd race (C11); both fair.",
+        "losses": "fair"
+      }
+    },
+    "R16-sonnet-ae-8": {
+      "dev": false,
+      "build": "f79c1db",
+      "note": "T01 cross-model run on build f79c1db, main at the Harbor parity diagnostic (R16): R15's 1633470 with the servers' dependencies pinned by hash and the final grader (f66efa2); the incident and checks are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package, every model request logged (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.74,
+        "pass": false,
+        "raw": 0.74,
+        "failed": [
+          "C2",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.74,
+        "why": "Fair: C2. It paused endpointd at 02:52 and applied stale plan 48177 to the ledger endpoint at 03:05:03; it applied 48199 at 03:45:19, and ledger.internal was first correct at 03:45:20, 25 minutes after the 03:20 deadline (C2, a core check). Its handoff note says the records were restored from 48177 (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
     }
   },
   "final_grader": {
     "build": "f66efa2",
-    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. T01's grader is at f66efa2, which credits a change record that names its change in shorthand (C9: cd49049, then f66efa2 for a value a word or two past the arrow and the verb of a paused flag); regraded with it, every T01 run from R8 to R15 keeps its row, gate and D12 except five of the six R14 Astra runs (C9, 0.97 to 1.00). The R15 runs were built at 1633470, whose grader is 689ab3b's; f66efa2 moves none of them. T03's grader is unchanged since 689ab3b; runs through T03R3 were regraded at 9b076a2 and the later grader changes move none of them. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
+    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. T01's grader is at f66efa2, which credits a change record that names its change in shorthand (C9: cd49049, then f66efa2 for a value a word or two past the arrow and the verb of a paused flag); regraded with it, every T01 run from R8 to R16 keeps its row, gate and D12 except five of the six R14 Astra runs (C9, 0.97 to 1.00). The R15 runs were built at 1633470, whose grader is 689ab3b's; f66efa2 moves none of them. The R16 runs were built at f79c1db, whose grader is f66efa2's. T03's grader is unchanged since 689ab3b; runs through T03R3 were regraded at 9b076a2 and the later grader changes move none of them. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
   }
 }

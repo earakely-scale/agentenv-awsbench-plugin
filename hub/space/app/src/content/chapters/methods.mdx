@@ -45,7 +45,7 @@ pass.
 at the current grader. T01's grader at <code>{FG.build}</code> also credits a change record that names its change in shorthand
 (C9: cd49049, then f66efa2 for a value a word or two past the arrow and the verb of a paused flag); of every T01 run
 since R8 it moves only five of the six GPT-6 Astra runs, from 0.97 to 1.00. The Claude Sonnet 5.5 runs of R15 were built
-at 1633470, whose grader is 689ab3b's, and it moves none of them. T03's grader is unchanged since 689ab3b. A judged check keeps its recorded votes when the final grader sends the judge the same prompt; otherwise
+at 1633470, whose grader is 689ab3b's, and it moves none of them; those of R16 were built at f79c1db, with this grader. T03's grader is unchanged since 689ab3b. A judged check keeps its recorded votes when the final grader sends the judge the same prompt; otherwise
 it is judged again once, three samples, with the final prompt. Only grader changes can move a score this way: world and
 colleague fixes can't change what a recorded run did. The results table shows both scores, and each run whose score
 moves, or that still loses points, has a note saying why and whose the loss is.
@@ -55,11 +55,11 @@ moves, or that still loses points, has a note saying why and whose the loss is.
 - **Development runs.** Runs on older builds met env and grader bugs that the runs themselves found; they are kept for
   what they show. The current runs are on the hardened build: for T01, R11 (six Claude Opus 5.5 runs on 5fe025c)
   and R12 to R14 (six each of Claude Haiku 5.5, Claude Opus 5.5, Claude Fable 5.2 and GPT-6 Astra, on 689ab3b), and
-  R15 (eight Claude Sonnet 5.5 runs on 1633470, a slightly later build of the same task whose environment adds the R12
-  and R13 quality-check fixes); for T03, T03R4, six Claude Opus 5.5 runs on 5fe025c.
+  R15 and R16 (eight Claude Sonnet 5.5 runs each, on 1633470 and f79c1db, slightly later builds of the same task whose
+  environment adds the R12 and R13 quality-check fixes); for T03, T03R4, six Claude Opus 5.5 runs on 5fe025c.
 - **Builds.** The R8 and T03R1 run folders' build files were left blank by the run script; the commit shown is the
   branch's head when each run started.
-- **Few runs.** Twelve Opus runs of T01 and six of T03 on the current build, six or eight runs of each other model,
+- **Few runs.** Twelve Opus runs of T01 and six of T03 on the current build, six to sixteen runs of each other model,
   and three Opus and two Sonnet runs per earlier build show where a task bites, not a rate. A GPT-6 Astra run costs
   about $12.
 - **Calibration.** Both tasks are easier than their designs intend; see Results for the numbers and the reasons.

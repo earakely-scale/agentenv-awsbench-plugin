@@ -88,7 +88,7 @@
     "5095dda": "R10"
    },
    "final_build": false,
-   "note": "Earlier builds only (R8-R10); graded by the final grader. Two colleague-reply defects on R8/R9 were fixed after these runs. Its eight R15 runs on build 1633470 (4 of 8 pass) are in Results, not in this chapter's analysis.",
+   "note": "Earlier builds only (R8-R10); graded by the final grader. Two colleague-reply defects on R8/R9 were fixed after these runs. Its sixteen R15 and R16 runs on builds 1633470 and f79c1db (8 of 16 pass) are in Results, not in this chapter's analysis.",
    "pass_at_1": "3/6",
    "mean_d12": 0.85
   },
