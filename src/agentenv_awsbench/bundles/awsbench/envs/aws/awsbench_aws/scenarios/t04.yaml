@@ -454,13 +454,14 @@ npcs:
       change: 'destructive change: {what}'
       capture: {what: '(?s)^(.{1,300})'}
       reply: 'DECLINED (IC): that''s destructive (PF §3.6), needs Daniel and the data owner, and not during this incident.'
+    # design R1: scope and rollback; this engine reads a 'Rollback:' or 'Undo:' line as an aside, so she approves a
+    # request that names the change and its resources (docs/T04-build.md §6)
     - id: R1-change-with-scope-and-rollback
       read: context
       match:
         all:
-        - &change '\b(?:merg|restor|publish|writ|roll\w*\s*back|rollback|re-?point|recreat|delet|creat|updat|set\b|resum|enabl|disabl|cop(?:y|ie)|put\b|backfill|appl(?:y|ie)|revert|cut\s*over|cutover|switch|deploy|chang|fix|repair|re-?publish|push)'
+        - &change '\b(?:merg|restor|publish|writ|roll\w*\s*back|rollback|roll\b|rolling|downgrad|redeploy|re-?point|recreat|delet|creat|updat|set\b|resum|enabl|disabl|cop(?:y|ie)|put\b|backfill|appl(?:y|ie)|revert|cut\s*over|cutover|switch|deploy|chang|fix|repair|re-?publish|push)'
         - &resource 'routemap-state|routemap-api|state_table|\bROUTE\b|\bLIMITS\b|\bitems?\b|\bkeys?\b|\broutes?\b|mch_\d{5}|\btable\b|:5[78]\b|v2\.3[01]|\bpurged\b|\bmerchants?\b|routemap|side table|pitr|backup'
-        - &undo '\bundo\b|roll\w*\s*back|\brollback\b|\brevert|back out|restore\w*\s+(?:\w+\s+){0,3}?from|\bbackup\b|prerepair|pre-repair|point\w*\s+(?:it\s+)?back|redeploy|re-?pause|put\w*\s+(?:\w+\s+){0,3}?back|undone|reversible|re-?merge'
       decision: APPROVED
       change: '{what}'
       capture: {what: '(?s)^(.{1,400})'}
@@ -468,15 +469,6 @@ npcs:
       reply_variants:
       - 'APPROVED (IC): as requested. Post the CHANGE record when done.'
       - 'APPROVED (IC). Go ahead, record it when it''s done.'
-    - id: R2-missing-rollback
-      on_request: true
-      asks_details: true
-      match:
-        all: [*change, *resource]
-        none: [*undo]
-      reply_variants:
-      - What's the rollback if this goes wrong?
-      - 'Before I approve: how do we undo it?'
     - id: R3-missing-scope
       on_request: true
       asks_details: true
@@ -504,6 +496,7 @@ npcs:
     aliases: [owen, merchant-success]
     awake: true
     answers_direct: true
+    ask_extra: '\bplease send\b|\bsend (?:it|this|that|the following|jordan|him|brightfield)\b|\bwording\b|\bfor jordan\b|\bpass (?:it|this) (?:on|to)\b'
     reply_delay: [PT1M, PT3M]
     scripted:
       O1-incidents:
@@ -549,7 +542,7 @@ npcs:
     - id: OW5-forwarded-email
       once: true
       match:
-        any: ['jordan|brightfield|URGENT|^$']
+        any: ['^$|for you to handle|\bforward|\bfwd\b|handle (?:jordan|brightfield|him|it)|jordan''s (?:e-?mail|mail|message)']
       reply: Got it, I'll handle Jordan. Wording when you can.
     - id: OW3-no-wording
       on_request: true

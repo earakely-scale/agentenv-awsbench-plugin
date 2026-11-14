@@ -57,6 +57,7 @@ class Telemetry:
         self.recover_from = None
         self.hannah = False
         self.fail_series: list = []
+        self.repair_series: list = []
         seed = m.w.scenario.get("aws_seed") or []
         self.groups = [r["params"]["logGroupName"] for r in seed
                        if r.get("service") == "logs" and r.get("operation") == "CreateLogGroup"]
@@ -253,6 +254,12 @@ class Telemetry:
         self._cell7(minute)
         out = self._evaluate(minute + 60)
         self.fail_series.append([minute, sum(broken.values())])
+        unrepaired = 0
+        for mid in m.purged:
+            it = m.live.get((mid, D.ROUTE)) or {}
+            if it.get("lifecycle") != "ACTIVE" or not (it.get("route_spec") or {}).get("cells"):
+                unrepaired += 1
+        self.repair_series.append([minute, sum(1 for mid in m.purged if m.broken(m.dp.get(mid))), unrepaired])
         return out
 
     def _cell7(self, t: float) -> None:
@@ -555,4 +562,5 @@ class Telemetry:
                 "failures_by_minute": [[iso(t), n] for t, n in self.fail_series],
                 "failures_by_merchant": [[iso(t), f] for t, f in zip(self.minutes, self.fails)
                                          if t >= self.m.t_start and f],
+                "repair_timeline": [[iso(t), b, u] for t, b, u in self.repair_series],
                 "cell7_latency_ms_final": round(self.cell7, 1)}

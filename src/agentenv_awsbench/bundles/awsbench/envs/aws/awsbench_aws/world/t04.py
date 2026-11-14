@@ -925,9 +925,7 @@ class Mechanics:
 
     # ---- export ----
     def export(self) -> dict:
-        keys = [(m, D.ROUTE) for m in sorted(self.purged)]
-        keys += [(m, r) for m in D.MUST_EXCLUDE if m.startswith("mch_444") or m in D.MUST_EXCLUDE
-                 for r in (D.ROUTE, D.LIMITS)]
+        keys = [(m, r) for m in sorted(self.purged) + D.MUST_EXCLUDE for r in (D.ROUTE, D.LIMITS)]
         keys = sorted(set(keys))
         ref_t = D.ts("2026-11-21T00:42:08+00:00")
         try:

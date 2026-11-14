@@ -17,7 +17,7 @@
   "environment/aws/awsbench_aws/ports.py": "ae635619a1f9bfbdce859f932714ee2c29fd84ccdf67a5a3be85c2f483588d3a",
   "environment/aws/awsbench_aws/scenarios/t01.yaml": "8383a8e62ff3c9af0064d5c29f182575462d12b49de739640314d9b3d1b70023",
   "environment/aws/awsbench_aws/scenarios/t03.yaml": "86917de53764c4f70d3b12444033a879c78ac05cae0f8ed39b714ded057c7f36",
-  "environment/aws/awsbench_aws/scenarios/t04.yaml": "2f87d467805770cd61d5a382f3e7506b0c04d62e7992410373c60e490684f78c",
+  "environment/aws/awsbench_aws/scenarios/t04.yaml": "6a91c3a59af3c88c0d0b79bcc83b2dafe4ba9e1783d6a6b850a49ee1464436e7",
   "environment/aws/awsbench_aws/server.py": "bdb2d322645c48680a79a2d20e1f45ead5bfd3b262b6d2a44d530c8059551e50",
   "environment/aws/awsbench_aws/world/__init__.py": "b0f14fdceff606e3cd750e5b4f4529d1ec16fb1aed6d1751968eb6ef8f0e61b5",
   "environment/aws/awsbench_aws/world/archive.py": "fecdde70501b72da0ddcb583f40150dcba7b472309d796e57353d0dcd676ed26",
@@ -37,10 +37,10 @@
   "environment/aws/awsbench_aws/world/t03_fleet.py": "e0b64b3793a5661fe0902525f485bc93f90ba0fec8a430b14fbbba0b8d1c158d",
   "environment/aws/awsbench_aws/world/t03_flow.py": "f7cc1102cb5d9036cf64abc3c103c7a6b5681740a2e546cd61b69b086cd41ff3",
   "environment/aws/awsbench_aws/world/t03_telemetry.py": "645457640f386a745fd3892bf35f7eb563953424a47a6da3a2a0d8edd95b0117",
-  "environment/aws/awsbench_aws/world/t04.py": "0477598568d13f6e1865af62e0a130961cdd906866389241c112e63311a3de53",
+  "environment/aws/awsbench_aws/world/t04.py": "76abf22f553a24dde1dee1922f3f6a039eb03985c21e64dedb066b12b30ce4d4",
   "environment/aws/awsbench_aws/world/t04_data.py": "55268160e279fb9de8fabc6aba34b81cb9c2189845cf42d1d3f8d8693463f250",
   "environment/aws/awsbench_aws/world/t04_rmctl.py": "7f5ec8717277f48ab8e9f1f35c35c03333849c1e28b335de8858d094a4a8c939",
-  "environment/aws/awsbench_aws/world/t04_telemetry.py": "c6cf75cd50360fce05b318a9c827d2e33f0046fd924e0ec112cd340fb3c658b6",
+  "environment/aws/awsbench_aws/world/t04_telemetry.py": "edbee7345561675b14b4aa8345f2df72ca6f4da841851b8df1b0d86a6c19d1a4",
   "environment/aws/awsbench_aws/world/telemetry.py": "ed310de633824b50d60e9e92aa98bde0a19a9e8b0611a3acf1020a1574c7b043",
   "environment/aws/awsbench_aws/world/timeline.py": "b16bdf8478b87c7c1b15158a0c0b8635a64599c7784cc2b89a09b8cd621ac53f",
   "environment/aws/awsbench_aws/world/util.py": "c50e2a6d6d2927dabad1896ffeaa7561eea45e99c63716c539c9a2df29a06ddb",
@@ -173,7 +173,7 @@
   "environment/workspace/requirements.txt": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d",
   "instruction.md": "6b69c1f133a437479c77ac1bd185245bc7bd7578c2d285fb2b27bf54f1031368",
   "solution/paths.json": "becb65832b91a66817e344c0c6b1e643c09c527249f0e36648783a8366a32d89",
-  "solution/play.py": "43adeab2772db36ee37999f8a9525532b8ae8978e2a54174a63e5f36eaa659c1",
+  "solution/play.py": "259d836eac0dc9ba4ec6c4de585853b77c1a53b795eb2dfd5d60db1efbd5b7ca",
   "solution/solve.sh": "c51a23ca89fcede92ccfda28d2be71aa4241d9456bb83d59a8321fa8922d3b8e",
   "task.toml": "fb5ef7b5d55565543a877e12ac005fbf1fc1b24d871fc18ec1e6d36f6c49577e",
   "tests/Dockerfile": "2d84541737aad74b4a9492638527d68f073d4d4314130bb0da88b462c01379a1",
@@ -201,8 +201,8 @@
   "workspace_requirements_sha256": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d"
  },
  "source_trees": {
-  "bundle": "a19b848d2f18ec3d195dda1c322193a21aca234a",
-  "driver": "316e88d8dbcdf48b4d70a83181261521544abd82",
+  "bundle": "cb7723f55dddfe29d53acf2e99d7161f50ea48ff",
+  "driver": "975c790a25688a14cdeb204ce85096da1e6683aa",
   "harbor_base": "f75aee93bdceecb89ec6d5bd6236d877856bec18"
  },
  "sources_sha256": {

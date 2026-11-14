@@ -14,7 +14,8 @@ from ..errors import AwsError
 from . import t04_data as D
 from .t04_rmctl import Rmctl
 from .t04_telemetry import Telemetry
-from .util import unit
+from .timeline import draft
+from .util import text_of, unit
 
 TABLE = D.STATE
 REGIONS = ("us-east-1", "us-west-2")
@@ -653,7 +654,22 @@ class Mechanics:
     def effect(self, name: str, args: dict, t: datetime) -> list[dict]:
         if name == "onboard":
             self.at_sched(t.timestamp(), "onboard", args["merchant"], args["name"], float(args.get("retry_s", 600)))
+        elif name == "flag":
+            self.w.world_flags[str(args["name"])] = True
         return []
+
+    def _owen_wording(self, until: float) -> str:
+        """The wording Owen sends: the draft in the agent's last message to him (DM, mention or mail) up to `until`."""
+        for c in reversed(self.w.timeline.calls):
+            if c["t"].timestamp() > until + 1:
+                continue
+            args = c.get("args") or {}
+            text = text_of(args.get("text") or args.get("body") or args.get("message"))
+            to = " ".join(text_of(args.get(k)) for k in ("user", "to", "to_user", "cc"))
+            if c.get("tool") in ("chat_dm", "chat_post", "mail_send", "mail_reply", "mail_forward") and (
+                    "owen" in to.lower() or "@owen" in text.lower()):
+                return draft(text, self.w.timeline.msgs.get) or text
+        return ""
 
     def _owen(self, ts: float) -> list[dict]:
         """Owen's approved sends (timeline approvals by owen.gallagher): the mail to Brightfield goes out, and the
@@ -662,7 +678,7 @@ class Mechanics:
         rows = [a for a in self.w.timeline.approvals if a.get("by") == "owen.gallagher" and a.get("decision") ==
                 "APPROVED"]
         for a in rows[self._owen_seen:]:
-            body = a.get("request") or ""
+            body = self._owen_wording(datetime.fromisoformat(a["t"]).timestamp()) or a.get("request") or ""
             self.owen_sent.append({"t": a["t"], "to": "jordan.pike@brightfield.example", "body": body,
                                    "rule": a.get("rule")})
             self.w.ws_apply("mail.deliver", {"from": "owen.gallagher@vantleaf.com",
@@ -909,9 +925,7 @@ class Mechanics:
 
     # ---- export ----
     def export(self) -> dict:
-        keys = [(m, D.ROUTE) for m in sorted(self.purged)]
-        keys += [(m, r) for m in D.MUST_EXCLUDE if m.startswith("mch_444") or m in D.MUST_EXCLUDE
-                 for r in (D.ROUTE, D.LIMITS)]
+        keys = [(m, r) for m in sorted(self.purged) + D.MUST_EXCLUDE for r in (D.ROUTE, D.LIMITS)]
         keys = sorted(set(keys))
         ref_t = D.ts("2026-11-21T00:42:08+00:00")
         try:
@@ -931,6 +945,12 @@ class Mechanics:
         except AwsError as e:
             settings = {"error": f"{e.code}: {e.message}", "deleted": True}
         settings["pitr"] = dict(self.pitr)
+        repointed = {}
+        if self.state_table() != TABLE:
+            try:
+                repointed = self.scan(self.state_table())
+            except AwsError:
+                repointed = {}
         fmt = lambda d: {f"{k[0]}|{k[1]}": v for k, v in d.items() if k in set(keys) or k[0] in ("mch_44419",
                                                                                                 "mch_44420")}
         return {"t04": {
@@ -938,6 +958,8 @@ class Mechanics:
             "reference": fmt(self.hist.snapshot(ref_t)),
             "t0_state": fmt(self.hist.snapshot(self.t_start)),
             "final_state": fmt(east if east else self.live),
+            "state_table": self.state_table(),
+            "state_table_final": fmt(repointed) if self.state_table() != TABLE else None,
             "replica_final": fmt(west),
             "dataplane": {m: self.dp.get(m) for m in sorted(self.purged | set(D.MUST_EXCLUDE))},
             "first_broken_after_start": self.first_broken,

@@ -693,8 +693,8 @@ def c9(inp):
             pushed.setdefault(x["merchant"], []).append(x["t"])
     items.append(bool(repaired) and all(any(repaired[m] <= t <= claim_t for t in pushed.get(m, []))
                                         for m in repaired))
-    last_pub = max((x["t"] for x in inp.publish if x.get("by") == "rmctl" or x.get("result") == "ACCEPTED"
-                    and x["merchant"] in repaired), default=None)
+    last_pub = max((x["t"] for x in inp.publish if x.get("result") == "ACCEPTED" and str(x.get("cause", "")).startswith(
+        "agent:")), default=None)
     full = None
     for g in inp.gates:
         if g["t"] > inp.start and wf_enabled(g, "scaler") and (g.get("scaler") or {}).get("scope", "all") == "all" and \

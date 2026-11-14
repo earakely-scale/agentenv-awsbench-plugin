@@ -128,6 +128,9 @@ async def wait_through(gw, args):
 async def play(gw, steps, check_clock=True, harvest=harvest):
     found, problems = {}, []
     for tool, args, *check in steps:
+        if tool == "REPAIR":
+            await t04_oracle.repair_by_hand(gw, found)
+            continue
         before = await gw.now()
         args = fill(args, found)
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
