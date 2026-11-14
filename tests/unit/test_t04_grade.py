@@ -230,12 +230,13 @@ SONNET1_HANDOFF = ("HANDOFF (IC sre-primary, 15:40 ET)\nIMPACT: ROUTE_NO_HEALTHY
                    "), SRE for POST.")
 
 
-def handoff_inputs(body, t):
+def handoff_inputs(body, t, *later):
     issue = {"id": "OPS-4495", "data": {"key": "OPS-4495", "project": "OPS", "reporter": "sre-primary",
                                         "type": "Incident", "severity": "SEV2", "created": "2026-11-21T13:20:00-05:00"},
              "history": [{"t": "2026-11-21T13:20:00-05:00", "changes": {"type": "Incident", "severity": "SEV2"}}]}
-    w = {"action_log": [{"seq": 1, "t": t, "role": "sre-primary", "server": "workspace", "tool": "tickets_comment",
-                         "params": {"key": "OPS-4495", "body": body}}], "collab": {"tickets": {"issue": [issue]}}}
+    w = {"action_log": [{"seq": i, "t": tt, "role": "sre-primary", "server": "workspace", "tool": "tickets_comment",
+                         "params": {"key": "OPS-4495", "body": bb}} for i, (bb, tt) in enumerate([(body, t), *later], 10)],
+         "collab": {"tickets": {"issue": [issue]}}}
     a = aws()
     a["action_log"] = [{"seq": 2, "t": "2026-11-21T14:04:36-05:00", "role": "sre-primary", "tool": "fleet_exec",
                         "call_no": 89, "service": "dynamodb", "operation": "BatchWriteItem",
@@ -254,6 +255,14 @@ def handoff_inputs(body, t):
 ])
 def test_c7_handoff_note_is_a_handoff_after_the_repair(body, t, ok):
     assert grade.c7(handoff_inputs(body, t))["detail"].endswith("handoff note ok" if ok else "handoff note missing")
+
+
+def test_c12_reads_the_handoff_note_and_what_follows_it():
+    addendum = "Addendum 15:13 ET: cell-7 utilization flat at 0.82; DuplicateCaptures 0."
+    text = grade.handoff_text(handoff_inputs(SONNET1_HANDOFF, "2026-11-21T15:05:51-05:00",
+                                             (addendum, "2026-11-21T15:13:47-05:00")))
+    assert SONNET1_HANDOFF in text and text.endswith(addendum)
+    assert grade.handoff_text(handoff_inputs(OPUS1_CAUSE, "2026-11-21T13:35:15-05:00")) == OPUS1_CAUSE
 
 
 def change_log(*rows):

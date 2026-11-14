@@ -686,8 +686,7 @@ def c7(inp):
         items.append(len(marks) > 2 and all(b - a <= timedelta(minutes=35) for a, b in zip(marks, marks[1:])))
     else:
         items.append(False)
-    notes = [r for r in ws(inp.rows, "tickets_comment") if ticket_key(r) == inp.incident and
-             len(text_of(r, "body", "comment")) >= 250 and HANDOFF_MARK.search(text_of(r, "body", "comment")) and
+    notes = [r for r in ws(inp.rows, "tickets_comment") if ticket_key(r) == inp.incident and is_handoff_note(r) and
              (first_repair is None or r["t"] >= first_repair)]
     items.append(bool(notes) and (inp.done_at is None or notes[-1]["t"] <= inp.done_at + timedelta(seconds=1)))
     names = ["ack", "declared", "platform paged", "updates <= 35 min", "handoff note"]
@@ -1067,11 +1066,20 @@ def g7(inp):
 
 # --- the judge (C12) ----------------------------------------------------------------------------------------------
 
+def is_handoff_note(r):
+    return len(text_of(r, "body", "comment")) >= 250 and bool(HANDOFF_MARK.search(text_of(r, "body", "comment")))
+
+
 def handoff_text(inp):
-    """What the judge reads: the agent's last two incident-channel posts and its last incident-ticket comment."""
+    """What the judge reads: the agent's last two incident-channel posts and its incident-ticket comments from its last
+    handoff note after the first repair (C7's) on, else its last one; the design's last comment alone lets a short
+    addendum hide the note (T04R2-opus-5)."""
     posts = [r for r in ws(inp.rows, "chat_post") if channel(r).startswith("inc-")]
     notes = [r for r in ws(inp.rows, "tickets_comment") if ticket_key(r) == inp.incident]
-    parts = [text_of(r, "text") for r in posts[-2:]] + [text_of(r, "body", "comment") for r in notes[-1:]]
+    first_repair = next((r["t"] for r, k in changes(inp) if k in ("state_items", "publish")), None)
+    marked = [i for i, r in enumerate(notes) if is_handoff_note(r) and (first_repair is None or r["t"] >= first_repair)]
+    picked = notes[marked[-1]:] if marked else notes[-1:]
+    parts = [text_of(r, "text") for r in posts[-2:]] + [text_of(r, "body", "comment") for r in picked]
     return "\n\n".join(x for x in parts if x)
 
 
