@@ -27,6 +27,7 @@ export const ROUNDS = (rs) => [...new Set(rs.map((r) => r.id.split("-")[0]))].so
 export const byId = (a, b) => a.id.localeCompare(b.id, "en", { numeric: true });
 export const XM = [
   { key: "Haiku", name: "Claude Haiku 5.5", via: "Claude Code" },
+  { key: "Sonnet", name: "Claude Sonnet 5.5", via: "Claude Code", note: "build 1633470" },
   { key: "Opus", name: "Claude Opus 5.5", via: "Claude Code" },
   { key: "Fable", name: "Claude Fable 5.2", via: "Claude Code" },
   { key: "Astra", name: "GPT-6 Astra", via: "Codex CLI, effort medium" },
@@ -90,16 +91,21 @@ The R11 and T03R4 runs were made on build 5fe025c, and T01's R12 to R14 on 689ab
 colleague fixes the R11 runs found; its scripted regression (each task's oracle and the scripted failure modes, run
 end to end on a deployed env) gives the same scores and failing checks as 5fe025c's, and both oracles score 1.000.
 Quality checks of the R12 and R13 runs then found more world, colleague and tool defects, fixed in the head the task
-cards show; none of them decided a failure on this page. The final T01 grader also credits a change record that names
-its change in shorthand (C9), which moves only the two GPT-6 Astra runs, from 0.97 to 1.00.
+cards show; none of them decided a failure on this page. Claude Sonnet 5.5's R15 runs were made on 1633470, whose
+environment is the bundle with those fixes (3d5b896). The final T01 grader also credits a change record that names its
+change in shorthand (C9), which moves five of the six GPT-6 Astra runs (R14-astra-1, -2, -3, -5 and -6) from 0.97 to
+1.00, and no other run.
 
 ### Across models
 
 T01 on its final build, by model. Each square is one run, green for a pass and red for a fail under the final grader;
 hover or tap one for its score and why. Pass@1 counts the runs that pass; mean D12 averages their final scores.
 Claude Opus 5.5 counts every run on the hardened build, R11 and R12. GPT-6 Astra ran in the Codex CLI agent at the
-API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends no effort of its own); it has
-only two runs because one costs about $12, so its pass@1 is a small sample.
+API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends no effort of its own); it has six
+runs, at about $12 each. Claude Sonnet 5.5's eight runs (R15) ran on a slightly later build than the other models'
+689ab3b: 1633470, whose environment is the bundle at 3d5b896, which adds the R12 and R13 quality-check fixes to
+colleagues, metering, the DONE hook, world logs and tool fidelity. The incident, the checks and the grader are the
+same. Six or eight runs per model show where the task bites, not a rate.
 
 <div class="aib-xm" role="table" aria-label="T01 results by model on the final build">
   <div class="xm-row xm-head" role="row">
@@ -107,7 +113,7 @@ only two runs because one costs about $12, so its pass@1 is a small sample.
   </div>
   {XM.map((m) => (
     <div class="xm-row" role="row">
-      <span class="xm-model" role="cell"><strong>{m.name}</strong><small>{m.via} · {ROUNDS(m.runs)}</small></span>
+      <span class="xm-model" role="cell"><strong>{m.name}</strong><small>{m.via} · {ROUNDS(m.runs)}{m.note ? ` · ${m.note}` : ""}</small></span>
       <span class="xm-runs" role="cell" aria-label={`${m.runs.filter(fin).length} of ${m.runs.length} pass`}>{m.runs.map((r) => (
         <a class={`xm-cell ${fin(r) ? "pass" : "fail"}`} href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener" title={`${r.id} · D12 ${pct(FD(r))} ${fin(r) ? "pass" : "fail"}${r.final ? " · " + r.final.why : ""}`}><span class="sr-only">{r.id}</span></a>
       ))}</span>
@@ -117,19 +123,54 @@ only two runs because one costs about $12, so its pass@1 is a small sample.
       <span class="xm-fails" role="cell">{FAILS(m.runs).length > 2 ? [...new Set(FAILS(m.runs).map(FKEY))].map((k) => (<span class="xm-f" title={FAILS(m.runs).filter((r) => FKEY(r) === k).map((r) => r.id).join(", ")}>{FAILS(m.runs).filter((r) => FKEY(r) === k).length === m.runs.length ? "all" : FAILS(m.runs).filter((r) => FKEY(r) === k).length} {FAILS(m.runs).length === m.runs.length ? "" : "runs "}<span class={`loss ${k}`}>{LOSSES[k] || "unlabelled"}</span></span>)) : FAILS(m.runs).length ? FAILS(m.runs).map((r) => (<span class="xm-f"><code>{r.id}</code> <span class={`loss ${FKEY(r)}`}>{FLABEL(r)}</span></span>)) : <span class="na">none</span>}</span>
     </div>
   ))}
-  <div class="xm-row xm-none" role="row">
-    <span class="xm-model" role="cell"><strong>Claude Sonnet 5.5</strong><small>Claude Code</small></span>
-    <span class="xm-note" role="cell">No runs on the final build yet. Its T01 runs here are on older builds (R8, R10); a Harbor parity job is adding runs on this one.</span>
-  </div>
 </div>
 
 **T01 separates the models.** Claude Haiku 5.5 fails all six runs, and every failure is fair: it restored the ledger
 endpoint 16 to 48 minutes after the 03:20 deadline, or never, and each late restore also left checkout unstable after
 04:00 or webhooks still queued at the horizon. One of R12-haiku-2's lost checks is partly the environment's (the
 incident commander wrongly disowned the restore it asked for, fixed since), but its unrecovered backlog fails the run
-on its own. Claude Opus 5.5 passes 10 of 12, both failures the same fair early Mitigated claim (G3). Claude Fable 5.2
-passes all six at 1.00. GPT-6 Astra passes both of its runs at 1.00 under the final grader. Where and why each model lost
-points, with films of the moments that decided the runs, is in [How models fail T01](#how-models-fail-t01).
+on its own. Claude Sonnet 5.5 passes 4 of 8, mean 0.85, and its four failures are one fair mode: each paused endpointd
+and found a plan that matched the live fleet, then asked for a recorded approval to apply it, and applied it 3 to 14
+minutes after the 03:20 deadline although the rotation IC kept answering that the runbook step was its own. Claude Opus
+5.5 passes 10 of 12, both failures the same fair early Mitigated claim (G3). Claude Fable 5.2 passes all six at 1.00, and
+GPT-6 Astra all six of its runs at 1.00 under the final grader. Where and why each model lost points, with films of the
+moments that decided the runs, is in [How models fail T01](#how-models-fail-t01); that chapter covers the first 32
+runs, with Sonnet's earlier-build runs and Astra's first two, not R15 or R14-astra-3 to -6.
+
+### On Harbor
+
+T01 also ships as a Harbor task package, in the [`harbor/` folder](https://github.com/earakely-scale/agentenv-awsbench-plugin/tree/main/harbor) of the task's
+repository. It runs the same artifacts as the AgentEnv task: the same server code, scenario and pinned server images,
+the same gateway, service-db and Claude Code agent images, the same setup calls, the same post-turn hook and the same
+grader. Its [PARITY.md](https://github.com/earakely-scale/agentenv-awsbench-plugin/blob/main/harbor/PARITY.md) is the parity matrix, with the evidence for each
+row and every difference.
+
+**The mechanism is the same.** The model's input is identical on both systems: the system prompt, the 57 tools and
+their schemas, and the first message, once the server name each deploy draws at random is set aside. Replayed through
+both systems, 4,499 recorded tool calls from 38 runs on three builds return equal results, apart from values the world
+draws at random on every deploy by design (the hosted zone id, the delegation set, one weighted DNS answer). The
+exports, the post-turn hook's decisions and the grades are identical, and all nine scripted paths (the oracle, another
+valid path, the no-op and six wrong or shortcut paths) score the same on both, check for check.
+
+**The live runs did not score the same, and equal outcomes are not proven.** Eight Claude Sonnet 5.5 runs per system,
+interleaved on one host (R15, build 1633470), as measured:
+
+<div class="table-scroll">
+<table class="aib-results">
+  <thead><tr><th></th><th>Harbor</th><th>AgentEnv</th><th>Difference (95 % interval), test</th></tr></thead>
+  <tbody>
+    <tr><td>Pass</td><td>1/8 (0.02–0.47)</td><td>4/8 (0.22–0.79)</td><td>−0.38 (−0.68 to 0.07)</td></tr>
+    <tr><td>Mean D12</td><td>0.62</td><td>0.85</td><td>−0.23 (−0.42 to −0.05); Mann-Whitney p = 0.03, uncorrected, one of about 12 comparisons</td></tr>
+    <tr><td>Applied stale plan 48177 before a later one</td><td>4/8 (0.22–0.79)</td><td>0/8 (0–0.32)</td><td>Fisher p = 0.077</td></tr>
+  </tbody>
+</table>
+</div>
+
+The difference points the same way on every outcome measure, but those measures are correlated, and eight runs a side
+can produce a gap this size by chance. No mechanism was found: the inputs were identical, the environment answered
+every call the same, tool latency was equal and the same content was injected. Showing equal outcomes would take a
+pre-registered equivalence test of about 32 runs a side; it has not been run. The Harbor runs are parity evidence, so
+they are not in the table above.
 
 ### What the hint removal changed
 
@@ -248,7 +289,7 @@ resolved claim; the final grader fixes that and scores it 0.975, a pass.
 Both task designs aim for a frontier pass rate near 10–18 %. On the hardened build Opus passes T01 at {PCT(T01O)} and
 T03 at {PCT(T03O)} under the final grader. Six or twelve runs per task show where a task bites, not a rate, but the gap
 is too large to be noise. Across models T01 does separate them (see [Across models](#across-models)): Haiku fails every
-run, Opus fails one in six, and Fable and GPT-6 Astra pass every run. Audits against the designs found the physics faithful: T01's storm thresholds, autoscaler revert
+run, Sonnet half of its runs on a slightly later build, Opus one in six, and Fable and GPT-6 Astra pass every run. Audits against the designs found the physics faithful: T01's storm thresholds, autoscaler revert
 and reconnect-herd collapse, and T03's thread arithmetic (132 hosts fail, 124 and fewer fit), its restart behaviour and
 its 14:00 relapse all follow the designs. The earlier builds were easier in what they gave away, and the hardened build
 took that back (see [What the hint removal changed](#what-the-hint-removal-changed)): policy pages that restated the

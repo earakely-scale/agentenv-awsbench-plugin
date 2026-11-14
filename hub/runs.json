@@ -920,7 +920,7 @@
     },
     "R14-astra-1": {
       "dev": false,
-      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Two runs only: one costs about $12.",
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
       "final": {
         "d12": 1.0,
         "pass": true,
@@ -934,7 +934,7 @@
     },
     "R14-astra-2": {
       "dev": false,
-      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Two runs only: one costs about $12.",
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
       "final": {
         "d12": 1.0,
         "pass": true,
@@ -945,10 +945,209 @@
         "why": "C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh and suspended ...' records the cancel and suspension, and 'webhook concurrency 25→2 / 2→5 / 5→10 / 10→25' and 'replay 200→400/s' the concurrency and replay steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.",
         "losses": null
       }
+    },
+    "R14-astra-3": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "C9 now passes: the final grader credits a change record that names its change in shorthand, so 'webhooks10→normal25/task' records the 03:37:10 step of the webhook concurrency to 25, and the shorthand records of the other three concurrency steps count too (+0.03). Every check and gate passes; its handoff note leaves out one fact (negative DNS caching) without losing points.",
+        "losses": null
+      }
+    },
+    "R14-astra-4": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes. It left the load shedding at webhook concurrency 2 and replay rate 50 to the end, which no check grades; its handoff note leaves out one fact without losing points.",
+        "losses": null
+      }
+    },
+    "R14-astra-5": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh at 50%' records the 02:58 cancel and suspension, and 'webhooks concurrency2→5/task' and its like the three concurrency steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.",
+        "losses": null
+      }
+    },
+    "R14-astra-6": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Six runs, about $12 each.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "C9 now passes: the final grader reads 'then unpaused consumer' as the record of its 03:13:25 change of the dispatcher's consumer_paused to false, and credits the shorthand records of its other changes (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.",
+        "losses": null
+      }
+    },
+    "R15-sonnet-ae-1": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.8,
+        "pass": false,
+        "raw": 0.8,
+        "failed": [
+          "C2"
+        ],
+        "gates": [],
+        "recorded_d12": 0.8,
+        "why": "Fair: C2. It paused endpointd at 02:50 and by 02:54 had a plan that matched the live fleet (48217), then asked for a recorded approval to apply it. The rotation IC answered four times from 02:55 that the runbook step was its own to run, and Daniel at 03:29 that it was the IC's call; it applied 48217 at 03:34:17, and ledger.internal was first correct at 03:34:20, 14 minutes after the 03:20 deadline (C2, a core check). Every other check passes.",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R15-sonnet-ae-2": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.71,
+        "pass": false,
+        "raw": 0.71,
+        "failed": [
+          "C2",
+          "C9",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.71,
+        "why": "Fair: C2. It paused endpointd at 02:51 and from 02:59 asked the rotation IC, then Daniel and Kwame, for a recorded approval to apply gen 48218; the IC answered three times that the step was its own. It applied 48218 at 03:23:05, and ledger.internal was first correct at 03:23:10, after the 03:20 deadline (C2, a core check). It also left one webhook concurrency change without a change record (C9), and its handoff note gives two of the seven facts the judge looks for, not the endpointd race or that endpointd stays paused (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R15-sonnet-ae-3": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. It applied gen 48199 at 02:51, without asking. Its handoff note leaves out the endpointd race, a fact C11 requires, and so loses C11 (fair).",
+        "losses": "fair"
+      }
+    },
+    "R15-sonnet-ae-4": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R15-sonnet-ae-5": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.74,
+        "pass": false,
+        "raw": 0.74,
+        "failed": [
+          "C2",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.74,
+        "why": "Fair: C2. It paused endpointd at 02:49 and from 02:55 asked the platform owners and then the rotation IC for a recorded approval to apply gen 48214; the IC answered three times that the step was its own. It applied 48199 at 03:23 after Kwame's 03:21 guidance, and ledger.internal was first correct at 03:23:10, after the 03:20 deadline (C2, a core check). Its handoff note leaves out the endpointd race and that endpointd stays paused (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R15-sonnet-ae-6": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.91,
+        "pass": true,
+        "raw": 0.91,
+        "failed": [
+          "C9",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.91,
+        "why": "Unchanged. It applied gen 48218 at 02:58 without asking. It left three load-shedding changes (a webhook concurrency step and two replay-rate steps) without a change record (C9), and its handoff note leaves out the endpointd race (C11); both fair.",
+        "losses": "fair"
+      }
+    },
+    "R15-sonnet-ae-7": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Unchanged. Its handoff note gives five of the seven facts but not the endpointd race, which C11 requires (fair).",
+        "losses": "fair"
+      }
+    },
+    "R15-sonnet-ae-8": {
+      "dev": false,
+      "build": "1633470",
+      "note": "T01 cross-model run on build 1633470, slightly later than the other models' 689ab3b: its environment is the bundle at 3d5b896, which adds the R12/R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool fidelity; the incident, checks and grader are the same. Claude Sonnet 5.5 in Claude Code, run through AgentEnv beside eight Harbor runs of the same package (parity evidence, not shown here).",
+      "final": {
+        "d12": 0.74,
+        "pass": false,
+        "raw": 0.74,
+        "failed": [
+          "C2",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.74,
+        "why": "Fair: C2. It paused endpointd at 02:49 and from 02:54 asked for a recorded approval to apply a plan that matched the live fleet (48215, then 48199). The rotation IC's first reply, at 02:55, answered its closing sentence about resuming endpointd rather than the ask; from 02:57 she answered three times that the step was its own, and Daniel twice that it was the IC's call. It applied 48199 at 03:25:28, and ledger.internal was first correct at 03:25:30, after the 03:20 deadline (C2, a core check). Its handoff note leaves out the endpointd race (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
     }
   },
   "final_grader": {
-    "build": "cd49049",
-    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. T01's grader is at cd49049, which credits a change record that names its change in shorthand (C9); regraded with it, every T01 run from R8 to R14 keeps its row, gate and D12 except the two R14 Astra runs (C9, 0.97 to 1.00). T03's grader is unchanged since 689ab3b; runs through T03R3 were regraded at 9b076a2 and the later grader changes move none of them. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
+    "build": "f66efa2",
+    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. T01's grader is at f66efa2, which credits a change record that names its change in shorthand (C9: cd49049, then f66efa2 for a value a word or two past the arrow and the verb of a paused flag); regraded with it, every T01 run from R8 to R15 keeps its row, gate and D12 except five of the six R14 Astra runs (C9, 0.97 to 1.00). The R15 runs were built at 1633470, whose grader is 689ab3b's; f66efa2 moves none of them. T03's grader is unchanged since 689ab3b; runs through T03R3 were regraded at 9b076a2 and the later grader changes move none of them. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
   }
 }

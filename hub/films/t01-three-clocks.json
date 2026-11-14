@@ -13,7 +13,7 @@
     "R12-haiku-1: n=4 pager_ack ends 02:41:45; n=8 wiki_get OPS-POL-IP-2026 ends 02:43:05; n=31-32 CloudTrail lookups to 02:56:35; n=35 '#inc-4452 ... Declaring SEV1' 02:59:20; n=36 tickets_update severity SEV1 ends 03:00:05 (board.ticket SEV1 at 03:00:05); C8 'SEV1 at 03:00:05 (deadline 02:56:45)'.",
     "R12-haiku-6: #inc-4452 posts messages[24] 04:02:47 (n=94) and messages[26] 04:46:17 (n=103); none between; transcript AGENT SAYS at 04:23: 'Nothing new in 10 minutes, and I'm still not replying DONE. Checkout is still failing.'; C10 'longest gap 43.5 min'.",
     "R13-fable-6: n=45 consumer_paused true ends 03:00:10 (first recorded change), n=46 replay_rate 03:00:55, n=47 admission 03:01:40, n=49 epctl apply 03:02:45; flushes n=52 03:06:00, n=61 03:10:50, n=63 03:12:25, n=65 03:14:00; n=66 chat_post with the CHANGE records ends 03:14:45; C9 '13 changes; unrecorded: []'.",
-    "Incident Process v12 (wiki OPS-POL-IP-2026): §2 'Declare within 15 min of the ack or of the first production change, whichever is first'; §4 'update the incident channel at least every 30 min for SEV1/SEV2'; EPD-RB-7 and LEDG-RB-2: a CHANGE record within 15 min. Clock losses on the final grader: Haiku 5 of 6 runs, Sonnet 1 of 6 (R8-sonnet-1 C9), Opus, Fable and GPT-6 Astra none (Astra's recorded C9 losses were a grader defect, fixed in cd49049)."
+    "Incident Process v12 (wiki OPS-POL-IP-2026): §2 'Declare within 15 min of the ack or of the first production change, whichever is first'; §4 'update the incident channel at least every 30 min for SEV1/SEV2'; EPD-RB-7 and LEDG-RB-2: a CHANGE record within 15 min. Clock losses on the final grader: Haiku 5 of 6 runs, Sonnet 1 of 6 (R8-sonnet-1 C9), Opus, Fable and GPT-6 Astra none (Astra's recorded C9 losses were a grader defect, fixed in cd49049 and f66efa2)."
   ],
   "scenes": [
     {
@@ -176,7 +176,7 @@
       "kicker": "Three clocks · 10 of 100 points",
       "title": "Small points, steady habits",
       "subtitle": "Haiku lost at least one clock in 5 of 6 runs, Sonnet in 1 of 6. {teal:Opus, Fable and GPT-6 Astra lost none} on the final grader.",
-      "meta": ["Haiku 5 of 6", "Sonnet 1 of 6", "Opus 0 of 12", "Fable 0 of 6", "Astra 0 of 2"],
+      "meta": ["Haiku 5 of 6", "Sonnet 1 of 6", "Opus 0 of 12", "Fable 0 of 6", "Astra 0 of 6"],
       "captions": [
         {
           "start": 42.7,

@@ -322,8 +322,8 @@ def results_table(index: dict) -> str:
 
 
 LOSSES = {"fair": "fair", "env": "environment", "mixed": "partly environment"}
-MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"),
-          ("GPT-6 Astra", "Codex CLI, effort medium"))
+MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Sonnet 5.5", "Claude Code, build 1633470"),
+          ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"), ("GPT-6 Astra", "Codex CLI, effort medium"))
 
 
 def models_table(index: dict) -> str:
@@ -347,7 +347,6 @@ def models_table(index: dict) -> str:
                  for r in mine if not fin(r)["pass"]]
         out.append(f"| {name} | {via} | {len(mine)} ({rounds}) | **{n}/{len(mine)} ({round(100 * n / len(mine))} %)** | "
                    f"{mean:.3f} | {', '.join(f'{c} ×{k}' for c, k in top) or 'nothing'} | {', '.join(fails) or 'none'} |")
-    out.append("| Claude Sonnet 5.5 | Claude Code | none on this build | | | | |")
     return "\n".join(out)
 
 

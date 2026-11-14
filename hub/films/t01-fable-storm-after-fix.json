@@ -15,7 +15,7 @@
     "R13-fable-4: n=36 'epctl apply --gen 48219 ... --manual' ends 02:57:35 with consumer_paused false, max_concurrency 25 (levers) and replay_rate 400, admission off (modes-fable); events 03:01:42 'Negative caches expire ...' and 03:02:40 'All 30 core hosts resolve'; series.ld 1147 at 03:02, 3140 (cap 1500) 03:03:00-03:08:30, 640 at 03:09; series.rg degraded 03:02:10, collapsed 03:02:20, healthy 03:11:10 (530 s); series.ck 350 for 03:03-03:11, 997 from 03:12.",
     "R13-fable-4 agent text after n=41 (agent-session.jsonl): 'DNS now resolves from all AZs, but checkout still fails with timeouts — looking at ledger-writer (likely a retry/backlog surge now hitting it).'; n=46-48 broad log queries 03:03:45-03:07:30; n=49-51 consumer_paused true 03:08:15, replay_rate 50 03:09:00, admission on 03:09:45; C6 'collapsed 530s'; D12 1.000.",
     "R13-fable-3: n=41-43 consumer_paused true 02:58:15, replay_rate 50 02:59:00, admission on 02:59:45; n=44 apply ends 03:00:30; series.ld 197 at 03:02, 290 from 03:03 (peak); regime healthy throughout (collapsed 0 s); series.ck 838 at 03:03, 997 from 03:04; D12 1.000.",
-    "Collapse lengths (summary.collapsed_min): Opus R11/R12 10 of 12 runs, 320-580 s; Fable 2 of 6 (340, 530 s); GPT-6 Astra 0 of 2. C6 (verify.py) allows 1,200 s; no run failed C6 on collapse length."
+    "Collapse lengths (summary.collapsed_min): Opus R11/R12 10 of 12 runs, 320-580 s; Fable 2 of 6 (340, 530 s); GPT-6 Astra 0 of 6. C6 (verify.py) allows 1,200 s; no run failed C6 on collapse length."
   ],
   "scenes": [
     {
@@ -236,7 +236,7 @@
       "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "G1", "G2", "G3", "G4"],
       "lines": [
         "Collapses of 320–580 s: 10 of 12 Opus runs, 2 of 6 Fable runs. None lost C6 for it.",
-        "Four Fable runs and both GPT-6 Astra runs shed before DNS came back: no collapse."
+        "Four Fable runs and all six GPT-6 Astra runs shed before DNS came back: no collapse."
       ],
       "captions": [
         {

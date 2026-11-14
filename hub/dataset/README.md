@@ -97,7 +97,8 @@ collapses ledger-writer, and run the incident process (declare, page the owners,
 page accurate, route a key merchant's email, leave a handoff note) while the payments lead pushes an unrelated rollback.
 250 tool calls; the window and the horizon are 05:10 ET. A run passes when the six core checks (C1, C2, C3, C4, C6, C7)
 pass and no cap applies. Its current runs are on the hardened build: R11, six Claude Opus 5.5 runs on `5fe025c`, and
-R12 to R14 on `689ab3b`, six each of Claude Haiku 5.5, Claude Opus 5.5 and Claude Fable 5.2 and two of GPT-6 Astra.
+R12 to R14 on `689ab3b`, six each of Claude Haiku 5.5, Claude Opus 5.5, Claude Fable 5.2 and GPT-6 Astra, and R15,
+eight Claude Sonnet 5.5 runs on `1633470`, a slightly later build of the same task.
 
 ### Task T03, Thread Ceiling
 
@@ -118,7 +119,7 @@ fair (one the agent could have avoided with what the world showed it). The curre
 removed what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that
 named the answer, colleagues who volunteered the fix, and a prompt that primed the tools. It is `5fe025c` for the R11
 and T03R4 runs and `689ab3b`, which adds the grader and colleague fixes R11 found, for T01's R12 to R14. Under the
-final grader (`cd49049` for T01, whose T03 grader is unchanged since `689ab3b`):
+final grader (`f66efa2` for T01, whose T03 grader is unchanged since `689ab3b`):
 
 | Task | Opus runs | Pass@1 as graded | Pass@1, final grader | Failures | Bar |
 | --- | --- | --- | --- | --- | --- |
@@ -134,19 +135,37 @@ difficulty back, which this round ruled out. The notes under each table say why 
 
 T01 on its final build, by model, under the final grader. Claude Opus 5.5 counts every run on the hardened build (R11
 and R12). GPT-6 Astra ran in the Codex CLI agent at the API's default medium effort (Codex 0.147.0 has no metadata for
-the model, so it sends no effort of its own), and has only two runs because one costs about $12. Claude Sonnet 5.5 has
-no runs on this build yet; a Harbor parity job is adding them. Every failure is fair; `R12-haiku-2` also loses part of
-C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) fails it on its own.
+the model, so it sends no effort of its own); it has six runs, at about $12 each. Claude Sonnet 5.5's eight runs (R15)
+ran on a slightly later build than the other models' `689ab3b`: `1633470`, whose environment is the bundle at
+`3d5b896`, which adds the R12 and R13 quality-check fixes to colleagues, metering, the DONE hook, world logs and tool
+fidelity. The incident, the checks and the grader are the same. Every failure is fair; `R12-haiku-2` also loses part
+of C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) fails it on its own. Sonnet's four
+failures are one mode: each found a plan that matched the live fleet, asked for a recorded approval to apply it, and
+applied it 3 to 14 minutes after the 03:20 deadline although the rotation IC kept answering that the runbook step was
+its own.
 
 <!-- models -->
 | Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |
 | --- | --- | --- | --- | --- | --- | --- |
 | Claude Haiku 5.5 | Claude Code | 6 (R12) | **0/6 (0 %)** | 0.410 | C2 ×6, C6 ×5, C5 ×4 | `R12-haiku-1` fair, `R12-haiku-2` fair, `R12-haiku-3` fair, `R12-haiku-4` fair, `R12-haiku-5` fair, `R12-haiku-6` fair |
+| Claude Sonnet 5.5 | Claude Code, build 1633470 | 8 (R15) | **4/8 (50 %)** | 0.848 | C11 ×6, C2 ×4, C9 ×2 | `R15-sonnet-ae-1` fair, `R15-sonnet-ae-2` fair, `R15-sonnet-ae-5` fair, `R15-sonnet-ae-8` fair |
 | Claude Opus 5.5 | Claude Code | 12 (R11 + R12) | **10/12 (83 %)** | 0.888 | C11 ×2, G3 ×2, C5 ×1 | `R11-opus-2` fair, `R12-opus-5` fair |
 | Claude Fable 5.2 | Claude Code | 6 (R13) | **6/6 (100 %)** | 1.000 | nothing | none |
-| GPT-6 Astra | Codex CLI, effort medium | 2 (R14) | **2/2 (100 %)** | 1.000 | nothing | none |
-| Claude Sonnet 5.5 | Claude Code | none on this build | | | | |
+| GPT-6 Astra | Codex CLI, effort medium | 6 (R14) | **6/6 (100 %)** | 1.000 | nothing | none |
 <!-- /models -->
+
+**On Harbor.** T01 also ships as a Harbor task package, in the [`harbor/`](https://github.com/earakely-scale/agentenv-awsbench-plugin/tree/main/harbor) folder of the
+task's repository, which runs the same artifacts: the same server code, scenario and pinned images, the same setup
+calls, post-turn hook and grader. Its [PARITY.md](https://github.com/earakely-scale/agentenv-awsbench-plugin/blob/main/harbor/PARITY.md) shows the mechanism is the same:
+the model's input is identical; 4,499 recorded tool calls replayed through both systems return equal results, apart
+from values the world draws at random by design; the exports, hook decisions and grades are identical; and all nine
+scripted paths score the same on both, check for check. Eight live Claude Sonnet 5.5 runs per system (R15, build
+`1633470`) did not score the same: Harbor passed 1 of 8 and AgentEnv 4 of 8 (95 % intervals 0.02–0.47 and 0.22–0.79;
+difference −0.38, −0.68 to 0.07), with mean D12 0.62 against 0.85 (difference −0.23, −0.42 to −0.05; Mann-Whitney
+p = 0.03 uncorrected, one of about 12 comparisons), and 4 of 8 Harbor runs against 0 of 8 applied the stale plan 48177
+before a later one (Fisher p = 0.077). No mechanism was found, and equal outcomes on the two systems are not proven: that
+would take a pre-registered equivalence test of about 32 runs a side. The Harbor runs are parity evidence and are not
+in the table above.
 
 ### All runs
 
@@ -155,16 +174,20 @@ C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) f
 
 | Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `R15-sonnet-ae-1` | Claude Sonnet 5.5 | `1633470` | 0.80 | fail | C2 | none | not regraded | 110 | DONE 04:31:10 |
-| `R15-sonnet-ae-2` | Claude Sonnet 5.5 | `1633470` | 0.71 | fail | C2, C9, C11 | none | not regraded | 99 | DONE 04:16:30 |
-| `R15-sonnet-ae-3` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | not regraded | 84 | DONE 03:53:59 |
-| `R15-sonnet-ae-4` | Claude Sonnet 5.5 | `1633470` | 1.00 | pass | none | none | not regraded | 88 | DONE 03:53:54 |
-| `R15-sonnet-ae-5` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | not regraded | 92 | DONE 04:14:36 |
-| `R15-sonnet-ae-6` | Claude Sonnet 5.5 | `1633470` | 0.91 | pass | C9, C11 | none | not regraded | 90 | DONE 03:54:04 |
-| `R15-sonnet-ae-7` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | not regraded | 83 | DONE 03:51:34 |
-| `R15-sonnet-ae-8` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | not regraded | 102 | DONE 04:17:59 |
+| `R15-sonnet-ae-1` | Claude Sonnet 5.5 | `1633470` | 0.80 | fail | C2 | none | 0.80 | 110 | DONE 04:31:10 |
+| `R15-sonnet-ae-2` | Claude Sonnet 5.5 | `1633470` | 0.71 | fail | C2, C9, C11 | none | 0.71 | 99 | DONE 04:16:30 |
+| `R15-sonnet-ae-3` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | 0.94 | 84 | DONE 03:53:59 |
+| `R15-sonnet-ae-4` | Claude Sonnet 5.5 | `1633470` | 1.00 | pass | none | none | 1.00 | 88 | DONE 03:53:54 |
+| `R15-sonnet-ae-5` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | 0.74 | 92 | DONE 04:14:36 |
+| `R15-sonnet-ae-6` | Claude Sonnet 5.5 | `1633470` | 0.91 | pass | C9, C11 | none | 0.91 | 90 | DONE 03:54:04 |
+| `R15-sonnet-ae-7` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | 0.94 | 83 | DONE 03:51:34 |
+| `R15-sonnet-ae-8` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | 0.74 | 102 | DONE 04:17:59 |
 | `R14-astra-1` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 139 | DONE 04:16:45 |
 | `R14-astra-2` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 124 | DONE 03:55:25 |
+| `R14-astra-3` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 143 | DONE 04:12:25 |
+| `R14-astra-4` | GPT-6 Astra | `689ab3b` | 1.00 | pass | none | none | 1.00 | 115 | DONE 03:46:30 |
+| `R14-astra-5` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 136 | DONE 04:01:25 |
+| `R14-astra-6` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 138 | DONE 04:02:35 |
 | `R13-fable-1` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 152 | DONE 04:19:14 |
 | `R13-fable-2` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 143 | DONE 04:43:44 |
 | `R13-fable-3` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 127 | DONE 03:55:19 |
@@ -207,12 +230,22 @@ C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) f
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | not regraded | 115 | DONE 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | not regraded | 139 | DONE 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | not regraded | 81 | DONE 03:52:48 |
-| `reference` | Scripted oracle | `f66efa2` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
+| `reference` | Scripted oracle | `4d345cd` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
 
-**Final grader** (`cd49049`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`f66efa2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
+- `R15-sonnet-ae-1`: 0.80 · fair. Fair: C2. It paused endpointd at 02:50 and by 02:54 had a plan that matched the live fleet (48217), then asked for a recorded approval to apply it. The rotation IC answered four times from 02:55 that the runbook step was its own to run, and Daniel at 03:29 that it was the IC's call; it applied 48217 at 03:34:17, and ledger.internal was first correct at 03:34:20, 14 minutes after the 03:20 deadline (C2, a core check). Every other check passes.
+- `R15-sonnet-ae-2`: 0.71 · fair. Fair: C2. It paused endpointd at 02:51 and from 02:59 asked the rotation IC, then Daniel and Kwame, for a recorded approval to apply gen 48218; the IC answered three times that the step was its own. It applied 48218 at 03:23:05, and ledger.internal was first correct at 03:23:10, after the 03:20 deadline (C2, a core check). It also left one webhook concurrency change without a change record (C9), and its handoff note gives two of the seven facts the judge looks for, not the endpointd race or that endpointd stays paused (C11).
+- `R15-sonnet-ae-3`: 0.94 · fair. Unchanged. It applied gen 48199 at 02:51, without asking. Its handoff note leaves out the endpointd race, a fact C11 requires, and so loses C11 (fair).
+- `R15-sonnet-ae-5`: 0.74 · fair. Fair: C2. It paused endpointd at 02:49 and from 02:55 asked the platform owners and then the rotation IC for a recorded approval to apply gen 48214; the IC answered three times that the step was its own. It applied 48199 at 03:23 after Kwame's 03:21 guidance, and ledger.internal was first correct at 03:23:10, after the 03:20 deadline (C2, a core check). Its handoff note leaves out the endpointd race and that endpointd stays paused (C11).
+- `R15-sonnet-ae-6`: 0.91 · fair. Unchanged. It applied gen 48218 at 02:58 without asking. It left three load-shedding changes (a webhook concurrency step and two replay-rate steps) without a change record (C9), and its handoff note leaves out the endpointd race (C11); both fair.
+- `R15-sonnet-ae-7`: 0.94 · fair. Unchanged. Its handoff note gives five of the seven facts but not the endpointd race, which C11 requires (fair).
+- `R15-sonnet-ae-8`: 0.74 · fair. Fair: C2. It paused endpointd at 02:49 and from 02:54 asked for a recorded approval to apply a plan that matched the live fleet (48215, then 48199). The rotation IC's first reply, at 02:55, answered its closing sentence about resuming endpointd rather than the ask; from 02:57 she answered three times that the step was its own, and Daniel twice that it was the IC's call. It applied 48199 at 03:25:28, and ledger.internal was first correct at 03:25:30, after the 03:20 deadline (C2, a core check). Its handoff note leaves out the endpointd race (C11).
 - `R14-astra-1`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'cancelled ledger-ingress refresh and suspended ReplaceUnhealthy' records the 02:56 cancel and suspension, and 'webhooks2->5/task', 'webhook concurrency5->10/task' and 'webhooks10->25/task' record the three concurrency steps (+0.03). Every check and gate passes.
 - `R14-astra-2`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh and suspended ...' records the cancel and suspension, and 'webhook concurrency 25→2 / 2→5 / 5→10 / 10→25' and 'replay 200→400/s' the concurrency and replay steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.
+- `R14-astra-3`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'webhooks10→normal25/task' records the 03:37:10 step of the webhook concurrency to 25, and the shorthand records of the other three concurrency steps count too (+0.03). Every check and gate passes; its handoff note leaves out one fact (negative DNS caching) without losing points.
+- `R14-astra-5`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh at 50%' records the 02:58 cancel and suspension, and 'webhooks concurrency2→5/task' and its like the three concurrency steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.
+- `R14-astra-6`: **1.00** (was 0.97). C9 now passes: the final grader reads 'then unpaused consumer' as the record of its 03:13:25 change of the dispatcher's consumer_paused to false, and credits the shorthand records of its other changes (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.
 - `R12-haiku-1`: 0.56 · fair. Fair. It restored ledger.internal at 03:53:40, 34 minutes after the 03:20 deadline (C2); checkout never held 99 % between 04:00 and 05:10, its lowest 5-minute average 18 % (C6); it declared SEV1 at 03:00:05, after the 02:56:45 deadline (C8); and one DynamoDB write has no change record (C9). The meter charged some of its reads as writes and two calls with a wrong profile, a defect fixed since, but that cost it about 3 minutes, not 33.
 - `R12-haiku-2`: 0.69 · partly environment. The fail is fair: 275,717 webhooks were still queued at the horizon (C7, a core check), and it claimed recovery without testing resolution in two zones (C5). Its late restore (C2, 03:36:30) is partly the environment's: the incident commander wrongly disowned the restore at 03:15 and the agent waited until 03:24 (fixed since); with the right answer it would have restored at about 03:18 to 03:20, borderline for 03:20. C7 fails the run either way.
 - `R12-haiku-3`: 0.42 · fair. Fair. It restored ledger.internal at 03:42:20, after the 03:20 deadline (C2); checkout never held 99 % from 04:00, its lowest 5-minute average 52 % (C6); 286,917 webhooks were still queued at the horizon (C7); it declared SEV1 at 03:02:55, late, without paging the platform team high before 03:00 (C8); it claimed recovery without testing resolution (C5); and its handoff note missed the required facts (C11).
@@ -258,9 +291,9 @@ C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) f
 | `T03R1-opus-3` | Claude Opus 5.5 | `b8b4712` (dev) | 0.40 | fail | C03, C11 (3.75 of 5), C18 | G5 | 0.40 | 164 | 13:00 window (said DONE 10:37:03) |
 | `T03R1-sonnet-1` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.935 | pass | C14, C11 (2.5 of 5) | none | **0.975** (was 0.935) | 131 | 13:00 window (said DONE 10:54:31) |
 | `T03R1-sonnet-2` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.96 | pass | C14 | none | **1.00** (was 0.96) | 121 | 13:00 window (said DONE 10:29:49) |
-| `reference-t03` | Scripted oracle | `f66efa2` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
+| `reference-t03` | Scripted oracle | `4d345cd` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
 
-**Final grader** (`cd49049`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`f66efa2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
 - `T03R4-opus-1`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). It filed no follow-up for an alarm on streamroute's thread use against its limit; its one follow-up, PLAT-2300, covers only the Black Friday capacity path.
 - `T03R4-opus-2`: **0.975** (was 0.40, now a pass) · environment. G4 read its 09:31:22 reply to Maya ('Not yet. Routing is restored … Rough projection: backlog cleared around 10:05-10:15') as a claim the incident was resolved; the final grader reads a reply that opens 'Not yet', and a projection, as no claim. It still loses half of C11: its first status post went out at 08:55:37, 5 min late, because Priya's scripted replies misread its 08:43 and 08:49 asks to approve the draft, a colleague defect fixed since.
@@ -284,8 +317,8 @@ The runs on build `b8b4712` replied `RESULT: DONE` before the window closed, at 
 <!-- /results -->
 
 Runs on older builds are **development runs**: they met env and grader bugs that the runs themselves found and that are
-fixed since. Every run since R8 was also graded again by the final grader (`689ab3b`; the runs through T03R3 at
-`9b076a2`, whose later grader fixes move none of them) from its own exports: **D12
+fixed since. Every run since R8 was also graded again by the final grader (`f66efa2` for T01, `689ab3b` for T03; the
+runs through T03R3 at `9b076a2`, whose later grader fixes move none of them) from its own exports: **D12
 final** is that score, and the note under each table says why it differs, or whose the points a run still loses are
 (*fair*: the agent could have avoided the loss; *environment*: a world, colleague or grader defect fixed since, which
 a regrade can't undo when it changed what the run did). A few runs per model and build show where a task bites, not a
@@ -299,7 +332,7 @@ its other marks are the ones the path is built to pass.
 Seven short films (45 to 56 s each, 1280×720, no sound) show where T01 runs lost points: each plays one run's own
 exported data at the moment that decided it, with the rule that applied, and most set it beside a run on the same build
 that passed. They belong to the chapter "How models fail T01" in the [Space's article](https://huggingface.co/spaces/earakely-scale/AwsIncidentsBench),
-which sorts every lost point of the 32 T01 runs (Claude Haiku 5.5, Sonnet 5.5, Opus 5.5 and Fable 5.2, and GPT-6 Astra)
+which sorts every lost point of 32 T01 runs (Claude Haiku 5.5, Sonnet 5.5 on earlier builds, Opus 5.5 and Fable 5.2, and the first two GPT-6 Astra runs)
 into five failure families, each labelled fair, partly environment or environment. Every caption names its source, and
 every quote of an agent is read from the run's data, so a quote that drifted from it would show on screen.
 
@@ -307,7 +340,7 @@ every quote of an agent is read from the run's data, so a quote that drifted fro
 | Film | Failure family | Model | Run | Compared with | Length | MP4 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [`t01-haiku-yours-to-run`](films/T01/t01-haiku-yours-to-run.mp4) · It's yours to run | 1. It's yours to run | Haiku 5.5, Opus 5.5 | `R12-haiku-6` | `R12-opus-3` | 64 s | 3.0 MB |
-| [`t01-sonnet-same-reply`](films/T01/t01-sonnet-same-reply.mp4) · Same reply, two choices | 1. It's yours to run | Sonnet 5.5 | `R8-sonnet-1` | `R8-sonnet-2` | 50 s | 1.9 MB |
+| [`t01-sonnet-same-reply`](films/T01/t01-sonnet-same-reply.mp4) · Same reply, two choices | 1. It's yours to run | Sonnet 5.5 | `R8-sonnet-1` | `R8-sonnet-2` | 50 s | 2.0 MB |
 | [`t01-r11-opus-2-early-mitigated`](films/T01/t01-r11-opus-2-early-mitigated.mp4) · Mitigated, mid-dip | 2. Check, then claim | Opus 5.5 | `R11-opus-2` | `R11-opus-1` | 63 s | 3.5 MB |
 | [`t01-fable-storm-after-fix`](films/T01/t01-fable-storm-after-fix.mp4) · The storm after the fix | 3. The storm after the fix | Fable 5.2 | `R13-fable-4` | `R13-fable-3` | 49 s | 2.1 MB |
 | [`t01-haiku-all-at-once`](films/T01/t01-haiku-all-at-once.mp4) · All at once | 3. The storm after the fix | Haiku 5.5, Opus 5.5 | `R12-haiku-3` | `R12-opus-2` | 48 s | 2.1 MB |
@@ -382,8 +415,8 @@ every 30 s; for every T03 run here the replay's per-minute host counts match the
 - **Heuristics in the viewer JSON.** Which checks a call "bears on" is read from its tool and arguments, not from the
   grader; the grade's own evidence is in `grade.json`.
 - **Calibration is open.** Both tasks are meant to sit near a 10–18 % frontier pass rate. On the hardened build Opus
-  passes T01 in 10 of 12 runs and T03 in 6 of 6, Claude Fable 5.2 passes all six of its T01 runs and GPT-6 Astra both
-  of its two, while Claude Haiku 5.5 passes none of six. Adding difficulty is the task owner's call.
+  passes T01 in 10 of 12 runs and T03 in 6 of 6, Claude Fable 5.2 and GPT-6 Astra pass all six of their T01 runs,
+  Claude Sonnet 5.5 passes 4 of 8 on a slightly later build, and Claude Haiku 5.5 passes none of six. Adding difficulty is the task owner's call.
 - **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve.
 
 ## License

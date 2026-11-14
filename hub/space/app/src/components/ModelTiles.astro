@@ -1,7 +1,7 @@
 ---
 // The stat strip: one tile per model in matrix order, pass@1 as the hero figure.
 import { MODELS } from "./failures";
-const note: Record<string, string> = { haiku: "6 runs · final build", sonnet: "6 runs · earlier builds", opus: "12 runs · R11 + R12", fable: "6 runs · final build", astra: "2 runs · Codex CLI" };
+const note: Record<string, string> = { haiku: "6 runs · final build", sonnet: "6 runs · earlier builds, not R15", opus: "12 runs · R11 + R12", fable: "6 runs · final build", astra: "first 2 of 6 runs · Codex CLI" };
 ---
 <ul class="t01f-tiles" aria-label="T01 pass@1 by model, final grader">
   {MODELS.map((m: any) => {

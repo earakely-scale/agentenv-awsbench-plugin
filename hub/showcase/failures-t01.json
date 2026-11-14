@@ -5,7 +5,7 @@
  "task_title": "The Empty Ledger Endpoint",
  "title": "How models fail T01",
  "grading": {
-  "final_grader": "T01 grader at cd49049: 689ab3b's grader plus C9 crediting a CHANGE record that names its change in shorthand",
+  "final_grader": "T01 grader at f66efa2: 689ab3b's grader plus C9 crediting a CHANGE record that names its change in shorthand (cd49049, then f66efa2); for this chapter's runs it scores as cd49049 did",
   "pass_rule": "A run passes when all six core checks pass (C1, C2, C3, C4, C6, C7) and no cap applies.",
   "caps": {
    "G1": 0.0,
@@ -88,7 +88,7 @@
     "5095dda": "R10"
    },
    "final_build": false,
-   "note": "Earlier builds only (R8-R10); graded by the final grader. Two colleague-reply defects on R8/R9 were fixed after these runs.",
+   "note": "Earlier builds only (R8-R10); graded by the final grader. Two colleague-reply defects on R8/R9 were fixed after these runs. Its eight R15 runs on build 1633470 (4 of 8 pass) are in Results, not in this chapter's analysis.",
    "pass_at_1": "3/6",
    "mean_d12": 0.85
   },
@@ -154,7 +154,7 @@
     "689ab3b": "R14"
    },
    "final_build": true,
-   "note": "Two runs only (about $12 each at list price). A different harness: read it as an indication, not a rate.",
+   "note": "This chapter's two runs, R14-astra-1 and -2. Four more (R14-astra-3 to -6, about $12 each) also score 1.00 on the final grader; they are in Results, not in this chapter's analysis. A different harness: read it as an indication, not a rate.",
    "pass_at_1": "2/2",
    "mean_d12": 1.0
   }
