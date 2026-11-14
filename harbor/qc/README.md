@@ -62,3 +62,8 @@ PARITY.md has the intervals and what they do and do not show.
 
 20 Harbor trials ran at this commit (15 QC, 4 replays, 1 multi-turn) with no harness error and no trial left
 ungraded.
+
+**After the T04 and T05 merge** (6871d5b), whose shared server changes and driver functions reach the package's copies
+and `solution/play.py`, set A ran again on host 2: each of the nine trials' `reward.json` and rows equal the table above,
+and its rows (C11's skip note aside) equal the AgentEnv driver's on the same commit. Set B, the replays and the
+multi-turn check were not re-run.
