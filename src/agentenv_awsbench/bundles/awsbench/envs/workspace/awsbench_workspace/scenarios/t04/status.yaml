@@ -1,0 +1,20 @@
+url: https://status.vantleaf.com
+components:
+  - {id: checkout, name: Hosted Checkout, status: operational}
+  - {id: payments-api, name: Payments API, status: operational}
+  - {id: merchant-dashboard, name: Merchant Dashboard, status: operational}
+  - {id: webhooks, name: Webhooks, status: operational}
+  - {id: payouts, name: "Payouts & Settlement", status: operational}
+  - {id: receipts, name: Receipts, status: operational}
+incidents:
+  - id: sp-20261002-webhooks
+    name: "Delayed webhook deliveries"
+    status: resolved
+    impact: minor
+    components: {webhooks: operational}
+    created: "2026-10-02T14:10:00-04:00"
+    updated: "2026-10-02T15:02:00-04:00"
+    resolved_at: "2026-10-02T15:02:00-04:00"
+    updates:
+      - {t: "2026-10-02T14:10:00-04:00", status: investigating, body: "Some webhook deliveries are delayed. We are investigating.", by: sofia.marquez, components: {webhooks: degraded_performance}}
+      - {t: "2026-10-02T15:02:00-04:00", status: resolved, body: "Webhook deliveries are back to normal.", by: sofia.marquez, components: {webhooks: operational}}

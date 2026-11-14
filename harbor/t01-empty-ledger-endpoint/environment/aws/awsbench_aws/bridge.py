@@ -420,7 +420,8 @@ class Bridge:
             world = self.world()
             if world is not None:
                 with self.world_lock:
-                    served = world.serve_aws(service, operation, params)
+                    served = (world.serve_aws(service, operation, params, region=ctx.get("region"))
+                              if getattr(world, "wants_region", False) else world.serve_aws(service, operation, params))
                 if served is not None:
                     return _http(200), {**_utc(served), "ResponseMetadata": {"HTTPStatusCode": 200,
                                                                             "RequestId": "awsbench"}}

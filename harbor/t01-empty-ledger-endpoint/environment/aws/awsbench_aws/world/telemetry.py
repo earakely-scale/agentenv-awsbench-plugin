@@ -219,11 +219,12 @@ def _filter(expr: str):
 
 SUPPORTED_X = ("supported: fields/display, filter on @message, @timestamp, @log, level or a parsed field (like, not like, "
                "=~, =, !=, <, <=, >, >=, in [...], not in [...]) joined by and/or, parse @message /(?<name>re)/, "
-               "stats count(*)/count(f)/min(f)/max(f) [as name] [by bin(5m), @log or fields], sort <field> asc|desc, "
+               "stats count(*)/count(f)/count_distinct(f)/sum(f)/avg(f)/min(f)/max(f) [as name] [by bin(5m), @log or "
+               "fields], sort <field> asc|desc, "
                "limit")
 _XTERM = re.compile(r"\s*(?:(and|or)\s+)?(@?\w+)\s+(not\s+like|like|=~|not\s+in|in|!=|<=|>=|==|=|<|>)\s*"
                     r"(/(?:\\.|[^/\\])*/|\"[^\"]*\"|'[^']*'|\[[^\]]*\]|[-\w.:]+)\s*", re.IGNORECASE)
-_AGG = re.compile(r"(count|min|max)\(\s*(\*|@?\w*)\s*\)(?:\s+as\s+(\w+))?$", re.IGNORECASE)
+_AGG = re.compile(r"(count_distinct|count|min|max|sum|avg)\(\s*(\*|@?\w*)\s*\)(?:\s+as\s+(\w+))?$", re.IGNORECASE)
 _LEVELS = ("ERROR", "WARN", "WARNING", "INFO", "DEBUG", "FATAL")
 
 
@@ -386,8 +387,13 @@ def run_insights(ops: list, records: list[dict], limit: int, default_fields: lis
                 for name, fn, f in arg["aggs"]:
                     vals = [m.get(f, 1) for m in members if f == "*" or m.get(f) is not None]
                     nums = [float(v) for v in vals] if vals and all(_num(v) for v in vals) else None
-                    row[name] = len(vals) if fn == "count" else (min if fn == "min" else max)(nums or vals) if vals \
-                        else None
+                    if fn in ("sum", "avg"):
+                        row[name] = (sum(nums) / (len(nums) if fn == "avg" else 1)) if nums else None
+                    elif fn == "count_distinct":
+                        row[name] = len({str(v) for v in vals})
+                    else:
+                        row[name] = len(vals) if fn == "count" else (min if fn == "min" else max)(nums or vals) \
+                            if vals else None
                     if f == "@timestamp" and fn != "count":
                         stamps.add(name)
                 out.append(row)

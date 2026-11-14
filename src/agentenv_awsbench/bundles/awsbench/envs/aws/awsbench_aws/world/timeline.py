@@ -675,9 +675,12 @@ class Timeline:
 
     @staticmethod
     def _captures(c: dict, rule: dict, text: str, quoted: str) -> dict:
-        """A rule's `capture` {name: pattern with one group} from the request, else its `capture_default`, and the
-        NPC's `draft_note` {when, text}: its text when the request matches `when` but quotes no draft."""
+        """A rule's `capture` {name: pattern with one group} from the request, else its `capture_default`, the
+        NPC's `draft_note` {when, text}: its text when the request matches `when` but quotes no draft, and `{draft}`
+        (the quoted draft, whitespace folded) when the rule's `change` names it, so each new wording is a new change."""
         values = {}
+        if "{draft}" in str(rule.get("change") or ""):
+            values["draft"] = " ".join((quoted or "").split())[:200]
         for k, p in (rule.get("capture") or {}).items():
             m = re.search(p, text or "", re.IGNORECASE)
             values[k] = m.group(1) if m else (rule.get("capture_default") or {}).get(k, "")
@@ -792,6 +795,8 @@ class Timeline:
             if self.npcs[npc].get("repeat_once"):
                 self.counts[self._again_key(npc, rule, values)] = 1
                 text = f"As I said: {decision} at {hhmm} ET: {change}."
+            elif rule.get("repeat_reply"):
+                text = rule["repeat_reply"].replace("{hhmm}", hhmm)
             else:
                 text = (f"Already approved at {hhmm} ET: {change}. Post the CHANGE record." if decision == "APPROVED"
                         else f"Already declined at {hhmm} ET.")

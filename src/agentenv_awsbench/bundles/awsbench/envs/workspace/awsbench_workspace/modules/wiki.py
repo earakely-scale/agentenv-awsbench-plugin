@@ -16,7 +16,9 @@ def load(ws: Workspace, doc: dict, t0: datetime) -> None:
             "id": p["id"], "space": p["space"], "title": p["title"], "labels": p.get("labels", []),
             "author": p.get("author", versions[0]["author"]), "created": ws.iso(ws.when(p.get("created"))) or versions[0]["ts"],
             "updated": cur["ts"], "version": cur["version"], "body": cur["body"], "versions": versions,
-            "comments": []}, by="seed", t=t0)
+            "comments": [dict(c, id=c.get("id") or f"wc-seed-{n}", ts=ws.iso(ws.when(c["ts"])),
+                              mentions=c.get("mentions", [])) for n, c in enumerate(p.get("comments", []), 1)]},
+            by="seed", t=t0)
 
 
 def find(ws: Workspace, page: str) -> dict | None:

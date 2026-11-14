@@ -1,8 +1,10 @@
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+import yaml
 from awsbench_aws.actionlog import ActionLog
 from awsbench_aws.bridge import Bridge
 from awsbench_aws.cloudtrail import Trail, seed_trail
@@ -194,3 +196,18 @@ def test_t01_trail_has_the_ingress_refresh_and_tonights_deploys():
     deploy = trail.lookup({"LookupAttributes": [{"AttributeKey": "EventName", "AttributeValue": "UpdateService"}]})
     assert [(e["EventTime"], json.loads(e["CloudTrailEvent"])["requestParameters"]["taskDefinition"])
             for e in deploy["Events"]] == [(datetime(2026, 11, 17, 6, 55, tzinfo=UTC), "checkout-api:412")]
+
+
+def test_a_scenario_can_leave_dynamodb_data_events_out():
+    al = ActionLog()
+    for i, (svc, op) in enumerate((("ssm", "PutParameter"), ("dynamodb", "BatchWriteItem"), ("dynamodb", "PutItem"),
+                                   ("dynamodb", "RestoreTableToPointInTime"))):
+        al.record(t=T0 + timedelta(minutes=i), service=svc, operation=op, principal="assumed-role/SRE-OnCall/sre-primary",
+                  role="sre-primary", call_no=i + 1, world_made=False, params={"TableName": "routemap-state"})
+    trail = Trail(al)
+    assert sorted(names(trail.lookup({}))) == ["BatchWriteItem", "PutItem", "PutParameter", "RestoreTableToPointInTime"]
+    trail.data_events = False
+    assert sorted(names(trail.lookup({}))) == ["PutParameter", "RestoreTableToPointInTime"]
+    scenarios = Path(__file__).resolve().parents[2] / "src/agentenv_awsbench/bundles/awsbench/envs/aws/awsbench_aws/scenarios"
+    t = {n: yaml.safe_load((scenarios / f"{n}.yaml").read_text()) for n in ("t01", "t03", "t04")}
+    assert t["t04"]["cloudtrail"]["data_events"] is False and "cloudtrail" not in t["t01"] and "cloudtrail" not in t["t03"]

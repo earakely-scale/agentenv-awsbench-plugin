@@ -1,0 +1,30 @@
+# Times are ET on Saturday 2026-11-21 unless dated. The incident channel (#inc-4495-routemap) does not exist yet:
+# incident-bot opens it when the agent creates the OPS incident (IP §2).
+channels:
+  - {name: "#incidents", topic: "Incident declarations and status", members: [sre-primary, priya.raman, daniel.brandt, maya.okonkwo, hannah.becker, kwame.asante, grace.liu, owen.gallagher, sofia.marquez, incident-bot, pagerbot]}
+  - {name: "#sre", topic: "SRE team; low-urgency alarms post here", members: [sre-primary, priya.raman, tomas.ilyin, grace.liu, alertbot]}
+  - {name: "#platform", topic: "Platform: endpointd, streamroute, routemap, vaultstore, cellmap", members: [sre-primary, kwame.asante, elena.sokolova, ravi.menon, daniel.brandt]}
+  - {name: "#payments", topic: "Payments: checkout-api, payments-gateway, risk holds, settlement", members: [sre-primary, hannah.becker, marco.ferri]}
+  - {name: "#deploys", topic: "Deploy and rollout feed", members: [sre-primary, deploybot, tf-drift, ravi.menon, kwame.asante]}
+  - {name: "#bf-readiness", topic: "Black Friday readiness", members: [sre-primary, grace.liu, priya.raman, daniel.brandt, tomas.ilyin, kwame.asante]}
+  - {name: "#exec", topic: "Exec", members: [victor.hale, maya.okonkwo, daniel.brandt]}
+messages:
+  - {id: m-s01, channel: "#bf-readiness", ts: "2026-11-19T16:40:00-05:00", user: tomas.ilyin, text: "BF readiness Thu: load test #4 in staging Sun 10:00; cell-7 capacity add Tue; Graviton status: routemap-scaler done (PLAT-2335), streamroute Q1."}
+  - {id: m-s02, channel: "#bf-readiness", ts: "2026-11-19T16:52:00-05:00", user: grace.liu, text: "DynamoDB on-demand -> provisioned list for BF is final: vl-sessions, vl-idempotency-keys. routemap-state stays on-demand."}
+  - {id: m-s03, channel: "#deploys", ts: "2026-11-19T14:05:10-05:00", user: deploybot, text: "routemap-scaler 1.18.2-arm64 -> prod (Graviton rebuild, PLAT-2335, no logic change) by ci"}
+  - {id: m-s04, channel: "#deploys", ts: "2026-11-20T16:05:30-05:00", user: deploybot, text: "routemap-api v2.31.0 -> prod (PR #612 Add route labels; refactor Route.from_item) by ravi.menon"}
+  - {id: m-s05, channel: "#deploys", ts: "2026-11-20T18:02:00-05:00", user: tf-drift, text: "tf-drift weekly: 0 drifted resources in vl-prod (stacks: edge, core, data, routemap)."}
+  - {id: m-s06, channel: "#platform", ts: "2026-11-20T17:21:30-05:00", user: ravi.menon, text: "Maple Ridge (mch_41207) moved to cell-ca-2 for CA residency, PLAT-2336 done."}
+  - {id: m-s07, channel: "#platform", ts: "2026-11-20T20:03:00-05:00", user: ravi.menon, text: "staging cleanup done - purge-orphans tombstoned 371 stale load-test routes (PLAT-2341). Off from tomorrow through Wed. Kwame has platform on-call."}
+  - {id: m-s08, channel: "#platform", ts: "2026-11-20T20:05:40-05:00", user: kwame.asante, text: "thanks Ravi, enjoy. I'm flying SFO->BOS Sat afternoon, Elena covers platform from 15:00 Sat."}
+  - {id: m-s09, channel: "#sre", ts: "11:05:00", user: grace.liu, text: "Opened OPS-4493: routemap-api UpdateRoute 500s (~9%), KeyError route_spec in from_item. Lines up with Ravi's v2.31.0 Friday? Leaving it P3 for Monday unless it grows."}
+  - {id: m-s10, channel: "#payments", ts: "11:22:00", user: marco.ferri, text: "Put a card-testing hold on Corvid Supply (mch_30988): daily cap 2,500 / per-txn 500, PAY-1911. Weirdly rmctl route describe 500s for them but limits set worked."}
+  - {id: m-s11, channel: "#sre", ts: "12:41:10", user: alertbot, text: "checkout-cache-evictions ALARM (known flaky, OPS-4392) -> OPS-4494"}
+  - {id: m-s12, channel: "#payments", ts: "12:58:00", user: marco.ferri, text: "Brightfield seeing ROUTE_NO_HEALTHY_CELL, rmctl shows them on cell-drain with no cells?? who drained them?"}
+  - {id: m-s13, channel: "#incidents", ts: "13:11:30", user: pagerbot, text: "P1 PG-77120 payments-route-no-healthy-cell-high triggered -> sre-primary"}
+statuses:
+  - {user: ravi.menon, text: "PTO Nov 21-25, offline", emoji: ":palm_tree:", until: "2026-11-26T09:00:00-05:00"}
+  - {user: kwame.asante, text: "At SFO, boarding 14:35, offline until Sun 09:00", emoji: ":airplane:", until: "2026-11-22T09:00:00-05:00"}
+  - {user: tomas.ilyin, text: "Family event until 15:00", emoji: ":family:", until: "15:00"}
+  - {user: owen.gallagher, text: "BF weekend coverage (Merchant Success)", emoji: ":shopping_bags:", until: "2026-12-02T23:59:00-05:00"}
+  - {user: grace.liu, text: "Off today", emoji: ":house:", until: "2026-11-22T09:00:00-05:00"}

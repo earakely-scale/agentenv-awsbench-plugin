@@ -21,6 +21,10 @@ T05 (deploy with tasks/t05-capacity-glob-e2e-env.json): `--scenario t05` with --
 (<= 0.1), coldstart-all, miss-schedule, slowest, trust-status, early-resolve or rollback (the design's traps TR2, TR9,
 TR10, TR5, TR7, TR1); the paths are in tests/e2e/t05_oracle.py.
 
+T04 (deploy with tasks/t04-purged-routes-e2e-env.json): `--scenario t04` with --mode oracle or alt (pass), nothing
+(<= 0.1), api-rollback, purged-only, whole-copy, no-publish, cutover or early-resume (the design's traps TR1, TR5, TR3,
+TR6, TR2, TR7); the paths are in tests/e2e/t04_oracle.py.
+
 T03 (deploy with tasks/t03-e2e-env.json): `--scenario t03` (or `--task t03`) with --mode oracle (pass, >= 0.9), nothing
 (<= 0.1), bounce (restart all before the revert: fails C06 and C16), heap (xmx 8g: OOM kills) or early (resolve at
 Maya's push: G4, <= 0.4) or limit (limit_nproc 4096, capacity kept: G2 and G3, <= 0.25); the paths are in
@@ -36,12 +40,15 @@ import os
 import sys
 from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t03_oracle
+import t04_oracle
 import t05_oracle
 from gw import Gateway, load_grade
 
+ET = ZoneInfo("America/New_York")
 LEDGER = "ledger.internal.vantleaf.io"
 HORIZON_URI = "urn:scale:awsbench-horizon/v1"
 FREE = {"get_time", "awsbench_control"}
@@ -274,11 +281,18 @@ async def wait_through(gw, args):
     return result
 
 
-async def play(gw, steps, check_clock=True, harvest=harvest):
+async def play(gw, steps, check_clock=True, harvest=harvest, skip_past=False):
     found, problems = {}, []
     for tool, args, *check in steps:
+        if tool == "REPAIR":
+            await t04_oracle.repair_by_hand(gw, found)
+            continue
         before = await gw.now()
         args = fill(args, found)
+        if skip_past and tool == "wait" and args.get("until") and len(args["until"]) <= 8 and before.astimezone(ET).strftime(
+                "%H:%M:%S") >= args["until"].rjust(8, "0"):
+            print(f"  {before.isoformat()}  skip wait until {args['until']} (already past)")
+            continue
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
         after = await gw.now()
         harvest(tool, result, found)
@@ -317,13 +331,12 @@ async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
     t01_modes = ("oracle", "alt", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
-    parser.add_argument("--scenario", "--task", choices=("t01", "t03", "t05"), default="t01")
-    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES + t05_oracle.MODES)),
-                        default="oracle")
+    parser.add_argument("--scenario", "--task", choices=("t01", "t03", "t04", "t05"), default="t01")
+    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES + t04_oracle.MODES
+                                                              + t05_oracle.MODES)), default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
-    t03 = args.scenario == "t03"
-    task = {"t03": t03_oracle, "t05": t05_oracle}.get(args.scenario)
+    task = {"t03": t03_oracle, "t04": t04_oracle, "t05": t05_oracle}.get(args.scenario)
     if args.mode not in (task.MODES if task else t01_modes):
         parser.error(f"--mode {args.mode} is not a {args.scenario} mode")
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
@@ -338,7 +351,9 @@ async def main(argv=None):
         problems += ["harness lacks awsbench_control"] if "awsbench_control" not in harness else []
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
         if task:
-            problems += await play(gw, task.steps_for(args.mode), harvest=task.harvest)
+            t04 = task is t04_oracle
+            steps = t04_oracle.alt_steps() if t04 and args.mode == "alt" else task.steps_for(args.mode)
+            problems += await play(gw, steps, harvest=task.harvest, skip_past=t04)
             graded = await finish(gw, task.load_grade())
             if not task.expected(args.mode, graded):
                 problems.append(f"{args.scenario} {args.mode}: unexpected D12 {graded['d12']['score']} "

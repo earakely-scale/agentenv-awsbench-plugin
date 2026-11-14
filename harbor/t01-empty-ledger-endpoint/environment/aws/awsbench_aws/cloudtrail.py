@@ -182,15 +182,22 @@ def seed_trail(scenario: dict, rows: list[dict], zone_ids: dict[str, str]) -> li
     return out
 
 
+DATA_EVENTS = {"dynamodb": {"PutItem", "UpdateItem", "DeleteItem", "BatchWriteItem", "TransactWriteItems",
+                             "ExecuteStatement", "BatchExecuteStatement", "ExecuteTransaction"}}
+
+
 class Trail:
     def __init__(self, actionlog: ActionLog, history: list[dict] | None = None):
         self.actionlog = actionlog
         self.history = list(history or [])
+        self.data_events = True
 
     def events(self) -> list[dict]:
         out = list(self.history)
         for r in self.actionlog.export():
             op = r.get("operation")
+            if not self.data_events and op in DATA_EVENTS.get(r.get("service") or "", ()):
+                continue
             if r.get("service") and op and r.get("t") and not is_read(op) and op not in READ_EXTRA:
                 out.append(event(to_time(r["t"]), r["service"], op, r.get("params"), r.get("principal"),
                                  error=r.get("error"), key=f"row{r['seq']}"))

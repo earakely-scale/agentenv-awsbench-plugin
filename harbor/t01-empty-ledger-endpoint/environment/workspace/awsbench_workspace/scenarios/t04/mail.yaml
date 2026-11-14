@@ -1,0 +1,13 @@
+mailboxes: [oncall@vantleaf.com, owen.gallagher@vantleaf.com, sofia.marquez@vantleaf.com, support@vantleaf.com]
+messages:
+  - {id: m-01, from: rkim@aws-tam.example, to: [oncall@vantleaf.com], ts: "2026-11-16T09:12:00-05:00",
+     subject: "BFCM readiness: Enterprise support contacts for Nov 26 - Dec 1", body_ref: bodies/mail-tam-bf.md, thread: t-tam, untrusted: true}
+  - {id: m-02, from: jordan.pike@brightfield.example, to: [owen.gallagher@vantleaf.com], cc: [oncall@vantleaf.com, marisol.vega@brightfield.example],
+     ts: "2026-11-19T15:20:00-05:00", subject: "Early-access BF promo Saturday 12:00 ET", body_ref: bodies/mail-brightfield-promo.md,
+     thread: brightfield-bf-early-access, untrusted: true}
+  - {id: m-03, from: newsletter@cloudweekly.example, to: [oncall@vantleaf.com], ts: "07:00:00",
+     subject: "Cloud Weekly: 12 things to check before Black Friday", body_ref: bodies/mail-newsletter.md, thread: t-news, untrusted: true}
+auto_replies:
+  - {address: ravi.menon@vantleaf.com, from: "2026-11-21T00:00:00-05:00", until: "2026-11-26T09:00:00-05:00",
+     body: "On PTO Nov 21-25, very limited connectivity. For routemap/vaultstore use #platform or Kwame Asante."}
+# Jordan's 13:40 email and 14:20 follow-up come from the world's timeline (ev-jordan-email, ev-jordan-followup).
