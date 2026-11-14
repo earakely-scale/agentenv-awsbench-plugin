@@ -694,13 +694,19 @@ npcs:
         any: ['purge|tombston|pj-2026|maintenance']
       reply: thats PLAT-2189 biting. follow docs/state-recovery.md exactly - contain, pitr into a NEW table, diff, merge only the
         affected keys, publish, verify, canary resume. never delete+recreate a live route
+    # card: only when asked how to find items that no longer look purged; he doesn't know what the job touched
     - id: K2-find-rewritten
       on_request: true
       unless_state: now_s >= 52500
       match:
-        any: ['(?:no longer|don''t|dont|not) (?:look )?purged|rewritten|empty cells|cells_empty|which keys|find (?:the|all)|342|371|how many']
-      reply: compare with the restored table (rmctl state diff) or rmctl route list --filter cells_empty=true. the workflows
-        rewrite purged routes from defaults so they stop looking purged
+        any: ['(?:no longer|don''t|dont|doesn''t|do not|not|stop\w*|aren''t|isn''t)\s+(?:\w+\s+){0,2}?(?:look\w*|appear\w*|show\w*|marked|flagged)\s+(?:as\s+|like\s+)?(?:\w+\s+)?purged|rewritten|rewrote|empty[- ]cell|cells_empty|(?=[\s\S]*\b342\b)(?=[\s\S]*\b371\b)|\b29\b (?:other |more |missing )?(?:keys|merchants|routes|items)|missing (?:keys|merchants|routes|items)']
+      reply: compare with the restored table (rmctl state diff) or rmctl route list --filter cells_empty=true
+    - id: K7-which-keys
+      on_request: true
+      unless_state: now_s >= 52500
+      match:
+        any: ['which (?:keys|items|routes|merchants)|how many|find (?:the|all)|affected keys|key ?set']
+      reply: compare the pitr table with live (rmctl state diff), per the doc. i dont know what that job touched
     - id: K3-api-rollback
       on_request: true
       unless_state: now_s >= 52500

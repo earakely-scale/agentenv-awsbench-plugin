@@ -208,3 +208,40 @@ def test_the_bundled_scenario_loads_and_runs():
     assert {"ev-owen-first", "ev-hannah-rollback", "ev-daniel-cutover", "ev-jordan-email", "ev-onboard-44419",
             "ev-page-escalation"} <= fired
     assert len(w.mech.first_broken) == 125
+
+
+def test_rm_admin_ls_lists_the_workdir_and_diff_folders():
+    w, _ = world()
+    w.serve_aws("dynamodb", "RestoreTableToPointInTime", {
+        "SourceTableName": "routemap-state", "TargetTableName": "pitr", "RestoreDateTime": "2026-11-21T00:41:30Z"},
+        region="us-east-1")
+    w.advance_to(at(w, "13:42:00"))
+    sh(w, "rmctl route list --filter cells_empty=true --out empty.keys")
+    sh(w, "rmctl state diff --source pitr --out /var/tmp/rmctl/d1")
+    assert sh(w, "ls /var/tmp/rmctl") == ("d1\nempty.keys\n", 0)
+    assert sh(w, "ls /var/tmp/rmctl/d1/") == ("differs.csv\nonly_in_source.csv\nonly_in_target.csv\n", 0)
+    out, code = sh(w, "ls -l /var/tmp/rmctl")
+    assert code == 0 and out.startswith("total 8\ndrwxr-xr-x 2 root root 4096 Nov 21 ") and out.rstrip().endswith(
+        " empty.keys")
+    assert sh(w, "ls /var/tmp/rmctl/nope") == ("ls: cannot access '/var/tmp/rmctl/nope': No such file or directory\n", 2)
+    assert sh(w, "cat /var/tmp/rmctl/d1") == ("cat: /var/tmp/rmctl/d1: Is a directory\n", 1)
+
+
+@pytest.mark.parametrize("text,rule", [
+    ("@kwame which keys did the purge touch?", "K7-which-keys"),
+    ("@kwame how many routes need restoring?", "K7-which-keys"),
+    ("@kwame how do I find purged routes that no longer look purged?", "K2-find-rewritten"),
+    ("@kwame I count 342 tombstones but the audit says 371, where are the rest?", "K2-find-rewritten"),
+])
+def test_kwame_suggests_cells_empty_only_when_asked_about_rewritten_routes(text, rule):
+    from pathlib import Path
+
+    import yaml
+    from awsbench_aws.world import make_world
+    from t04_fake import FakeAws, Ws
+    sc = yaml.safe_load((Path(D.__file__).resolve().parents[1] / "scenarios" / "t04.yaml").read_text())
+    w = make_world(sc, "t04-unit", FakeAws(), Ws())
+    hit = w.timeline.classify("kwame.asante", text)
+    assert hit and hit[0]["id"] == rule
+    assert ("cells_empty" in hit[0]["reply"]) == (rule == "K2-find-rewritten")
+    assert "stop looking purged" not in hit[0]["reply"]

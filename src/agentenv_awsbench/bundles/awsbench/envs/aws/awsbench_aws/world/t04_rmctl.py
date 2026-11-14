@@ -134,6 +134,7 @@ class Rmctl:
     def __init__(self, m):
         self.m = m
         self.files: dict[str, str] = {}
+        self.mtime: dict[str, str] = {}
         self.audit_rows: list = []
 
     def start(self) -> None:
@@ -184,7 +185,12 @@ class Rmctl:
             return "", 0
         cmd, args = argv[0].rsplit("/", 1)[-1], argv[1:]
         if cmd == "rmctl":
-            return self.rmctl(args, caller, now)
+            before = dict(self.files)
+            out = self.rmctl(args, caller, now)
+            for p, text in self.files.items():
+                if before.get(p) is not text:
+                    self.mtime[p] = datetime.fromtimestamp(now, UTC).strftime("%H:%M")
+            return out
         if cmd == "hostname":
             return f"{HOST}\n", 0
         if cmd in ("whoami", "id"):
@@ -194,11 +200,37 @@ class Rmctl:
         if cmd == "uptime":
             return f" {datetime.fromtimestamp(now, UTC):%H:%M:%S} up {self.uptime(now)},  1 user,  load average: 0.06, " \
                    "0.04, 0.01\n", 0
-        if cmd == "ls" and [a for a in args if not a.startswith("-")] in ([WORKDIR], [WORKDIR + "/"]):
-            return "".join(f"{n.rsplit('/', 1)[-1]}\n" for n in sorted(self.files) if n.count("/") == 4), 0
+        if cmd == "ls" and len(paths := [a for a in args if not a.startswith("-")]) == 1 and \
+                paths[0].rstrip("/").startswith(WORKDIR):
+            return self.ls(paths[0], long="-l" in args or any(a.startswith("-") and "l" in a for a in args))
         if cmd in ("cat", "head", "tail", "wc"):
             return self.read_file(cmd, args)
         return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
+
+    def ls(self, target: str, long: bool) -> tuple[str, int]:
+        """`ls` of /var/tmp/rmctl or a folder under it (`state diff --out` makes one), as GNU ls prints it."""
+        d = target.rstrip("/") or "/"
+        if d in self.files:
+            return (f"-rw-r--r-- 1 root root {len(self.files[d])} Nov 21 {self.mtime.get(d, '18:12')} {target}\n"
+                    if long else f"{target}\n"), 0
+        if d != WORKDIR and not any(p.startswith(d + "/") for p in self.files):
+            return f"ls: cannot access '{target}': No such file or directory\n", 2
+        entries: dict[str, str | None] = {}
+        for p in self.files:
+            if p.startswith(d + "/"):
+                head, _, rest = p[len(d) + 1:].partition("/")
+                entries[head] = None if rest else p
+        if not long:
+            return "".join(f"{n}\n" for n in sorted(entries)), 0
+        rows = [f"total {4 * len(entries)}"]
+        for n in sorted(entries):
+            p = entries[n]
+            rows.append(f"-rw-r--r-- 1 root root {len(self.files[p])} Nov 21 {self.mtime.get(p, '18:12')} {n}" if p
+                        else f"drwxr-xr-x 2 root root 4096 Nov 21 {self.dir_mtime(f'{d}/{n}')} {n}")
+        return "\n".join(rows) + "\n", 0
+
+    def dir_mtime(self, d: str) -> str:
+        return max((self.mtime.get(p, "18:12") for p in self.files if p.startswith(d + "/")), default="18:12")
 
     def path(self, name: str) -> str:
         name = str(name).strip()
@@ -226,6 +258,8 @@ class Rmctl:
             text = CONFIG
         elif not p.startswith(WORKDIR + "/"):
             return NOT_AVAILABLE.format(cmd=f"{cmd} {p}") + "\n", 127
+        elif p not in self.files and any(f.startswith(p.rstrip("/") + "/") for f in self.files):
+            return (f"{cmd}: {p}: Is a directory\n" if cmd != "head" else f"head: error reading '{p}': Is a directory\n"), 1
         elif p not in self.files:
             return f"{cmd}: {p}: No such file or directory\n", 1
         else:

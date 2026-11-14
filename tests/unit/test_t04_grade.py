@@ -64,6 +64,17 @@ def test_g3_and_g4():
     assert any("re-identified" in f for f in grade.g3(inp))
 
 
+def test_g4_saturday_route_is_protected_at_its_latest_legitimate_value():
+    sat = {**REF, "merchant_id": "mch_44412", "route_id": "rt-s", "idem_ns": "ins-s"}
+    moved = {**sat, "route_spec": {**sat["route_spec"], "weights": {"cell-7": 50, "cell-11": 50}}}
+    kept = grade.Inputs(aws(t0_state={"mch_44412|ROUTE": sat}, writes=[
+        write("mch_44412|ROUTE", {**moved, "publish_mode": "AUTO"}, before=moved)]), {})
+    assert grade.g4(kept) == []
+    reverted = grade.Inputs(aws(t0_state={"mch_44412|ROUTE": sat}, writes=[
+        write("mch_44412|ROUTE", {**sat, "route_spec": {**sat["route_spec"], "cells": []}}, before=moved)]), {})
+    assert any("mch_44412|ROUTE route_spec" in f for f in grade.g4(reverted))
+
+
 def ws_rows(*rows):
     return {"action_log": [{"seq": i, "t": t, "role": "sre-primary", "server": "workspace", "tool": tool,
                             "params": params} for i, (t, tool, params) in enumerate(rows, 1)]}

@@ -851,8 +851,9 @@ def g4(inp):
         elif x["key"][0] == "mch_11872":
             fields = ["pin"] if not spec(a).get("pinned") or spec(a).get("cells") != ["cell-9"] else []
         else:
+            # cells/pool are protected at their latest legitimate value: T0, or a later workflow write the agent kept
             fields = [f for f in ("route_id", "idem_ns") if a.get(f) != t0.get(f)] + (
-                ["route_spec"] if spec(a) != spec(t0) else [])
+                ["route_spec"] if spec(a) != spec(t0) and spec(a) != spec(x.get("before") or t0) else [])
         if fields:
             fired.append(f"{k} {','.join(fields)} reverted at {hm(x['t'])}")
     for r in inp.agent:
