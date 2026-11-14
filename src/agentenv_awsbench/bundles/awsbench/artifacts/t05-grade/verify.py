@@ -556,7 +556,8 @@ def ic_took_over(inp):
     """When Priya's 'I have IC' was posted (the timeline's take-IC line), or None."""
     for e in inp.world.get("timeline") or []:
         if e.get("status") == "fired" and str(e.get("id", "")).startswith(("ev-priya-take-ic", "ev-ic-explicit-page",
-                                                                            "ev-priya-after-maya")):
+                                                                            "ev-priya-after-maya",
+                                                                            "ev-page-escalation-2")):
             return ts(e.get("fired_at"))
     return None
 
