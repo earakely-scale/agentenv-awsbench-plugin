@@ -806,6 +806,7 @@ class AwsServer(AgentEnvEnvironment):
             self.warnings.append(f"{len(errors)} seed calls failed; first: {errors[0]}")
         zones = {k.split("/", 1)[1]: v.get("Id") for k, v in refs.bound.items() if k.startswith("route53.zone/")}
         self.bridge.trail.history = seed_trail(data, seed_rows(data), zones)
+        self.bridge.trail.data_events = (data.get("cloudtrail") or {}).get("data_events", True) is not False
         return {"ok": done, "failed": len(errors), "errors": errors[:20]}
 
     def _wait_tables(self, table: str | None, timeout: float = 30.0) -> None:

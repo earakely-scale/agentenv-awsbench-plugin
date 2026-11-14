@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from ..account import ACCOUNT
 from ..errors import AwsError
 from . import t04_data as D
-from .t04_rmctl import Rmctl
+from .t04_rmctl import PRINCIPAL, Rmctl
 from .t04_telemetry import Telemetry
 from .timeline import draft
 from .util import text_of, unit
@@ -116,11 +116,9 @@ class Mechanics:
 
     def call(self, service, op, params, region=None, log=False, acting=None):
         """A world call to the emulator: unlogged world reads; `acting` (an agent's fleet_exec caller) makes it the
-        agent's write, logged under that call."""
+        agent's write, logged under that call with the host's instance profile (rmctl runs as vl-rm-admin-role)."""
         if acting is not None:
-            return self.w.aws.call(service, op, params, principal=acting.get("principal") or
-                                   "assumed-role/vl-rm-admin-role/i-0a4e7c19d2b85f361", world_made=False,
-                                   region=region)
+            return self.w.aws.call(service, op, params, principal=PRINCIPAL, world_made=False, region=region)
         return self.w.aws.call(service, op, params, principal="awsbench:world", world_made=True, region=region,
                                log_call=log)
 
@@ -222,14 +220,14 @@ class Mechanics:
             k = (it["merchant_id"], it["rec"])
             self.record(t, k, befores[k], copy.deepcopy(it), writer, acting is None, cause,
                         acting.get("call_no") if acting else None,
-                        acting.get("principal", "") if acting else f"role:vl-{writer}-task-role")
+                        PRINCIPAL if acting else f"role:vl-{writer}-task-role")
 
     def delete(self, t: float, k: tuple, writer: str, acting=None) -> None:
         before = copy.deepcopy(self.live.get(k))
         self.call("dynamodb", "DeleteItem", {"TableName": TABLE, "Key": {"merchant_id": {"S": k[0]},
                                                                          "rec": {"S": k[1]}}}, acting=acting)
         self.record(t, k, before, None, writer, acting is None, None, acting.get("call_no") if acting else None,
-                    acting.get("principal", "") if acting else "")
+                    PRINCIPAL if acting else "")
 
     # ---- the publisher and the data plane ----
     def loaded(self, mid: str) -> dict | None:
@@ -439,7 +437,7 @@ class Mechanics:
             if rule == "ENABLED":
                 self.log(t, group, stream, {"level": "INFO", "svc": f"routemap-{wf}", "msg": f"workflow disabled "
                                             f"(/routemap/prod/workflows/{wf}/enabled={flag}); exiting"})
-            self.wf_runs.append({"t": self.iso(t), "workflow": wf, "ran": False, "rule": rule, "flag": flag})
+                self.wf_runs.append({"t": self.iso(t), "workflow": wf, "ran": False, "rule": rule, "flag": flag})
             return []
         if wf == "reconciler":
             live = [it for (m, r), it in self.live.items() if r == D.ROUTE]

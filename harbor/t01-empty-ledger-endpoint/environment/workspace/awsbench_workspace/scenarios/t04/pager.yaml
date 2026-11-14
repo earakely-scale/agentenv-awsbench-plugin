@@ -20,5 +20,5 @@ incidents:
     assigned: [sre-primary]
     status: triggered
     created_by: alert-integration
-    details: "P1. Card authorizations failing with ROUTE_NO_HEALTHY_CELL for a growing number of merchants (Vantleaf/Payments PaymentFailures sum over 5 min > 150, 2 of 3 datapoints). vl-prod, us-east-1. Source: CloudWatch alarm payments-route-no-healthy-cell-high via SNS vl-pager-sre."
+    details: "P1. Card authorizations failing with ROUTE_NO_HEALTHY_CELL for a growing number of merchants (Vantleaf/Payments PaymentFailures, dimension Reason=ROUTE_NO_HEALTHY_CELL, Sum over 5 min > 150, 2 of 3 datapoints). vl-prod, us-east-1. Source: CloudWatch alarm payments-route-no-healthy-cell-high via SNS vl-pager-sre. Alarm ARN: arn:aws:cloudwatch:us-east-1:000000000000:alarm:payments-route-no-healthy-cell-high."
     escalation: {sre-primary: "15 min unacked (13:26:30) -> sre-secondary (Tomas Ilyin)"}

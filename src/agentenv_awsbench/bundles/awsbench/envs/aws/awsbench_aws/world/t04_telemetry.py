@@ -150,7 +150,9 @@ class Telemetry:
         while t < t_start:
             who = ["grace.liu", "ravi.menon", "kwame.asante", "tomas.ilyin"][k % 4]
             mid = sets["established"][D.h("T04-audit", k) % len(sets["established"])]
-            if not (D.ts("2026-11-20T19:00:00-05:00") < t < D.ts("2026-11-21T09:30:00-05:00")):
+            local = datetime.fromtimestamp(t, D.ET)
+            if local.weekday() < 5 and 9 <= local.hour < 18 and \
+                    not (D.ts("2026-11-20T19:00:00-05:00") < t < D.ts("2026-11-21T09:30:00-05:00")):
                 audit.append((t, {"actor": f"{role}/{who}", "host": "rm-admin-01",
                                   "cmd": routine[k % 3].format(mid=mid), "env_resolved": "prod (auto)"}))
             k += 1
@@ -228,9 +230,11 @@ class Telemetry:
 
     # ---- each minute ----
     def minute(self, minute: float) -> list[dict]:
-        """The minute ending at `minute + 60` is recorded at its start tick: failures from the data plane now."""
+        """The minute ending at `minute + 60` is recorded at its start tick: failures from the data plane now. Alarms are
+        judged at the tick where the minute they read ends."""
         if self.minutes and minute <= self.minutes[-1]:
             return []
+        out = self._evaluate(minute) if self.minutes else []
         m = self.m
         broken = {}
         for mid in sorted(m.purged | set(D.MUST_EXCLUDE) | {"mch_44419", "mch_44420"}):
@@ -252,7 +256,6 @@ class Telemetry:
                  "route_version": cfg.get("version", item.get("route_version")), "cells": cfg.get("cells") or [],
                  "fallback": cfg.get("fallback_cell") or "cell-drain", "count_1m": n}, separators=(",", ":")))
         self._cell7(minute)
-        out = self._evaluate(minute + 60)
         self.fail_series.append([minute, sum(broken.values())])
         unrepaired = 0
         for mid in m.purged:

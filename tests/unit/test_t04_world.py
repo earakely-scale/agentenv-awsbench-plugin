@@ -252,3 +252,109 @@ def test_kwame_suggests_cells_empty_only_when_asked_about_rewritten_routes(text,
     assert hit and hit[0]["id"] == rule
     assert ("cells_empty" in hit[0]["reply"]) == (rule == "K2-find-rewritten")
     assert "stop looking purged" not in hit[0]["reply"]
+
+
+def test_state_diff_writes_only_under_the_workdir():
+    w, _ = world()
+    w.serve_aws("dynamodb", "RestoreTableToPointInTime", {
+        "SourceTableName": "routemap-state", "TargetTableName": "pitr", "RestoreDateTime": "2026-11-21T00:41:30Z"},
+        region="us-east-1")
+    w.advance_to(at(w, "13:42:00"))
+    out, code = sh(w, "rmctl state diff --source pitr --out /tmp/x")
+    assert code == 2 and "files go under /var/tmp/rmctl" in out
+    assert not [p for p in w.mech.rmctl.files if p.startswith("/tmp/")]
+    for out_dir in ("x", "/var/tmp/rmctl/x"):
+        sh(w, f"rmctl state diff --source pitr --out {out_dir}")
+        assert sh(w, "head -n 1 /var/tmp/rmctl/x/differs.csv")[0].startswith("merchant_id,rec,fields,")
+    assert sh(w, "cat /tmp/x/differs.csv") == ("cat: /tmp/x/differs.csv: No such file or directory\n", 1)
+    assert sh(w, "ls /tmp/x") == ("ls: cannot access '/tmp/x': No such file or directory\n", 2)
+    assert "a folder under\n    /var/tmp/rmctl" in sh(w, "rmctl state --help")[0]
+
+
+def test_workflows_status_shows_no_runs_of_a_disabled_rule_and_the_next_cron():
+    w, aws = world()
+    w.advance_to(at(w, "13:20:00"))
+    aws.rules["routemap-rebalancer-tick"] = "DISABLED"
+    agent_call(w, "aws_cli", at(w, "13:20:00"), 12, [{"service": "events", "operation": "DisableRule",
+                                                       "params": {"Name": "routemap-rebalancer-tick"}}])
+    w.advance_to(at(w, "15:37:00"))
+    reb = [line for line in sh(w, "rmctl workflows status")[0].splitlines() if line.startswith("rebalancer")][0]
+    assert "2026-11-21T17:35:09Z (touched 12)" in reb and reb.rstrip().endswith(" -")
+    w.advance_to(at(w, "16:11:20"))
+    assert not [r for r in w.mech.wf_runs if r["workflow"] == "rebalancer"]
+    lines = {line.split()[0]: line for line in sh(w, "rmctl workflows status")[0].splitlines()[1:4]}
+    assert lines["scaler"].rstrip().endswith("2026-11-21T21:20:00Z (+RunTask)")
+    assert lines["reconciler"].rstrip().endswith("2026-11-21T21:35:00Z (+RunTask)")
+
+
+class PageWs:
+    def __init__(self):
+        self.ops = []
+
+    def apply(self, op, args, at):
+        self.ops.append((op, args, at))
+        return {"ok": True, "id": f"x-{len(self.ops)}",
+                "deliveries": [{"kind": "page", "t": at.isoformat()}] if op == "pager.page_as" else []}
+
+
+def test_alarm_pages_are_stamped_at_the_clock():
+    from t04_fake import FakeAws, scenario
+    from awsbench_aws.world import make_world
+    ws = PageWs()
+    w = make_world(scenario(), "t04-unit", FakeAws(), ws)
+    w.start()
+    sh(w, "rmctl workflows pause scaler", "13:16:00")
+    got = w.advance_to(at(w, "16:11:30"), wake={"page"})
+    assert got["woke"] and got["now"] < at(w, "16:11:30")
+    assert all(datetime.fromisoformat(d["t"]) == got["now"] for d in got["woke"])
+    assert all(t <= got["now"] for op, _, t in ws.ops if op == "pager.page_as")
+    alarms = w.mech.tel.describe_alarms({}, w.now.timestamp())["MetricAlarms"]
+    assert all(a["StateUpdatedTimestamp"] <= w.now.astimezone(UTC) for a in alarms)
+
+
+def test_rmctl_writes_are_the_hosts_instance_profile():
+    from awsbench_aws.world.t04_rmctl import PRINCIPAL
+    w, aws = world()
+    seen = []
+    real = aws.call
+
+    def spy(service, operation, params, **kw):
+        seen.append((service, operation, kw.get("principal"), kw.get("world_made")))
+        return real(service, operation, params, **kw)
+    aws.call = spy
+    sh(w, "rmctl workflows pause scaler", "13:16:00")
+    sh(w, "rmctl limits set mch_10001 --daily 2600 --reason x")
+    mine = [s for s in seen if s[3] is False]
+    assert mine and all(s[2] == PRINCIPAL for s in mine)
+    rows = [x for x in w.mech.writes if x["key"][0] == "mch_10001"]
+    assert rows and all(x["principal"] == PRINCIPAL and x["call_no"] == 7 for x in rows)
+
+
+def test_routine_audit_rows_are_weekday_working_hours():
+    w, _ = world()
+    routine = [(t, r) for t, r in w.mech.rmctl.audit_rows if r.get("env_resolved") == "prod (auto)"]
+    assert routine
+    for t, _ in routine:
+        local = datetime.fromtimestamp(t, D.ET)
+        assert local.date().isoformat() != "2026-11-21" and local.weekday() < 5 and 9 <= local.hour < 18
+
+
+def test_bundled_alarms_page_details_and_metric_math():
+    from pathlib import Path
+
+    import yaml
+    from awsbench_aws.world import make_world
+    from t04_fake import FakeAws, Ws
+    root = Path(D.__file__).resolve().parents[1]
+    sc = yaml.safe_load((root / "scenarios" / "t04.yaml").read_text())
+    alarm = next(r["params"] for r in sc["aws_seed"] if r.get("operation") == "PutMetricAlarm"
+                 and r["params"]["AlarmName"] == "payments-route-no-healthy-cell-high")
+    pager = yaml.safe_load((root.parents[1] / "workspace/awsbench_workspace/scenarios/t04/pager.yaml").read_text())
+    details = next(i["details"] for i in pager["incidents"] if i["id"] == "PG-77120")
+    dim = alarm["Dimensions"][0]
+    assert f"dimension {dim['Name']}={dim['Value']}" in details and "alarm:payments-route-no-healthy-cell-high" in details
+    assert sc["cloudtrail"]["data_events"] is False
+    w = make_world(sc, "t04-unit", FakeAws(), Ws())
+    w.start()
+    five = w.mech.tel.describe_alarms({"AlarmNames": ["routemap-api-5xx-high"]}, w.now.timestamp())["MetricAlarms"][0]
+    assert [m["Id"] for m in five["Metrics"]] == ["m1", "m2", "m3", "m4", "e1"] and five["Threshold"] == 5

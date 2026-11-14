@@ -247,7 +247,10 @@ resizes, the `bf-capacity-hold` and the 07:31 ledger-writer deploy; T01: PLAT-40
 instance refresh and the three replacements, checkout-api :412's registration and deploy, and acme-renewer's 02:00 run)
 are trail-only history at their own times: never replayed and never in the action log. `aws_query source=cloudtrail`
 answers compact rows (the parsed `requestParameters` and the role in place of `CloudTrailEvent`, which `full: true` adds)
-of at most about 40,000 characters, with `truncated`, `next_offset` and the `end` it used when rows remain. A world write is logged at the world's time. Every account id, in CloudTrail and in the world's
+of at most about 40,000 characters, with `truncated`, `next_offset` and the `end` it used when rows remain. A world write is logged at the world's time. A scenario
+may set `cloudtrail: {data_events: false}` (T04): DynamoDB item-level operations (`PutItem`, `UpdateItem`,
+`DeleteItem`, `BatchWriteItem`, `TransactWriteItems`, `ExecuteStatement`, `BatchExecuteStatement`, `ExecuteTransaction`)
+are data events and are left out of LookupEvents. T01 and T03 keep them. Every account id, in CloudTrail and in the world's
 ARNs, is `awsbench_aws.account.ACCOUNT`, the emulator's own, so they agree with the ARNs the emulator returns. A scenario
 may declare its own `account` (T03: vl-prod's 444444444444); the aws server then shows that id in place of `ACCOUNT` in
 every tool result and maps it back to `ACCOUNT` in the arguments of `aws_cli`, `aws_api` and `aws_query`, so the agent

@@ -16,6 +16,7 @@ from . import t04_data as D
 HOST = "rm-admin-01"
 IID = "i-0a4e7c19d2b85f361"
 WORKDIR = "/var/tmp/rmctl"
+PRINCIPAL = f"assumed-role/vl-rm-admin-role/{IID}"
 SHELL_OPS = re.compile(r"[;|<>`]|&&|\$\(")
 SUDO = re.compile(r"^\s*sudo\s+")
 NOT_AVAILABLE = "sh: {cmd}: not available in this environment"
@@ -61,7 +62,8 @@ SUB_HELP = {
              "  route create gives the route a new route_id and idem_ns; it refuses a merchant that has a ROUTE item.\n",
     "state": "  state restore uses the host's instance profile (vl-rm-admin-role).\n"
              "  state diff compares every item of --source with --target (default: the table /routemap/prod/state_table\n"
-             "    names) and writes differs.csv, only_in_source.csv and only_in_target.csv under --out.\n"
+             "    names) and writes differs.csv, only_in_source.csv and only_in_target.csv under --out, a folder under\n"
+             "    /var/tmp/rmctl (a bare name is taken from there).\n"
              "    differs.csv columns: merchant_id, rec, fields, source_lifecycle, target_lifecycle, target_cells_empty,\n"
              "    target_updated_by, target_updated_at\n"
              "  state merge --keys takes a file (one merchant id per line, optionally 'merchant_id,rec'; a csv header is\n"
@@ -200,9 +202,11 @@ class Rmctl:
         if cmd == "uptime":
             return f" {datetime.fromtimestamp(now, UTC):%H:%M:%S} up {self.uptime(now)},  1 user,  load average: 0.06, " \
                    "0.04, 0.01\n", 0
-        if cmd == "ls" and len(paths := [a for a in args if not a.startswith("-")]) == 1 and \
-                paths[0].rstrip("/").startswith(WORKDIR):
-            return self.ls(paths[0], long="-l" in args or any(a.startswith("-") and "l" in a for a in args))
+        if cmd == "ls" and len(paths := [a for a in args if not a.startswith("-")]) == 1:
+            if paths[0].rstrip("/").startswith(WORKDIR):
+                return self.ls(paths[0], long="-l" in args or any(a.startswith("-") and "l" in a for a in args))
+            if not any(k.startswith(paths[0].rstrip("/") + "/") for k in (WORKDIR, "/etc/rmctl/config.yaml")):
+                return f"ls: cannot access '{paths[0]}': No such file or directory\n", 2
         if cmd in ("cat", "head", "tail", "wc"):
             return self.read_file(cmd, args)
         return NOT_AVAILABLE.format(cmd=cmd) + "\n", 127
@@ -256,8 +260,6 @@ class Rmctl:
         p = paths[0]
         if p == "/etc/rmctl/config.yaml" and cmd in ("cat", "head", "tail"):
             text = CONFIG
-        elif not p.startswith(WORKDIR + "/"):
-            return NOT_AVAILABLE.format(cmd=f"{cmd} {p}") + "\n", 127
         elif p not in self.files and any(f.startswith(p.rstrip("/") + "/") for f in self.files):
             return (f"{cmd}: {p}: Is a directory\n" if cmd != "head" else f"head: error reading '{p}': Is a directory\n"), 1
         elif p not in self.files:
@@ -556,7 +558,8 @@ class Rmctl:
                 nxt = min((t for t, _, k, a in self.m.sched if k == "run" and a[0] == wf), default=None)
                 cron = {"scaler": 600, "rebalancer": 3600, "reconciler": 1800}[wf]
                 phase = {"scaler": 0, "rebalancer": 2100, "reconciler": 300}[wf]
-                nr = f"{_z(nxt - (nxt - phase) % cron)} (+RunTask)" if nxt else "-"
+                nxt = nxt or now - (now - phase) % cron + cron
+                nr = f"{_z(nxt - (nxt - phase) % cron)} (+RunTask)" if rule == "ENABLED" else "-"
                 lines.append(f"{wf:<11} {'routemap-' + wf + '-tick':<26} {rule:<11} {en:<8} {scope:<12} {lr:<32} {nr}")
             pub = self.m.ssm.get("/routemap/prod/publisher/enabled", "(unset)")
             lines.append(f"publisher   -                          -           {pub:<8} -")
@@ -649,7 +652,7 @@ class Rmctl:
                    "explicit deny in an identity-based policy"}
             log = getattr(self.m.w.aws, "actionlog", None)
             if log is not None:
-                log.record(t=self.m.dt(now), t_issue=self.m.dt(now), principal=f"assumed-role/vl-rm-admin-role/{IID}",
+                log.record(t=self.m.dt(now), t_issue=self.m.dt(now), principal=PRINCIPAL,
                            world_made=False, server="aws", role=caller.get("role"), call_no=caller.get("call_no"),
                            service="dynamodb", operation=op, params={"SourceTableName": D.STATE, "TargetTableName":
                                                                      o.get("--into") or D.STATE}, error=err)
@@ -665,6 +668,9 @@ class Rmctl:
         raise Usage(f"unknown subcommand {sub!r}")
 
     def diff(self, source: str, target: str, out: str) -> tuple[str, int]:
+        base = self.path(out).rstrip("/")
+        if not base.startswith(WORKDIR + "/"):
+            raise Usage(f"files go under {WORKDIR}")
         src, tgt = self.m.scan(source), self.items(target)
         only_s = sorted(set(src) - set(tgt))
         only_t = sorted(set(tgt) - set(src))
@@ -682,7 +688,6 @@ class Rmctl:
             g = (k[1], b.get("lifecycle", "-") if k[1] == D.ROUTE else "-",
                  str(empty).lower() if k[1] == D.ROUTE else "-", b.get("updated_by", ""))
             groups[g] = groups.get(g, 0) + 1
-        base = self.path(out).rstrip("/")
         self.files[f"{base}/differs.csv"] = "merchant_id,rec,fields,source_lifecycle,target_lifecycle," \
                                             "target_cells_empty,target_updated_by,target_updated_at\n" + \
                                             "".join(f"{x}\n" for x in differs)
