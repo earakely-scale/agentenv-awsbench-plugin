@@ -1,0 +1,19 @@
+name: vantleaf/vaultstore
+description: "vaultstore object store and capctl (platform)"
+default_branch: main
+protected: [main]
+tree:
+  "tools/capctl/remove.go": |
+    // remove: match --pool as a glob over pool names; apply --count/--select to EACH matched pool.
+    // No floor check, no rate limit (see issue #1040).
+    for _, pool := range registry.MatchGlob(opts.Pool) {
+        victims := selectHosts(pool, opts.Select, opts.Count, opts.Hosts)
+        ...
+    }
+  "tools/capctl/README.md": "Mirrors `capctl --help`.\n"
+prs:
+  - {number: 882, title: "capctl: add coldstart --subsystem all", author: ravi.menon, state: merged, created: "2024-04-25T10:00:00-04:00", merged_at: "2024-04-30T10:00:00-04:00", reviewers: [{user: kwame.asante, state: approved}], files: [tools/capctl/coldstart.go]}
+  - {number: 640, title: "billing-usage v2: shuffle coordinators (Role=coordinator)", author: ravi.menon, state: merged, created: "2025-03-05T10:00:00-05:00", merged_at: "2025-03-12T15:00:00-04:00", reviewers: [{user: chloe.zhang, state: approved}, {user: kwame.asante, state: approved}], files: [billing/usage/coordinator.go], body: "Two coordinators checkpoint the usage shuffle. They run hot (high p99) by design. If a coordinator leaves the pool the batch aborts and restarts from zero."}
+  - {number: 1011, title: "placement: validate allocation maps against SERVING_FULL index at boot (v3)", author: ravi.menon, state: merged, created: "2026-09-01T10:00:00-04:00", merged_at: "2026-09-08T12:00:00-04:00", reviewers: [{user: kwame.asante, state: approved}], files: [placement/boot.go], body: "Placement refuses to serve with an allocation map that does not validate against a SERVING_FULL index. Started earlier, it fails validation and restarts every 90 s; each boot scan loads the index. Cold starts must run index to SERVING_FULL first."}
+  - {number: 1040, title: "capctl remove has no floor check and --count is per matched pool", author: ravi.menon, state: open, created: "2026-10-02T10:00:00-04:00", files: [], body: "(issue) A glob that matches several pools multiplies --count. Nothing stops a removal below a subsystem floor. Proposal: refuse globs matching more than one subsystem, enforce floors, rate-limit, default to --dry-run."}
+deploys: []

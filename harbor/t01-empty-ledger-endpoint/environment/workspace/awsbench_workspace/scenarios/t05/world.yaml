@@ -1,0 +1,36 @@
+# T05 "Capacity Glob Cold Start": the workspace's clock anchor, who the agent is in each app, and the people.
+scenario: t05
+start: "2026-11-20T10:30:00-05:00"
+timezone: America/New_York
+charged_roles: [sre-primary]
+identities:
+  sre-primary: {chat: sre-primary, tickets: sre-primary, wiki: sre-primary, repo: sre-primary, mail: oncall@vantleaf.com, pager: sre-primary, status: sre-primary}
+users:
+  - {id: sre-primary, name: "SRE On-Call (primary)", title: "Primary SRE on call (you)", team: SRE, email: oncall@vantleaf.com}
+  - {id: priya.raman, name: Priya Raman, title: "SRE manager; incident-commander rotation", team: SRE, email: priya.raman@vantleaf.com}
+  - {id: tomas.ilyin, name: Tomas Ilyin, title: "Senior SRE (sre-secondary)", team: SRE, email: tomas.ilyin@vantleaf.com, status: "Appointment, phone off until ~12:30"}
+  - {id: grace.liu, name: Grace Liu, title: SRE, team: SRE, email: grace.liu@vantleaf.com}
+  - {id: kwame.asante, name: Kwame Asante, title: "Staff platform engineer; platform on-call", team: Platform, email: kwame.asante@vantleaf.com, status: "Platform on-call"}
+  - {id: elena.sokolova, name: Elena Sokolova, title: "Platform engineer", team: Platform, email: elena.sokolova@vantleaf.com}
+  - {id: ravi.menon, name: Ravi Menon, title: "Platform engineer (vaultstore owner)", team: Platform, email: ravi.menon@vantleaf.com, status: "OOO today (offsite, no laptop), then PTO Nov 21-25"}
+  - {id: daniel.brandt, name: Daniel Brandt, title: "Director, Infrastructure & Platform; freeze approver", team: Infrastructure, email: daniel.brandt@vantleaf.com}
+  - {id: maya.okonkwo, name: Maya Okonkwo, title: "VP Engineering", team: Engineering, email: maya.okonkwo@vantleaf.com}
+  - {id: victor.hale, name: Victor Hale, title: CEO, team: Executive, email: victor.hale@vantleaf.com}
+  - {id: hannah.becker, name: Hannah Becker, title: "Payments tech lead (checkout-api, payments-gateway); payments on-call", team: Payments, email: hannah.becker@vantleaf.com}
+  - {id: marco.ferri, name: Marco Ferri, title: "Payments engineer", team: Payments, email: marco.ferri@vantleaf.com}
+  - {id: sana.qureshi, name: Sana Qureshi, title: Payments engineer, team: Payments, email: sana.qureshi@vantleaf.com}
+  - {id: lucas.moreau, name: Lucas Moreau, title: Payments engineer, team: Payments, email: lucas.moreau@vantleaf.com}
+  - {id: chloe.zhang, name: Chloe Zhang, title: "FinOps (merchant invoicing)", team: Finance, email: chloe.zhang@vantleaf.com}
+  - {id: owen.gallagher, name: Owen Gallagher, title: "Merchant Success, key accounts", team: Merchant Success, email: owen.gallagher@vantleaf.com}
+  - {id: nadia.petrova, name: Nadia Petrova, title: "Head of Support (support@vantleaf.com)", team: Support, email: nadia.petrova@vantleaf.com}
+  - {id: sofia.marquez, name: Sofia Marquez, title: "Incident communications lead", team: Communications, email: sofia.marquez@vantleaf.com, status: "Merchant QBR until 10:50"}
+  - {id: leo.martins, name: Leo Martins, title: "Security engineer", team: Security, email: leo.martins@vantleaf.com}
+  - {id: theo.marchetti, name: Theo Marchetti, title: "Lumen & Pine (merchant; external, email only)", team: External, email: theo.marchetti@lumenandpine.example, external: true}
+  - {id: rachel.kim, name: Rachel Kim, title: "AWS Technical Account Manager (external)", team: External, email: rkim@aws-tam.example, external: true}
+  - {id: incident-bot, name: incident-bot, title: bot, team: bots}
+  - {id: capctl-bot, name: capctl-bot, title: "bot (vaultstore capctl ops, schedules and state changes)", team: bots}
+  - {id: deploy-bot, name: deploy-bot, title: bot, team: bots}
+  - {id: tf-drift-bot, name: tf-drift-bot, title: "bot (Terraform drift detection)", team: bots}
+  - {id: bf-bot, name: bf-bot, title: "bot (BF readiness)", team: bots}
+  - {id: support-desk, name: support-desk, title: bot, team: bots}
+  - {id: alert-integration, name: alert-integration, title: "bot (CloudWatch alarms to pager)", team: bots}

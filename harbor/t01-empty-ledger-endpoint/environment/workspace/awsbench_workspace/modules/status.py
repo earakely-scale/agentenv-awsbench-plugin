@@ -1,4 +1,8 @@
-"""Public status page: components and incidents with updates. Every write here is public, so it counts as external."""
+"""Public status page: components and incidents with updates. Every write here is public, so it counts as external.
+
+A scenario whose status document sets `origin` (T05) runs the page in degraded-origin mode, off by default: while the
+origin is unhealthy, create and update are accepted and queued (publish: pending) and publish when the world reports the
+origin healthy (`status.set_origin`); status_get shows the public view the world computes (`status.set_view`)."""
 
 from datetime import datetime
 
@@ -17,6 +21,10 @@ def load(ws: Workspace, doc: dict, t0: datetime) -> None:
     for i in doc.get("incidents", []):
         ws.store.create(K_INC, i["id"], i, by="seed", t=t0)
     ws.config["status_url"] = doc.get("url", "")
+    ws.config.pop("status_origin", None)
+    ws.config.pop("status_view", None)
+    if doc.get("origin"):
+        ws.config["status_origin"] = {"healthy": bool(doc["origin"].get("healthy", True))}
 
 
 def _resolved(inc: dict, fields: list[str]) -> dict:
@@ -49,12 +57,45 @@ def _check(status: str | None, impact: str | None, body: str) -> None:
         raise ToolError("body is empty: a public update needs text")
 
 
+def _origin(ws: Workspace) -> dict | None:
+    return ws.config.get("status_origin")
+
+
+def _publish_state(ws: Workspace) -> str:
+    origin = _origin(ws)
+    return "published" if origin is None or origin["healthy"] else "pending"
+
+
+# world ops
+def set_origin(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
+    """The origin's health as the world sees it; on recovery every queued incident publishes."""
+    origin = _origin(ws)
+    if origin is None:
+        raise ToolError("this scenario's status page has no origin mode")
+    origin["healthy"] = bool(args.get("healthy"))
+    if origin["healthy"]:
+        for inc in ws.store.items(K_INC):
+            if inc.get("publish") == "pending":
+                ws.store.update(K_INC, inc["id"], {"publish": "published", "published_at": ws.iso(t)}, by="world", t=t)
+    return "status-origin", []
+
+
+def set_view(ws: Workspace, args: dict, t: datetime) -> tuple[str, list[dict]]:
+    if _origin(ws) is None:
+        raise ToolError("this scenario's status page has no origin mode")
+    ws.config["status_view"] = args.get("view")
+    return "status-view", []
+
+
 # tools
 def get(ws: Workspace, actor: str, t: datetime, id: str | None = None) -> dict:
     if id:
         if (inc := ws.store.get(K_INC, id)) is None:
             raise ToolError(f"no status incident {id!r}")
         return {"incident": inc}
+    if _origin(ws) is not None:
+        return {"url": ws.config.get("status_url", ""), "public_view": ws.config.get("status_view"),
+                "incidents": [i for i in ws.store.items(K_INC)]}
     return {"url": ws.config.get("status_url", ""), "components": ws.store.items(K_COMP),
             "incidents": [i for i in ws.store.items(K_INC)]}
 
@@ -64,13 +105,15 @@ def create(ws: Workspace, actor: str, t: datetime, name: str, status: str, body:
     _check(status, impact, body)
     comps = _components(ws, components)
     sid = f"si-{ws.next_id('status', 1)}"
+    publish = _publish_state(ws)
     inc = ws.store.create(K_INC, sid, {
         "id": sid, "name": name, "status": status, "impact": impact, "components": comps, "created": ws.iso(t),
         "updated": ws.iso(t), "resolved_at": ws.iso(t) if status == "resolved" else None,
-        "updates": [{"t": ws.iso(t), "status": status, "body": body, "by": actor, "components": comps}]},
-        by=actor, t=t)
+        "updates": [{"t": ws.iso(t), "status": status, "body": body, "by": actor, "components": comps}],
+        **({"publish": publish} if _origin(ws) is not None else {})}, by=actor, t=t)
     _set_components(ws, comps, actor, t)
-    return {"incident": inc}, _resolved(inc, ["created"])
+    extra = {"state": "accepted", "publish": publish} if _origin(ws) is not None else {}
+    return {"incident": inc, **extra}, _resolved(inc, ["created"])
 
 
 def update(ws: Workspace, actor: str, t: datetime, id: str, body: str, status: str | None = None,
@@ -87,6 +130,9 @@ def update(ws: Workspace, actor: str, t: datetime, id: str, body: str, status: s
         fields["impact"] = impact
     if status == "resolved" and not inc.get("resolved_at"):
         fields["resolved_at"] = ws.iso(t)
+    if _origin(ws) is not None and _publish_state(ws) == "pending":
+        fields["publish"] = "pending"
     changed = list(ws.store.update(K_INC, id, fields, by=actor, t=t))
     _set_components(ws, comps, actor, t)
-    return {"incident": inc}, _resolved(inc, changed)
+    extra = {"state": "accepted", "publish": _publish_state(ws)} if _origin(ws) is not None else {}
+    return {"incident": inc, **extra}, _resolved(inc, changed)

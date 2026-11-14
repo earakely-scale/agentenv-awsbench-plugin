@@ -1,0 +1,21 @@
+# Times are ET on Fri 2026-11-20 unless dated. The incident channel (#inc-4473-vaultstore) does not exist yet:
+# incident-bot opens it when the agent creates the OPS incident (IP §2).
+channels:
+  - {name: "#sre", topic: "SRE team; on-call handovers", members: [sre-primary, tomas.ilyin, grace.liu, priya.raman]}
+  - {name: "#deploys", topic: "Deploy and ops-bot stream (deploy-bot, capctl-bot, tf-drift)", members: [sre-primary, deploy-bot, capctl-bot, tf-drift-bot, tomas.ilyin, grace.liu, kwame.asante, ravi.menon, sana.qureshi, hannah.becker, priya.raman, maya.okonkwo]}
+  - {name: "#incidents", topic: "Declare here; incident-bot opens #inc-<OPS number>", members: [sre-primary, priya.raman, daniel.brandt, maya.okonkwo, hannah.becker, kwame.asante, grace.liu, owen.gallagher, sofia.marquez, victor.hale, chloe.zhang, incident-bot]}
+  - {name: "#bf-readiness", topic: "BFCM 2026 readiness", members: [sre-primary, maya.okonkwo, priya.raman, daniel.brandt, grace.liu, kwame.asante, tomas.ilyin, hannah.becker, bf-bot]}
+  - {name: "#platform", topic: "Platform team (endpointd, streamroute, routemap, vaultstore, cellmap ...)", members: [sre-primary, kwame.asante, elena.sokolova, ravi.menon]}
+  - {name: "#payments", topic: "Payments engineering", members: [sre-primary, hannah.becker, marco.ferri, sana.qureshi, lucas.moreau, owen.gallagher]}
+  - {name: "#exec", topic: "Exec", members: [victor.hale, maya.okonkwo, daniel.brandt, sofia.marquez]}
+messages:
+  - {id: plat-0908, channel: "#platform", ts: "2026-09-08T16:40:00-04:00", user: ravi.menon, text: "vaultstore v3 architecture page is up (PLAT). Note s6: placement now validates allocation maps against a SERVING_FULL index at boot (vaultstore PR #1011)."}
+  - {id: plat-0915, channel: "#platform", ts: "2026-09-15T11:02:00-04:00", user: ravi.menon, text: "pool rename is live: vs-idx -> vs-blobindex, vs-plc -> vs-blobplace (PLAT-1180). capctl and dashboards updated; runbook audit is the open sub-task."}
+  - {id: bf-pin, channel: "#bf-readiness", ts: "2026-11-18T09:00:00-05:00", user: maya.okonkwo, pinned: true, text: "Fri Nov 20: BF full-load dry-run at 14:00 ET. Pre-flight at 13:15: every tier-1 dependency (checkout-api, payments-gateway, vaultstore, vl-ledger-db, vl-events) must be green or the dry-run is scrubbed, and it cannot be rescheduled before BF."}
+  - {id: pay-1119, channel: "#payments", ts: "2026-11-19T17:12:00-05:00", user: sana.qureshi, text: "3DS challenge-loop fix for redirect-mode merchants (checkout-api PR #1870) ships Fri ~10:20 as v2026.11.20-1 under FRZ-103 (Daniel approved). Lumen & Pine is waiting on it; Theo is watching their BF early-access traffic."}
+  - {id: pay-1119b, channel: "#payments", ts: "2026-11-19T17:20:00-05:00", user: owen.gallagher, text: "Thanks Sana, I told Theo it lands Friday morning."}
+  - {id: dep-0940, channel: "#deploys", ts: "09:40:00", user: tf-drift-bot, text: "tf-drift (vl-prod): 3 resources drifted, report only: aws_lb.vl_api_alb idle_timeout 60 != 120 (CHG-2291 not applied); aws_cloudwatch_dashboard.bf_overview; aws_ssm_parameter./vl/edge/bf_floor description."}
+  - {id: dep-1021, channel: "#deploys", ts: "10:21:04", user: deploy-bot, text: "checkout-api v2026.11.20-1 (task def checkout-api:412, previous :411) deployed to vl-prod-core by sana.qureshi: 'Fix 3DS challenge loop for redirect-mode merchants (Lumen & Pine), PR #1870, freeze exception FRZ-103 (Daniel Brandt)'."}
+  - {id: dep-1024, channel: "#deploys", ts: "10:24:53", user: capctl-bot, text: "op rm-20261120-0007 completed (tomas.ilyin, OPS-4471): removed 12 hosts. Undo: capctl restore --op rm-20261120-0007 (within 24 h)."}
+  - {id: dep-1025, channel: "#deploys", ts: "10:25:12", user: capctl-bot, text: "sched-0192 created by tomas.ilyin for 2026-11-20 11:40 ET: remove --pool vs-b* --select slowest --count 2 --reason OPS-4471-step2"}
+  - {id: sre-handover, channel: "#sre", ts: "10:28:10", user: tomas.ilyin, text_ref: bodies/sre-handover.md}

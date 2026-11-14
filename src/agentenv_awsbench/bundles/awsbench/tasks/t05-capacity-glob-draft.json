@@ -1,0 +1,180 @@
+[
+ {
+  "id": "deploy",
+  "type": "deploy_env",
+  "env_id": "awsbench",
+  "ttl_seconds": 21600
+ },
+ {
+  "id": "configure",
+  "type": "apply_server_config",
+  "env_id": "awsbench",
+  "timeout_seconds": 900,
+  "directives": [
+   {
+    "service": "aws",
+    "uri": "urn:scale:awsbench-scenario/v1",
+    "args": {
+     "scenario": "t05",
+     "seed": "t05-draft-1",
+     "mode": "eval",
+     "npc_mode": "scripted"
+    }
+   }
+  ]
+ },
+ {
+  "id": "clock",
+  "type": "sync_env_clock",
+  "env_id": "awsbench",
+  "virtual_time": "2026-11-20T10:30:00-05:00",
+  "timezone": "America/New_York",
+  "virtual_seconds_per_real_second": 0,
+  "tolerate_missing_sync_time": false,
+  "timeout_seconds": 60
+ },
+ {
+  "id": "lock-all",
+  "type": "modify_env_tool_access",
+  "env_id": "awsbench",
+  "action": "disable",
+  "role": "*",
+  "tools": [
+   "*"
+  ]
+ },
+ {
+  "id": "allow-sre",
+  "type": "modify_env_tool_access",
+  "env_id": "awsbench",
+  "action": "enable",
+  "role": "sre-primary",
+  "tools": [
+   "get_time",
+   "wait",
+   "aws_cli",
+   "aws_api",
+   "aws_query",
+   "fleet_list_hosts",
+   "fleet_inspect_host",
+   "fleet_exec",
+   "fleet_restart",
+   "fleet_job_status",
+   "chat_list_channels",
+   "chat_read",
+   "chat_search",
+   "chat_get_user",
+   "chat_post",
+   "chat_dm",
+   "chat_create_channel",
+   "tickets_search",
+   "tickets_get",
+   "tickets_create",
+   "tickets_comment",
+   "tickets_update",
+   "tickets_transition",
+   "tickets_link",
+   "wiki_search",
+   "wiki_get",
+   "wiki_history",
+   "wiki_update",
+   "wiki_restore",
+   "wiki_comment",
+   "repo_list",
+   "repo_get",
+   "repo_read",
+   "repo_search",
+   "repo_log",
+   "mail_search",
+   "mail_read",
+   "mail_send",
+   "mail_reply",
+   "mail_forward",
+   "pager_list",
+   "pager_get",
+   "pager_oncall",
+   "pager_ack",
+   "pager_page",
+   "pager_note",
+   "pager_resolve",
+   "status_get",
+   "status_create",
+   "status_update"
+  ]
+ },
+ {
+  "id": "allow-harness",
+  "type": "modify_env_tool_access",
+  "env_id": "awsbench",
+  "action": "enable",
+  "role": "harness",
+  "tools": [
+   "awsbench_control"
+  ]
+ },
+ {
+  "id": "deploy-sre",
+  "type": "deploy_agent",
+  "agent_name": "sre",
+  "env_ids": [
+   "awsbench"
+  ],
+  "role": "sre-primary",
+  "builtin_tools": {
+   "disable": "*"
+  },
+  "ttl_seconds": 21600
+ },
+ {
+  "id": "incident",
+  "type": "prompt_agent",
+  "agent_name": "sre",
+  "prompt_id": "t05",
+  "prompt": "It's Friday, November 20, 2026, 10:30 AM ET, the first day of the peak change freeze. You're taking over as Vantleaf's sre-primary on-call from Tomas Ilyin; his handover note is in #sre and your queue is in the ticket tracker (OPS). Handle whatever comes up during your shift, which ends at 2:00 PM ET. Before you sign off, post a handover summary in #sre for the next on-call: what happened, what you did, and what is still open. Reply DONE when you are finished.\n\nTime passes only when you act; use `wait` to let it pass.",
+  "timeout_seconds": 14400,
+  "max_conversation_turns": 150,
+  "max_turns": 300,
+  "fail_task_on_error": false,
+  "post_turn_hooks": [
+   {
+    "file_artifact_id": "awsbench-turn",
+    "params": {
+     "env_id": "awsbench",
+     "role": "harness",
+     "turn_end_max_s": 600,
+     "done_text": "DONE"
+    }
+   }
+  ]
+ },
+ {
+  "id": "horizon",
+  "type": "apply_server_config",
+  "env_id": "awsbench",
+  "timeout_seconds": 900,
+  "fail_task_on_error": false,
+  "directives": [
+   {
+    "service": "aws",
+    "uri": "urn:scale:awsbench-horizon/v1",
+    "args": {}
+   }
+  ]
+ },
+ {
+  "id": "grade",
+  "type": "env_outcome_verifier",
+  "env_id": "awsbench",
+  "file_artifact_id": "t05-grade",
+  "verifier_id": "grade",
+  "score_aggregator": "weighted_average",
+  "fail_task_on_error": false
+ },
+ {
+  "id": "horizon-snapshot",
+  "type": "snapshot_env",
+  "env_id": "awsbench",
+  "include_env_trajectory": true,
+  "fail_task_on_error": false
+ }
+]

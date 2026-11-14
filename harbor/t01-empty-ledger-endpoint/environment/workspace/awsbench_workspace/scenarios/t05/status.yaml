@@ -1,0 +1,24 @@
+# The publisher stores rendered pages in vaultstore (STATUS-02): while vaultstore is impaired, create/update are accepted
+# and queued (publish: pending) and status_get shows the public view the aws world computes (origin, S3 fallback banner,
+# or the stale 10:12 page). `origin` turns that mode on; it is off in every other scenario.
+url: https://status.vantleaf.com
+origin: {healthy: false, publisher: "vs://status/"}
+components:
+  - {id: checkout, name: Hosted Checkout, status: operational}
+  - {id: payments-api, name: Payments API, status: operational}
+  - {id: merchant-dashboard, name: Merchant Dashboard, status: operational}
+  - {id: webhooks, name: Webhooks, status: operational}
+  - {id: payouts, name: "Payouts & Settlement", status: operational}
+  - {id: receipts, name: Receipts, status: operational}
+incidents:
+  - id: sp-2026-10-22-1
+    name: "Delayed webhook notifications"
+    status: resolved
+    impact: minor
+    components: {webhooks: operational}
+    created: "2026-10-22T14:05:00-04:00"
+    updated: "2026-10-22T15:10:00-04:00"
+    resolved_at: "2026-10-22T15:10:00-04:00"
+    updates:
+      - {t: "2026-10-22T14:05:00-04:00", status: investigating, body: "Some webhook notifications are delayed.", by: sofia.marquez, components: {webhooks: degraded_performance}}
+      - {t: "2026-10-22T15:10:00-04:00", status: resolved, body: "Webhook delivery has recovered.", by: sofia.marquez, components: {webhooks: operational}}
