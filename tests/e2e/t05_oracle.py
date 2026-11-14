@@ -255,6 +255,9 @@ def steps_for(mode):
                     say("Resolved: dashboards green, declines gone.")]
             continue
         if mode == "rollback" and tag == "maya":
+            continue
+        if mode == "rollback" and tag == "records":
+            out.append((tool, args))
             out += [say("@priya.raman requesting approval to roll checkout-api back to :411 (deploy 10:21, declines "
                         "10:26)."), ("wait", {"minutes": 3}),
                     say("@priya.raman requesting approval again: roll checkout-api back to :411."),

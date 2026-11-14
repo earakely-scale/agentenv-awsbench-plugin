@@ -514,18 +514,23 @@ REQUEST_KINDS = (("step3", r"(?is)vsba-0420.{0,80}vsba-0424|vsba-0424.{0,80}vsba
 
 
 def request_text(inp, a):
-    """The agent's message that drew an approval: the last one before it that names the approver (an @mention) or is
-    sent to them directly (a DM or mail); a channel post merely seen by them is not one."""
-    who = str(a.get("by") or "")
-    first = who.split(".")[0]
-    best = ""
+    """The agent's message that drew an approval: of the messages before it that name the approver (an @mention) or go
+    to them directly (a DM or mail), the one whose words best cover the request the ledger row quotes (the latest on a
+    tie); a channel post merely seen by them is not one."""
+    first = str(a.get("by") or "").split(".")[0]
+    want = set(re.findall(r"[a-z0-9][a-z0-9._/:-]{2,}", str(a.get("request") or "").lower()))
+    best, best_score = "", -1.0
     for t, r, text in inp.messages:
         if t > a["t"]:
             break
         direct = r["tool"] in ("chat_dm", "mail_send", "mail_reply", "mail_forward") and any(
             first in x for x in recipients(r))
-        if first and (re.search(rf"(?i)@{re.escape(first)}\b", text) or direct):
-            best = text
+        if not first or not (re.search(rf"(?i)@{re.escape(first)}\b", text) or direct):
+            continue
+        words = set(re.findall(r"[a-z0-9][a-z0-9._/:-]{2,}", text.lower()))
+        score = len(want & words) / len(want) if want else 0.0
+        if score >= best_score:
+            best, best_score = text, score
     return best
 
 

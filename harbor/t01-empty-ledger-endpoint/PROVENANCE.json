@@ -179,7 +179,7 @@
   "environment/workspace/requirements.txt": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d",
   "instruction.md": "6b69c1f133a437479c77ac1bd185245bc7bd7578c2d285fb2b27bf54f1031368",
   "solution/paths.json": "becb65832b91a66817e344c0c6b1e643c09c527249f0e36648783a8366a32d89",
-  "solution/play.py": "43adeab2772db36ee37999f8a9525532b8ae8978e2a54174a63e5f36eaa659c1",
+  "solution/play.py": "d72553281124ac2f7a0878170477ab29c46bdd87fdfe3bf5281d2d68708dd97d",
   "solution/solve.sh": "c51a23ca89fcede92ccfda28d2be71aa4241d9456bb83d59a8321fa8922d3b8e",
   "task.toml": "fb5ef7b5d55565543a877e12ac005fbf1fc1b24d871fc18ec1e6d36f6c49577e",
   "tests/Dockerfile": "2d84541737aad74b4a9492638527d68f073d4d4314130bb0da88b462c01379a1",
@@ -207,8 +207,8 @@
   "workspace_requirements_sha256": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d"
  },
  "source_trees": {
-  "bundle": "38567452e5b43118f3da79cfb5c17edbf2d52124",
-  "driver": "aef4af28d8a4269c11d6a11748cae5a35e429fbf",
+  "bundle": "21e013cac6b69562611cc5cc2738062d1f75ef8b",
+  "driver": "cb84d09d8dd38997fe9fda1521d3ead623fc1ab4",
   "harbor_base": "f75aee93bdceecb89ec6d5bd6236d877856bec18"
  },
  "sources_sha256": {
