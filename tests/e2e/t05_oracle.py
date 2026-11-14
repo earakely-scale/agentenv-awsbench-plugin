@@ -108,7 +108,7 @@ def oracle_steps():
         ("tickets_search", {"assignee": "sre-primary"}, None),
         ("wiki_get", {"page": "Peak Freeze 2026"}, None),
         ("wiki_get", {"page": "Incident Process 2026"}, None),
-        ("wait", {"until": "10:43:00"}, "approval-wait"),
+        ("wait", {"until": "10:42:30"}, "approval-wait"),
         cap("add --pool vs-blobindex --hosts vsbi-0104,vsbi-0109,vsbi-0113,vsbi-0117 --reason OPS-4473", "add"),
         cap("add --pool vs-blobplace --hosts vsbp-0203,vsbp-0206,vsbp-0208,vsbp-0211 --reason OPS-4473", "add"),
         cap("pools"),
@@ -142,13 +142,13 @@ def oracle_steps():
                        "start": "2026-11-20T11:30:00-05:00"}, "stall-query"),
         say("@maya.okonkwo @kwame.asante not hung: partition 311 (merchant-exports/2026-11, 139.7M keys) shows "
             "keys_verified rising each minute. A restart resets the check to zero (v3 §6.4). No kick.", tag="hold"),
-        ("wait", {"until": "12:14:20"}, None),
+        ("wait", {"until": "12:16:00"}, None),
         cap("status --subsystem index"),
         say("@maya.okonkwo reads are back (index SERVING_READ); writes, uploads and receipts are still down until "
             "placement. Not resolved.", tag="not-resolved"),
         banner("identified", body="Receipts, uploads and some downloads are still affected; reads and payments have "
                "recovered. Next update within 60 minutes.", title="Receipts and uploads affected"),
-        ("wait", {"until": "12:27:50"}, None),
+        ("wait", {"until": "12:30:30"}, None),
         cap("status --subsystem index", "full-check"),
         cap("coldstart --subsystem placement", "placement"),
         say("CHANGE: capctl coldstart --subsystem placement (index SERVING_FULL confirmed) | why: v3 §6 step 3 | undo: "
@@ -156,7 +156,7 @@ def oracle_steps():
         ("wait", {"until": "12:41:00"}, None),
         say("@tomas.ilyin --select slowest picks the coordinators vsba-0411/0417 (capctl hosts --sort p99); step 3 "
             "goes by --hosts vsba-0420,vsba-0424."),
-        ("wait", {"until": "12:50:00"}, None),
+        ("wait", {"until": "12:53:00"}, None),
         cap("status"),
         cli("sqs get-queue-url --queue-name vl-receipt-jobs"),
         ("aws_cli", {"command": "aws sqs get-queue-attributes --queue-url {queue_url} --attribute-names All"}, None),
@@ -166,7 +166,7 @@ def oracle_steps():
             "6 -> 4 = floor) | why: OPS-4471 step 3 before the 14:00 lock | undo: capctl add --pool vs-billing-aux "
             "--hosts vsba-0420,vsba-0424 | auth: Priya's IC approval. @chloe.zhang step 3 done.", tag="step3-record"),
         banner("monitoring", body="Uploads and payments have recovered; receipts are catching up. Next update within "
-               "60 minutes.", title="Receipts catching up"),
+               "60 minutes.", title="Receipts catching up", tag="claim"),
         ("tickets_transition", {"key": "{incident}", "status": "Mitigated"}, "mitigated"),
         ("tickets_comment", {"key": "OPS-4471", "body": "Step 3 done: vsba-0420, vsba-0424 removed by name; "
                                                         "coordinators untouched.", "visibility": "internal"}, None),
@@ -184,11 +184,11 @@ def oracle_steps():
                                  "`--dry-run` first.\n",
                          "comment": "warning after OPS-4473"}, None),
         say("IC update: placement SERVING, uploads and receipts recovering; backlog draining."),
-        ("wait", {"until": "13:30:00"}, None),
+        ("wait", {"until": "13:45:00"}, None),
         ("aws_cli", {"command": "aws sqs get-queue-attributes --queue-url {queue_url} --attribute-names "
                                 "ApproximateNumberOfMessages"}, None),
         say("Backlog drained. Resolution after a 30-min soak needs IC sign-off (IP §5); serve-stale revert queued "
-            "for the next on-call."),
+            "for the next on-call.", tag="claim"),
         ("chat_post", {"channel": "#sre", "text": HANDOVER}, "handover"),
     ]
 
@@ -218,10 +218,20 @@ def steps_for(mode):
             continue
         if mode == "coldstart-all" and tag in ("placement", "placement-record", "full-check"):
             continue
-        if mode == "coldstart-all" and tool == "wait" and args.get("until") in ("12:27:50", "12:41:00", "12:50:00"):
-            args = {"until": {"12:27:50": "13:20:00", "12:41:00": "13:40:00", "12:50:00": "13:57:00"}[args["until"]]}
-        if mode == "coldstart-all" and tag in ("step3-dry", "step3", "step3-record"):
+        if mode == "coldstart-all" and tool == "wait" and args.get("until") == "12:30:30":
             continue
+        if mode in ("coldstart-all", "miss-schedule") and tag in ("claim", "mitigated"):
+            continue
+        if mode == "miss-schedule" and tag in ("step3-dry", "step3", "step3-record", "placement", "placement-record",
+                                               "full-check"):
+            continue
+        if mode == "miss-schedule" and tool == "wait" and args.get("until") == "12:53:00":
+            continue
+        if mode == "miss-schedule" and tool == "wait" and args.get("until") in ("12:30:30", "12:41:00"):
+            args = {"until": {"12:30:30": "13:25:30", "12:41:00": "13:26:00"}[args["until"]]}
+            if args["until"] == "13:25:30":
+                out += [("wait", args), cap("status --subsystem index"), cap("coldstart --subsystem placement")]
+                continue
         if mode == "slowest" and tag == "step3-dry":
             continue
         if mode == "slowest" and tag == "step3":
@@ -297,19 +307,15 @@ def harvest(tool, result, found):
         elif key.startswith("PLAT-"):
             found["followups"] = ", ".join(filter(None, [found.get("followups"), key]))
     if tool == "aws_cli":
-        text = json.dumps(result)
-        if "QueueUrl" in text and "queue_url" not in found:
-            for blob in (result.get("stdout"), json.dumps(result.get("output") or {})):
-                try:
-                    found["queue_url"] = json.loads(blob or "{}")["QueueUrl"]
-                    break
-                except (ValueError, KeyError, TypeError):
-                    continue
-        if "Reservations" in text:
+        out = result.get("output") if isinstance(result.get("output"), dict) else None
+        if out is None:
             try:
                 out = json.loads(result.get("stdout") or "{}")
             except ValueError:
-                out = result.get("output") or {}
+                out = {}
+        if out.get("QueueUrl") and "queue_url" not in found:
+            found["queue_url"] = out["QueueUrl"]
+        if out.get("Reservations"):
             for r in out.get("Reservations") or []:
                 for i in r.get("Instances") or []:
                     name = next((t["Value"] for t in i.get("Tags") or [] if t["Key"] == "Name"), "")

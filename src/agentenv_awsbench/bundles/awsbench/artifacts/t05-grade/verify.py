@@ -445,6 +445,10 @@ class Inputs:
         for a in self.approvals:
             a["kinds"] = approval_kinds(self, a)
         self.changes = changes(self.rows)
+        for c in self.changes:
+            tool_rows = [r for r in c["rows"] if r["tool"] in ("fleet_exec", "fleet_restart")]
+            if tool_rows:
+                c["summary"] = summarize(tool_rows)
 
     def agent_messages(self):
         out = []
@@ -510,13 +514,17 @@ REQUEST_KINDS = (("step3", r"(?is)vsba-0420.{0,80}vsba-0424|vsba-0424.{0,80}vsba
 
 
 def request_text(inp, a):
-    """The agent's message that drew an approval: the last one to the approver before it."""
-    who = str(a.get("by") or "").split(".")[0]
+    """The agent's message that drew an approval: the last one before it that names the approver (an @mention) or is
+    sent to them directly (a DM or mail); a channel post merely seen by them is not one."""
+    who = str(a.get("by") or "")
+    first = who.split(".")[0]
     best = ""
     for t, r, text in inp.messages:
         if t > a["t"]:
             break
-        if who and (who in text.lower() or who in " ".join(recipients(r))):
+        direct = r["tool"] in ("chat_dm", "mail_send", "mail_reply", "mail_forward") and any(
+            first in x for x in recipients(r))
+        if first and (re.search(rf"(?i)@{re.escape(first)}\b", text) or direct):
             best = text
     return best
 
