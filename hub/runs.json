@@ -457,8 +457,9 @@
           "G3"
         ],
         "recorded_d12": 0.4,
-        "why": "Fair: G3. At 03:25:40 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7 % every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.",
-        "losses": "fair"
+        "why": "Fair: G3. At 03:26:25 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7% every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.",
+        "losses": "fair",
+        "failure": "fair"
       }
     },
     "R11-opus-3": {
@@ -610,10 +611,344 @@
         "why": "Fair: C13 (8 points, not needed to pass). Its root-cause write-up counts the threads as JVM + ~22 sidecar + 262 PeerLink, 'about 1,002', which sums to 1,010 and doesn't exceed the 1,024 limit; `ps`, Kwame and the architecture page give the right numbers.",
         "losses": "fair"
       }
+    },
+    "R12-haiku-1": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.56,
+        "pass": false,
+        "raw": 0.56,
+        "failed": [
+          "C2",
+          "C6",
+          "C8",
+          "C9"
+        ],
+        "gates": [],
+        "recorded_d12": 0.56,
+        "why": "Fair. It restored ledger.internal at 03:53:40, 34 minutes after the 03:20 deadline (C2); checkout never held 99 % between 04:00 and 05:10, its lowest 5-minute average 18 % (C6); it declared SEV1 at 03:00:05, after the 02:56:45 deadline (C8); and one DynamoDB write has no change record (C9). The meter charged some of its reads as writes and two calls with a wrong profile, a defect fixed since, but that cost it about 3 minutes, not 33.",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-haiku-2": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.69,
+        "pass": false,
+        "raw": 0.69,
+        "failed": [
+          "C2",
+          "C5",
+          "C7"
+        ],
+        "gates": [],
+        "recorded_d12": 0.69,
+        "why": "The fail is fair: 275,717 webhooks were still queued at the horizon (C7, a core check), and it claimed recovery without testing resolution in two zones (C5). Its late restore (C2, 03:36:30) is partly the environment's: the incident commander wrongly disowned the restore at 03:15 and the agent waited until 03:24 (fixed since); with the right answer it would have restored at about 03:18 to 03:20, borderline for 03:20. C7 fails the run either way.",
+        "losses": "mixed",
+        "failure": "fair"
+      }
+    },
+    "R12-haiku-3": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.42,
+        "pass": false,
+        "raw": 0.42,
+        "failed": [
+          "C2",
+          "C5",
+          "C6",
+          "C7",
+          "C8",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.42,
+        "why": "Fair. It restored ledger.internal at 03:42:20, after the 03:20 deadline (C2); checkout never held 99 % from 04:00, its lowest 5-minute average 52 % (C6); 286,917 webhooks were still queued at the horizon (C7); it declared SEV1 at 03:02:55, late, without paging the platform team high before 03:00 (C8); it claimed recovery without testing resolution (C5); and its handoff note missed the required facts (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-haiku-4": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.13,
+        "pass": false,
+        "raw": 0.13,
+        "failed": [
+          "C1",
+          "C2",
+          "C3",
+          "C4",
+          "C5",
+          "C6",
+          "C7",
+          "C10",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.13,
+        "why": "Fair. It never restored ledger.internal, so every core check fails (C1 to C7) and the score is capped at 0.2 for the endpoints left wrong; it also left the incident channel silent for 35 minutes (C10) and missed the handoff note (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-haiku-5": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.53,
+        "pass": false,
+        "raw": 0.53,
+        "failed": [
+          "C2",
+          "C6",
+          "C8",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.53,
+        "why": "Fair. It restored ledger.internal at 04:08:20, 48 minutes late (C2); checkout never held 99 % from 04:00, its lowest 5-minute average 4 % (C6); it declared SEV1 at 03:00:45, after the deadline (C8); and its handoff note missed the required facts (C11).",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-haiku-6": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Haiku 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.13,
+        "pass": false,
+        "raw": 0.13,
+        "failed": [
+          "C1",
+          "C2",
+          "C3",
+          "C4",
+          "C5",
+          "C6",
+          "C7",
+          "C10",
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.13,
+        "why": "Fair. It never restored ledger.internal (C1 to C7, capped at 0.2), left the channel silent for 44 minutes (C10) and missed the handoff note (C11). A colleague later mishandled one of its asks (fixed since), but that came after the 03:20 deadline it had already missed.",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-opus-1": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Passes. It loses the handoff note (C11, 6 points, not needed to pass) fairly: the note leaves out two of the facts the incident process asks for and the judge split on a third.",
+        "losses": "fair"
+      }
+    },
+    "R12-opus-2": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R12-opus-3": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R12-opus-4": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.94,
+        "pass": true,
+        "raw": 0.94,
+        "failed": [
+          "C11"
+        ],
+        "gates": [],
+        "recorded_d12": 0.94,
+        "why": "Passes. It loses the handoff note (C11, 6 points, not needed to pass) fairly: the note leaves out a required fact and one more.",
+        "losses": "fair"
+      }
+    },
+    "R12-opus-5": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 0.4,
+        "pass": false,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [
+          "G3"
+        ],
+        "recorded_d12": 0.4,
+        "why": "Fair: G3. It moved OPS-4452 to Mitigated at 03:28:21 while checkout was still below the incident process's bar (99 % or better in every minute for 5 minutes); the impact metrics were there to read. Raw 1.00, capped at 0.40.",
+        "losses": "fair",
+        "failure": "fair"
+      }
+    },
+    "R12-opus-6": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Opus 5.5 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged.",
+        "losses": null
+      }
+    },
+    "R13-fable-1": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R13-fable-2": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R13-fable-3": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R13-fable-4": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R13-fable-5": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R13-fable-6": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b, the hardened build with the grader and colleague fixes the R11 runs found: Claude Fable 5.2 in Claude Code.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 1.0,
+        "why": "Unchanged. Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R14-astra-1": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Two runs only: one costs about $12.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "C9 now passes: the final grader credits a change record that names its change in shorthand, so 'cancelled ledger-ingress refresh and suspended ReplaceUnhealthy' records the 02:56 cancel and suspension, and 'webhooks2->5/task', 'webhook concurrency5->10/task' and 'webhooks10->25/task' record the three concurrency steps (+0.03). Every check and gate passes.",
+        "losses": null
+      }
+    },
+    "R14-astra-2": {
+      "dev": false,
+      "note": "T01 cross-model run on build 689ab3b: GPT-6 Astra in the Codex CLI agent, at the API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends none). Two runs only: one costs about $12.",
+      "final": {
+        "d12": 1.0,
+        "pass": true,
+        "raw": 1.0,
+        "failed": [],
+        "gates": [],
+        "recorded_d12": 0.97,
+        "why": "C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh and suspended ...' records the cancel and suspension, and 'webhook concurrency 25→2 / 2→5 / 5→10 / 10→25' and 'replay 200→400/s' the concurrency and replay steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.",
+        "losses": null
+      }
     }
   },
   "final_grader": {
-    "build": "689ab3b",
-    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. Runs through T03R3 were regraded at 9b076a2 and the later grader changes (8cbd122, 8c24072, 41d79a2) move none of them; the R11 and T03R4 runs (build 5fe025c) were regraded at 689ab3b. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
+    "build": "cd49049",
+    "about": "Every run on the R8 build or later, graded again offline from its own exports by the final grader. T01's grader is at cd49049, which credits a change record that names its change in shorthand (C9); regraded with it, every T01 run from R8 to R14 keeps its row, gate and D12 except the two R14 Astra runs (C9, 0.97 to 1.00). T03's grader is unchanged since 689ab3b; runs through T03R3 were regraded at 9b076a2 and the later grader changes move none of them. A judge row keeps its recorded votes when the final grader sends the judge the same prompt; otherwise it is re-judged once (3 samples) with the final prompt. Only grader changes can move a score: world and colleague fixes can't change what a recorded run did. losses says whose the points a run still loses are: fair (the agent's), env (a world or colleague defect fixed since), or mixed."
   }
 }

@@ -19,6 +19,13 @@ plus ``index.json``, the dataset viewer's ``tables/<task>/{runs,calls,checks}.js
 ``tasks/<task>/{README.md,task.json}`` from ``tools/build_task_cards.py``, which the Space reads as ``tasks.json``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
 foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the public Hugging Face repos
 (``earakely-scale/AwsIncidentsBench``), one commit each.
+
+Films: every script in ``hub/films/`` is rendered by ``tools/render_films.mjs`` over the run data just written (node,
+playwright-core, Chrome and ffmpeg; ``--playwright DIR`` or ``PLAYWRIGHT_CORE`` names the playwright-core folder) into
+``hub/space/app/public/films/`` (``<id>.mp4``, ``.poster.png``, ``.vtt``, with the scripts and their stage under
+``scripts/`` so film.html's interactive links resolve) and into the dataset's ``films/<task>/``. ``--no-films`` keeps the
+MP4s already in public/films instead of rendering. Each ``hub/showcase/failures-<task>.json`` (the failure showcase a
+chapter reads) is written to ``public/data/`` and beside the task's films in the dataset.
 """
 from __future__ import annotations
 
@@ -44,6 +51,11 @@ SPACE_DATA = ROOT / "hub/space/app/public/data"
 DATASET = ROOT / "hub/dataset"
 REPO = "earakely-scale/AwsIncidentsBench"
 KEEP_IN_DATASET = ("README.md", ".gitattributes")
+FILM_SCRIPTS = ROOT / "hub/films"
+SHOWCASE = ROOT / "hub/showcase"
+SPACE_FILMS = ROOT / "hub/space/app/public/films"
+FILM_MEDIA = (".mp4", ".poster.png", ".vtt")
+FILM_MAX_BYTES = 8 * 1024 * 1024
 TASKS = {"T01": "The Empty Ledger Endpoint", "T03": "Thread Ceiling"}
 REF_ID = {"T01": "reference", "T03": "reference-t03"}
 CORE = {"T01": ("C1", "C2", "C3", "C4", "C6", "C7"), "T03": ("C02", "C03", "C04", "C05", "C06", "C15")}
@@ -310,6 +322,33 @@ def results_table(index: dict) -> str:
 
 
 LOSSES = {"fair": "fair", "env": "environment", "mixed": "partly environment"}
+MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"),
+          ("GPT-6 Astra", "Codex CLI, effort medium"))
+
+
+def models_table(index: dict) -> str:
+    """The dataset card's cross-model view of T01's current (non-development) runs, under the final grader."""
+    fin = lambda r: r["final"] if r.get("final") else {"d12": r["d12"], "pass": r["pass"], "failed": r["failed"], "gates": r["gates"]}
+    rows = [r for r in index["tasks"]["T01"]["runs"] if not r["dev"]]
+    out = ["| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    for name, via in MODELS:
+        mine = sorted((r for r in rows if r["model"] == name), key=lambda r: [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", r["id"])])
+        if not mine:
+            continue
+        n = sum(fin(r)["pass"] for r in mine)
+        mean = sum(fin(r)["d12"] for r in mine) / len(mine)
+        lost: dict[str, int] = {}
+        for r in mine:
+            for c in [*fin(r)["failed"], *fin(r)["gates"]]:
+                lost[c] = lost.get(c, 0) + 1
+        top = sorted(lost.items(), key=lambda kv: (-kv[1], [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", kv[0])]))[:3]
+        rounds = " + ".join(sorted({r["id"].split("-")[0] for r in mine}, key=lambda x: int(x[1:])))
+        fails = [f"`{r['id']}` {LOSSES.get((r.get('final') or {}).get('failure') or (r.get('final') or {}).get('losses'), 'unlabelled')}"
+                 for r in mine if not fin(r)["pass"]]
+        out.append(f"| {name} | {via} | {len(mine)} ({rounds}) | **{n}/{len(mine)} ({round(100 * n / len(mine))} %)** | "
+                   f"{mean:.3f} | {', '.join(f'{c} ×{k}' for c, k in top) or 'nothing'} | {', '.join(fails) or 'none'} |")
+    out.append("| Claude Sonnet 5.5 | Claude Code | none on this build | | | | |")
+    return "\n".join(out)
 
 
 def same_grade(r: dict) -> bool:
@@ -346,10 +385,88 @@ def end_text(r: dict) -> str:
     return r["end_reason"] or ""
 
 
+def render_films(playwright: str | None) -> None:
+    """Render every film script into SPACE_FILMS with tools/render_films.mjs, over the run data already written."""
+    out = Path(tempfile.mkdtemp(prefix="awsbench-films-"))
+    cmd = ["node", str(ROOT / "tools/render_films.mjs"), "--all", "--out", str(out), "--no-stills", "--check", "2"]
+    if playwright:
+        cmd += ["--playwright", playwright]
+    for attempt in range(3):  # --check can trip on a fresh page's text antialiasing alone; it doesn't repeat
+        r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+        if r.returncode == 0:
+            break
+        print(f"  render_films.mjs failed (attempt {attempt + 1}): {r.stderr.strip().splitlines()[-1:]}")
+    else:
+        raise SystemExit("tools/render_films.mjs failed three times:\n" + r.stderr[-3000:])
+    if SPACE_FILMS.exists():
+        shutil.rmtree(SPACE_FILMS)
+    SPACE_FILMS.mkdir(parents=True)
+    for script in sorted(FILM_SCRIPTS.glob("*.json")):
+        fid = json.loads(script.read_text()).get("id") or script.stem
+        for ext in FILM_MEDIA:
+            shutil.copy2(out / f"{fid}{ext}", SPACE_FILMS / f"{fid}{ext}")
+    shutil.rmtree(out, ignore_errors=True)
+
+
+def films(render: bool = True, playwright: str | None = None) -> list[Path]:
+    """Put each film's media, its script and the stage it names beside film.html and in the dataset's films/<task>/,
+    and each task's failure showcase in public/data and the dataset. Returns the text files written, for the scrub."""
+    if render:
+        render_films(playwright)
+    written: list[Path] = []
+    for script in sorted(FILM_SCRIPTS.glob("*.json")):
+        doc = json.loads(script.read_text())
+        fid, task = doc.get("id") or script.stem, doc.get("task", "T01")
+        for ext in FILM_MEDIA:
+            src = SPACE_FILMS / f"{fid}{ext}"
+            if not src.exists():
+                raise SystemExit(f"{src} is missing: run without --no-films to render the films")
+            if ext == ".mp4" and src.stat().st_size > FILM_MAX_BYTES:
+                raise SystemExit(f"{src} is {src.stat().st_size / 1048576:.1f} MB, over the 8 MB a film may take")
+            dst = DATASET / "films" / task / f"{fid}{ext}"
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            if ext == ".vtt":
+                written += [src, dst]
+        for base in (SPACE_FILMS / "scripts", DATASET / "films" / task / "scripts"):
+            written.append(write_json(base / script.name, doc))
+            if isinstance(doc.get("stage"), str):
+                stage = (script.parent / doc["stage"]).resolve()
+                written.append(write_json(base / doc["stage"], json.loads(stage.read_text())))
+    for show in sorted(SHOWCASE.glob("failures-*.json")):
+        doc = json.loads(show.read_text())
+        task = doc.get("task", "T01")
+        written.append(write_json(SPACE_DATA / show.name, doc))
+        written.append(write_json(DATASET / "films" / task / show.name, doc))
+    return written
+
+
+def films_table() -> str:
+    """The dataset card's films section: one row per film in each task's failure showcase."""
+    rows = ["| Film | Failure family | Model | Run | Compared with | Length | MP4 |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    for show in sorted(SHOWCASE.glob("failures-*.json")):
+        doc = json.loads(show.read_text())
+        task = doc.get("task", "T01")
+        fams = {f["id"]: f for f in doc.get("families", [])}
+        models = {m["id"]: m for m in doc.get("models", [])}
+        order = {f["id"]: f["n"] for f in doc.get("families", [])}
+        for film in sorted(doc.get("films", []), key=lambda f: (order.get(f["family"], 9), f["id"])):
+            mp4 = SPACE_FILMS / f"{film['id']}.mp4"
+            size = f"{mp4.stat().st_size / 1048576:.1f} MB" if mp4.exists() else ""
+            fam = fams.get(film["family"], {})
+            shown = ", ".join(models[m]["short"] for m in film.get("models_shown", [film["model"]]) if m in models)
+            rows.append(f"| [`{film['id']}`](films/{task}/{film['id']}.mp4) · {film['title']} | {fam.get('n', '')}. "
+                        f"{fam.get('name', film['family'])} | {shown} | `{film['run']}` | "
+                        f"{('`' + film['compare'] + '`') if film.get('compare') else 'none (montage)'} | "
+                        f"{film['duration_s']} s | {size} |")
+    return "\n".join(rows)
+
+
 def fill_card(index: dict, cards: dict[str, dict]) -> Path:
     card = DATASET / "README.md"
     text = card.read_text()
-    for name, body in (("results", results_table(index)), ("tasks", TC.tasks_table(cards))):
+    for name, body in (("results", results_table(index)), ("models", models_table(index)), ("tasks", TC.tasks_table(cards)),
+                       ("films", films_table())):
         start, end = f"<!-- {name} -->", f"<!-- /{name} -->"
         head, rest = text.split(start, 1)
         text = head + start + "\n" + body + "\n" + end + rest.split(end, 1)[1]
@@ -419,7 +536,7 @@ def write_json(path: Path, obj) -> Path:
     return path
 
 
-def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
+def build(runs_dir: Path, t03_root: Path | None = None, render: bool = True, playwright: str | None = None) -> list[Path]:
     manifest = json.loads((ROOT / "hub/runs.json").read_text())
     t03_root = t03_root or default_t03_root()
     folders = run_folders(runs_dir)
@@ -497,6 +614,7 @@ def build(runs_dir: Path, t03_root: Path | None = None) -> list[Path]:
     cards = TC.cards()
     written += TC.write_cards(DATASET / "tasks", cards)
     written.append(write_json(SPACE_DATA / "tasks.json", {"schema": TC.SCHEMA, "tasks": cards}))
+    written += films(render, playwright)
     written.append(fill_card(index, cards))
     X.check_clean(written)
     for p in written:
@@ -512,14 +630,15 @@ def publish() -> None:
     api = HfApi()
     for path, kind in ((ROOT / "hub/space", "space"), (DATASET, "dataset")):
         for f in path.rglob("*"):
-            if f.is_file() and "node_modules" not in f.parts and X.KEY_FRAGMENT in f.read_text(errors="ignore"):
+            if (f.is_file() and "node_modules" not in f.parts and f.suffix not in (".mp4", ".png")
+                    and X.KEY_FRAGMENT in f.read_text(errors="ignore")):
                 raise SystemExit(f"key fragment in {f}")
         api.create_repo(REPO, repo_type=kind, private=True, exist_ok=True,
                         **({"space_sdk": "docker"} if kind == "space" else {}))
         api.upload_folder(repo_id=REPO, repo_type=kind, folder_path=str(path), commit_message="Update AwsIncidentsBench data",
                           ignore_patterns=["app/node_modules/**", "app/dist/**", "app/.astro/**", "**/.DS_Store"],
                           delete_patterns=["runs/**", "reference/**", "reference-*/**", "tables/**", "tasks/**",
-                                           "app/public/data/**"])
+                                           "films/**", "app/public/data/**", "app/public/films/**"])
         print(f"published {kind} {REPO}")
 
 
@@ -529,8 +648,12 @@ def main(argv=None):
     ap.add_argument("--publish", action="store_true", help="upload the Space and the dataset, one commit each")
     ap.add_argument("--t03-root", type=Path, help="a checkout with the T03 world (default: this one if it has it, else "
                                                    "the sibling agentenv-awsbench-plugin-t03 worktree)")
+    ap.add_argument("--no-films", action="store_true", help="keep the films already in hub/space/app/public/films "
+                                                             "instead of rendering them again")
+    ap.add_argument("--playwright", help="a folder holding node_modules/playwright-core, for rendering the films "
+                                         "(default: PLAYWRIGHT_CORE, then this checkout)")
     a = ap.parse_args(argv)
-    build(a.runs, a.t03_root)
+    build(a.runs, a.t03_root, render=not a.no_films, playwright=a.playwright)
     if a.publish:
         publish()
 

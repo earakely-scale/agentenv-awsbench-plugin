@@ -1,0 +1,101 @@
+---
+// One failure family: the test, its checks, the family's matrix row, its film(s), the decision point, the rule, what
+// it cost, what passing runs did, its chart if it has one, and every run in it that isn't clean.
+import Accordion from "./Accordion.astro";
+import Quote from "./Quote.astro";
+import FilmPlayer from "./FilmPlayer.astro";
+import RunSquare from "./RunSquare.astro";
+import StripChart from "./StripChart.astro";
+import { MODELS, FILM, STATE, LABEL, cell, runLink } from "./failures";
+const { f } = Astro.props;
+const films = f.films.map((id: string) => FILM[id]).filter(Boolean);
+const short = (id: string) => (MODELS.find((m: any) => m.id === id) || {}).short || id;
+const tabLabel = (film: any) => `${short(film.model)} · ${film.run}`;
+const rows = MODELS.flatMap((m: any) => cell(f.id, m.id).squares.filter((sq: any) => sq.state !== "clean").map((sq: any) => ({ m, sq })));
+const tabId = (i: number) => `t01f-${f.id}-tab-${i}`;
+const esc = (t: string) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const md = (t: string) => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>");
+---
+<section class="t01f-card" aria-labelledby={`t01f-${f.id}`}>
+  <header class="t01f-card__head">
+    <div class="t01f-card__lead">
+      <div class="t01f-card__title"><span class="t01f-badge" aria-hidden="true">{f.n}</span><h3 id={`t01f-${f.id}`}>{f.name}</h3></div>
+      <p class="t01f-card__test" set:html={md(f.test)} />
+      <ul class="t01f-chips" aria-label="Checks in this family">
+        {f.checks.map((c: any) => (
+          <li class="t01f-chip" title={c.what}><b>{c.id}</b> {c.cap != null ? `caps the score at ${c.cap.toFixed(2)}` : `${c.points} pts`}{c.core && <span class="core">core</span>}</li>
+        ))}
+        {f.can_cost_pass && <li class="t01f-chip warn">can cost the pass</li>}
+      </ul>
+    </div>
+    <div class="t01f-mini" aria-label="This family's row of the matrix">
+      {MODELS.map((m: any) => (
+        <span class="t01f-mini__m"><small>{m.short}</small><span class="sqs">{cell(f.id, m.id).squares.map((sq: any) => <RunSquare sq={sq} />)}</span></span>
+      ))}
+    </div>
+  </header>
+
+  {films.length > 1 && (
+    <div class="t01f-tabs" role="tablist" aria-label="Films in this family">
+      {films.map((film: any, i: number) => (
+        <button type="button" role="tab" id={tabId(i)} aria-selected={i === 0 ? "true" : "false"} tabindex={i === 0 ? 0 : -1} data-film-tab={film.id}>{tabLabel(film)}</button>
+      ))}
+    </div>
+  )}
+  <div class="t01f-films">
+    {films.map((film: any, i: number) => (
+      <div role={films.length > 1 ? "tabpanel" : undefined} aria-labelledby={films.length > 1 ? tabId(i) : undefined} data-film-panel={film.id} hidden={i > 0}>
+        <FilmPlayer id={film.id} title={films.length > 1 ? film.title : `${film.title} · ${tabLabel(film)}`} duration_s={film.duration_s} />
+      </div>
+    ))}
+  </div>
+
+  <div class="t01f-grid">
+    <div class="t01f-block">
+      <p class="t01f-block__h">At the decision point</p>
+      {f.excerpt.map((e: any) => (
+        e.kind === "quote" ? (
+          <div class="t01f-excerpt"><p class="q" set:html={`“${md(e.quote)}”`} /><p class="who">{e.who}</p></div>
+        ) : (
+          <div class="t01f-excerpt fact"><p set:html={md(e.quote)} />{e.who && <p class="who">{e.who}</p>}</div>
+        )
+      ))}
+    </div>
+    <div class="t01f-block">
+      <p class="t01f-block__h">The rule</p>
+      {f.rule.map((r: any) => (
+        <Quote source={esc(r.source)}><Fragment set:html={md(r.quote)} /></Quote>
+      ))}
+    </div>
+    <div class="t01f-block">
+      <p class="t01f-block__h">What it cost</p>
+      <p set:html={md(f.consequence)} />
+      {f.knock_on && <p class="t01f-muted" set:html={md(f.knock_on)} />}
+    </div>
+    <div class="t01f-block">
+      <p class="t01f-block__h">What passing runs did</p>
+      <p set:html={md(f.passing)} />
+    </div>
+  </div>
+
+  {f.chart && <StripChart kind={f.chart} />}
+
+  <Accordion title={`Every run in this family that lost points or came close (${rows.length})`}>
+    <div class="table-scroll">
+      <table class="t01f-table t01f-runs">
+        <thead><tr><th>Run</th><th>Model</th><th>State</th><th>Checks</th><th>Note</th></tr></thead>
+        <tbody>
+          {rows.map(({ m, sq }: any) => (
+            <tr>
+              <td>{runLink(sq.run) ? <a href={runLink(sq.run)} target="_blank" rel="noopener"><code>{sq.run}</code></a> : <code>{sq.run}</code>}</td>
+              <td>{m.short}</td>
+              <td><span class="t01f-state"><RunSquare sq={{ ...sq, note: null }} decorative />{STATE[sq.state]}{sq.label ? `, ${LABEL[sq.label]}` : ""}</span></td>
+              <td>{sq.checks && sq.checks.length ? sq.checks.join(", ") : "–"}</td>
+              <td>{sq.note || ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </Accordion>
+</section>

@@ -1092,7 +1092,7 @@ function finalLine(V, sc){
 function renderHeader(){
   const grp = $('scenarioGroup');
   if (!grp.childElementCount){
-    const nice = id => id.replace(/^T\d+/, '').replace(/-(opus|sonnet)(-\d+)?$/, (m, a, b) => ' ' + a[0].toUpperCase() + a.slice(1) + (b ? ' ' + b.slice(1) : ''));
+    const nice = id => id.replace(/^T\d+/, '').replace(/-(opus|sonnet|haiku|fable|astra)(-\d+)?$/, (m, a, b) => ' ' + a[0].toUpperCase() + a.slice(1) + (b ? ' ' + b.slice(1) : ''));
     grp.innerHTML = Object.entries(IDX.tasks).map(([task, tk]) => `<div class="tg" data-task="${esc(task)}"><span class="tl">${esc(task)}</span>` + [tk.reference, ...tk.runs].map(r => `<button type="button" data-k="${esc(r.id)}" aria-pressed="false" title="${esc(task + ' · ' + r.label + (r.dev ? ' · development run, build ' + r.build : ' · build ' + r.build))}"><span class="d ${runFailed(r)?'fail':'pass'}" aria-hidden="true"></span>${esc(r.kind === 'reference' ? 'Reference' : nice(r.id))}${r.dev ? '<small class="dev">dev</small>' : ''}</button>`).join('') + '</div>').join('');
     grp.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) setRun(b.dataset.k); });
   }
@@ -1100,7 +1100,7 @@ function renderHeader(){
   for (const g of grp.querySelectorAll('.tl')) g.classList.toggle('on', g.parentNode.dataset.task === TASK);
   const cmp = $('cmp'); cmp.disabled = isRef(); cmp.checked = st.cmp && !isRef();
   $('keyRef').hidden = !(st.cmp && !isRef());
-  $('buildTag').textContent = (isRef() ? 'scripted oracle · build ' : V.model + ' · Claude Code · build ') + V.build + (V.dev ? ' · development run' : '');
+  $('buildTag').textContent = (isRef() ? 'scripted oracle · build ' : V.model + ' · ' + String(V.harness || 'Claude Code').split(' (')[0] + ' · build ') + V.build + (V.dev ? ' · development run' : '');
   const fail = !V.score.pass;
   const coreChips = CORE.map(id => { const c = CHK[id]; const bad = c && !c.result;
     return `<span class="ck ${bad ? 'fail' : 'pass'}" title="${esc(c ? c.title || c.name : id)} · weight ${c ? c.w : ''}">${bad ? '✕' : '✓'} ${id}</span>`; }).join('');
@@ -1394,7 +1394,7 @@ bindPointer();
   const want = q.get('run'), wantTask = (q.get('task') || '').toUpperCase();
   const all = Object.values(IDX.tasks).flatMap(tk => [tk.reference, ...tk.runs]);
   const tk = IDX.tasks[wantTask] || IDX.tasks.T01;
-  const first = (all.find(r => r.id === want) || tk.runs.find(r => !r.dev) || tk.runs.find(r => r.pass) || tk.runs[0] || tk.reference).id;
+  const first = (all.find(r => r.id === want) || tk.runs.find(r => !r.dev && /Opus/.test(r.model)) || tk.runs.find(r => !r.dev) || tk.runs.find(r => r.pass) || tk.runs[0] || tk.reference).id;
   st.cmp = q.get('compare') !== '0';
   await setRun(first);
   scrollToPlayhead(true);

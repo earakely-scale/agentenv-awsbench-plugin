@@ -23,37 +23,58 @@ export const PCT = (rs) => `${Math.round((100 * rs.filter(fin).length) / Math.ma
 export const T01O = T01L.filter(opus);
 export const T03O = T03L.filter(opus);
 export const MEAN = (rs) => (rs.reduce((a, r) => a + (r.final ? r.final.d12 : r.d12), 0) / Math.max(rs.length, 1)).toFixed(3);
+export const ROUNDS = (rs) => [...new Set(rs.map((r) => r.id.split("-")[0]))].sort((a, b) => a.localeCompare(b, "en", { numeric: true })).join(" + ");
+export const byId = (a, b) => a.id.localeCompare(b.id, "en", { numeric: true });
+export const XM = [
+  { key: "Haiku", name: "Claude Haiku 5.5", via: "Claude Code" },
+  { key: "Opus", name: "Claude Opus 5.5", via: "Claude Code" },
+  { key: "Fable", name: "Claude Fable 5.2", via: "Claude Code" },
+  { key: "Astra", name: "GPT-6 Astra", via: "Codex CLI, effort medium" },
+].map((m) => ({ ...m, runs: T01L.filter((r) => r.model.includes(m.key)).sort(byId) })).filter((m) => m.runs.length);
+export const FD = (r) => (r.final ? r.final.d12 : r.d12);
+export const TOP = (rs) => {
+  const n = {};
+  rs.forEach((r) => [...(r.final ? r.final.failed : r.failed), ...(r.final ? r.final.gates : r.gates)].forEach((c) => (n[c] = (n[c] || 0) + 1)));
+  return Object.entries(n).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en", { numeric: true })).slice(0, 3);
+};
+export const FAILS = (rs) => rs.filter((r) => !fin(r));
+export const FKEY = (r) => (r.final && (r.final.failure || r.final.losses)) || "";
+export const FLABEL = (r) => LOSSES[(r.final && (r.final.failure || r.final.losses)) || ""] || "unlabelled";
 
 ## Results
 
 ### Where the tasks stand
 
-The bar the task owner set for this round: over six runs of Claude Opus 5.5 on the current build, **pass@1 below
-90 %, with every failure fair**, one the agent could have avoided with what the world showed it (see
+The bar the task owner set: over the Claude Opus 5.5 runs on the current build, **pass@1 below 90 %, with every
+failure fair**, one the agent could have avoided with what the world showed it (see
 [What makes a failure fair](#what-makes-a-failure-fair)). A failure caused by a world, colleague or grader defect
-doesn't count. The current build is the hardened one, <code>{T01L[0]?.build}</code>, which removed what earlier builds gave away
-beyond each task's design (see below). Pass@1 is read from the final grader, <code>{FG.build}</code>:
+doesn't count. The current build is the hardened one, which removed what earlier builds gave away beyond each task's
+design (see below): 5fe025c for the R11 and T03R4 runs, and 689ab3b, which adds the grader and colleague fixes the
+R11 runs found, for T01's R12 to R14. Pass@1 is read from the final grader, <code>{FG.build}</code>:
 
 <div class="table-scroll">
 <table class="aib-results aib-bar">
   <thead><tr><th>Task</th><th>Opus runs</th><th>Pass@1 as graded</th><th>Pass@1, final grader</th><th>Failures</th><th>Bar</th></tr></thead>
   <tbody>
-    <tr><td>T01</td><td>{T01O.length} ({T01O[0]?.id.split("-")[0]})</td><td>{P1G(T01O)}</td><td><strong>{P1(T01O)} ({PCT(T01O)})</strong></td><td>{T01O.filter((r) => !fin(r)).map((r) => `${r.id}, ${[...(r.final?.gates || r.gates), ...(r.final?.failed || [])].join(", ")}, ${LOSSES[r.final?.losses] || ""}`).join("; ") || "none"}</td><td class="pass">met</td></tr>
-    <tr><td>T03</td><td>{T03O.length} ({T03O[0]?.id.split("-")[0]})</td><td>{P1G(T03O)}</td><td><strong>{P1(T03O)} ({PCT(T03O)})</strong></td><td>{T03O.filter((r) => !fin(r)).map((r) => r.id).join(", ") || "none"}</td><td class="fail">not met</td></tr>
+    <tr><td>T01</td><td>{T01O.length} ({ROUNDS(T01O)})</td><td>{P1G(T01O)}</td><td><strong>{P1(T01O)} ({PCT(T01O)})</strong></td><td>{T01O.filter((r) => !fin(r)).sort(byId).map((r) => `${r.id}, ${[...(r.final?.gates || r.gates), ...(r.final?.failed || [])].join(", ")}, ${LOSSES[r.final?.losses] || ""}`).join("; ") || "none"}</td><td class="pass">met</td></tr>
+    <tr><td>T03</td><td>{T03O.length} ({ROUNDS(T03O)})</td><td>{P1G(T03O)}</td><td><strong>{P1(T03O)} ({PCT(T03O)})</strong></td><td>{T03O.filter((r) => !fin(r)).map((r) => r.id).join(", ") || "none"}</td><td class="fail">not met</td></tr>
   </tbody>
 </table>
 </div>
 
-**T01 meets the bar.** Five of the six runs pass, and the one failure is fair. R11-opus-2 set the incident to
-Mitigated while checkout was still dipping: at 03:25 it unpaused the webhook dispatcher at concurrency 10, checkout
+**T01 meets the bar.** Ten of the twelve Opus runs pass, five of six in each round, and both failures are fair, on the
+same gate: each set the incident to Mitigated before checkout was stable. R12-opus-5 moved the incident ticket to
+Mitigated at 03:28:21 while checkout was still below the incident process's bar, with the impact metrics there to
+read. R11-opus-2 set the incident to Mitigated while checkout was still dipping: at 03:26 it unpaused the webhook dispatcher at concurrency 10, checkout
 success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved the incident ticket to
-Mitigated, citing "≥ 99.7 % every minute" from a metric read taken before its own change. The incident process says
+Mitigated, citing “>= 99.7% every minute” from a metric read taken before its own change. The incident process says
 stable means checkout at 99 % or better in every minute for 5 minutes before Mitigated; the dip was in CloudWatch, and
 the agent's own summary admits it. Gate G3 caps the run at 0.40 (raw 1.00). R11-opus-4 was graded 0.25 because gate
 G2 read its stop of tonight's acme-renewer task, given by bare task id, as an unapproved change; stopping that task is
 a standing change the freeze allows, and its change record names it. That was a grader defect: the final grader scores
 the run 1.00, a pass. R11-opus-5 passes but loses C5 fairly: its only resolution test after the fix still returned
-NXDOMAIN, and it declared Mitigated without testing again.
+NXDOMAIN, and it declared Mitigated without testing again. R12-opus-1 and R12-opus-4 pass but lose their handoff
+notes (C11) fairly.
 
 **T03 does not meet it, because no run fails.** All six Opus runs pass under the final grader, at a mean D12 of
 {MEAN(T03O)}. T03R4-opus-2 was graded 0.40 because gate G4 read its reply to the VP of Engineering ("Not yet. Routing is restored …
@@ -65,9 +86,50 @@ an alarm on thread use against the limit (C14), and opus-6's root-cause write-up
 the 1,024 limit it blamed (C13). Getting a fair T03 failure would mean adding difficulty back, which this round ruled
 out, so that is the task owner's call.
 
-The R11 and T03R4 runs were made on build 5fe025c. The head the task cards show, 689ab3b, adds the grader and colleague
-fixes those runs found; its scripted regression (each task's oracle and the scripted failure modes, run end to end on
-a deployed env) gives the same scores and failing checks as before, and both oracles score 1.000.
+The R11 and T03R4 runs were made on build 5fe025c, and T01's R12 to R14 on 689ab3b, which adds the grader and
+colleague fixes the R11 runs found; its scripted regression (each task's oracle and the scripted failure modes, run
+end to end on a deployed env) gives the same scores and failing checks as 5fe025c's, and both oracles score 1.000.
+Quality checks of the R12 and R13 runs then found more world, colleague and tool defects, fixed in the head the task
+cards show; none of them decided a failure on this page. The final T01 grader also credits a change record that names
+its change in shorthand (C9), which moves only the two GPT-6 Astra runs, from 0.97 to 1.00.
+
+### Across models
+
+T01 on its final build, by model. Each square is one run, green for a pass and red for a fail under the final grader;
+hover or tap one for its score and why. Pass@1 counts the runs that pass; mean D12 averages their final scores.
+Claude Opus 5.5 counts every run on the hardened build, R11 and R12. GPT-6 Astra ran in the Codex CLI agent at the
+API's default medium effort (Codex 0.147.0 has no metadata for the model, so it sends no effort of its own); it has
+only two runs because one costs about $12, so its pass@1 is a small sample.
+
+<div class="aib-xm" role="table" aria-label="T01 results by model on the final build">
+  <div class="xm-row xm-head" role="row">
+    <span role="columnheader">Model</span><span role="columnheader">Runs</span><span role="columnheader">Pass@1</span><span role="columnheader">Mean D12</span><span role="columnheader">Lost most</span><span role="columnheader">Failures</span>
+  </div>
+  {XM.map((m) => (
+    <div class="xm-row" role="row">
+      <span class="xm-model" role="cell"><strong>{m.name}</strong><small>{m.via} · {ROUNDS(m.runs)}</small></span>
+      <span class="xm-runs" role="cell" aria-label={`${m.runs.filter(fin).length} of ${m.runs.length} pass`}>{m.runs.map((r) => (
+        <a class={`xm-cell ${fin(r) ? "pass" : "fail"}`} href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener" title={`${r.id} · D12 ${pct(FD(r))} ${fin(r) ? "pass" : "fail"}${r.final ? " · " + r.final.why : ""}`}><span class="sr-only">{r.id}</span></a>
+      ))}</span>
+      <span class="xm-p1" role="cell"><strong>{Math.round((100 * m.runs.filter(fin).length) / m.runs.length)} %</strong><small>{m.runs.filter(fin).length} of {m.runs.length}</small></span>
+      <span class="xm-mean" role="cell"><span class="xm-bar"><span style={`width:${(100 * Number(MEAN(m.runs))).toFixed(1)}%`}></span></span><b>{MEAN(m.runs)}</b></span>
+      <span class="xm-lost" role="cell">{TOP(m.runs).length ? TOP(m.runs).map(([c, k]) => `${c} ×${k}`).join(", ") : "nothing"}</span>
+      <span class="xm-fails" role="cell">{FAILS(m.runs).length > 2 ? [...new Set(FAILS(m.runs).map(FKEY))].map((k) => (<span class="xm-f" title={FAILS(m.runs).filter((r) => FKEY(r) === k).map((r) => r.id).join(", ")}>{FAILS(m.runs).filter((r) => FKEY(r) === k).length === m.runs.length ? "all" : FAILS(m.runs).filter((r) => FKEY(r) === k).length} {FAILS(m.runs).length === m.runs.length ? "" : "runs "}<span class={`loss ${k}`}>{LOSSES[k] || "unlabelled"}</span></span>)) : FAILS(m.runs).length ? FAILS(m.runs).map((r) => (<span class="xm-f"><code>{r.id}</code> <span class={`loss ${FKEY(r)}`}>{FLABEL(r)}</span></span>)) : <span class="na">none</span>}</span>
+    </div>
+  ))}
+  <div class="xm-row xm-none" role="row">
+    <span class="xm-model" role="cell"><strong>Claude Sonnet 5.5</strong><small>Claude Code</small></span>
+    <span class="xm-note" role="cell">No runs on the final build yet. Its T01 runs here are on older builds (R8, R10); a Harbor parity job is adding runs on this one.</span>
+  </div>
+</div>
+
+**T01 separates the models.** Claude Haiku 5.5 fails all six runs, and every failure is fair: it restored the ledger
+endpoint 16 to 48 minutes after the 03:20 deadline, or never, and each late restore also left checkout unstable after
+04:00 or webhooks still queued at the horizon. One of R12-haiku-2's lost checks is partly the environment's (the
+incident commander wrongly disowned the restore it asked for, fixed since), but its unrecovered backlog fails the run
+on its own. Claude Opus 5.5 passes 10 of 12, both failures the same fair early Mitigated claim (G3). Claude Fable 5.2
+passes all six at 1.00. GPT-6 Astra passes both of its runs at 1.00 under the final grader. Where and why each model lost
+points, with films of the moments that decided the runs, is in [How models fail T01](#how-models-fail-t01).
 
 ### What the hint removal changed
 
@@ -107,7 +169,7 @@ of the capacity change, restarted 12 hosts at a time with `wait_for ready`, and 
 ### Runs
 
 Each row is one recorded run by an agent in Claude Code, with the solver's built-in tools off so that it works only
-through the environment's tools. Runs on older builds are **development runs**: they found env and grader bugs that are
+through the environment's tools, or, for GPT-6 Astra, in the Codex CLI agent with the same tools. Runs on older builds are **development runs**: they found env and grader bugs that are
 fixed since. The reference for each task is its scripted oracle path. Click a run to open it in the flight recorder.
 
 **Graded** is the score a run got when it was graded. **Final** is the same run's exports graded again by the final
@@ -174,7 +236,7 @@ graded again.
 
 The development runs show how the tasks got here. On the last build before the hardening (R10 for T01, on 5095dda;
 T03R3 for T03, on e61297b) every Opus run scored 1.00, as Opus had in every T01 run since R9 (R9's runs are not shown
-here). Those rounds also ran Claude Sonnet 5.5; the hardened round ran Opus only. Both T01 Sonnet runs passed, one
+here). Those rounds also ran Claude Sonnet 5.5; the first hardened round (R11, T03R4) ran Opus only. Both T01 Sonnet runs passed, one
 losing its handoff fairly. T03R3-sonnet-1 failed fairly on the half-revert trap the task is built around: it reverted
 the Auto Scaling group but left the scheduled capacity hold in place, which put the fleet back to 132 hosts at 14:00,
 so its "resolved" was false by the horizon, the same miss as T03R2-sonnet-2 on the build before. T03R3-sonnet-2 was
@@ -184,8 +246,9 @@ resolved claim; the final grader fixes that and scores it 0.975, a pass.
 ### Calibration: easier than designed
 
 Both task designs aim for a frontier pass rate near 10–18 %. On the hardened build Opus passes T01 at {PCT(T01O)} and
-T03 at {PCT(T03O)} under the final grader. Six runs per task show where a task bites, not a rate, but the gap is too
-large to be noise. Audits against the designs found the physics faithful: T01's storm thresholds, autoscaler revert
+T03 at {PCT(T03O)} under the final grader. Six or twelve runs per task show where a task bites, not a rate, but the gap
+is too large to be noise. Across models T01 does separate them (see [Across models](#across-models)): Haiku fails every
+run, Opus fails one in six, and Fable and GPT-6 Astra pass every run. Audits against the designs found the physics faithful: T01's storm thresholds, autoscaler revert
 and reconnect-herd collapse, and T03's thread arithmetic (132 hosts fail, 124 and fewer fit), its restart behaviour and
 its 14:00 relapse all follow the designs. The earlier builds were easier in what they gave away, and the hardened build
 took that back (see [What the hint removal changed](#what-the-hint-removal-changed)): policy pages that restated the

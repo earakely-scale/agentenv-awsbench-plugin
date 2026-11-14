@@ -1,0 +1,251 @@
+{
+  "schema": "awsincidentsbench.film/v1",
+  "id": "t01-fable-storm-after-fix",
+  "task": "T01",
+  "run": "R13-fable-4",
+  "compare": "R13-fable-3",
+  "family": "storm",
+  "title": "The storm after the fix",
+  "kicker": "T01 · R13-fable-4 · Claude Fable 5.2",
+  "theme": "dark",
+  "stage": "stages/t01.json",
+  "poster": 23.25,
+  "facts": [
+    "A near miss, no points lost. Verified 2026-11-13 against qcdata/runs/R13-fable-4 and R13-fable-3 (build 689ab3b), exported with tools/export_run.py. Call numbers are the viewer's step n (transcript CALL minus 1 in R13-fable-4 from CALL 9 on).",
+    "R13-fable-4: n=36 'epctl apply --gen 48219 ... --manual' ends 02:57:35 with consumer_paused false, max_concurrency 25 (levers) and replay_rate 400, admission off (modes-fable); events 03:01:42 'Negative caches expire ...' and 03:02:40 'All 30 core hosts resolve'; series.ld 1147 at 03:02, 3140 (cap 1500) 03:03:00-03:08:30, 640 at 03:09; series.rg degraded 03:02:10, collapsed 03:02:20, healthy 03:11:10 (530 s); series.ck 350 for 03:03-03:11, 997 from 03:12.",
+    "R13-fable-4 agent text after n=41 (agent-session.jsonl): 'DNS now resolves from all AZs, but checkout still fails with timeouts — looking at ledger-writer (likely a retry/backlog surge now hitting it).'; n=46-48 broad log queries 03:03:45-03:07:30; n=49-51 consumer_paused true 03:08:15, replay_rate 50 03:09:00, admission on 03:09:45; C6 'collapsed 530s'; D12 1.000.",
+    "R13-fable-3: n=41-43 consumer_paused true 02:58:15, replay_rate 50 02:59:00, admission on 02:59:45; n=44 apply ends 03:00:30; series.ld 197 at 03:02, 290 from 03:03 (peak); regime healthy throughout (collapsed 0 s); series.ck 838 at 03:03, 997 from 03:04; D12 1.000.",
+    "Collapse lengths (summary.collapsed_min): Opus R11/R12 10 of 12 runs, 320-580 s; Fable 2 of 6 (340, 530 s); GPT-6 Astra 0 of 2. C6 (verify.py) allows 1,200 s; no run failed C6 on collapse length."
+  ],
+  "scenes": [
+    {
+      "id": "open",
+      "view": "title",
+      "start": 0.0,
+      "end": 4.5,
+      "kicker": "AwsIncidentsBench · T01 · A near miss",
+      "title": "The storm after the fix",
+      "subtitle": "Claude Fable 5.2 restores the ledger before shedding any load. The reconnect storm {amber:collapses ledger-writer for 530 s,} and the run still passes.",
+      "note": "No points lost. Every number and quote is read from the runs' own exports."
+    },
+    {
+      "id": "storm",
+      "view": "world",
+      "start": 4.5,
+      "end": 17.0,
+      "title": "The fix, then the storm",
+      "clock": {
+        "keys": [
+          [4.5, "02:56:30"],
+          [7.0, "02:57:35"],
+          [10.5, "03:01:30"],
+          [12.5, "03:03:30"],
+          [14.5, "03:09:00", "linear"],
+          [17.0, "03:09:00"]
+        ]
+      },
+      "window": ["02:50:00", "03:15:00"],
+      "lanes": ["ck", "ld", "rg", "dns", "calls"],
+      "highlights": [
+        {"target": "call:36", "start": 5.4, "end": 9.6, "color": "blue", "pulse": true, "pad": 4, "label": "apply", "below": true},
+        {"target": "lever:consumer_paused", "start": 6.4, "end": 10.0, "color": "amber"},
+        {
+          "target": "hosts",
+          "start": 10.6,
+          "end": 13.6,
+          "color": "teal",
+          "label": "caches expire 03:01:42 – 03:02:40",
+          "place": "right"
+        },
+        {"target": "lane:ld", "range": ["03:02:30", "03:09:00"], "start": 14.6, "end": 17.0, "color": "red"}
+      ],
+      "captions": [
+        {
+          "start": 4.8,
+          "end": 10.4,
+          "text": "02:57. Fable applies plan 48219 with webhooks flowing, outbox replay at 400/s and admission control off.",
+          "refs": ["call 36", "levers"]
+        },
+        {
+          "start": 10.4,
+          "end": 17.0,
+          "text": "03:02. The hosts' cached NXDOMAIN expires together. The backed-up work arrives at once: {red:3,140 req/s} on 1,500.",
+          "refs": ["events 03:01:42, 03:02:40", "series.ld"]
+        }
+      ]
+    },
+    {
+      "id": "decision",
+      "view": "decision",
+      "start": 17.0,
+      "end": 30.07,
+      "title": "Decision point: when to shed",
+      "clock": {"at": "03:07:30"},
+      "window": ["02:55:00", "03:13:00"],
+      "lanes": ["ck", "ld", "calls"],
+      "heights": {"ck": 90, "ld": 64, "calls": 40},
+      "markers": [{"t": "02:57:35", "label": "applied", "color": "blue"}, {"t": "03:01:42", "label": "caches expire", "color": "amber"}],
+      "highlights": [
+        {
+          "target": "lane:calls",
+          "range": ["03:03:45", "03:07:30"],
+          "start": 17.45,
+          "end": 30.07,
+          "color": "amber",
+          "label": "3 log queries"
+        }
+      ],
+      "callout_y": 366,
+      "callout_h": 190,
+      "callout": {
+        "start": 17.68,
+        "blocks": [
+          {
+            "kind": "quote",
+            "label": "It said · 03:02:25",
+            "color": "amber",
+            "weight": 1.15,
+            "size": 18,
+            "max_lines": 5,
+            "text": "DNS now resolves from all AZs, but checkout still fails with timeouts — looking at ledger-writer (likely a retry/backlog surge now hitting it).",
+            "mark": "likely a retry/backlog surge",
+            "mark_color": "amber",
+            "source": "agent-session · after call 41"
+          },
+          {
+            "kind": "quote",
+            "label": "The runbook · LEDG-RB-2",
+            "color": "teal",
+            "weight": 1.05,
+            "size": 18,
+            "max_lines": 4,
+            "text": "Prefer shedding asynchronous callers (Peak Freeze §4.1(f), documented here):",
+            "mark": "Prefer shedding asynchronous callers",
+            "mark_color": "teal",
+            "note": "webhooks · admission · outbox replay",
+            "source": "wiki · OPS-RB-LEDG-2"
+          },
+          {
+            "kind": "values",
+            "label": "Checkout · while it read logs",
+            "color": "red",
+            "weight": 1.05,
+            "fmt": "pct1000s",
+            "items": [
+              {"series": "ck", "at": "03:04:00", "ok": ">=990"},
+              {"series": "ck", "at": "03:05:00", "ok": ">=990"},
+              {"series": "ck", "at": "03:06:00", "ok": ">=990"},
+              {"series": "ck", "at": "03:07:00", "ok": ">=990"}
+            ],
+            "note": "Shed from {amber:03:08:15}; healthy 03:11:10."
+          }
+        ]
+      },
+      "captions": [
+        {
+          "start": 17.34,
+          "end": 23.59,
+          "text": "03:02. Fable names the likely cause, {amber:a retry and backlog surge,} then runs three broad log queries, 75 s each.",
+          "refs": ["agent-session after call 41", "calls 46-48"]
+        },
+        {
+          "start": 23.59,
+          "end": 30.07,
+          "text": "It sheds at 03:08:15: webhooks paused, replay to 50/s, admission on. Ledger-writer recovers at 03:11:10.",
+          "refs": ["calls 49-51", "series.rg"]
+        }
+      ]
+    },
+    {
+      "id": "contrast",
+      "view": "split",
+      "start": 30.07,
+      "end": 42.78,
+      "title": "Shed first: the same model, another run",
+      "kicker": "T01 · R13-fable-4 against R13-fable-3 · build 689ab3b",
+      "split": {
+        "runs": ["R13-fable-4", "R13-fable-3"],
+        "notes": ["applied 02:57:35 · shed 03:08:15", "shed 02:58:15 · applied 03:00:30"],
+        "markers": [
+          [{"t": "02:57:35", "label": "applied", "color": "blue"}, {"t": "03:08:15", "label": "shed", "color": "blue"}],
+          [{"t": "02:58:15", "label": "shed", "color": "teal"}, {"t": "03:00:30", "label": "applied", "color": "blue"}]
+        ]
+      },
+      "clock": {"keys": [[30.07, "02:55:00"], [38.01, "03:13:00", "linear"], [42.78, "03:13:00"]]},
+      "window": ["02:55:00", "03:13:00"],
+      "lanes": ["ck", "ld", "rg", "calls"],
+      "heights": {"ck": 128, "ld": 104, "rg": 30, "calls": 46},
+      "highlights": [
+        {
+          "target": "r0:lane:ld",
+          "range": ["03:02:30", "03:09:00"],
+          "start": 38.22,
+          "end": 42.78,
+          "color": "red",
+          "label": "3,140 req/s"
+        },
+        {
+          "target": "r1:lane:ld",
+          "range": ["03:02:00", "03:04:00"],
+          "start": 38.22,
+          "end": 42.78,
+          "color": "teal",
+          "label": "peak 290"
+        },
+        {
+          "target": "r1:lane:ck",
+          "range": ["03:04:00", "03:13:00"],
+          "start": 38.22,
+          "end": 42.78,
+          "color": "teal",
+          "label": "99.7 % from 03:04"
+        },
+        {
+          "target": "r0:lane:ck",
+          "range": ["03:03:00", "03:12:00"],
+          "start": 38.22,
+          "end": 42.78,
+          "color": "red",
+          "label": "35 % to 03:11"
+        }
+      ],
+      "captions": [
+        {
+          "start": 30.28,
+          "end": 36.53,
+          "text": "R13-fable-3, same model and build, shed first: webhooks paused, replay at 50/s, admission on, then the apply.",
+          "refs": ["R13-fable-3 calls 41-44"]
+        },
+        {
+          "start": 36.53,
+          "end": 42.78,
+          "text": "When its caches cleared, load peaked at {teal:290 req/s.} Checkout was back at 99.7 % by 03:04, eight minutes sooner.",
+          "refs": ["series.ld", "series.ck (both runs)"]
+        }
+      ],
+      "lane_overrides": {"ck": {"head": false}, "ld": {"head": false}}
+    },
+    {
+      "id": "verdict",
+      "view": "verdict",
+      "start": 42.78,
+      "end": 49.28,
+      "kicker": "Verdict · T01 · R13-fable-4 · Claude Fable 5.2",
+      "why": "raw 1.00 · no cap",
+      "headline": "It passes: C6 allows up to {amber:20 minutes} of collapse, and this storm lasted {amber:530 s.}",
+      "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "G1", "G2", "G3", "G4"],
+      "lines": [
+        "Collapses of 320–580 s: 10 of 12 Opus runs, 2 of 6 Fable runs. None lost C6 for it.",
+        "Four Fable runs and both GPT-6 Astra runs shed before DNS came back: no collapse."
+      ],
+      "captions": [
+        {
+          "start": 43.08,
+          "end": 49.28,
+          "text": "Shedding first saved eight minutes of checkout here. {amber:C6, as written, scores both runs the same.}",
+          "refs": ["grade C6", "summary.collapsed_min"]
+        }
+      ]
+    }
+  ]
+}

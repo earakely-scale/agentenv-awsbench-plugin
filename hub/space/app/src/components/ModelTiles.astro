@@ -1,0 +1,18 @@
+---
+// The stat strip: one tile per model in matrix order, pass@1 as the hero figure.
+import { MODELS } from "./failures";
+const note: Record<string, string> = { haiku: "6 runs · final build", sonnet: "6 runs · earlier builds", opus: "12 runs · R11 + R12", fable: "6 runs · final build", astra: "2 runs · Codex CLI" };
+---
+<ul class="t01f-tiles" aria-label="T01 pass@1 by model, final grader">
+  {MODELS.map((m: any) => {
+    const [p, n] = m.pass_at_1.split("/");
+    return (
+      <li class="t01f-tile">
+        <span class="name">{m.short}</span>
+        <span class="frac" aria-label={`${p} of ${n} runs pass`}><b>{p}</b><span class="of">/{n}</span></span>
+        <span class="mean">mean final score {Number(m.mean_d12).toFixed(m.mean_d12 === 1 ? 2 : 3)}</span>
+        <span class="note">{note[m.id]}</span>
+      </li>
+    );
+  })}
+</ul>

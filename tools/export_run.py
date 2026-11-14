@@ -7,7 +7,7 @@ run in process from a checkout with the T03 world (``--t03-root``). T01 runs kee
 
 RUN_DIR holds a run's files: ``aws-export.json`` (the aws server's ``data/get`` export at the horizon),
 ``workspace-export.json`` (the workspace server's), ``instance-context.json`` (the run record: the grade under
-``metadata.verifications.grade``), ``agent-session.jsonl`` (the agent's Claude Code session) and ``BUILD`` (the commit
+``metadata.verifications.grade``), ``agent-session.jsonl`` (the agent's Claude Code session, or ``trajectory-1.json``, a Codex CLI run's events) and ``BUILD`` (the commit
 the env was built from). Only what the viewers need leaves this module, and every string passes through ``scrub``.
 
 Viewer JSON, schema ``awsincidentsbench.viewer/v1``. Times are seconds since local midnight, America/New_York, on the
@@ -55,7 +55,11 @@ S0, HZ, DT, N = 9600, 18600, 30, 300
 # The T01 prologue the scenario seeds before the page (scenarios/t01.yaml): enactor-b applies the stale plan 48177 at
 # 02:31:31, enactor-c's cleanup deletes it and the ledger's records at 02:31:41, the first lookup fails at 02:31:42.
 STALE, DELETED, NXD = 9091, 9101, 9102
-NAMES = {"anthropic/claude-opus-5-5": "Claude Opus 5.5", "anthropic/claude-sonnet-5-5": "Claude Sonnet 5.5"}
+NAMES = {"anthropic/claude-opus-5-5": "Claude Opus 5.5", "anthropic/claude-sonnet-5-5": "Claude Sonnet 5.5",
+         "anthropic/claude-haiku-5-5": "Claude Haiku 5.5", "anthropic/claude-fable-5-2": "Claude Fable 5.2",
+         "gpt-6-astra": "GPT-6 Astra"}
+HARNESS = {"claude-code": "Claude Code (solver's built-in tools off; AwsBench MCP tools only)",
+           "codex": "Codex CLI 0.147.0 (exec mode; AwsBench MCP tools only; reasoning effort medium, the API default)"}
 CHECK_META = {
     "C1": ("Automation paused", "paused", True, None, None), "C2": ("Ledger restored by 03:20", "restored", True, 12000, None),
     "C3": ("41 endpoints correct", "41/41", True, None, None), "C4": ("Plan store consistent", "plan store", True, None, None),
@@ -269,6 +273,37 @@ def session_calls(path: Path) -> tuple[dict[int, dict], list[dict], str]:
                 if prose and use and call:
                     prose[-1].setdefault("before_call", int(call))
     return by_call, prose, last
+
+
+def codex_calls(path: Path) -> tuple[dict[int, dict], list[dict], str]:
+    """``session_calls`` for a Codex CLI run: its ``codex exec --json`` events (``trajectory-1.json``)."""
+    by_call, prose, last = {}, [], ""
+    for row in json.loads(path.read_text()):
+        item = row.get("item") or {}
+        if row.get("type") != "item.completed":
+            continue
+        if item.get("type") == "agent_message" and (item.get("text") or "").strip():
+            last = item["text"].strip()
+            prose.append({"text": last})
+        elif item.get("type") == "mcp_tool_call":
+            text = "".join(c.get("text", "") for c in ((item.get("result") or {}).get("content") or []) if isinstance(c, dict))
+            try:
+                data = json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                data = None
+            call = ((data or {}).get("_clock") or {}).get("call") if isinstance(data, dict) else None
+            if call:
+                by_call.setdefault(int(call), {"input": item.get("arguments") or {}, "data": data, "text": text})
+                if prose:
+                    prose[-1].setdefault("before_call", int(call))
+    return by_call, prose, last
+
+
+def agent_session(run_dir: Path) -> tuple[str, tuple[dict[int, dict], list[dict], str]]:
+    """The run's harness and its calls, prose and last message: Claude Code's session, else Codex's events."""
+    if not (run_dir / "agent-session.jsonl").exists() and (run_dir / "trajectory-1.json").exists():
+        return "codex", codex_calls(run_dir / "trajectory-1.json")
+    return "claude-code", session_calls(run_dir / "agent-session.jsonl")
 
 
 def result_summary(tool: str, data, text: str) -> str:
@@ -753,7 +788,7 @@ def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool =
     ws = json.loads((run_dir / "workspace-export.json").read_text()) if (run_dir / "workspace-export.json").exists() else {}
     ctx = json.loads((run_dir / "instance-context.json").read_text())
     build = build or ((run_dir / "BUILD").read_text().strip() if (run_dir / "BUILD").exists() else "")
-    session, _prose, final = session_calls(run_dir / "agent-session.jsonl")
+    harness, (session, _prose, final) = agent_session(run_dir)
     grade = ctx["metadata"]["verifications"]["grade"]
     model_id = ctx.get("agent_model") or ""
     ep = aws["episode"]
@@ -768,7 +803,7 @@ def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool =
     view = {
         "schema": SCHEMA, "id": run_id, "label": label or f"{NAMES.get(model_id, model_id)} · {run_id}", "kind": "agent",
         "task": "T01", "task_title": "The Empty Ledger Endpoint", "model": NAMES.get(model_id, model_id),
-        "model_id": model_id, "harness": "Claude Code (solver's built-in tools off; AwsBench MCP tools only)",
+        "model_id": model_id, "harness": HARNESS[harness],
         "build": build, "dev": dev, "note": note,
         "clock": {"start": sec(ep["start"]), "window_end": sec(ep["window_end"]), "horizon": sec(ep["horizon"]),
                   "done": done, "end_reason": end_reason, "calls_used": ep.get("calls_used"), "max_calls": 250},

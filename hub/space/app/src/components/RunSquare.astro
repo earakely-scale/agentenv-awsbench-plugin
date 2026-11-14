@@ -1,0 +1,25 @@
+---
+// One run in one failure family: a 12 px square whose fill, split or ring carries its state, focusable, its tooltip
+// text as its accessible name (the family card's run table repeats every value, so nothing hides behind a hover).
+import { squareTip } from "./failures";
+const { sq, decorative = false } = Astro.props;
+const lab = sq.label === "partly_environment" ? "mixed" : sq.label === "environment" ? "env" : "fair";
+const tip = squareTip(sq);
+---
+<span class="t01f-sq" tabindex={decorative ? undefined : 0} role={decorative ? undefined : "img"} aria-label={decorative ? undefined : tip} aria-hidden={decorative ? "true" : undefined} data-tip={decorative ? undefined : tip} data-state={sq.state} data-label={lab}>
+  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+    {sq.state === "lost" && lab === "mixed" ? (
+      <>
+        <path d="M0 0H12L0 12Z" class="f" />
+        <path d="M12 0V12H0Z" class="e" />
+        <path d="M12.6 -.6L-.6 12.6" class="gap" />
+      </>
+    ) : sq.state === "lost" ? (
+      <rect width="12" height="12" class={lab === "env" ? "e" : "f"} />
+    ) : sq.state === "knock_on" ? (
+      <rect width="12" height="12" class="f ko" />
+    ) : (
+      <rect x="1" y="1" width="10" height="10" class={`ring ${sq.state}`} />
+    )}
+  </svg>
+</span>
