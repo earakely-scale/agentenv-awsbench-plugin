@@ -124,6 +124,12 @@ def test_pitr_restores_history_into_a_new_table_after_15_minutes():
     assert side[("mch_37755", "ROUTE")]["settlement_profile"]["payout_schedule"] == "weekly"
     assert side[("mch_30988", "LIMITS")]["daily_cap_usd"] == 250000
     assert ("mch_44412", "ROUTE") not in side
+    desc = w.serve_aws("dynamodb", "DescribeTable", {"TableName": "side"}, region="us-east-1")["Table"]
+    assert desc["TableStatus"] == "ACTIVE" and desc["TableId"] == m.restores["side"]["table_id"]
+    assert desc["RestoreSummary"]["RestoreInProgress"] is False and desc["ItemCount"] == len(side)
+    live = w.serve_aws("dynamodb", "DescribeTable", {"TableName": "routemap-state"}, region="us-east-1")["Table"]
+    assert live["TableId"] == "6f2c7a1e-91b4-4d0e-8c3a-5b7e2d9f4a10" and live["CreationDateTime"].year == 2024
+    assert live["ItemCount"] == len(m.live)
 
 
 def test_backups_list_the_nightlies_and_snapshot_at_call_time():

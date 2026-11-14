@@ -30,6 +30,8 @@ WRITE_OPS = {"PutItem", "UpdateItem", "DeleteItem", "BatchWriteItem", "TransactW
              "BatchExecuteStatement", "ExecuteTransaction"}
 DATA_OPS = WRITE_OPS | {"GetItem", "Query", "Scan", "BatchGetItem", "TransactGetItems"}
 EARLIEST = D.ts("2026-10-17T00:00:00+00:00")
+TABLE_ID, TABLE_ID_WEST = "6f2c7a1e-91b4-4d0e-8c3a-5b7e2d9f4a10", "c41d8e07-5a2f-4b96-9e13-7d0a6f2b8c54"
+TABLE_CREATED = D.ts("2024-02-20T15:00:00+00:00")
 NIGHTLY = [D.ts(f"2026-11-{d}T03:00:00-05:00") for d in (16, 17, 18, 19, 20, 21)]
 SAVE_EVERY = 180.0
 KEY_FIELDS = ("lifecycle", "route_version", "publish_mode", "route_spec", "settlement_profile", "route_id", "idem_ns",
@@ -724,6 +726,8 @@ class Mechanics:
             return {"TableNames": names}
         if op == "DescribeTable" and name in pending:
             return {"Table": self._creating(name, pending[name])}
+        if op == "DescribeTable" and (name == TABLE or (self.restores.get(name) or {}).get("region") == region):
+            return self._describe(name, region)
         if op in DATA_OPS | {"UpdateTable", "DeleteTable"}:
             for n in pending:
                 if touches_table(p, n):
@@ -767,6 +771,29 @@ class Mechanics:
             "PointInTimeRecoveryStatus": "ENABLED", "RecoveryPeriodInDays": 35,
             "EarliestRestorableDateTime": datetime.fromtimestamp(EARLIEST, UTC),
             "LatestRestorableDateTime": datetime.fromtimestamp(ts - 300 - ts % 1, UTC)}}
+
+    def _describe(self, name: str, region: str) -> dict:
+        """The emulator's description with what DynamoDB shows for a long-lived table and a finished restore: the
+        table's own id and creation time (the backups name the same id), its approximate item count and size, and a
+        restore's RestoreSummary."""
+        out = self.call("dynamodb", "DescribeTable", {"TableName": name}, region=region)
+        t = out.get("Table") or {}
+        if name == TABLE:
+            n = len(self.live)
+            t.update(TableId=TABLE_ID if region == "us-east-1" else TABLE_ID_WEST, CreationDateTime=datetime.fromtimestamp(
+                TABLE_CREATED, UTC), ItemCount=n, TableSizeBytes=n * 301)
+            if "BillingModeSummary" in t:
+                t["BillingModeSummary"]["LastUpdateToPayPerRequestDateTime"] = datetime.fromtimestamp(TABLE_CREATED, UTC)
+        else:
+            r = self.restores[name]
+            t.update(TableId=r["table_id"], CreationDateTime=datetime.fromtimestamp(r["started"], UTC),
+                     ItemCount=int(r.get("items") or 0), TableSizeBytes=int(r.get("items") or 0) * 301,
+                     RestoreSummary={"SourceTableArn": self._arn(TABLE, r["region"]),
+                                     **({"SourceBackupArn": r["backup_arn"]} if r.get("backup_arn") else {}),
+                                     "RestoreDateTime": datetime.fromtimestamp(r["at"], UTC), "RestoreInProgress": False})
+            if "BillingModeSummary" in t:
+                t["BillingModeSummary"]["LastUpdateToPayPerRequestDateTime"] = datetime.fromtimestamp(r["started"], UTC)
+        return out
 
     def _creating(self, name: str, r: dict) -> dict:
         return {"TableName": name, "TableStatus": "CREATING", "TableArn": self._arn(name, r["region"]),
@@ -859,11 +886,11 @@ class Mechanics:
                                   "BackupStatus": "AVAILABLE" if ts >= b["t"] + 60 else "CREATING",
                                   "BackupType": b["type"],
                                   "BackupCreationDateTime": datetime.fromtimestamp(b["t"], UTC)},
-                "SourceTableDetails": {"TableName": TABLE, "TableId": "6f2c7a1e-91b4-4d0e-8c3a-5b7e2d9f4a10",
+                "SourceTableDetails": {"TableName": TABLE, "TableId": TABLE_ID,
                                        "TableArn": self._arn(TABLE), "TableSizeBytes": size, "ItemCount": 8238,
                                        "KeySchema": [{"AttributeName": "merchant_id", "KeyType": "HASH"},
                                                      {"AttributeName": "rec", "KeyType": "RANGE"}],
-                                       "TableCreationDateTime": datetime(2024, 2, 20, 15, 0, tzinfo=UTC),
+                                       "TableCreationDateTime": datetime.fromtimestamp(TABLE_CREATED, UTC),
                                        "ProvisionedThroughput": {"ReadCapacityUnits": 0, "WriteCapacityUnits": 0},
                                        "BillingMode": "PAY_PER_REQUEST"},
                 "SourceTableFeatureDetails": {"StreamDescription": {"StreamEnabled": True,
@@ -890,7 +917,7 @@ class Mechanics:
             if p.get("BackupType") not in (None, "ALL", b["type"]):
                 continue
             d = self._backup_desc(b, ts)["BackupDetails"]
-            rows.append({"TableName": TABLE, "TableId": "6f2c7a1e-91b4-4d0e-8c3a-5b7e2d9f4a10",
+            rows.append({"TableName": TABLE, "TableId": TABLE_ID,
                          "TableArn": self._arn(TABLE, region), **{k: d[k] for k in (
                              "BackupArn", "BackupName", "BackupCreationDateTime", "BackupStatus", "BackupType",
                              "BackupSizeBytes")}})

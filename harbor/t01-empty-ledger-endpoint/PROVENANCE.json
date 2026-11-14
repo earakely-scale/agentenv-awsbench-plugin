@@ -37,7 +37,7 @@
   "environment/aws/awsbench_aws/world/t03_fleet.py": "e0b64b3793a5661fe0902525f485bc93f90ba0fec8a430b14fbbba0b8d1c158d",
   "environment/aws/awsbench_aws/world/t03_flow.py": "f7cc1102cb5d9036cf64abc3c103c7a6b5681740a2e546cd61b69b086cd41ff3",
   "environment/aws/awsbench_aws/world/t03_telemetry.py": "645457640f386a745fd3892bf35f7eb563953424a47a6da3a2a0d8edd95b0117",
-  "environment/aws/awsbench_aws/world/t04.py": "9e6426e5fd50a3eb376f041522147d65c25fa416a32353b9b337ed6edf06ddd7",
+  "environment/aws/awsbench_aws/world/t04.py": "b7fe75720b7c5eeadbe611425da669772909defd44701e279d893560645826c1",
   "environment/aws/awsbench_aws/world/t04_data.py": "55268160e279fb9de8fabc6aba34b81cb9c2189845cf42d1d3f8d8693463f250",
   "environment/aws/awsbench_aws/world/t04_rmctl.py": "084893fa7907fe270e3ad862a405a85c4e5bf838277f0f8946e672e76dccbd46",
   "environment/aws/awsbench_aws/world/t04_telemetry.py": "f53c795179ada7b1e13f7d4c2c0c53a782d456468a84ecb1d0132f5aacca2663",
@@ -201,7 +201,7 @@
   "workspace_requirements_sha256": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d"
  },
  "source_trees": {
-  "bundle": "59cfefdcd5fc6b957a8b9f4ae6a82a470640c006",
+  "bundle": "e10bb81fa67527ef30bd3446c7f4382dede14636",
   "driver": "e99b935302fd390d8fe77a8330bfc7e8c86ae118",
   "harbor_base": "f75aee93bdceecb89ec6d5bd6236d877856bec18"
  },
