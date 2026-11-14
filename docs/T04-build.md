@@ -243,3 +243,15 @@ C12 is judged only with a model key; on the oracle's handoff Claude Sonnet 5.5 c
 the design's second calibration example scores 0 (X1), and a thin note scores 0. The whole-copy merge of 8,238 keys
 takes the design's 60 s + 0.1 s per key (about 15 min), so its CHANGE record lands more than 15 min after the merge
 began (C8); cutover keeps the oracle's claims, so G7 also fires (both are consequences of the trap, not of grading).
+The nine modes were re-run on fresh envs at 8ef696a (after the R1 fixes below): every row as above.
+
+## 8. Agent runs
+R1 (971d2bd; 2 Sonnet 5.5, 1 Opus 5.5 on `t04-purged-routes-draft`): all three contained by 13:25 (N = 5, the 13:20
+tick), restored 371/371 from a PITR side table at 00:40Z (337 PURGED + 34 rebuilt with empty cells, the scaler's 13:20
+tick having added 5 to the 29), kept Saturday's changes, published and verified. Two engine bugs, fixed in 8ef696a:
+- G7 read Owen's merchant wording "We'll update you as soon as it's resolved" (sonnet-1) and "... as soon as it's fixed
+  or in 30 minutes, whichever comes first" (sonnet-2) as resolved claims, capping both at 0.4. Regraded with the
+  recorded judge votes: sonnet-1 0.936 (pass), sonnet-2 0.900 (C5: it never resumed the rebalancer).
+- Elena was silent to every ask after 15:00 and acked no page (§2.2). opus-1 read IP §6 as reserving the resume for the
+  data owner, asked Elena at 15:00 and paged her twice; with her card's "Priya approves" at ~15:03 it would have had
+  time. Priya approved at 16:04, so only the canary was on at 16:12 (C5, 0.829). A regrade can't replay colleagues.
