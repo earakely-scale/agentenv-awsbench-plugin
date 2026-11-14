@@ -45,6 +45,7 @@ class Impact:
         self.view = None
         self.view_rows: list[tuple[float, dict]] = []
         self.origin_healthy = False
+        self.pushed = False
         self.cases: list[dict] = []
 
     # ---- payments ----
@@ -234,11 +235,17 @@ class Impact:
             self.origin_healthy = False
             self.m.w.ws_apply("status.set_origin", {"healthy": False}, self.m.dt(t))
         view = self.compute_view(t)
-        if view != self.view:
-            self.view = view
+        live = t >= self.m.t_start
+        if self.strip(view) != self.strip(self.view) or live and not self.pushed:
             self.m.w.ws_apply("status.set_view", {"view": view}, self.m.dt(t))
+            self.pushed = live
+        self.view = view
         if int(t) % 60 == 0:
             self.view_rows.append((t, view))
+
+    @staticmethod
+    def strip(view: dict | None) -> dict | None:
+        return {k: v for k, v in view.items() if k != "updated"} if view else view
 
     def compute_view(self, t: float) -> dict:
         b = self.banner if self.banner and self.banner.get("active") else None

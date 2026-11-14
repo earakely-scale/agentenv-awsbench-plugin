@@ -309,3 +309,13 @@ def test_maya_says_do_it_but_records_nothing(declared):
     said = [a for _, op, a in w.fake_ws.ops if op == "chat.post_as" and a.get("user") == "maya.okonkwo"]
     assert any("Roll it back" in a["text"] or "Do it" in a["text"] for a in said)
     assert not w.timeline.approvals
+
+
+def test_the_view_reaches_the_workspace_once_the_shift_starts():
+    w = world()
+    go(w, "10:30:10")
+    pushed = [(at_, a) for at_, op, a in w.fake_ws.ops if op == "status.set_view"]
+    assert pushed and pushed[-1][0] >= w.start_t and pushed[-1][1]["view"]["source"] == "stale"
+    n = len(pushed)
+    go(w, "10:40:00")
+    assert len([1 for _, op, _ in w.fake_ws.ops if op == "status.set_view"]) == n
