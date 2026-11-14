@@ -220,7 +220,7 @@ def steps_for(mode):
         if mode == "api-rollback" and tag == "hannah":
             out.append(say("@priya.raman requesting APPROVED (IC) to roll routemap-api back to routemap-api:57 "
                            "(v2.30.4) on vl-prod-core; rollback: redeploy routemap-api:58."))
-            out.append(wait("13:30:30"))
+            out.append(wait("13:33:30"))
             out.append(cli("ecs update-service --cluster vl-prod-core --service routemap-api --task-definition "
                            "routemap-api:57"))
             out.append(say("CHANGE: rolled routemap-api back to :57 (v2.30.4) | why: OPS-4493 500s | undo: redeploy "
