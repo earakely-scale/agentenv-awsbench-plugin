@@ -517,11 +517,12 @@ class Rmctl:
                     lr = f"{ts} " + (f"(touched {last.get('touched', 0)})" if last.get("ran") else "(exited: disabled)")
                 else:
                     pre = {"scaler": "2026-11-21T18:10:05Z (touched 70)", "rebalancer": "2026-11-21T17:35:09Z "
-                           "(touched 13)", "reconciler": "2026-11-21T18:05:02Z (reconcile-only)"}
+                           "(touched 12)", "reconciler": "2026-11-21T18:05:02Z (reconcile-only)"}
                     lr = pre[wf]
                 nxt = min((t for t, _, k, a in self.m.sched if k == "run" and a[0] == wf), default=None)
                 cron = {"scaler": 600, "rebalancer": 3600, "reconciler": 1800}[wf]
-                nr = f"{_z(nxt - (nxt % cron if wf != 'rebalancer' else (nxt - 2100) % 3600))} (+RunTask)" if nxt else "-"
+                phase = {"scaler": 0, "rebalancer": 2100, "reconciler": 300}[wf]
+                nr = f"{_z(nxt - (nxt - phase) % cron)} (+RunTask)" if nxt else "-"
                 lines.append(f"{wf:<11} {'routemap-' + wf + '-tick':<26} {rule:<11} {en:<8} {scope:<12} {lr:<32} {nr}")
             pub = self.m.ssm.get("/routemap/prod/publisher/enabled", "(unset)")
             lines.append(f"publisher   -                          -           {pub:<8} -")
