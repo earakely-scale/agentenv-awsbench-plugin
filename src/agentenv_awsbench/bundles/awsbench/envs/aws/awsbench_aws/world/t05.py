@@ -174,7 +174,7 @@ class Mechanics:
     # ---- agent calls and the timeline ----
     def observe(self, call: dict) -> None:
         args = call.get("args") or {}
-        if (call.get("resolved") or {}).get("error"):
+        if (call.get("resolved") or {}).get("error") or (call.get("result") or {}).get("error"):
             return
         tool = call.get("tool", "")
         cmd = str(args.get("cmd") or args.get("command") or "")

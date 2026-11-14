@@ -340,3 +340,155 @@ def test_healthy_origin_page_lists_components():
     go(w, "12:50:00")
     page, rc = sh(w, "curl -s https://status.vantleaf.com")
     assert rc == 0 and "<li>Hosted Checkout: Operational</li>" in page and "Nov 20, 12:50" in page
+
+
+# ---- T05R1 fixes ----
+
+def test_a_rejected_status_create_publishes_nothing():
+    w = world()
+    go(w, "11:01:00")
+    w.observe({"t": at(w, "11:01:00"), "tool": "status_create", "role": "sre-primary",
+               "args": {"name": "Payments", "status": "investigating", "body": "x",
+                        "components": {"payments": "partial_outage"}},
+               "resolved": {"error": "no component"}, "result": {"id": None, "error": "no component"}})
+    w.observe({"t": at(w, "11:01:10"), "tool": "status_create", "role": "sre-primary",
+               "args": {"name": "Payments", "status": "investigating", "body": "x"},
+               "resolved": {}, "result": {"id": None, "error": "no component"}})
+    recover(w, cs="11:02:00", cancel=False, placement_at="12:50:00")
+    go(w, "13:20:00")
+    assert w.mech.impact.incidents == [] and w.mech.impact.view["incidents"] == []
+
+
+def test_the_partition_rate_counts_only_the_partition_phase():
+    w = world()
+    recover(w)
+    go(w, "10:52:00")
+    began = w.mech.vs.idx["partitions_started"]
+    go(w, w.mech.dt(began + 150).strftime("%H:%M:%S"))
+    line = next(x for x in sh(w, "capctl status --subsystem index")[0].splitlines() if x.startswith("index"))
+    rate = float(line.split("(")[1].split("/min")[0])
+    assert rate >= 5, line
+
+
+def test_the_billing_since_column_moves_with_the_batch():
+    w = world()
+    recover(w)
+    go(w, "12:20:00")
+    b = w.mech.vs.batch
+    assert b["state"] == "RUNNING"
+    line = next(x for x in sh(w, "capctl status --subsystem billing-aux")[0].splitlines() if x.startswith("billing"))
+    assert w.mech.vs.hms(b["since"]) in line and "10:25:58" not in line
+
+
+def test_a_restarted_host_has_a_fresh_uptime_and_launch_time():
+    w = world()
+    recover(w)
+    go(w, "10:55:00")
+    h = w.mech.vs.hosts["vsbi-0104"]
+    assert w.fleet_inspect_host("vsbi-0104")["uptime"].startswith("0 days, 0:")
+    out = w.serve_aws("ec2", "DescribeInstances", {"InstanceIds": [h.iid]})
+    launch = out["Reservations"][0]["Instances"][0]["LaunchTime"]
+    assert abs(launch.timestamp() - at(w, "10:40:45").timestamp()) < 60
+
+
+def test_the_receipt_queue_shows_messages_in_flight_while_draining():
+    w = world()
+    recover(w, placement_at="12:28:55")
+    go(w, "13:10:00")
+    backlog = round(w.mech.impact.backlog)
+    assert backlog > 0
+    a = w.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/"
+                                                              "vl-receipt-jobs", "AttributeNames": ["All"]})["Attributes"]
+    assert int(a["ApproximateNumberOfMessagesNotVisible"]) > 0
+    assert int(a["ApproximateNumberOfMessages"]) + int(a["ApproximateNumberOfMessagesNotVisible"]) == backlog
+    d = w.serve_aws("sqs", "GetQueueAttributes", {"QueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/"
+                                                              "vl-receipt-jobs-dlq", "AttributeNames": ["All"]})
+    assert d["Attributes"]["MessageRetentionPeriod"] == "1209600"
+
+
+def test_the_banner_text_the_agent_wrote_is_exported():
+    w = world()
+    go(w, "10:41:10")
+    w.fake_aws.s3[("vl-statuspage-assets", "fallback/banner.json")] = json.dumps(
+        {"active": True, "status": "identified", "title": "Receipts affected", "body": "We are seeing errors.",
+         "components": ["receipts"]})
+    w.observe({"t": at(w, "10:41:10"), "tool": "aws_api", "role": "sre-primary", "resolved": {},
+               "args": {"service": "s3", "operation": "PutObject",
+                        "params": {"Bucket": "vl-statuspage-assets", "Key": "fallback/banner.json",
+                                   "Body": "<_io.BytesIO object at 0x1>"}}})
+    docs = w.export()["t05"]["impact"]["banner_docs"]
+    assert docs[-1]["doc"]["status"] == "identified" and docs[-1]["t"].startswith("2026-11-20T10:41:10")
+
+
+def test_cancelling_a_schedule_claims_no_notification():
+    w = world()
+    go(w, "10:33:00")
+    out, rc = sh(w, "capctl schedule cancel sched-0192 --reason x")
+    assert rc == 0 and "notified" not in out and "tomas.ilyin" in out
+
+
+def test_identity_center_is_denied_to_the_oncall_role():
+    from awsbench_aws.bridge import iam_allows
+    s = load_scenario("t05")
+    assert not iam_allows(s["iam"]["SRE-OnCall"], "sso-admin", "ListInstances", {})
+    assert not iam_allows(s["iam"]["SRE-OnCall"], "identitystore", "ListUsers", {})
+
+
+class AlarmAws(Aws):
+    """DescribeAlarms answers one seeded alarm stamped with the wall clock, as the emulator does."""
+
+    def __init__(self, wall):
+        super().__init__()
+        self.wall = wall
+
+    def call(self, service, operation, params, *, principal, world_made, **kw):
+        if service == "cloudwatch" and operation == "DescribeAlarms":
+            return {"MetricAlarms": [{
+                "AlarmName": "PG-AuthErrorRate-High", "Namespace": "Vantleaf/Payments", "MetricName": "AuthErrorRate",
+                "Statistic": "Average", "Period": 60, "EvaluationPeriods": 3, "DatapointsToAlarm": 3, "Threshold": 2.0,
+                "ComparisonOperator": "GreaterThanThreshold", "AlarmConfigurationUpdatedTimestamp": self.wall,
+                "StateValue": "INSUFFICIENT_DATA", "StateUpdatedTimestamp": self.wall,
+                "StateReasonData": json.dumps({"version": "1.0", "queryDate": self.wall.strftime(
+                    "%Y-%m-%dT%H:%M:%S.000+0000")})}]}
+        return super().call(service, operation, params, principal=principal, world_made=world_made, **kw)
+
+
+def test_alarm_times_read_virtual_time():
+    import time
+    from datetime import UTC, datetime
+
+    from awsbench_aws.bridge import WallTimes
+    wall = datetime.fromtimestamp(time.time() - 5, UTC)
+    s = load_scenario("t05")
+    s["mode"] = "eval"
+    s["timeline"], s["npcs"] = [], {}
+    seeded = datetime.fromisoformat(s["seeded_at"])
+    aws = AlarmAws(wall)
+    aws.times = WallTimes(seeded)
+    aws.times.begin(datetime.fromisoformat(s["start"]))
+    w = make_world(s, "t05-test", aws, Ws())
+    w.start()
+    go(w, "10:55:00")
+    row = w.serve_aws("cloudwatch", "DescribeAlarms", {"AlarmNames": ["PG-AuthErrorRate-High"]})["MetricAlarms"][0]
+    assert row["AlarmConfigurationUpdatedTimestamp"] == seeded.astimezone(UTC)
+    assert json.loads(row["StateReasonData"])["queryDate"].startswith("2026-11-20")
+    assert wall.strftime("%Y-%m-%d") not in json.dumps(row, default=str)
+
+
+def test_the_platform_page_cancels_priyas_page(declared):
+    w = declared
+    w.observe({"t": at(w, "10:33:40"), "tool": "pager_page", "role": "sre-primary", "resolved": {},
+               "args": {"schedule": "platform", "urgency": "high", "summary": "vaultstore halted"},
+               "result": {"id": "PG-1"}})
+    go(w, "11:00:00")
+    ex = {e["id"]: e for e in w.timeline.export()}
+    assert ex["ev-kwame-pulled-in"]["status"] == "cancelled"
+    assert not any(e["id"].startswith("ev-kwame-joins-after-priya") and e["status"] == "fired"
+                   for e in w.timeline.export())
+
+
+def test_without_a_platform_page_priya_pages_platform(declared):
+    w = declared
+    go(w, "11:00:00")
+    ex = {e["id"]: e for e in w.timeline.export()}
+    assert ex["ev-kwame-pulled-in"]["status"] == "fired"

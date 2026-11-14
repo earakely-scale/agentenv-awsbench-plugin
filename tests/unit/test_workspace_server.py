@@ -239,3 +239,14 @@ async def test_records_are_stamped_in_whole_seconds():
     r = env.apply("chat.dm_as", {"from_user": "hannah.becker", "to_user": "sre-primary", "text": "ETA?"},
                   "2026-11-17T03:17:02.5-05:00")
     assert r["deliveries"][0]["t"] == "2026-11-17T03:17:02-05:00"
+
+
+async def test_a_rejected_call_ends_with_its_error_in_resolved():
+    """T05R1-sonnet-1 CALL 64: a status_create the workspace rejected reached the world as a success."""
+    fake = FakeAws()
+    _, app = make(fake)
+    out = await call(app, "status_create", {"name": "Payments", "status": "investigating", "body": "x",
+                                            "components": {"no-such-component": "partial_outage"}})
+    assert out.get("error")
+    end = fake.calls[-1][1]
+    assert end["resolved"]["error"] == out["error"]

@@ -41,6 +41,7 @@ class Impact:
         self.banner = None
         self.banner_t = None
         self.banner_error = None
+        self.banner_log: list[tuple[float, dict | None, str | None, str]] = []
         self.incidents: list[dict] = []
         self.view = None
         self.view_rows: list[tuple[float, dict]] = []
@@ -177,16 +178,27 @@ class Impact:
                                     principal="awsbench:world", world_made=True)
         except (AwsError, TypeError, AttributeError):
             self.banner, self.banner_error = None, "missing"
+            self.log_banner(t, "")
             return
         body = (out or {}).get("Body")
         raw = body.read() if hasattr(body, "read") else body or b""
+        text = raw.decode(errors="replace") if isinstance(raw, bytes) else str(raw)
         try:
             doc = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
         except (ValueError, UnicodeDecodeError):
             self.banner, self.banner_error = None, "invalid JSON"
+            self.log_banner(t, text)
             return
         err = self.banner_problem(doc)
         self.banner, self.banner_error = (None, err) if err else (doc, None)
+        self.log_banner(t, text, doc)
+
+    def log_banner(self, t: float, raw: str, doc=None) -> None:
+        """What the banner object held each time it changed, so the grader reads the text the agent wrote."""
+        shown = doc if isinstance(doc, dict) else None
+        if not self.banner_log or (self.banner_log[-1][1], self.banner_log[-1][2]) != (shown, self.banner_error) \
+                or shown is None and self.banner_log[-1][3] != raw[:4000]:
+            self.banner_log.append((t, shown, self.banner_error, raw[:4000]))
 
     @staticmethod
     def banner_problem(doc) -> str | None:
@@ -207,7 +219,7 @@ class Impact:
     def observe_status(self, call: dict) -> None:
         tool, args = call.get("tool"), call.get("args") or {}
         res = call.get("resolved") or {}
-        if res.get("error"):
+        if res.get("error") or (call.get("result") or {}).get("error"):
             return
         t = call["t"].timestamp()
         if tool == "status_create":
@@ -236,9 +248,9 @@ class Impact:
             self.m.w.ws_apply("status.set_origin", {"healthy": False}, self.m.dt(t))
         view = self.compute_view(t)
         live = t >= self.m.t_start
-        if self.strip(view) != self.strip(self.view) or live and not self.pushed:
-            self.m.w.ws_apply("status.set_view", {"view": view}, self.m.dt(t))
-            self.pushed = live
+        if self.strip(view) != self.strip(self.view) or live and not self.pushed and int(t) % 60 == 0:
+            r = self.m.w.ws_apply("status.set_view", {"view": view}, self.m.dt(t))
+            self.pushed = live and bool((r or {}).get("ok"))
         self.view = view
         if int(t) % 60 == 0:
             self.view_rows.append((t, view))
@@ -292,11 +304,11 @@ class Impact:
         name = url.rstrip("/").rsplit("/", 1)[-1]
         if op == "GetQueueAttributes" and name in (QUEUE, DLQ):
             depth = round(self.backlog) if name == QUEUE else 0
-            inflight = 0 if name == DLQ or not self.receipts_failing() else min(depth, 1200)
-            attrs = {"ApproximateNumberOfMessages": str(depth - inflight if name == QUEUE else 0),
+            inflight = min(depth, 1200)
+            attrs = {"ApproximateNumberOfMessages": str(depth - inflight),
                      "ApproximateNumberOfMessagesNotVisible": str(inflight),
-                     "ApproximateNumberOfMessagesDelayed": "0", "VisibilityTimeout": "300",
-                     "MessageRetentionPeriod": "345600", "QueueArn": f"arn:aws:sqs:us-east-1:{ACCOUNT}:{name}",
+                     "ApproximateNumberOfMessagesDelayed": "0", "VisibilityTimeout": "300" if name == QUEUE else "30",
+                     "MessageRetentionPeriod": "345600" if name == QUEUE else "1209600", "QueueArn": f"arn:aws:sqs:us-east-1:{ACCOUNT}:{name}",
                      "CreatedTimestamp": "1714569600", "LastModifiedTimestamp": "1730203200",
                      "MaximumMessageSize": "262144", "ReceiveMessageWaitTimeSeconds": "20"}
             if name == QUEUE:
@@ -344,6 +356,8 @@ class Impact:
 
     def export(self, iso) -> dict:
         return {"public_view_per_minute": [[iso(t), v] for t, v in self.view_rows],
+                "banner_docs": [{"t": iso(t), "doc": d, "error": e, "raw": r if d is None else None}
+                                for t, d, e, r in self.banner_log],
                 "td_changes": [{"t": iso(c["t"]), "rev": c["rev"]} for c in self.td_changes],
                 "receipts_drained_at": iso(self.drained_at) if self.drained_at else None,
                 "receipts_purged": round(self.purged), "support_cases": [{**c, "t": iso(c["t"])} for c in self.cases]}

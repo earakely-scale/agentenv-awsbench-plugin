@@ -126,7 +126,7 @@ class Vaultstore:
                    "restarts": 0, "started": None}
         self.batch = {"state": "PAUSED", "work_left_h": float(self.p["work_left_h"]), "aborted_at": None,
                       "abort_cause": None, "locked": False, "locked_at": None, "locked_members": None,
-                      "throughput": None}
+                      "throughput": None, "since": mech.at("10:25:58")}
         self.ops: list[dict] = []
         self.op_seq = 7
         self.scheds: dict[str, dict] = {}
@@ -350,7 +350,7 @@ class Vaultstore:
         done, cur, _ = self.partitions()
         self.check_restarts.append({"t": t, "subsystem": "index", "cause": cause, "prior_state": prior,
                                     "phase": self.phase(), "partitions_done": done, "reason": reason})
-        self.idx.update(progress_s=0.0, started=t, checked=False,
+        self.idx.update(progress_s=0.0, started=t, checked=False, partitions_started=None,
                         fresh=sum(1 for n in self.members("vs-blobindex") if self.hosts[n].fresh))
         self.set_index(COLDSTART, t, "check restarted")
         self.idx_log.append((t, "coldstart", f"WARN coldstart: index check restarted ({reason}); previous check at "
@@ -363,7 +363,7 @@ class Vaultstore:
             return "restarted"
         if self.idx["state"] in (READ, FULL):
             return "serving"
-        self.idx.update(progress_s=0.0, started=t, checked=False,
+        self.idx.update(progress_s=0.0, started=t, checked=False, partitions_started=None,
                         fresh=sum(1 for n in self.members("vs-blobindex") if self.hosts[n].fresh))
         self.set_index(COLDSTART, t, "cold start")
         self.idx_log.append((t, "coldstart", f"INFO coldstart: index cold start begun (live "
@@ -420,6 +420,7 @@ class Vaultstore:
             p = self.idx["progress_s"]
             if not self.idx["checked"] and p >= k["manifests"]:
                 self.idx["checked"] = True
+                self.idx["partitions_started"] = t
                 if self.live("vs-blobindex") < 16:
                     self.idx.update(progress_s=0.0, started=None, last="FAILED")
                     self.set_index(HALT, t, "replica check FAILED")
@@ -474,7 +475,7 @@ class Vaultstore:
             return
         gone = [c for c in COORDINATORS if not self.hosts[c].member]
         if gone:
-            b.update(state="ABORTED", aborted_at=t, abort_cause=f"coordinator {gone[0]} left vs-billing-aux")
+            b.update(state="ABORTED", aborted_at=t, since=t, abort_cause=f"coordinator {gone[0]} left vs-billing-aux")
             self.billing_log.append((t, "billing-usage", f"ERROR billing-usage ABORTED: coordinator {gone[0]} left the "
                                      "worker set; batch restarts from zero"))
             self.bot.append((t, f"billing-usage ABORTED (coordinator {gone[0]} left vs-billing-aux)"))
@@ -483,16 +484,16 @@ class Vaultstore:
         b["throughput"] = round(tp, 2)
         running = self.idx["state"] in (READ, FULL)
         if running and b["state"] == "PAUSED":
-            b["state"] = "RUNNING"
+            b["state"], b["since"] = "RUNNING", t
             self.billing_log.append((t, "billing-usage", f"INFO billing-usage RUNNING: index serving reads; throughput="
                                      f"{tp:.2f}"))
         elif not running and b["state"] == "RUNNING":
-            b["state"] = "PAUSED"
+            b["state"], b["since"] = "PAUSED", t
             self.billing_log.append((t, "billing-usage", "WARN billing-usage PAUSED: index unavailable"))
         if b["state"] == "RUNNING":
             b["work_left_h"] = max(0.0, b["work_left_h"] - dt / 3600 * tp)
             if b["work_left_h"] <= 0:
-                b["state"] = "DONE"
+                b["state"], b["since"] = "DONE", t
 
     def projected_finish(self, t: float) -> float | None:
         b = self.batch
@@ -510,7 +511,7 @@ class Vaultstore:
     def lock(self, t: float) -> None:
         b = self.batch
         if b["state"] != "ABORTED" and not b["locked"]:
-            b.update(locked=True, locked_at=t, locked_members=self.members("vs-billing-aux"))
+            b.update(locked=True, locked_at=t, since=t, locked_members=self.members("vs-billing-aux"))
             self.billing_log.append((t, "billing-usage", "INFO billing-usage worker set pinned: "
                                      + ",".join(b["locked_members"])))
             self.bot.append((t, "billing-usage worker set locked (vs-billing-aux pinned until the batch completes)"))
@@ -603,6 +604,7 @@ class Vaultstore:
                 h.join_cause = cause
                 if h.state in ("stopped", "stopping"):
                     h.state, h.next_state, h.state_until = "pending", "running", t + self.p["join_s"] - 15
+                    h.launched = t
                 h.proc = True
                 h.join_at = t + self.p["join_s"]
                 names.append(n)
@@ -771,6 +773,7 @@ class Vaultstore:
                     h.state, h.next_state, h.state_until = "stopping", "stopped", t + self.p["stop_s"]
                 elif op == "StartInstances" and h.state in ("stopped",):
                     h.state, h.next_state, h.state_until = "pending", "running", t + self.p["join_s"] - 15
+                    h.launched = t
                     h.proc = True
                     self.journal.append((t + self.p["join_s"] - 10, h.name, (
                         f"vaultstore-{h.sub}: boot: capctl:state=removed -> not joining membership; use capctl add")

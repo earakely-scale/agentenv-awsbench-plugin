@@ -293,8 +293,10 @@ class Commands:
                 if ph == "verify-manifests":
                     detail = f"phase verify-manifests (check started {vs.hms(idx['started'])})"
                 else:
-                    rate = self.m.tel.partition_rate(now)
-                    detail = (f"phase verify-partitions {done}/512 ({rate:.1f}/min last 10 min) partition={cur}"
+                    began = idx.get("partitions_started")
+                    rate = (f"rate n/a (phase started {vs.hms(began)})" if began is not None and now - began < 60 else
+                            f"{self.m.tel.partition_rate(now, began):.1f}/min last 10 min")
+                    detail = (f"phase verify-partitions {done}/512 ({rate}) partition={cur}"
                               + (f" keys_verified {keys / 1e6:.1f}M/139.7M" if cur == vs.p["slow_partition"] else ""))
             elif idx["state"] == READ:
                 detail = "reads serving; writes waiting; phase rebuild-routing"
@@ -317,7 +319,7 @@ class Commands:
             if b["state"] == "ABORTED":
                 detail = f"billing-usage ABORTED at {vs.hms(b['aborted_at'])} ({b['abort_cause']}); invoice run 18:00"
             rows.append(f"{'billing-aux':<12} {state:<16} {str(vs.live('vs-billing-aux')) + '/4':<11} "
-                        f"{'10:25:58':<9} {detail}")
+                        f"{vs.hms(b['since']):<9} {detail}")
         if sub is None:
             rows.append(f"{'frontend':<12} {'SERVING':<16} {str(vs.live('vs-front')) + '/6':<11}")
             rows.append(f"{'storage':<12} " + ("idle (waiting on index)" if idx["state"] not in (READ, FULL) else
@@ -418,7 +420,7 @@ class Commands:
             if s["state"] == "CANCELLED":
                 return f"ERROR {sid} already cancelled at {vs.hms(s['cancelled_at'])} by {s['cancelled_by']}\n", 1
             vs.schedule_cancel(sid, now, caller.get("role") or "sre-primary", o.get("reason") or "", self.cause(caller))
-            return f"{sid} CANCELLED (owner {s['owner']} notified by capctl-bot in #deploys)\n", 0
+            return f"{sid} CANCELLED (owner {s['owner']})\n", 0
         if rest[0] == "add":
             o, pos = opts(rest[1:])
             if "--" not in pos or not o.get("at"):

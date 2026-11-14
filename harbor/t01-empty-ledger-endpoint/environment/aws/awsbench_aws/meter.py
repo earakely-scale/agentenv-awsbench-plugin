@@ -77,6 +77,19 @@ def cli_words(command: str) -> list[str]:
     return out
 
 
+def s3_download(command: str) -> bool:
+    """`aws s3 cp s3://bucket/key -`: an object printed to stdout, which reads it (HeadObject and GetObject)."""
+    words, paths, skip = command.split(), [], False
+    for w in words[words.index("cp") + 1 if "cp" in words else len(words):]:
+        if skip:
+            skip = False
+        elif w.startswith("--"):
+            skip = w in CLI_VALUED
+        else:
+            paths.append(w)
+    return len(paths) == 2 and paths[0].startswith("s3://") and paths[1] == "-"
+
+
 def is_read(operation: str | None) -> bool:
     return bool(operation) and (bool(READ_OP.match(operation)) or operation == "TestDNSAnswer")
 
@@ -99,7 +112,10 @@ def default_class(tool: str, args: dict) -> str:
     if tool == "aws_api":
         return op_class(args.get("service"), args.get("operation"))
     if tool == "aws_cli":
-        words = cli_words(str(args.get("command", "")))
+        command = str(args.get("command", ""))
+        words = cli_words(command)
+        if words == ["s3", "presign"] or words == ["s3", "cp"] and s3_download(command):
+            return "point_read"
         return op_class(words[0] if words else None, camel(words[1]) if len(words) > 1 else None)
     if tool == "fleet_exec":
         return "point_read"

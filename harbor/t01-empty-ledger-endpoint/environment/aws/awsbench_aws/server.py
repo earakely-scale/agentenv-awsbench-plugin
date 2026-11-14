@@ -757,6 +757,14 @@ class AwsServer(AgentEnvEnvironment):
         self.bridge.times = self.aws_port.times = WallTimes(parse_time(data["seeded_at"]) if data.get("seeded_at")
                                                             else None)
         await asyncio.to_thread(self.bridge.times.begin, cfg.start)
+        if not await asyncio.to_thread(self.ws_port.health):
+            self.warnings.append("workspace unreachable: deliveries are dropped and logged")
+        loaded = await asyncio.to_thread(self.ws_port.apply, "scenario.load", {"scenario": scenario},
+                                         self.meter.cfg.start)
+        if not loaded.get("ok", False):
+            self.warnings.append(f"workspace scenario.load: {loaded.get('error', loaded)}")
+        drops = getattr(self.ws_port, "dropped", [])
+        dropped = len(drops)
         try:
             from .world import make_world
             self.world = await asyncio.to_thread(self._w, lambda: make_world(data, seed, self.aws_port, self.ws_port))
@@ -765,12 +773,10 @@ class AwsServer(AgentEnvEnvironment):
         except Exception as e:
             log.exception("the world did not start")
             self.warnings.append(f"world: {type(e).__name__}: {e}")
-        if not await asyncio.to_thread(self.ws_port.health):
-            self.warnings.append("workspace unreachable: deliveries are dropped and logged")
-        loaded = await asyncio.to_thread(self.ws_port.apply, "scenario.load", {"scenario": scenario},
-                                         self.meter.cfg.start)
-        if not loaded.get("ok", False):
-            self.warnings.append(f"workspace scenario.load: {loaded.get('error', loaded)}")
+        if len(drops) > dropped:
+            d = drops[dropped]
+            self.warnings.append(f"workspace dropped {len(drops) - dropped} world op(s) during configure; "
+                                 f"first: {d['op']} at {d['at']}: {d['error']}")
         self.start_state = await asyncio.to_thread(self.sweep)
         if clock is not None:
             gw_now = await clock.time()

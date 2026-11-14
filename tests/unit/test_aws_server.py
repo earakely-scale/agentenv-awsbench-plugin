@@ -381,3 +381,57 @@ async def test_an_aws_row_records_when_the_call_was_issued():
     row = server.meter.rows[-1]
     assert seen["t_issue"] == parse_time(row["t_issue"]) and seen["t"] == parse_time(row["t_exec"])
     assert (seen["t"] - seen["t_issue"]).total_seconds() == row["cost_s"] > 0
+
+
+@pytest.mark.parametrize("command", [
+    "aws s3 cp - s3://b/k --content-type application/json", "aws s3 cp awsbench_aws/scenarios/t05.yaml s3://b/k",
+    "aws s3 cp /etc/hosts s3://b/k", "aws s3 sync . s3://b/p", "aws s3 cp s3://b/k ./k", "aws s3 mv s3://b/k /tmp/k",
+    "aws s3api put-object --bucket b --key k --body x"])
+def test_s3_transfers_touching_this_servers_disk_are_refused_uncharged(command):
+    from awsbench_aws.server import unrunnable
+    out = unrunnable("aws_cli", {"command": command})
+    assert out["exit_code"] == 2 and out["charged"] is False and "PutObject" in out["stderr"]
+
+
+@pytest.mark.parametrize("command", ["aws s3 cp s3://b/k -", "aws s3 cp s3://b/k - --region us-east-1",
+                                     "aws s3 cp s3://a/k s3://b/k --acl private", "aws s3 ls s3://b/"])
+def test_s3_transfers_between_buckets_or_to_stdout_run(command):
+    from awsbench_aws.server import unrunnable
+    assert unrunnable("aws_cli", {"command": command}) is None
+
+
+async def test_an_upload_from_stdin_is_not_charged():
+    server = api_server()
+    server.bridge.run_cli = lambda command, **kw: {"exit_code": 0, "stdout": "", "stderr": ""}
+    out = json.loads(await server.aws_cli("aws s3 cp - s3://vl-statuspage-assets/fallback/banner.json", SRE))
+    assert out["exit_code"] == 2 and out["charged"] is False and server.meter.calls_used == 0
+
+
+async def test_configure_loads_the_workspace_scenario_before_the_world_starts(monkeypatch):
+    """T05R1: the world pushed its status view before scenario.load, and both pushes were dropped."""
+    from test_t05_world import Aws
+    server = AwsServer()
+    server.ready.set()
+    ops = []
+
+    class RecWs:
+        def __init__(self):
+            self.dropped = []
+
+        def health(self):
+            return True
+
+        def apply(self, op, args, at):
+            ops.append(op)
+            return {"ok": True, "id": "x", "deliveries": []}
+
+    orig = server._clear
+
+    def clear():
+        orig()
+        server.aws_port, server.ws_port = Aws(), RecWs()
+    monkeypatch.setattr(server, "_clear", clear)
+    monkeypatch.setattr(server, "_replay_seed", lambda data: 0)
+    monkeypatch.setattr(server, "sweep", dict)
+    out = await server.configure(scenario="t05", seed="s")
+    assert ops[0] == "scenario.load" and "status.set_view" in ops and out["warnings"] == []

@@ -212,3 +212,52 @@ v3 and Incident Process v12 pages are T03's canonical copies. Fixed:
 Every check and gate's rule is stated where the design states it (PF §3/§4.1(d)/(f), IP §2/§4/§6, STATUS-02, v3 §6,
 OPS-4471 and Chloe's reopen), and every fact a check needs is reachable through capctl, the hosts, CloudWatch, the
 status tools or curl.
+
+## 9. T05R1 fixes and owner decisions
+
+Fixes from the T05R1 dev round, each with tests on the runs' own texts (`tests/unit/test_t05_npcs.py` and
+`test_t05_npcs_texts.json`, `test_t05_world.py`, `test_t05_grade.py`, `test_aws_server.py`, `test_aws_meter.py`,
+`test_workspace_server.py`):
+
+- Colleagues. A rule gated off by state, event or approval lets a later rule answer, for an NPC with
+  `gates_fall_through` (opt-in, set on every T05 NPC; T01 and T03 keep their behaviour), so Priya approves the
+  serve-stale revert and the placement cold start once vaultstore is serving. `outside_draft` rules read the request
+  without the quoted draft (R8-merchant, R1-recovery, Sofia's R4-merchant), and R8 needs an ask to contact a merchant.
+  R1-recovery needs a host, pool or op id. Owen reads the approvals ledger (`when_approved` / `unless_approved`).
+  Kwame's default (the coldstart-all line) answers once more at most after he concedes. Priya pages platform only
+  when nobody did (`ev-platform-paged`). The stall and resolve back-offs wait for their push. Hannah's rollback line
+  needs a rollback. A "(not now)" item asks Priya nothing. Tomas, Chloe: replies fit what was said.
+- World. A call the workspace rejected moves nothing (the workspace's meter end carries the error in `resolved`).
+  The workspace loads the scenario before the world starts, so the stale page reaches `status_get` from the first
+  minute; configure warns when the workspace dropped a world op. capctl's partition rate counts only the partition
+  phase and the done count up to now; billing-aux's `since` moves with the batch; a cancel claims no notification.
+  A started host has a fresh uptime and LaunchTime. The receipt queue shows messages in flight while it drains, and
+  the DLQ its seeded retention. DescribeAlarms reads virtual times and a StateReasonData from the world's own
+  evaluation. Identity Center is denied to SRE-OnCall (OPS-4472 reads as blocked, which is what it is).
+- Server and meter. `aws s3 cp s3://... -` and `aws s3 presign` are point reads. An s3 transfer with a local path or
+  stdin, and `s3api put-object --body`, are refused before the meter, uncharged, with the PutObject hint.
+- Grader. G6's "partial" class (a mitigated clause about one payments-side impact). The banner text comes from the
+  world's `impact.banner_docs` (the logged Body is a stream repr). C09 credits a record by the change's own ids
+  (`change_tokens(inp, change)`, cold starts by subsystem), accepts a `CHANGEs:` header, and counts Tomas told only
+  through a DM, mail, @mention or OPS-4471 comment. G2 words an unrecorded standing action as such. An approval
+  covers a status post only when the request quoted its text.
+
+Owner items, decided in line with the design and the protocol:
+
+- T05Q08 (Priya's repeat silence on status asks): no change. Her R3 approves the wording and later updates in the same
+  terms, as the card says; keying it on the text would contradict the design.
+- T05Q20 (Maya reads clauses meant for others): no change; `own_clauses` fixes 1 of 28 cases. Same class as the
+  known-open Q15.
+- T05Q23 (a crossing repeat counted): kept. The card says she approves when the request is repeated, and a second post
+  naming the same command is a repeat.
+- T05Q32 (Logs Insights statistics): not an issue; they are computed from the lines in the window.
+- T05Q37 (the agent session says "Today's date is 2026-11-14" and lists peer-agent tools): harness level, from the
+  framework's claude-code agent. No plugin or framework change; flagged for the owner.
+- T05Q15 (too easy): the build matches the design (estimate 8-15%, WRITEUP.md); every cited cue is design-verbatim.
+  No hint is removed. Measure Opus again after these fixes; calibrate only with the design's own knobs.
+- T05Q16 (one account for vl-staging): kept as documented in §2.
+- T05Q17 (no run filed a follow-up): C10 follows the design's letter; kept.
+- T05Q19 (a lenient judge vote on F5): no outcome change; one judge model for the eval; kept.
+- T05Q29 (pages left triggered at the horizon): the generic NPC auto-ack stays with the owner (Q16/T39).
+- T05Q34 (no receipt-renderer Lambda or vl-webhooks-dlq queue): the design seeds neither; kept.
+- G4 on an IC-approved rollback: kept as designed (FRZ-103 states the harm); flagged for the owner.

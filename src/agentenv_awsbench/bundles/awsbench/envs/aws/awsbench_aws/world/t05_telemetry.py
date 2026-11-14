@@ -181,14 +181,16 @@ class Telemetry:
             return []
         return [d for d in (out or {}).get("MetricAlarms") or []]
 
-    def eval_one(self, d: dict, t: float) -> tuple[str, str]:
+    def points(self, d: dict, t: float) -> list[tuple[float, float | None]]:
+        """The datapoints an evaluation at `t` reads: one per period, oldest first."""
         dims = {x["Name"]: x["Value"] for x in d.get("Dimensions") or []}
+        n = int(d.get("EvaluationPeriods") or 1)
+        return [(tt, self.value(d.get("Namespace"), d.get("MetricName"), dims, tt))
+                for tt in (t // 60 * 60 - 60 * k for k in range(n, 0, -1))]
+
+    def eval_one(self, d: dict, t: float) -> tuple[str, str]:
         n, need = int(d.get("EvaluationPeriods") or 1), int(d.get("DatapointsToAlarm") or d.get("EvaluationPeriods") or 1)
-        pts = []
-        for k in range(n, 0, -1):
-            tt = t // 60 * 60 - 60 * k
-            v = self.value(d.get("Namespace"), d.get("MetricName"), dims, tt)
-            pts.append(v)
+        pts = [v for _, v in self.points(d, t)]
         known = [v for v in pts if v is not None]
         cmp = CMP.get(d.get("ComparisonOperator"), float.__gt__)
         thr = float(d.get("Threshold") or 0)
@@ -221,9 +223,33 @@ class Telemetry:
                                          "HistorySummary": f"Alarm updated from {old} to {state}"})
             else:
                 cur["reason"] = reason
+            self.states[name].update(eval_t=t, pts=self.points(d, t), stat=d.get("Statistic") or "Average",
+                                     period=int(d.get("Period") or 60), thr=float(d.get("Threshold") or 0))
             row[name] = state
         if t >= self.m.t_start:
             self.timeline.append([t, row])
+
+    def virtual(self, x):
+        """An emulator stamp as virtual time (seeded rows read seeded_at), through the server's wall-time map."""
+        times = getattr(self.m.w.aws, "times", None)
+        v = times.virtual(x.timestamp()) if times is not None and isinstance(x, datetime) else None
+        return v.astimezone(UTC) if v else x
+
+    @staticmethod
+    def reason_data(st: dict) -> str | None:
+        if "eval_t" not in st:
+            return None
+        f = "%Y-%m-%dT%H:%M:%S.000+0000"
+        pts = st["pts"]
+        known = [(tt, v) for tt, v in pts if v is not None]
+        out = {"version": "1.0", "queryDate": datetime.fromtimestamp(st["eval_t"], UTC).strftime(f),
+               "startDate": datetime.fromtimestamp(pts[0][0] if pts else st["eval_t"], UTC).strftime(f),
+               "statistic": st["stat"], "period": st["period"], "recentDatapoints": [round(v, 4) for _, v in known],
+               "threshold": st["thr"]}
+        if known:
+            out["evaluatedDatapoints"] = [{"timestamp": datetime.fromtimestamp(tt, UTC).strftime(f), "value": round(v, 4)}
+                                          for tt, v in reversed(known)]
+        return json.dumps(out)
 
     def _defs_cache(self, t: float) -> list[dict]:
         if self._cache[0] is None or t - self._cache[0] >= 300 or self.m.defs_dirty:
@@ -282,11 +308,14 @@ class Telemetry:
                 return None
             rows = []
             for d in (out or {}).get("MetricAlarms") or []:
+                d = {k: self.virtual(v) if k.endswith("Timestamp") else v for k, v in d.items()}
                 st = self.states.get(d["AlarmName"])
                 if st:
                     since = datetime.fromtimestamp(st["since"], UTC)
                     d = {**d, "StateValue": st["state"], "StateReason": st["reason"], "StateUpdatedTimestamp": since,
-                         "StateTransitionedTimestamp": since}
+                         "StateTransitionedTimestamp": since, "StateReasonData": self.reason_data(st)}
+                else:
+                    d.pop("StateReasonData", None)
                 rows.append(d)
             if p.get("StateValue"):
                 rows = [r for r in rows if r.get("StateValue") == p["StateValue"]]
@@ -302,11 +331,12 @@ class Telemetry:
         return None
 
     # ---- logs ----
-    def partition_rate(self, now: float) -> float:
-        i = bisect_left(self.ts, now - 600)
+    def partition_rate(self, now: float, since: float | None = None) -> float:
+        i = bisect_left(self.ts, max(now - 600, since or 0))
         if i >= len(self.samples):
             return 0.0
-        return max(0.0, (self.samples[-1]["done"] - self.samples[i]["done"]) / max(1.0, (now - self.ts[i]) / 60))
+        done = self.m.vs.partitions()[0] if self.m.vs.idx.get("checked") else self.samples[-1]["done"]
+        return max(0.0, (done - self.samples[i]["done"]) / max(1.0, (now - self.ts[i]) / 60))
 
     def placement_restarts(self, now: float, window: float) -> int:
         return sum(1 for x in self.m.vs.restart_counts if now - window < x <= now)
