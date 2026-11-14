@@ -733,6 +733,7 @@ npcs:
       on_request: true
       unless_state: now_s >= 52500
       match:
+        all: ['\bfind\b|\bwhich\b|\bwhere\b|\bidentify\b|\blocate\b|\blist\b|\bhow (?:do|can|would|should) (?:I|we|you)\b|\bthe rest\b']
         any: ['(?:no longer|don''t|dont|doesn''t|do not|not|stop\w*|aren''t|isn''t)\s+(?:\w+\s+){0,2}?(?:look\w*|appear\w*|show\w*|marked|flagged)\s+(?:as\s+|like\s+)?(?:\w+\s+)?purged|rewritten|rewrote|\brebuilt\b|from defaults|initiali[sz]\w* from|empty[- ]cell|cells_empty|(?=[\s\S]*\b342\b)(?=[\s\S]*\b371\b)|\b29\b (?:other |more |missing )?(?:keys|merchants|routes|items)|missing (?:keys|merchants|routes|items)']
       reply: compare with the restored table (rmctl state diff) or rmctl route list --filter cells_empty=true
     - id: K7-which-keys

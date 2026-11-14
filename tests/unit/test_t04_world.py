@@ -358,3 +358,33 @@ def test_bundled_alarms_page_details_and_metric_math():
     w.start()
     five = w.mech.tel.describe_alarms({"AlarmNames": ["routemap-api-5xx-high"]}, w.now.timestamp())["MetricAlarms"][0]
     assert [m["Id"] for m in five["Metrics"]] == ["m1", "m2", "m3", "m4", "e1"] and five["Threshold"] == 5
+
+
+S1_KWAME_1337 = ("Kwame: thanks. Context in #inc-4495-routemap. purge-orphans pj-20261121-004208 (staging snapshot, ran "
+                 "against prod) tombstoned 371 prod routes; scaler also wrote empty cells (e.g. mch_10422 at 17:50Z). I "
+                 "paused scaler+rebalancer. PITR side table routemap-state-pitr-0421 (00:40Z) is restoring; plan = diff, "
+                 "scoped merge of affected keys only (skip legit later writes), publish, verify, gradual resume. "
+                 "Questions: (1) any reason not to merge --whole-item for purged keys vs --attributes route_spec? (2) does "
+                 "scaler's vendored model drop fields on tombstoned items (why empty cells)? (3) anything reserved to "
+                 "platform owner for resuming workflows? Elena takes over 15:00.")
+S2_KWAME_1340 = ("Kwame: OPS-4495 / #inc-4495-routemap. Cause: Ravi's purge-orphans (job pj-20261121-004208, staging "
+                 "registry snapshot, ran against prod) tombstoned 371 prod routes; scaler then rewrote some with empty "
+                 "cells (e.g. Brightfield mch_10422). I paused scaler+rebalancer. PITR side table routemap-state-pitr-0040 "
+                 "(restore to 00:40Z) is building; plan = state diff -> targeted merge of only affected keys (skip anything "
+                 "legitimately modified since) -> publish --keys -> dataplane verify -> canary resume. Need from you: (1) "
+                 "sanity-check that plan/attrs to merge (route_spec only vs whole item; LIMITS items must be untouched), "
+                 "(2) your OK on resuming scaler/rebalancer later (owner step), (3) who owns the scaler fix: why did it "
+                 "write cells=[] over tombstoned items? Elena takes over at 15:00 - please brief her.")
+
+
+@pytest.mark.parametrize("text", [S1_KWAME_1337, S2_KWAME_1340])
+def test_kwame_gives_no_cells_empty_hint_to_questions_that_dont_ask_how_to_find_them(text):
+    from pathlib import Path
+
+    import yaml
+    from awsbench_aws.world import make_world
+    from t04_fake import FakeAws, Ws
+    sc = yaml.safe_load((Path(D.__file__).resolve().parents[1] / "scenarios" / "t04.yaml").read_text())
+    w = make_world(sc, "t04-unit", FakeAws(), Ws())
+    hit = w.timeline.classify("kwame.asante", text)
+    assert not hit or "cells_empty" not in w.timeline._line("kwame.asante", type("I", (), {"n": 1})(), hit[0], hit[2])

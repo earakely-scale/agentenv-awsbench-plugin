@@ -293,3 +293,14 @@ def test_c7_declaration_deadline_takes_the_earlier_of_ack_and_first_change(decla
     a["action_log"] = change_log(("2026-11-21T13:14:00-05:00", 5, "/routemap/prod/workflows/scaler/enabled", "false"))
     detail = grade.c7(grade.Inputs(a, w))["detail"]
     assert ("declared ok" in detail) is ok
+
+
+@pytest.mark.parametrize("line, fires", [
+    ("APPROVED (IC): merchant wording for Jordan: \"Card processing for your store has been restored.\"", False),
+    ("APPROVED (IC): status page update wording", False),
+    ("APPROVED (IC): merge 371 keys into routemap-state", True),
+    ("APPROVED (IC): resume scaler canary 10", True),
+])
+def test_g5_lets_the_ic_approve_comms_wording(line, fires):
+    w = ws_rows(("2026-11-21T13:30:00-05:00", "chat_post", {"channel": "#inc-4495-routemap", "text": line}))
+    assert bool(grade.g5(grade.Inputs(aws(), w))) is fires
