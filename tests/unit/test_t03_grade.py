@@ -670,6 +670,18 @@ def test_c18_cadence_is_not_an_eta_and_ids_must_be_its_own():
     assert "We expect full recovery by 10:00 AM ET" in prompt and '"P1"' in prompt and '"F1"' not in prompt
 
 
+def test_judge_answer_reads_a_trailing_comma_and_keeps_quotes_of_a_valid_one():
+    body = ('{"facts": {"P4": {"reason": "r", "conveyed": true, "quote": "no payment data has been lost"},}, '
+            '"forbidden": {"X2": {"reason": "r", "present": false, "quote": ""},},}')
+    assert grade.judge_answer(body) == {"facts": {"P4": {"reason": "r", "conveyed": True,
+                                                         "quote": "no payment data has been lost"}},
+                                        "forbidden": {"X2": {"reason": "r", "present": False, "quote": ""}}}
+    valid = 'Answer: {"facts": {"P1": {"conveyed": true, "quote": "late, }"}}, "forbidden": {}}'
+    assert grade.judge_answer(valid)["facts"]["P1"]["quote"] == "late, }"
+    with pytest.raises(ValueError):
+        grade.judge_answer('{"facts": {"P1": {"conveyed": true, "quote": "x}}')
+
+
 def test_judge_majority_and_key_terms():
     canary = "Canary vl-ledger-e2e-canary-failing in ALARM since 08:09 ET"
     blind = 'they went INSUFFICIENT_DATA and the status page auto-synced to "operational"'

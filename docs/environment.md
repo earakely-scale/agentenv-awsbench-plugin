@@ -78,7 +78,7 @@ the step's score is the capped total, plus weight-0 rows with the evidence for e
 
 The judged rows (T01's C11 handoff note; T03's C13 root-cause write-up and C18 public status text) run only when
 `LITELLM_API_KEY` is set. They call the OpenAI-compatible endpoint at `LITELLM_BASE_URL` with the model
-`AWSBENCH_JUDGE_MODEL` names (T01's grader defaults to `claude-sonnet-5-5`, T03's to `claude-sonnet-4-5`), ask three
+`AWSBENCH_JUDGE_MODEL` names (both tasks' graders default to `claude-sonnet-5-5`, Claude Sonnet 5.5), ask three
 times and take the majority per item, and credit a fact only when the judge quotes it from the text. Without a key the
 judged rows are skipped and the task's other communication checks carry their points.
 

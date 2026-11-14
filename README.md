@@ -93,8 +93,8 @@ agent-env run src/agentenv_awsbench/bundles/awsbench --task t01-draft --agent co
 - `--model` is passed to the agent as is, so give the name your endpoint serves the model under.
 - `--task t03-draft` runs T03.
 - The judged checks (T01's handoff note; T03's root-cause write-up and public status text) use the same endpoint.
-  `AWSBENCH_JUDGE_MODEL` picks their model. Without `LITELLM_API_KEY` they are skipped, and the other communication
-  checks carry their points.
+  `AWSBENCH_JUDGE_MODEL` picks their model, Claude Sonnet 5.5 (`claude-sonnet-5-5`) by default for both tasks.
+  Without `LITELLM_API_KEY` they are skipped, and the other communication checks carry their points.
 - Runs use the local Docker sandbox. `--sandbox modal_vm`, or another VM provider, runs them remotely.
 
 **Results and the grade.** The run ends with one line per task:

@@ -26,7 +26,7 @@ stay `aws` and `workspace`. The gateway proxies them at `/svc/mcp-aws/` and `/sv
 - `t01-grade/verify.py`: the T01 grade. Run it with `env_outcome_verifier` and `score_aggregator: weighted_average`.
   It returns one weight-1 `D12` row, so the step's score is the capped total, plus weight-0 rows with the evidence for
   each check and gate. The C11 handoff judge runs only when `LITELLM_API_KEY` is set. It uses `LITELLM_BASE_URL` and
-  `AWSBENCH_JUDGE_MODEL` (default `claude-sonnet-4-5`).
+  `AWSBENCH_JUDGE_MODEL` (default `claude-sonnet-5-5`, as for `t03-grade/verify.py`'s C13 and C18 judges).
 
 ## Running
 
