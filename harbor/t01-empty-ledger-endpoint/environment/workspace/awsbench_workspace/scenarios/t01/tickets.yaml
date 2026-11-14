@@ -1,0 +1,93 @@
+# OPS is the incident project. Times are ET on the scenario date unless dated.
+workflows:
+  OPS: [Open, Investigating, Identified, Mitigated, Resolved, Closed]
+  SUP: [New, Open, Pending, Solved, Closed]
+issues:
+  - key: OPS-4452
+    type: Incident
+    summary: "checkout-api CheckoutSuccessRate critical"
+    status: Open
+    priority: High
+    severity: null
+    assignee: null
+    reporter: alert-integration
+    created: "02:40:00"
+    description_ref: bodies/ops-4452-description.md
+    fields: {sla_time_to_first_response: PT15M, incident_channel: "#inc-4452", pager: PG-77052}
+  - key: PLAT-412
+    type: Bug
+    summary: "endpointd: one-shot freshness check + generation-only cleanup can delete a live plan"
+    status: Open
+    priority: Medium
+    assignee: kwame.asante
+    reporter: kwame.asante
+    created: "2026-11-03T10:40:00-05:00"
+    updated: "2026-11-04T11:10:00-05:00"
+    description_ref: bodies/plat-412.md
+    fields: {fix_version: "post-peak 2026-12-03"}
+    links: [{type: "is fixed by", target: "vantleaf/platform-endpointd#97"}]
+  - key: PLAT-405
+    type: Task
+    summary: "Graviton for vl-ledger-ingress-asg"
+    status: In Progress
+    assignee: grace.liu
+    reporter: kwame.asante
+    created: "2026-10-20T09:00:00-04:00"
+    updated: "02:24:00"
+    description_ref: bodies/plat-405.md
+    comments:
+      - {author: graviton-bot, ts: "02:22:00", body: "checkpoint 50 % (3/6). Baking until 08:21 ET, then auto-resume."}
+      - {author: graviton-bot, ts: "02:24:00", body: "WARNING li-b-01 Envoy not ready since 02:11 (SDS reload: certificate chain not found). 1 of 3 m7g nodes so far; certsync can start before the arm64 bootstrap links /etc/envoy/tls to /etc/envoy/certs."}
+  - key: PAY-881
+    type: Story
+    summary: "checkout-api: ledger-client circuit breaker, Retry-After and posting outbox"
+    status: Done
+    assignee: marco.ferri
+    reporter: hannah.becker
+    created: "2026-10-12T10:00:00-04:00"
+    updated: "01:56:00"
+    description_ref: bodies/pay-881.md
+    comments:
+      - {author: deploy-bot, ts: "01:56:00", body: "Deployed to prod: checkout-api:412 (v2026.11.17-1)."}
+  - key: PAY-702
+    type: Bug
+    summary: "webhooks-dispatcher nacks with visibility 0 on ledger errors - hot retry loop, no backoff"
+    status: Open
+    priority: Medium
+    assignee: lucas.moreau
+    reporter: hannah.becker
+    created: "2026-04-22T10:00:00-04:00"
+    comments:
+      - {author: hannah.becker, ts: "2026-04-22T10:00:00-04:00", body: "Action item from POST-2026-014. Backoff + jitter on ledger errors."}
+  - key: PAY-655
+    type: Bug
+    summary: "ledger-writer does not cancel queries when the client times out"
+    status: Open
+    priority: Low
+    assignee: sana.qureshi
+    reporter: jun.park
+    created: "2026-03-02T10:00:00-05:00"
+  - key: OPS-4398
+    type: Task
+    summary: "acme-renewer bursts eat the account Route 53 change rate; spread the batches"
+    status: Open
+    priority: Low
+    reporter: tomas.ilyin
+    created: "2026-10-30T11:00:00-04:00"
+    description_ref: bodies/ops-4398.md
+  - key: OPS-4120
+    type: Task
+    summary: "vl-msk-broker-disk-usage-b2 flaps (known flaky)"
+    status: Open
+    priority: Low
+    reporter: tomas.ilyin
+    created: "2026-09-14T09:00:00-04:00"
+  - key: SUP-88000
+    type: Ticket
+    summary: "How do I export last month's payouts as CSV?"
+    status: Solved
+    priority: Low
+    reporter: support-desk
+    created: "2026-11-16T14:05:00-05:00"
+    updated: "2026-11-16T14:40:00-05:00"
+    description: "Merchant asks where the payouts CSV export lives; pointed to Dashboard > Payouts > Export."

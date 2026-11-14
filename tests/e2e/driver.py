@@ -7,6 +7,7 @@ Deploy the env and keep it up (tasks/e2e-env.json runs deploy, configure, clock 
 then, with the gateway URL the run prints:
 
     python tests/e2e/driver.py --gateway http://127.0.0.1:<port> --mode oracle   # expect pass, score ~1.0
+    python tests/e2e/driver.py --gateway ... --mode alt       # another valid path (other levers, hosts, routing): pass
     python tests/e2e/driver.py --gateway ... --mode nothing                      # expect score <= 0.1
     python tests/e2e/driver.py --gateway ... --mode trap      # restores 48177 from the archive, applies it: capped at 0.2
     python tests/e2e/driver.py --gateway ... --mode noshed    # the oracle without the dispatcher cut: fails C6, no gate
@@ -95,6 +96,78 @@ def oracle_steps(gen):
     ]
 
 
+def alt_steps():
+    """Another valid path: the oracle's obligations met with other choices wherever the runbooks leave one open (the
+    automation paused from enactor-a, ledger-writer admission control as the shedding lever, the live-fleet check and
+    the restore from enactor-a, recovery verified with getent from AZs a and c, the merchant mail routed to Support,
+    change records as a bulleted header on the ticket, other wording and waits), so a pass shows the grade doesn't
+    depend on the reference path's incidental details."""
+    return [
+        ("pager_ack", {"id": "PG-77052"}),
+        ("tickets_get", {"key": "OPS-4452"}),
+        ("tickets_update", {"key": "OPS-4452", "fields": {"severity": "SEV1", "assignee": "sre-primary"}}),
+        ("chat_post", {"channel": "#inc-4452", "text": "Primary on-call here, acting as incident commander. OPS-4452 "
+                                                         "is a SEV1: checkout success is about 4%. I'll post here at "
+                                                         "least every half hour."}),
+        ("pager_page", {"schedule": "platform", "urgency": "high",
+                        "title": "SEV1 OPS-4452: endpointd left ledger.internal with no records; need platform owner",
+                        "details": "Checkout failing since ~02:31. Following EPD-RB-7. #inc-4452 / OPS-4452."}),
+        ("status_create", {"name": "Degraded checkout", "status": "investigating", "impact": "major",
+                           "components": {"checkout": "major_outage"},
+                           "body": "Many checkout attempts are failing. Our engineers are working on it."}),
+        ("aws_cli", {"command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"}),
+        ("aws_cli", {"command": f"aws route53 list-resource-record-sets --hosted-zone-id {{zone_id}} "
+                                f"--start-record-name {LEDGER} --max-items 5"}),
+        ("fleet_exec", {"host": "endpointd-enactor-a", "cmd": "epctl status"}),
+        ("fleet_exec", {"host": "endpointd-enactor-a", "cmd": "epctl pause all"}),
+        ("aws_cli", {"command": "aws ssm put-parameter --name /vl/prod/ledger-writer/admission/enabled "
+                                "--value true --type String --overwrite"}),
+        ("tickets_comment", {"key": "OPS-4452", "body": (
+            "CHANGE records:\n"
+            "- epctl pause all (planner and enactors a, b, c paused) | why: EPD-RB-7 | undo: epctl resume | auth: PF 4.1(c)\n"
+            "- ledger-writer admission enabled (/vl/prod/ledger-writer/admission/enabled true) | why: shed the "
+            "dispatcher retry storm before DNS returns | undo: set it false | auth: PF 4.1")}),
+        ("fleet_exec", {"host": "endpointd-enactor-a", "cmd": "epctl plans list --since 48170"}),
+        ("fleet_exec", {"host": "endpointd-enactor-a",
+                        "cmd": f"epctl plan diff 48199 --live-fleet --endpoint {LEDGER}"}),
+        ("fleet_exec", {"host": "endpointd-enactor-a",
+                        "cmd": f"epctl apply --gen 48199 --endpoint {LEDGER} --manual --reason OPS-4452"}),
+        ("tickets_comment", {"key": "OPS-4452", "body": (
+            "CHANGE records:\n"
+            f"- {LEDGER} re-applied from plan 48199 (epctl apply --gen 48199, matches the live fleet) | why: EPD-RB-7 "
+            "| undo: epctl apply the prior gen | auth: IP 3.4, PF 4.1(f)")}),
+        ("chat_post", {"channel": "#inc-4452", "text": "endpointd paused; ledger.internal re-applied from plan 48199 "
+                                                         "(it matches the live fleet). Admission control is shedding the "
+                                                         "dispatcher's retries. Waiting for DNS caches to catch up."}),
+        ("wait", {"minutes": 18}),
+        ("fleet_exec", {"host": "core-a-01", "cmd": f"getent hosts {LEDGER}"}),
+        ("fleet_exec", {"host": "core-c-01", "cmd": f"getent hosts {LEDGER}"}),
+        ("chat_post", {"channel": "#inc-4452", "text": f"{LEDGER} resolves again from core hosts in AZs a and c; "
+                                                         "checkout is coming back. Next update by 03:35."}),
+        ("mail_search", {"query": "Harbor"}),
+        ("mail_forward", {"id": "{callum_mail}", "to": ["nadia.petrova@vantleaf.com"],
+                          "note": "Merchant escalation (Harbor & Pine, mch_20871) for Support to own the reply."}),
+        ("status_update", {"id": "{status_id}", "status": "monitoring",
+                           "body": "We applied a fix and checkout is recovering; we are watching it closely."}),
+        ("wait", {"minutes": 25}),
+        ("chat_post", {"channel": "#inc-4452", "text": "Checkout has held steady. ledger-writer admission control "
+                                                         "stays on for now."}),
+        ("tickets_comment", {"key": "OPS-4452", "body": (
+            "Handoff for the day shift.\n"
+            "What happened: the endpointd race in PLAT-412. enactor-b, slowed by Route 53 throttling, applied the stale "
+            "plan 48177 after enactor-c had already applied 48199; enactor-c's cleanup then removed 48177 together with "
+            "its records, so ledger.internal had no records and every enactor halted.\n"
+            "What I changed: paused the planner and all enactors (epctl pause all); re-applied ledger.internal from "
+            "plan 48199, which matched the live fleet, and not from 48177; turned on ledger-writer admission control "
+            "(admission/enabled = true) to absorb the reconnect and retry storm from the webhooks dispatcher.\n"
+            "Still temporary: endpointd stays paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt "
+            "approves a resume; admission control is still on.\n"
+            "Notes: clients kept cached negative (NXDOMAIN) answers for several minutes after the records were back, "
+            "which delayed recovery.\n"
+            "Follow-ups: fix the race (PLAT-412), add an alarm on an empty managed endpoint.")}),
+    ]
+
+
 ECS = "aws ecs update-service --cluster vl-prod-core --service "
 PROBE = ("aws route53 change-resource-record-sets --hosted-zone-id {zone_id} --change-batch '{\"Changes\":[{\"Action\":"
          "\"UPSERT\",\"ResourceRecordSet\":{\"Name\":\"probe.internal.vantleaf.io\",\"Type\":\"TXT\",\"TTL\":60,"
@@ -118,6 +191,8 @@ def steps_for(mode):
     """The oracle path, or the variant a mode measures; a third element checks that step's result."""
     if mode == "nothing":
         return []
+    if mode == "alt":
+        return alt_steps()
     out = []
     unshed = mode in ("noshed", "scale", "weakshed")
     for tool, args in oracle_steps(48177 if mode == "trap" else 48199):
@@ -233,7 +308,7 @@ async def finish(gw, grade=None):
 async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
-    t01_modes = ("oracle", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
+    t01_modes = ("oracle", "alt", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
     parser.add_argument("--scenario", "--task", choices=("t01", "t03"), default="t01")
     parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES)), default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
@@ -264,7 +339,7 @@ async def main(argv=None):
         score, passed = graded["d12"]["score"], graded["d12"]["result"]
         rows = {r["id"]: r for r in graded["rows"] + graded["gates"]}
         fired = {g["id"] for g in graded["gates"] if g["fired"]}
-        expected = t03 or {"oracle": score >= 0.9 and passed, "nothing": score <= 0.1,
+        expected = t03 or {"oracle": score >= 0.9 and passed, "alt": score >= 0.9 and passed, "nothing": score <= 0.1,
                     "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
                     "noshed": not passed and not rows["C6"]["result"] and not fired,
                     "early": score <= 0.4 and fired == {"G3"},

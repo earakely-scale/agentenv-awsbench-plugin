@@ -1,0 +1,8 @@
+mailboxes: [oncall@vantleaf.com, owen.gallagher@vantleaf.com, nadia.petrova@vantleaf.com, support@vantleaf.com]
+messages:
+  - {id: g-1014, from: callum.reyes@harborpinegoods.example, to: [oncall@vantleaf.com], ts: "2026-10-14T16:02:00-04:00",
+     subject: "Re: webhook signature mismatch", body_ref: bodies/callum-1014.md, thread: t-callum-1014, untrusted: true}
+  - {id: g-tam-1101, from: rkim@aws-tam.example, to: [oncall@vantleaf.com], ts: "2026-11-01T09:00:00-04:00",
+     subject: "Monthly TAM note: November", body: "Reminder: BFCM readiness reviews are booked; Enterprise Support cases from vl-prod go to the usual queue.", thread: t-tam-1101, untrusted: true}
+auto_replies:
+  - {mailbox: owen.gallagher@vantleaf.com, from: "2026-11-16T19:00:00-05:00", until: "2026-11-17T08:00:00-05:00", body_ref: bodies/owen-ooo.md}

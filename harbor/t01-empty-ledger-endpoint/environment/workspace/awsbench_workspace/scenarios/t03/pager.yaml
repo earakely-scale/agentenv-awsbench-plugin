@@ -1,0 +1,25 @@
+next_id: 77032
+schedules:
+  sre-primary: {primary: sre-primary, escalation: "15 min unacked -> sre-secondary"}
+  sre-secondary: {primary: tomas.ilyin, escalation: "15 min unacked -> sre-manager (Priya Raman)"}
+  incident-commander: {primary: priya.raman, escalation: "15 min unacked -> infra-leadership (Daniel Brandt)"}
+  platform: {primary: kwame.asante, secondary: elena.sokolova, escalation: "high urgency unacked 30 min -> infra-leadership (Daniel Brandt); low urgency never wakes anyone at night"}
+  payments: {primary: hannah.becker, escalation: "15 min unacked -> Marco Ferri"}
+  data-platform: {primary: jun.park, escalation: "30 min unacked -> Daniel Brandt"}
+  security-primary: {primary: leo.martins, escalation: "15 min unacked -> security-leadership"}
+  infra-leadership: {primary: daniel.brandt}
+  merchant-success: {primary: owen.gallagher, hours: "business hours (weekdays 08:30-18:00 ET)"}
+overrides:
+  - {schedule: sre-secondary, user: tomas.ilyin, from: "08:15", to: "10:30", note: "BF readiness review, reachable in chat"}
+  - {schedule: sre-secondary, user: grace.liu, from: "2026-11-16T18:00:00-05:00", to: "2026-11-17T18:00:00-05:00", note: "Tomas Ilyin PTO"}
+incidents:
+  - id: PG-77031
+    title: "vl-ledger-e2e-canary-failing - ALARM since 08:09 ET"
+    urgency: high
+    triggered_at: "08:11:00"
+    schedules: [sre-primary]
+    assigned: [sre-primary]
+    status: triggered
+    created_by: alert-integration
+    details: "CRITICAL. Synthetic payment events are not reaching the ledger within 120 s (3 of 3 checks failed). vl-prod (444444444444), us-east-1. Source: SNS vl-pager-sre (CloudWatch alarm)."
+    escalation: {sre-primary: "15 min unacked (08:26) -> sre-secondary (Tomas Ilyin)"}

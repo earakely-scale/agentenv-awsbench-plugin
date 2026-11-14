@@ -1,0 +1,26 @@
+name: vantleaf/infra
+description: "Terraform for everything (vl-prod and friends)"
+default_branch: main
+protected: [main]
+tree:
+  "terraform/modules/streamroute/asg.tf": |
+    resource "aws_autoscaling_group" "streamroute" {
+      name             = "vl-streamroute-asg"
+      min_size         = 120
+      desired_capacity = 120
+      max_size         = 150
+      launch_template { name = "vl-streamroute-lt"  version = aws_launch_template.streamroute.default_version }
+      termination_policies = ["NewestInstance"]
+      tag { key = "service" value = "streamroute" propagate_at_launch = true }
+    }
+    # bf-capacity-hold (PLAT-2291 step 2) was created by hand and is not managed here.
+  "terraform/modules/streamroute/templates/streamroute-userdata.sh": |
+    #!/bin/bash
+    LIMIT_NPROC_DEFAULT=1024   # PLAT-HARD-03; runtime value from SSM /streamroute/prod/os/limit_nproc
+    install -m 0755 /opt/vl/sr-apply-limits /usr/local/bin/sr-apply-limits
+    systemctl enable sr-apply-limits.service streamroute.service sr-metrics-agent.service
+prs:
+  - {number: 1858, title: "streamroute: 132 hosts for BF (PLAT-2291)", author: elena.sokolova, state: open, created: "2026-11-12T17:00:00-05:00",
+     reviewers: [{user: kwame.asante, state: approved, ts: "2026-11-13T10:41:00-05:00"}], files: [terraform/modules/streamroute/asg.tf],
+     body: "min_size/desired_capacity 120 -> 132. Merge after the Monday add (PLAT-2291 step 3)."}
+deploys: []

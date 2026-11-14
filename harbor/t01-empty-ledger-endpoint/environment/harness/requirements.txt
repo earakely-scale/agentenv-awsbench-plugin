@@ -1,0 +1,3 @@
+# The AgentEnv runner's versions (constraints.txt is its pip freeze on the host the reference runs used).
+agentenv-framework-protocol==0.1.536
+httpx==0.28.1

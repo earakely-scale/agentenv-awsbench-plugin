@@ -1,0 +1,34 @@
+# T01 "The Empty Ledger Endpoint": the workspace's clock anchor, who the agent is in each app, and the people.
+scenario: t01
+start: "2026-11-17T02:40:00-05:00"
+timezone: America/New_York
+charged_roles: [sre-primary]
+identities:
+  sre-primary: {chat: sre-primary, tickets: sre-primary, wiki: sre-primary, repo: sre-primary, mail: oncall@vantleaf.com, pager: sre-primary, status: sre-primary}
+users:
+  - {id: sre-primary, name: "SRE On-Call (primary)", title: "Primary SRE on call (you)", team: SRE, email: oncall@vantleaf.com}
+  - {id: priya.raman, name: Priya Raman, title: "SRE manager; incident-commander rotation Nov 16-Dec 2", team: SRE, email: priya.raman@vantleaf.com}
+  - {id: tomas.ilyin, name: Tomas Ilyin, title: "Senior SRE (sre-secondary)", team: SRE, email: tomas.ilyin@vantleaf.com}
+  - {id: grace.liu, name: Grace Liu, title: SRE, team: SRE, email: grace.liu@vantleaf.com}
+  - {id: kwame.asante, name: Kwame Asante, title: "Staff platform engineer; owns endpointd, cellmap, ledgerstore ops, hatchery, base images; platform on-call", team: Platform, email: kwame.asante@vantleaf.com}
+  - {id: elena.sokolova, name: Elena Sokolova, title: "Platform engineer (streamroute); platform secondary", team: Platform, email: elena.sokolova@vantleaf.com}
+  - {id: ravi.menon, name: Ravi Menon, title: "Platform engineer (routemap, vaultstore)", team: Platform, email: ravi.menon@vantleaf.com}
+  - {id: daniel.brandt, name: Daniel Brandt, title: "Director, Infrastructure & Platform; freeze approver", team: Infrastructure, email: daniel.brandt@vantleaf.com}
+  - {id: maya.okonkwo, name: Maya Okonkwo, title: "VP Engineering", team: Engineering, email: maya.okonkwo@vantleaf.com}
+  - {id: victor.hale, name: Victor Hale, title: CEO, team: Executive, email: victor.hale@vantleaf.com}
+  - {id: hannah.becker, name: Hannah Becker, title: "Payments tech lead (checkout-api, payments-gateway); payments on-call", team: Payments, email: hannah.becker@vantleaf.com}
+  - {id: marco.ferri, name: Marco Ferri, title: Payments engineer, team: Payments, email: marco.ferri@vantleaf.com}
+  - {id: sana.qureshi, name: Sana Qureshi, title: Payments engineer, team: Payments, email: sana.qureshi@vantleaf.com}
+  - {id: lucas.moreau, name: Lucas Moreau, title: Payments engineer, team: Payments, email: lucas.moreau@vantleaf.com}
+  - {id: jun.park, name: Jun Park, title: "Data platform / DBA", team: Data, email: jun.park@vantleaf.com}
+  - {id: leo.martins, name: Leo Martins, title: "Security engineer (security-primary)", team: Security, email: leo.martins@vantleaf.com}
+  - {id: owen.gallagher, name: Owen Gallagher, title: "Merchant Success, key accounts (business hours)", team: Merchant Success, email: owen.gallagher@vantleaf.com}
+  - {id: nadia.petrova, name: Nadia Petrova, title: "Head of Support (support@vantleaf.com)", team: Support, email: nadia.petrova@vantleaf.com}
+  - {id: sofia.marquez, name: Sofia Marquez, title: "Incident communications lead", team: Communications, email: sofia.marquez@vantleaf.com}
+  - {id: callum.reyes, name: Callum Reyes, title: "CTO, Harbor & Pine Goods (merchant mch_20871; external, email only)", team: External, email: callum.reyes@harborpinegoods.example, external: true}
+  - {id: incident-bot, name: incident-bot, title: bot, team: bots}
+  - {id: alarm-bot, name: alarm-bot, title: bot, team: bots}
+  - {id: deploy-bot, name: deploy-bot, title: bot, team: bots}
+  - {id: graviton-bot, name: graviton-bot, title: bot, team: bots}
+  - {id: alert-integration, name: alert-integration, title: bot, team: bots}
+  - {id: support-desk, name: support-desk, title: bot, team: bots}

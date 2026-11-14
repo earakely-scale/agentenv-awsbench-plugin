@@ -1,0 +1,3 @@
+# What env_outcome_verifier runs verify.py with in the AgentEnv runner: the same litellm (the C11 judge) and protocol.
+litellm==1.106.9
+agentenv-framework-protocol==0.1.536

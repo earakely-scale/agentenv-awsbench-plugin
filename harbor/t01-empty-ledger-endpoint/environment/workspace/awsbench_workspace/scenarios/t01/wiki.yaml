@@ -1,0 +1,65 @@
+pages:
+  - id: OPS-POL-PF-2026
+    space: OPS
+    title: "Peak Freeze 2026"
+    labels: [policy, freeze]
+    versions:
+      - {version: 3, author: daniel.brandt, ts: "2026-11-12T10:00:00-05:00", body_ref: bodies/peak-freeze-2026-v3.md, comment: "v3"}
+  - id: OPS-POL-IP-2026
+    space: OPS
+    title: "Incident Process 2026"
+    labels: [policy, incident]
+    versions:
+      - {version: 12, author: priya.raman, ts: "2026-11-02T10:00:00-05:00", body_ref: bodies/incident-process-2026-v12.md, comment: "v12: data owner, IP §3.4 exception, approver records in chat"}
+  - id: OPS-BFCM-ROTA
+    space: OPS
+    title: "BFCM 2026 War Room Rota"
+    labels: [bfcm, rota]
+    versions:
+      - {version: 2, author: priya.raman, ts: "2026-11-09T09:00:00-05:00", body_ref: bodies/war-room-rota.md}
+  - id: OPS-BF-CAPACITY
+    space: OPS
+    title: "BF 2026 capacity plan"
+    labels: [bfcm, capacity]
+    versions:
+      - {version: 4, author: grace.liu, ts: "2026-11-13T15:00:00-05:00", body_ref: bodies/capacity-plan.md}
+  - id: OPS-RB-EPD-7
+    space: OPS
+    title: "EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    author: kwame.asante
+    created: "2024-03-11T10:00:00-04:00"
+    labels: [runbook, endpointd, platform]
+    versions:
+      - {version: 5, author: kwame.asante, ts: "2025-08-14T11:00:00-04:00", body_ref: bodies/epd-rb-7-v5.md, comment: "Restore steps after the 2025 drill"}
+      - {version: 6, author: daniel.brandt, ts: "2026-11-03T16:20:00-05:00", body_ref: bodies/epd-rb-7-v6.md, comment: "Incident Process v12 sweep: Who section"}
+  - id: PLAT-DOC-ENDPOINTD
+    space: PLAT
+    title: "endpointd design"
+    author: kwame.asante
+    created: "2023-05-02T10:00:00-04:00"
+    labels: [design, endpointd]
+    versions:
+      - {version: 9, author: kwame.asante, ts: "2026-09-30T14:00:00-04:00", body_ref: bodies/endpointd-design.md, comment: "Cleanup and invariant sections"}
+  - id: OPS-RB-LEDG-2
+    space: OPS
+    title: "LEDG-RB-2 ledger-writer: elevated latency or 503s"
+    author: hannah.becker
+    created: "2025-02-10T10:00:00-05:00"
+    labels: [runbook, ledger-writer, payments]
+    versions:
+      - {version: 4, author: hannah.becker, ts: "2026-10-21T12:00:00-04:00", body_ref: bodies/ledg-rb-2.md, comment: "cp-ledger split (PLAT-470); PF v3 citations"}
+  - id: OPS-RB-SRE-14
+    space: OPS
+    title: "SRE-RB-14 acme-renewer"
+    author: tomas.ilyin
+    created: "2025-06-01T10:00:00-04:00"
+    labels: [runbook, acme]
+    versions:
+      - {version: 2, author: tomas.ilyin, ts: "2026-10-30T11:30:00-04:00", body_ref: bodies/sre-rb-14.md, comment: "OPS-4398 note"}
+  - id: PLAT-DOC-DISPATCHER
+    space: PLAT
+    title: "webhooks-dispatcher README"
+    author: hannah.becker
+    labels: [readme, webhooks-dispatcher, payments]
+    versions:
+      - {version: 3, author: hannah.becker, ts: "2026-05-04T10:00:00-04:00", body_ref: bodies/dispatcher-readme.md, comment: "Mirrors payments-gateway/services/webhooks-dispatcher/README.md"}

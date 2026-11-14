@@ -1,0 +1,43 @@
+schema_version = "1.4"
+source = "src/agentenv_awsbench/bundles/awsbench/tasks/t01-draft.json"
+artifacts = [{ source = "/export", destination = "export", service = "harness" }]
+
+[task]
+name = "awsbench/t01-empty-ledger-endpoint"
+description = "AwsBench T01 \"The Empty Ledger Endpoint\": incident command for an empty internal DNS endpoint left by an automation race, in an AWS Emulator world with colleagues, a clock and a grader at a fixed horizon. Generated from the AgentEnv task t01-draft by tools/export_harbor.py; do not edit."
+keywords = ["sre", "incident-response", "aws", "dns", "mcp", "long-horizon"]
+
+[metadata]
+agentenv_task = "t01-draft"
+agentenv_task_id = "@local/~/awsbench/src/agentenv_awsbench/bundles/awsbench/t01-draft"
+prompt_id = "t01"
+parity_agent = "awsbench_harbor.claude_code:AgentEnvClaudeCode (PYTHONPATH=harbor/agents)"
+scripted_agent = "awsbench_harbor.scripted:ScriptedSolution --ak mode=<oracle|alt|trap|...>"
+
+[agent]
+timeout_sec = 21600
+user = "agent"
+
+[environment]
+build_timeout_sec = 1800
+
+[[environment.mcp_servers]]
+name = "awsbench"
+transport = "streamable-http"
+url = "http://mcp:18765/mcp"
+
+[verifier]
+environment_mode = "separate"
+timeout_sec = 1800
+
+[verifier.env]
+LITELLM_API_KEY = "${LITELLM_API_KEY:-}"
+LITELLM_BASE_URL = "${LITELLM_BASE_URL:-}"
+
+[[verifier.collect]]
+service = "harness"
+command = "python -m awsbench_harness collect"
+timeout_sec = 1800
+
+[solution.env]
+AWSBENCH_SOLUTION_MODE = "${AWSBENCH_SOLUTION_MODE:-oracle}"
