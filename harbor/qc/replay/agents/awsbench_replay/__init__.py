@@ -3,7 +3,7 @@ container (the front, as AgentEnvClaudeCode's Claude Code reaches it) and answer
 the task's post-turn hook (in the harness) decides the conversation as it did in the recorded run.
 
     PYTHONPATH=harbor/agents:<this dir's parent> harbor run -p <task> -a awsbench_replay:ReplaySolution \\
-        --ak script=/abs/path/R12-opus-1.json --ve LITELLM_API_KEY=
+        --ak script=/abs/path/R12-opus-1.json --ve AWSBENCH_JUDGE=off
 """
 import json
 import shutil
