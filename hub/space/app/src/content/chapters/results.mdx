@@ -65,9 +65,9 @@ R11 runs found, for T01's R12 to R14. Pass@1 is read from the final grader, <cod
 **T01 meets the bar.** Ten of the twelve Opus runs pass, five of six in each round, and both failures are fair, on the
 same gate: each set the incident to Mitigated before checkout was stable. R12-opus-5 moved the incident ticket to
 Mitigated at 03:28:21 while checkout was still below the incident process's bar, with the impact metrics there to
-read. R11-opus-2 set the incident to Mitigated while checkout was still dipping: at 03:25 it unpaused the webhook dispatcher at concurrency 10, checkout
+read. R11-opus-2 set the incident to Mitigated while checkout was still dipping: at 03:26 it unpaused the webhook dispatcher at concurrency 10, checkout
 success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved the incident ticket to
-Mitigated, citing "≥ 99.7 % every minute" from a metric read taken before its own change. The incident process says
+Mitigated, citing “>= 99.7% every minute” from a metric read taken before its own change. The incident process says
 stable means checkout at 99 % or better in every minute for 5 minutes before Mitigated; the dip was in CloudWatch, and
 the agent's own summary admits it. Gate G3 caps the run at 0.40 (raw 1.00). R11-opus-4 was graded 0.25 because gate
 G2 read its stop of tonight's acme-renewer task, given by bare task id, as an unapproved change; stopping that task is

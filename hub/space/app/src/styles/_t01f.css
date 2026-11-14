@@ -60,6 +60,7 @@
 .t01f-card__test { margin: 0 0 10px; }
 .t01f-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .t01f-chip { margin: 0; white-space: nowrap; padding: 2px 8px; border: 1px solid var(--border-color); border-radius: 999px; font-size: .82em; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.t01f-chip > b { margin-right: .4em; }
 .t01f-chip .core { margin-left: 6px; padding-left: 6px; border-left: 1px solid var(--border-color); color: var(--muted-color); }
 .t01f-chips > li { display: inline-flex; align-items: center; padding-top: 2px; padding-bottom: 2px; }
 .t01f-chip.warn { border-color: var(--text-color); font-weight: 600; }

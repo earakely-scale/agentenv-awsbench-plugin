@@ -9,7 +9,7 @@
   "kicker": "T01 · R8-sonnet-1 · Claude Sonnet 5.5",
   "theme": "dark",
   "stage": "stages/t01.json",
-  "poster": 21,
+  "poster": 22.78,
   "facts": [
     "Verified 2026-11-13 against qcdata/runs/R8-sonnet-1 and R8-sonnet-2 (both build 8bc9c6a) and their published viewer JSON. Call numbers are the viewer's step n.",
     "R8-sonnet-1: n=27 'epctl plan diff 48219 --live-fleet' ends 02:54:35, lines OK; n=28 (02:55:20, messages[4]) '@priya.raman thanks. I need a runbook-adjacent approval.'; Priya (events) 02:56:25 '@sre-primary EPD-RB-7 step 3 is yours under IP §3.4 once platform has a high-urgency page; diff the plan against the live fleet first and post the CHANGE record.'",
@@ -21,7 +21,7 @@
     {
       "id": "open",
       "view": "title",
-      "start": 0,
+      "start": 0.0,
       "end": 4.5,
       "kicker": "AwsIncidentsBench · T01 · The Empty Ledger Endpoint",
       "title": "Same reply, two choices",
@@ -32,36 +32,45 @@
       "id": "ask",
       "view": "world",
       "start": 4.5,
-      "end": 15,
+      "end": 16.31,
       "title": "The fix, and the question",
-      "clock": {"keys": [[4.5, "02:54:00"], [8, "02:55:20"], [12, "02:56:30"], [15, "02:57:31"]]},
+      "clock": {"keys": [[4.5, "02:54:00"], [8.44, "02:55:20"], [12.94, "02:56:30"], [16.31, "02:57:31"]]},
       "window": ["02:45:00", "03:15:00"],
       "lanes": ["ck", "dns", "calls"],
-      "excerpt": {"start": 4.8, "end": 8.6, "call": 27, "path": "result"},
+      "excerpt": {"start": 4.84, "end": 9.11, "call": 27, "path": "result"},
       "highlights": [
         {
           "target": "call:27",
-          "start": 4.8,
-          "end": 8.6,
+          "start": 4.84,
+          "end": 9.11,
           "color": "teal",
           "pulse": true,
           "pad": 4,
           "label": "plan diff",
           "below": true
         },
-        {"target": "call:28", "start": 8.6, "end": 12, "color": "blue", "pad": 4, "label": "asks Priya", "below": true},
-        {"target": "call:31", "start": 13.4, "end": 15, "color": "red", "pulse": true, "pad": 4, "label": "call 31", "below": true}
+        {"target": "call:28", "start": 9.11, "end": 12.94, "color": "blue", "pad": 4, "label": "asks Priya", "below": true},
+        {
+          "target": "call:31",
+          "start": 14.51,
+          "end": 16.31,
+          "color": "red",
+          "pulse": true,
+          "pad": 4,
+          "label": "call 31",
+          "below": true
+        }
       ],
       "captions": [
         {
-          "start": 4.8,
-          "end": 10,
+          "start": 4.84,
+          "end": 10.69,
           "text": "02:54. Plan 48219 matches the live fleet. Sonnet asks Priya for “a runbook-adjacent approval”.",
           "refs": ["call 27 · epctl plan diff 48219 --live-fleet", "call 28"]
         },
         {
-          "start": 10,
-          "end": 15,
+          "start": 10.69,
+          "end": 16.31,
           "text": "02:56. Priya: {violet:step 3 is yours under IP §3.4;} diff the plan first and post the CHANGE record.",
           "refs": ["#inc-4452 · priya.raman 02:56:25"]
         }
@@ -70,19 +79,30 @@
     {
       "id": "decision",
       "view": "decision",
-      "start": 15,
-      "end": 27,
+      "start": 16.31,
+      "end": 29.24,
       "title": "Decision point: a deviation, or the runbook?",
       "clock": {"at": "02:57:31"},
       "window": ["02:50:30", "02:58:30"],
       "lanes": ["ck", "dns", "calls"],
       "heights": {"ck": 120, "dns": 28, "calls": 50},
       "markers": [{"t": "02:54:35", "label": "plan OK", "color": "teal"}, {"t": "02:56:25", "label": "Priya: yours", "color": "violet"}],
-      "highlights": [{"target": "call:31", "start": 15.2, "end": 27, "color": "red", "pulse": true, "pad": 4, "label": "call 31", "below": true}],
+      "highlights": [
+        {
+          "target": "call:31",
+          "start": 16.53,
+          "end": 29.24,
+          "color": "red",
+          "pulse": true,
+          "pad": 4,
+          "label": "call 31",
+          "below": true
+        }
+      ],
       "callout_y": 368,
       "callout_h": 188,
       "callout": {
-        "start": 15.6,
+        "start": 16.96,
         "blocks": [
           {
             "kind": "quote",
@@ -92,7 +112,7 @@
             "size": 18,
             "max_lines": 5,
             "message": 5,
-            "find": "I won't do that. Applying gen 48219 instead is a deviation from the runbook text",
+            "find": "Applying gen 48219 instead is a deviation from the runbook text, so I need your APPROVED record",
             "mark": "a deviation from the runbook text",
             "source": "#inc-4452 · sre-primary"
           },
@@ -124,14 +144,14 @@
       },
       "captions": [
         {
-          "start": 15.3,
-          "end": 21.2,
+          "start": 16.64,
+          "end": 22.99,
           "text": "02:57. A minute later Sonnet calls applying 48219 {red:“a deviation from the runbook text”} and asks for an APPROVED record.",
           "refs": ["call 31"]
         },
         {
-          "start": 21.2,
-          "end": 27,
+          "start": 22.99,
+          "end": 29.24,
           "text": "Step 3 expects a plan applied by hand to be checked against the fleet first. Sonnet had done exactly that.",
           "refs": ["OPS-RB-EPD-7 step 3", "call 27"]
         }
@@ -140,8 +160,8 @@
     {
       "id": "contrast",
       "view": "split",
-      "start": 27,
-      "end": 40.5,
+      "start": 29.24,
+      "end": 43.06,
       "title": "The same reply in the other run",
       "kicker": "T01 · R8-sonnet-1 against R8-sonnet-2 · build 8bc9c6a",
       "split": {
@@ -152,7 +172,7 @@
           [{"t": "03:00:31", "label": "applied", "color": "teal"}]
         ]
       },
-      "clock": {"keys": [[27, "02:52:00"], [36, "03:45:00", "linear"], [40.5, "03:45:00"]]},
+      "clock": {"keys": [[29.24, "02:52:00"], [38.46, "03:45:00", "linear"], [43.06, "03:45:00"]]},
       "window": ["02:50:00", "03:45:00"],
       "lanes": ["ck", "dns", "calls"],
       "heights": {"ck": 190, "dns": 30, "calls": 56},
@@ -160,30 +180,30 @@
         {
           "target": "r0:lane:ck",
           "range": ["02:50:00", "03:41:00"],
-          "start": 36.2,
-          "end": 40.5,
+          "start": 38.66,
+          "end": 43.06,
           "color": "red",
           "label": "under 99 % until 03:41"
         },
         {
           "target": "r1:lane:ck",
           "range": ["03:09:00", "03:45:00"],
-          "start": 36.2,
-          "end": 40.5,
+          "start": 38.66,
+          "end": 43.06,
           "color": "teal",
           "label": "99.7 % from 03:09"
         }
       ],
       "captions": [
         {
-          "start": 27.2,
-          "end": 33,
+          "start": 29.45,
+          "end": 35.39,
           "text": "R8-sonnet-2, same build, asked the same question at 02:58 and got the same reply. It applied {teal:66 s} later.",
           "refs": ["R8-sonnet-2 calls 36, 39", "priya.raman 02:59:25"]
         },
         {
-          "start": 33,
-          "end": 40.5,
+          "start": 35.39,
+          "end": 43.06,
           "text": "Checkout recovered at 03:09 there, and at {red:03:41} in the run that waited.",
           "refs": ["series.ck (both runs)"]
         }
@@ -193,8 +213,8 @@
     {
       "id": "verdict",
       "view": "verdict",
-      "start": 40.5,
-      "end": 47,
+      "start": 43.06,
+      "end": 49.56,
       "kicker": "Verdict · T01 · R8-sonnet-1 · Claude Sonnet 5.5",
       "why": "raw 0.68 · no cap",
       "headline": "Restored at 03:28, {red:8 minutes past the 03:20 deadline:} C2, a core check, fails.",
@@ -205,8 +225,8 @@
       ],
       "captions": [
         {
-          "start": 40.8,
-          "end": 47,
+          "start": 43.36,
+          "end": 49.56,
           "text": "Labelled {violet:partly environment:} the rule and the first reply were clear, but the follow-up went unanswered.",
           "refs": ["regrade-final · R8-sonnet-1", "modes-sonnet"]
         }

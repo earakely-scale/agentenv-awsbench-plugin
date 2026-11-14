@@ -7,7 +7,7 @@
   "title": "Three clocks",
   "theme": "dark",
   "stage": "stages/t01.json",
-  "poster": 27.5,
+  "poster": 27.8,
   "facts": [
     "A montage of three runs at build 689ab3b: R12-haiku-1 (C8), R12-haiku-6 (C10), R13-fable-6 (C9, near miss). Verified 2026-11-13 against qcdata/runs and tools/export_run.py output. No film-level kicker: each scene's header names its own run.",
     "R12-haiku-1: n=4 pager_ack ends 02:41:45; n=8 wiki_get OPS-POL-IP-2026 ends 02:43:05; n=31-32 CloudTrail lookups to 02:56:35; n=35 '#inc-4452 ... Declaring SEV1' 02:59:20; n=36 tickets_update severity SEV1 ends 03:00:05 (board.ticket SEV1 at 03:00:05); C8 'SEV1 at 03:00:05 (deadline 02:56:45)'.",
@@ -19,7 +19,7 @@
     {
       "id": "open",
       "view": "title",
-      "start": 0,
+      "start": 0.0,
       "end": 4.5,
       "kicker": "AwsIncidentsBench · T01 · The incident's timers",
       "title": "Three clocks",
@@ -31,9 +31,9 @@
       "id": "declare",
       "view": "world",
       "start": 4.5,
-      "end": 17,
+      "end": 17.3,
       "title": "Clock 1: declare within 15 minutes of the ack",
-      "clock": {"keys": [[4.5, "02:41:00"], [7.5, "02:43:05"], [12.5, "02:56:45", "linear"], [15, "03:00:05"], [17, "03:00:30"]]},
+      "clock": {"keys": [[4.5, "02:41:00"], [7.57, "02:43:05"], [12.69, "02:56:45", "linear"], [15.25, "03:00:05"], [17.3, "03:00:30"]]},
       "window": ["02:40:00", "03:04:00"],
       "lanes": ["ck", "dns", "calls"],
       "heights": {"ck": 120, "dns": 34, "calls": 90},
@@ -43,20 +43,27 @@
         {"t": "03:00:05", "label": "SEV1", "color": "amber"}
       ],
       "highlights": [
-        {"target": "lane:calls", "range": ["02:41:45", "02:56:45"], "start": 8, "end": 17, "color": "amber", "label": "15 min"},
-        {"target": "lane:calls", "range": ["02:56:45", "03:00:05"], "start": 15.1, "end": 17, "color": "red", "label": "3 min 20 s"},
-        {"target": "hud:ticket", "start": 14.8, "end": 17, "color": "red", "pulse": true}
+        {"target": "lane:calls", "range": ["02:41:45", "02:56:45"], "start": 8.08, "end": 17.3, "color": "amber", "label": "15 min"},
+        {
+          "target": "lane:calls",
+          "range": ["02:56:45", "03:00:05"],
+          "start": 15.35,
+          "end": 17.3,
+          "color": "red",
+          "label": "3 min 20 s"
+        },
+        {"target": "hud:ticket", "start": 15.04, "end": 17.3, "color": "red", "pulse": true}
       ],
       "captions": [
         {
-          "start": 4.8,
-          "end": 10.6,
+          "start": 4.81,
+          "end": 10.74,
           "text": "R12-haiku-1 acks the page at 02:41:45 and reads the rule at 02:43: declare within 15 minutes of the ack.",
           "refs": ["calls 4, 8", "Incident Process §2"]
         },
         {
-          "start": 10.6,
-          "end": 17,
+          "start": 10.74,
+          "end": 17.3,
           "text": "It investigates first: logs, alarms, CloudTrail. SEV1 lands on OPS-4452 at {red:03:00:05,} 3 min 20 s late.",
           "refs": ["calls 21-36", "board.ticket", "grade C8"]
         }
@@ -66,10 +73,10 @@
       "id": "channel",
       "view": "world",
       "run": "R12-haiku-6",
-      "start": 17,
-      "end": 30,
+      "start": 17.3,
+      "end": 30.3,
       "title": "Clock 2: the channel at least every 30 minutes",
-      "clock": {"keys": [[17, "04:01:30"], [19.5, "04:02:47"], [23.5, "04:32:47", "linear"], [25.5, "04:46:17"], [30, "04:47:00"]]},
+      "clock": {"keys": [[17.3, "04:01:30"], [19.8, "04:02:47"], [23.8, "04:32:47", "linear"], [25.8, "04:46:17"], [30.3, "04:47:00"]]},
       "window": ["03:55:00", "04:50:00"],
       "lanes": ["ck", "dns", "calls"],
       "heights": {"ck": 120, "dns": 34, "calls": 90},
@@ -82,23 +89,23 @@
         {
           "target": "lane:calls",
           "range": ["04:02:47", "04:46:17"],
-          "start": 25.6,
-          "end": 30,
+          "start": 25.9,
+          "end": 30.3,
           "color": "red",
           "label": "43.5 min, no #inc-4452 post"
         },
-        {"target": "call:103", "start": 25.6, "end": 30, "color": "blue", "pulse": true, "pad": 4}
+        {"target": "call:103", "start": 25.9, "end": 30.3, "color": "blue", "pulse": true, "pad": 4}
       ],
       "captions": [
         {
-          "start": 17.3,
-          "end": 23.6,
+          "start": 17.6,
+          "end": 23.9,
           "text": "R12-haiku-6 is waiting on an approval. Its last channel update, at 04:02:47: still blocked, checkout still failing.",
           "refs": ["call 94 · #inc-4452"]
         },
         {
-          "start": 23.6,
-          "end": 30,
+          "start": 23.9,
+          "end": 30.3,
           "text": "At 04:23 it tells the user “Nothing new in 10 minutes”. The channel hears from it again at {red:04:46:17.}",
           "refs": ["transcript 04:23", "call 103", "grade C10"]
         }
@@ -108,11 +115,18 @@
       "id": "records",
       "view": "world",
       "run": "R13-fable-6",
-      "start": 30,
-      "end": 42,
+      "start": 30.3,
+      "end": 42.3,
       "title": "Clock 3: a CHANGE record within 15 minutes",
       "clock": {
-        "keys": [[30, "02:59:30"], [32.5, "03:00:10"], [37, "03:14:00", "linear"], [38.5, "03:14:45"], [40, "03:15:10"], [42, "03:15:20"]]
+        "keys": [
+          [30.3, "02:59:30"],
+          [32.8, "03:00:10"],
+          [37.3, "03:14:00", "linear"],
+          [38.8, "03:14:45"],
+          [40.3, "03:15:10"],
+          [42.3, "03:15:20"]
+        ]
       },
       "window": ["02:56:00", "03:18:00"],
       "lanes": ["ck", "dns", "calls"],
@@ -122,15 +136,15 @@
         {
           "target": "lane:calls",
           "range": ["03:00:10", "03:14:45"],
-          "start": 33,
-          "end": 42,
+          "start": 33.3,
+          "end": 42.3,
           "color": "amber",
           "label": "14 min 35 s"
         },
         {
           "target": "call:66",
-          "start": 38.6,
-          "end": 42,
+          "start": 38.9,
+          "end": 42.3,
           "color": "teal",
           "pulse": true,
           "pad": 4,
@@ -140,14 +154,14 @@
       ],
       "captions": [
         {
-          "start": 30.3,
-          "end": 36,
+          "start": 30.6,
+          "end": 36.3,
           "text": "R13-fable-6 makes four changes from 03:00:10, then flushes cached NXDOMAIN host by host, AZ by AZ.",
           "refs": ["calls 45-49", "calls 52-65"]
         },
         {
-          "start": 36,
-          "end": 42,
+          "start": 36.3,
+          "end": 42.3,
           "text": "Its CHANGE records go out at 03:14:45, {teal:25 seconds} inside the first change's window. Nothing lost.",
           "refs": ["call 66", "grade C9 · 13 changes, none unrecorded"]
         }
@@ -157,16 +171,16 @@
       "id": "close",
       "view": "title",
       "run": "R13-fable-6",
-      "start": 42,
-      "end": 47,
+      "start": 42.3,
+      "end": 48.95,
       "kicker": "Three clocks · 10 of 100 points",
       "title": "Small points, steady habits",
       "subtitle": "Haiku lost at least one clock in 5 of 6 runs, Sonnet in 1 of 6. {teal:Opus, Fable and GPT-6 Astra lost none} on the final grader.",
       "meta": ["Haiku 5 of 6", "Sonnet 1 of 6", "Opus 0 of 12", "Fable 0 of 6", "Astra 0 of 2"],
       "captions": [
         {
-          "start": 42.3,
-          "end": 47,
+          "start": 42.7,
+          "end": 48.95,
           "text": "No clock decides a pass alone. Together they ask the IC to keep the incident's record moving while it works.",
           "refs": ["grade C8, C9, C10"]
         }
