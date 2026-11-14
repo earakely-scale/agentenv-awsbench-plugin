@@ -22,8 +22,8 @@ as **AwsIncidentsBench**.
   runs.
 - **[Dataset](https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench):** every run's viewer JSON, scrubbed
   exports, grade and transcript, the task cards and the films.
-- **[Harbor package](harbor/):** T01 as a Harbor task that runs the same artifacts as the AgentEnv run. It is on the
-  [`harbor` branch](https://github.com/earakely-scale/agentenv-awsbench-plugin/tree/harbor/harbor) until it merges.
+- **[Harbor package](harbor/):** T01 as a Harbor task that runs the same artifacts as the AgentEnv run, with its
+  [parity matrix](harbor/PARITY.md) against the AgentEnv task.
 - **Docs:** the [T01](docs/T01.md) and [T03](docs/T03.md) task pages, [the environment](docs/environment.md), and
   [CONTRACTS.md](CONTRACTS.md), the interfaces between the parts.
 
@@ -116,14 +116,12 @@ The Harbor package, `harbor/t01-empty-ledger-endpoint`, is generated from the Ag
 - the same AgentEnv gateway, service-db and Claude Code agent images, by digest;
 - the same setup calls, post-turn hook and grader.
 
-It is on the [`harbor` branch](https://github.com/earakely-scale/agentenv-awsbench-plugin/tree/harbor/harbor) until it
-merges into `main`. Its [README](https://github.com/earakely-scale/agentenv-awsbench-plugin/blob/harbor/harbor/README.md)
-maps every AgentEnv step onto Harbor.
+Its [README](harbor/README.md) says how to run it and what it checks, and [PARITY.md](harbor/PARITY.md) compares it
+with the AgentEnv task part by part, with the evidence.
 
 **Requirements.** Harbor 0.26.0, the version the package is built and checked with (`pip install harbor==0.26.0`;
-the package's agents need nothing else), and Docker with compose. Until the package merges, run from a checkout of the
-`harbor` branch (`git checkout harbor`). The model endpoint and key come from the environment (`LITELLM_BASE_URL`,
-`LITELLM_API_KEY`), for the agent and for the C11 judge. Nothing is written to a file.
+the package's agents need nothing else), and Docker with compose. The model endpoint and key come from the environment
+(`LITELLM_BASE_URL`, `LITELLM_API_KEY`), for the agent and for the C11 judge. Nothing is written to a file.
 
 **Agent.** Use `awsbench_harbor.claude_code:AgentEnvClaudeCode` from `harbor/agents`:
 
@@ -139,19 +137,21 @@ Codex agent yet.
 export PYTHONPATH=$PWD/harbor/agents
 # the AgentEnv harness, any model the endpoint serves (the id is passed to Claude Code verbatim, as agent-env run --model):
 harbor run -p harbor/t01-empty-ledger-endpoint -a awsbench_harbor.claude_code:AgentEnvClaudeCode -m anthropic/claude-sonnet-5-5
-# the canonical solution, a variant (AWSBENCH_SOLUTION_MODE=alt|trap|rollback|early|scale|weakshed|noshed|nothing), no-op:
+# the canonical solution and the no-op; QC only, another path (AWSBENCH_QC_SOLUTION_MODE=alt|trap|rollback|early|...):
 harbor run -p harbor/t01-empty-ledger-endpoint -a oracle
-AWSBENCH_SOLUTION_MODE=trap harbor run -p harbor/t01-empty-ledger-endpoint -a oracle
 harbor run -p harbor/t01-empty-ledger-endpoint -a nop
+AWSBENCH_QC_SOLUTION_MODE=trap harbor run -p harbor/t01-empty-ledger-endpoint -a oracle
 # a scripted path that then replies DONE through the hook, as tests/e2e/driver.py's finish() does; judge off:
-harbor run -p harbor/t01-empty-ledger-endpoint -a awsbench_harbor.scripted:ScriptedSolution --ak mode=oracle --ve LITELLM_API_KEY=
+harbor run -p harbor/t01-empty-ledger-endpoint -a awsbench_harbor.scripted:ScriptedSolution --ak mode=oracle --ve AWSBENCH_JUDGE=off
 ```
 
 **Where the reward lands.** Harbor writes each trial under `jobs/<job>/<trial>/` (`-o` puts the jobs in another
 folder). The verifier's output is in that trial's `verifier/` folder:
 
-- `reward.json` holds `reward`, which is D12. Next to it are `pass`, `raw`, `calls_used`, each check's score, and each
-  gate as 1 when it fired.
+- `reward.json` holds `reward`, which is D12. Next to it are `pass`, `raw`, `calls_used`, each check's score, each
+  gate as 1 when it fired, `judge_on`, `judge_answered`, `conversation` and `turns`. A trial whose score would not
+  measure the model (a Harbor-side failure, an endpoint error before any tool call, no judge key without
+  `AWSBENCH_JUDGE=off`) gets no reward: Harbor shows it as an error and leaves it out of the mean.
 - `grade.json` holds the grader's rows.
 - `test-stdout.txt` prints them.
 
@@ -165,6 +165,8 @@ The package's QC (`harbor/qc/`) gives these rewards:
 | `trap` | 0.2 |
 | `rollback` | 0.25 (G2) |
 | `early` | 0.4 (G3) |
+| `scale` | 0.25 (G2) |
+| `weakshed`, `noshed` | 0.74 |
 
 Each scripted mode's rows and D12 equal the AgentEnv driver's on the same commit and host.
 
@@ -498,7 +500,7 @@ tests/unit/                               pure-Python tests per part
 tests/e2e/                                the scripted driver and the robustness checks
 tools/                                    run exporters, the Space and dataset builder, the film renderer
 hub/                                      sources of the Hugging Face Space and dataset
-harbor/                                   the Harbor package (on the harbor branch until it merges)
+harbor/                                   the Harbor package, its parity matrix and QC
 docs/                                     task pages, the environment, README assets
 CONTRACTS.md                              the interfaces between the parts
 ```
