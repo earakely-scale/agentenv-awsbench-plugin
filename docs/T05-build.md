@@ -353,4 +353,4 @@ C09 and C10 are not core, so neither changes a pass. Without them every Opus run
 design's letter and flagged for the owner.
 
 Environment note, no grade effect: a `capctl ... --reason "..."` whose quoted text holds a `;` is refused as a shell
-operator (uncharged; the shared T01 rule). Five runs retried with a hyphenated reason.
+operator (uncharged; the shared T01 rule). Five runs (three Opus, two Sonnet) retried with a hyphenated reason.
