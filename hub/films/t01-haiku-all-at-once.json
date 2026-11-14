@@ -9,7 +9,7 @@
   "kicker": "T01 · R12-haiku-3 · Claude Haiku 5.5",
   "theme": "dark",
   "stage": "stages/t01.json",
-  "poster": 22,
+  "poster": 22.25,
   "facts": [
     "Verified 2026-11-13 against qcdata/runs/R12-haiku-3 and R12-opus-2 (build 689ab3b), exported with tools/export_run.py. Call numbers are the viewer's step n (transcript CALL minus 1 in R12-haiku-3).",
     "R12-haiku-3: n=127 ssm put_parameter consumer_paused=false ends 04:20:28, series.conc 25; messages[19] (04:21:13) 'Progress: OutboxPending = 0 ...'; event 04:20:30 'Collapses under the reconnect load'; series.ld 2740 (cap 1500) 04:21:00-04:24:30; series.ck 566 at 04:21, 350 for 04:22-04:27, 566 at 04:28, 997 from 04:29; series.rg c 04:20:30-04:27:30; series.bl 192,717 at 04:20.",
@@ -21,7 +21,7 @@
     {
       "id": "open",
       "view": "title",
-      "start": 0,
+      "start": 0.0,
       "end": 4.5,
       "kicker": "AwsIncidentsBench · T01 · The Empty Ledger Endpoint",
       "title": "All at once",
@@ -32,16 +32,16 @@
       "id": "unpause",
       "view": "world",
       "start": 4.5,
-      "end": 16,
+      "end": 16.0,
       "title": "The unpause",
-      "clock": {"keys": [[4.5, "04:17:00"], [8.5, "04:20:28"], [12.5, "04:23:30", "linear"], [16, "04:25:00"]]},
+      "clock": {"keys": [[4.5, "04:17:00"], [8.5, "04:20:28"], [12.5, "04:23:30", "linear"], [16.0, "04:25:00"]]},
       "window": ["04:00:00", "04:40:00"],
       "lanes": ["ck", "ld", "rg", "bl", "calls"],
       "heights": {"ck": 110, "ld": 96, "rg": 30, "bl": 70, "calls": 50},
       "highlights": [
-        {"target": "lever:consumer_paused", "start": 7.6, "end": 11, "color": "red", "pulse": true},
-        {"target": "lane:ld", "range": ["04:21:00", "04:25:00"], "start": 11, "end": 16, "color": "red"},
-        {"target": "lane:ck", "range": ["04:21:00", "04:29:00"], "start": 12.4, "end": 16, "color": "red"}
+        {"target": "lever:consumer_paused", "start": 7.6, "end": 11.0, "color": "red", "pulse": true},
+        {"target": "lane:ld", "range": ["04:21:00", "04:25:00"], "start": 11.0, "end": 16.0, "color": "red"},
+        {"target": "lane:ck", "range": ["04:21:00", "04:29:00"], "start": 12.4, "end": 16.0, "color": "red"}
       ],
       "captions": [
         {
@@ -52,7 +52,7 @@
         },
         {
           "start": 10.2,
-          "end": 16,
+          "end": 16.0,
           "text": "With 192,717 webhooks queued, load hits {red:2,740 of 1,500 req/s.} Ledger-writer collapses; checkout falls to 35 %.",
           "refs": ["series.bl", "series.ld", "series.rg", "series.ck"]
         }
@@ -61,8 +61,8 @@
     {
       "id": "decision",
       "view": "decision",
-      "start": 16,
-      "end": 28,
+      "start": 16.0,
+      "end": 28.5,
       "title": "Decision point: wait for a sign-off",
       "clock": {"at": "04:39:41"},
       "window": ["04:00:00", "04:45:00"],
@@ -73,8 +73,8 @@
         {
           "target": "lane:bl",
           "range": ["04:24:50", "04:39:41"],
-          "start": 16.4,
-          "end": 28,
+          "start": 16.42,
+          "end": 28.5,
           "color": "amber",
           "label": "paused, backlog growing"
         }
@@ -82,7 +82,7 @@
       "callout_y": 366,
       "callout_h": 190,
       "callout": {
-        "start": 16.6,
+        "start": 16.62,
         "blocks": [
           {
             "kind": "quote",
@@ -124,14 +124,14 @@
       },
       "captions": [
         {
-          "start": 16.3,
-          "end": 22,
-          "text": "It writes the fix itself, a lower concurrency, then holds the webhooks until payments signs off.",
+          "start": 16.31,
+          "end": 22.25,
+          "text": "Its own CHANGE record names the fix, a lower concurrency, yet it holds the webhooks until payments signs off.",
           "refs": ["messages · 04:25:35, 04:36:45"]
         },
         {
-          "start": 22,
-          "end": 28,
+          "start": 22.25,
+          "end": 28.5,
           "text": "Hannah answers that the levers are the runbook's. The webhooks {red:stay paused to 05:10.}",
           "refs": ["hannah.becker 04:39:20", "levers"]
         }
@@ -140,8 +140,8 @@
     {
       "id": "contrast",
       "view": "split",
-      "start": 28,
-      "end": 40.5,
+      "start": 28.5,
+      "end": 41.0,
       "title": "The way back in a passing run",
       "kicker": "T01 · R12-haiku-3 against R12-opus-2 · build 689ab3b",
       "split": {
@@ -152,7 +152,7 @@
           [{"t": "03:19:35", "label": "unpaused at 5", "color": "teal"}]
         ]
       },
-      "clock": {"keys": [[28, "03:13:00"], [35, "05:10:00", "linear"], [40.5, "05:10:00"]]},
+      "clock": {"keys": [[28.5, "03:13:00"], [35.5, "05:10:00", "linear"], [41.0, "05:10:00"]]},
       "window": ["03:13:00", "05:10:00"],
       "lanes": ["ck", "ld", "bl"],
       "heights": {"ck": 120, "ld": 96, "bl": 84},
@@ -160,39 +160,39 @@
         {
           "target": "r1:lane:ld",
           "range": ["03:19:35", "03:23:00"],
-          "start": 29.5,
-          "end": 40.5,
+          "start": 30.0,
+          "end": 41.0,
           "color": "teal",
           "label": "peak 740"
         },
-        {"target": "r0:lane:ld", "range": ["04:20:30", "04:25:00"], "start": 33, "end": 40.5, "color": "red", "label": "2,740"},
+        {"target": "r0:lane:ld", "range": ["04:20:30", "04:25:00"], "start": 33.5, "end": 41.0, "color": "red", "label": "2,740"},
         {
           "target": "r1:lane:bl",
           "range": ["03:19:35", "03:22:00"],
-          "start": 29.5,
-          "end": 40.5,
+          "start": 30.0,
+          "end": 41.0,
           "color": "teal",
           "label": "0 by 03:22"
         },
         {
           "target": "r0:lane:bl",
           "range": ["04:24:50", "05:10:00"],
-          "start": 35.2,
-          "end": 40.5,
+          "start": 35.7,
+          "end": 41.0,
           "color": "red",
           "label": "286,917 at 05:10"
         }
       ],
       "captions": [
         {
-          "start": 28.2,
-          "end": 34.4,
+          "start": 28.7,
+          "end": 34.9,
           "text": "R12-opus-2, same build: concurrency 5 first, then unpause. Load peaked at {teal:740 of 1,500 req/s.}",
           "refs": ["R12-opus-2 calls 62-63", "series.ld"]
         },
         {
-          "start": 34.4,
-          "end": 40.5,
+          "start": 34.9,
+          "end": 41.0,
           "text": "Its queue was empty by 03:22. Haiku's held {red:286,917} webhooks when the window closed.",
           "refs": ["series.bl (both runs)"]
         }
@@ -202,8 +202,8 @@
     {
       "id": "verdict",
       "view": "verdict",
-      "start": 40.5,
-      "end": 47,
+      "start": 41.0,
+      "end": 47.5,
       "kicker": "Verdict · T01 · R12-haiku-3 · Claude Haiku 5.5",
       "why": "raw 0.42 · no cap",
       "headline": "Two core checks lost to the way back: {red:C6,} the storm inside 04:00–05:10, and {red:C7,} a backlog never drained.",
@@ -214,8 +214,8 @@
       ],
       "captions": [
         {
-          "start": 40.8,
-          "end": 47,
+          "start": 41.3,
+          "end": 47.5,
           "text": "Shedding was right. The judgment tested here is the way back: {teal:relax gradually once backlogs drain.}",
           "refs": ["OPS-RB-LEDG-2", "grade C6, C7"]
         }

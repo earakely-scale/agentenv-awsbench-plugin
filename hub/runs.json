@@ -457,7 +457,7 @@
           "G3"
         ],
         "recorded_d12": 0.4,
-        "why": "Fair: G3. At 03:25:40 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7 % every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.",
+        "why": "Fair: G3. At 03:26:25 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7% every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.",
         "losses": "fair",
         "failure": "fair"
       }
