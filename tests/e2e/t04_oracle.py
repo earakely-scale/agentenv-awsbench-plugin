@@ -202,7 +202,7 @@ def steps_for(mode):
                                "--type String --overwrite"))
                 out.append(rm("publish --all"))
             continue
-        if mode == "cutover" and tool == "aws_cli" and SIDE in args.get("command", ""):
+        if mode == "cutover" and SIDE in json.dumps(args):
             continue
         if mode == "cutover" and tag == "after-restore":
             args = {"until": "13:43:30"}
@@ -210,6 +210,7 @@ def steps_for(mode):
             continue
         if mode == "early-resume" and tag == "daniel":
             out.append((tool, args))
+            out.append(wait("13:37:30"))
             out.append(rm("workflows resume scaler"))
             out.append(rm("workflows resume rebalancer"))
             out.append(say("CHANGE: resumed scaler and rebalancer | why: normal operation | undo: pause | auth: PF "
