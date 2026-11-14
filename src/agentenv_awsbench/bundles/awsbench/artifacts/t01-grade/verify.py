@@ -1176,10 +1176,22 @@ async def judge_c11(text, truth=""):
         response = await litellm.acompletion(
             model=f"openai/{model}" if base else model, api_base=base, api_key=os.environ.get("LITELLM_API_KEY"),
             messages=[{"role": "user", "content": prompt}], temperature=0, response_format={"type": "json_object"})
-        body = response.choices[0].message.content
-        return json.loads(body[body.find("{"):body.rfind("}") + 1])
+        return judge_answer(response.choices[0].message.content)
     answers = await asyncio.gather(*(sample() for _ in range(JUDGE_SAMPLES)), return_exceptions=True)
     return {"samples": [{"error": repr(a)} if isinstance(a, BaseException) else a for a in answers]}
+
+
+TRAILING_COMMA = re.compile(r",\s*([}\]])")
+
+
+def judge_answer(body):
+    """The judge's JSON object. Sonnet 5.5 sometimes leaves a comma after an object's last item ('},},'), so an answer
+    that doesn't parse as written is read again without commas before a closing brace or bracket."""
+    body = body[body.find("{"):body.rfind("}") + 1]
+    try:
+        return json.loads(body)
+    except ValueError:
+        return json.loads(TRAILING_COMMA.sub(r"\1", body))
 
 
 FOLD = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2212": "-", "\u2192": "->", "\u21d2": "->",

@@ -52,7 +52,7 @@ Status: **=** identical; **= by construction** identical because the same file o
 | 13 | Post-turn hook | `awsbench-turn` hook, run in process | the same file, run in the harness with the same `Turn` and env interface | = by construction | byte copy (unit test); decisions and records equal in every replay |
 | 14 | Hook decision transport | in process | harness writes it to a file, a second exec reads it | = | the old stdout parse raced with stderr (2 of 26 trials); fixed, unit test with interleaved output |
 | 15 | Horizon and exports | `horizon` step, grader's `fetch()` | `[[verifier.collect]]` runs the same step and `fetch()` | = | exports equal in every replay (0 differences) |
-| 16 | Grader | `t01-grade/verify.py` (sha256 `41f2efc6…`) | the same file in `tests/` and the harness | = by construction | byte copy (unit test, `export_harbor.py --check` in the unit suite) |
+| 16 | Grader | `t01-grade/verify.py` (sha256 `9b829d6c…`) | the same file in `tests/` and the harness | = by construction | byte copy (unit test, `export_harbor.py --check` in the unit suite) |
 | 17 | Score | `weighted_average` of the rows = D12 | the framework's `scoring.py` (byte copy) | = by construction | `reward` = D12 with the same rounding |
 | 18 | C11 judge | litellm, `AWSBENCH_JUDGE_MODEL` (default `claude-sonnet-5-5`), 3 samples, temperature 0, in the host process | the same code and default, forwarded; `judge_on` and `judge_answered` in `reward.json`; in the verifier container | ≈ | R15: 3 of 3 samples answered with the same model in every run on both. R16: the same request body, prompt template, model and serving on both; the client header `x-stainless-runtime-version` differs (3.12.16 in Harbor's verifier container, 3.12.3 in the host's Python), which the judge model does not see |
 | 19 | Clock | rate 0: only tool calls move it, one at a time under the meter's lock | the same gateway and servers | = | |
@@ -89,7 +89,7 @@ was generated from: any commit `C` with `git rev-parse C:<path>` equal to them h
 
 ### Grader
 
-The package's grader is the AgentEnv task's (sha256 `41f2efc6…`, after the C9 shorthand fixes `cd49049` and
+The package's grader is the AgentEnv task's (sha256 `9b829d6c…`, after the C9 shorthand fixes `cd49049` and
 `f66efa2`). Before this change it was the older `d804214c…`, under which 5 of the 6 GPT-6 Astra runs (R14) failed C9
 that AgentEnv credits; with the same file, every recorded export grades the same on both.
 
@@ -259,7 +259,7 @@ list price. Claude Code's own totals give the same $11.07.
 
 | # | Finding | Now |
 |---|---|---|
-| 1 | Package grader older than the task's | fixed: main merged, grader sha256 `41f2efc6…` on both; `PROVENANCE.json` names source trees |
+| 1 | Package grader older than the task's | fixed: main merged, grader sha256 `9b829d6c…` on both; `PROVENANCE.json` names source trees |
 | 2 | Emulator, base image and pip unpinned | fixed in the bundle (both systems): base by digest, emulator by sha256, pip by hash; a build that would differ fails |
 | 3 | Decision parsed from merged stdout/stderr | fixed: answer files read by a second exec; logs to a file |
 | 4 | Harbor-only failures graded as valid | fixed: end records; no reward after a Harbor-side failure or a first turn that failed before any tool call; `turns`, `conversation` in `reward.json` |

@@ -3,6 +3,7 @@ capped, and the step rows aggregate to D12."""
 import asyncio
 import copy
 import importlib.util
+import inspect
 from pathlib import Path
 
 import pytest
@@ -980,6 +981,24 @@ def test_judge_c11_samples_three_times_with_the_ground_truth(monkeypatch):
     verdict = asyncio.run(grade.judge_c11("note", "Plans 48189-48221 give ..."))
     assert len(prompts) == 3 and "GROUND TRUTH:\nPlans 48189-48221" in prompts[0] and "X5: Misstates" in prompts[0]
     assert [bool(s.get("error")) for s in verdict["samples"]] == [False, True, False]
+
+
+def test_judge_answer_reads_sonnet_s_trailing_comma_as_t03_s_grader_does():
+    """The shape Sonnet 5.5 returned: a comma after the last fact, before the object closes ('},},')."""
+    body = ('{"facts":{"F1":{"reason":"r","conveyed":true,"quote":"plan 48177 lists 10.20.76.29"},'
+            '"F2":{"reason":"r","conveyed":false,"quote":""},},"forbidden":{"X1":{"reason":"r","present":false,'
+            '"quote":""},},}')
+    assert grade.judge_answer(body) == {
+        "facts": {"F1": {"reason": "r", "conveyed": True, "quote": "plan 48177 lists 10.20.76.29"},
+                  "F2": {"reason": "r", "conveyed": False, "quote": ""}},
+        "forbidden": {"X1": {"reason": "r", "present": False, "quote": ""}}}
+    assert grade.judge_answer('Here: {"facts": {"F1": {"quote": "late, }"}}, "forbidden": {}}')["facts"]["F1"][
+        "quote"] == "late, }"
+    with pytest.raises(ValueError):
+        grade.judge_answer('{"facts": {"F1": {"conveyed": true, "quote": "the "ledger" plan"}}}')
+    t03 = load("t03-grade", "verify.py")
+    assert inspect.getsource(grade.judge_answer) == inspect.getsource(t03.judge_answer)
+    assert grade.TRAILING_COMMA.pattern == t03.TRAILING_COMMA.pattern
 
 
 def test_g4_names_people_only_when_capitalized():

@@ -49,7 +49,7 @@
   "environment/harness/hook.py": "a746a1a8e9928733b0f2513389df1aa8855bef546983acfa5f3493c539a19763",
   "environment/harness/requirements.txt": "e676e4388dc03414277781fcbb87047a42b266e8cdd7f64c8ae906622141f362",
   "environment/harness/setup.json": "49a519d7339826e59c93b5a3ae1cf0fb099c355630e68882b8c2c71ae0efe9a2",
-  "environment/harness/verify.py": "41f2efc681fa42acfd189cc377542ac578dc4305708a4bc6833d99779f913a58",
+  "environment/harness/verify.py": "9b829d6c11717f8d3c14492387faf130a64b331931fd8b1f553a7a9e4f071ba7",
   "environment/main/agentenv-env.json": "210f4532d6004130aaba6bcdc35b5698afc450a1ec5c89dcd5119901ee0ce9b7",
   "environment/main/entrypoint.sh": "487bbcdcd21e61a95712355eedede3e4fc02274b95d6c2fbd1852d176f00f6a7",
   "environment/main/peers.py": "519e1a02014a9cc2592d976615cba71d1dd6008b1c9446c6949683958dfd13b3",
@@ -151,7 +151,7 @@
   "tests/run_grade.py": "9598cb151e6d896f11b5040829475e7baa559487e0890030e4af2f6c8f6d809c",
   "tests/scoring.py": "a6c25777026d635a27dfdc1aaa5bfb7e4e42f688095b94f1059c1a7975b7c574",
   "tests/test.sh": "d432bae12198aa55e21eacbe86907090a017e824bc635efaffd8879f4f8d2337",
-  "tests/verify.py": "41f2efc681fa42acfd189cc377542ac578dc4305708a4bc6833d99779f913a58"
+  "tests/verify.py": "9b829d6c11717f8d3c14492387faf130a64b331931fd8b1f553a7a9e4f071ba7"
  },
  "images": {
   "agent": "ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6",
@@ -170,12 +170,12 @@
   "workspace_requirements_sha256": "2c21d12d12190b76ae1f601d08832136dfa1ca1d6bb300e8c6c6eb5ca8acf20d"
  },
  "source_trees": {
-  "bundle": "9bea2706e02b990bbff9d3ab3ca4620bec2b3e7f",
+  "bundle": "7697e4928f65f9e5c17e7c7bed03aadc842ad0b9",
   "driver": "316e88d8dbcdf48b4d70a83181261521544abd82",
   "harbor_base": "f75aee93bdceecb89ec6d5bd6236d877856bec18"
  },
  "sources_sha256": {
-  "grader": "41f2efc681fa42acfd189cc377542ac578dc4305708a4bc6833d99779f913a58",
+  "grader": "9b829d6c11717f8d3c14492387faf130a64b331931fd8b1f553a7a9e4f071ba7",
   "hook": "a746a1a8e9928733b0f2513389df1aa8855bef546983acfa5f3493c539a19763",
   "task": "fd00bed9e92346da505527b8af17d42a6e0ce3bf019990d55ac0629d6c38942f"
  }
