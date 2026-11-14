@@ -1,0 +1,8 @@
+agentenv-framework-protocol==0.1.536
+fastmcp>=3.4,<4
+mcp>=1.25,<2
+uvicorn
+awscli==1.46.3
+boto3
+pyyaml
+httpx
