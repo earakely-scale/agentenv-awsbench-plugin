@@ -17,6 +17,7 @@ from .conversation import HookConversation
 
 CLAUDE_CODE_VERSION = "2.1.322"
 PEER_AGENTS = {"url": "http://127.0.0.1:8000/ext/peer-agents/mcp", "headers": None}
+CONTAINER_TURNS = "/tmp/awsbench/turns"
 
 
 class AgentEnvClaudeCode(HookConversation):
@@ -37,14 +38,16 @@ class AgentEnvClaudeCode(HookConversation):
         self.session_id = str(uuid.uuid4())
         self.turns_dir = self.logs_dir / "turns"
         self.turns_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.turns_dir, 0o777)
 
     async def turn(self, environment, number, message):
+        """Files go in and out with Harbor's upload and download (docker cp): the host's trial folder is not mounted in
+        the solver container, so nothing is shared through /logs/agent."""
         prompt = self.params["prompt"]
         stem = f"{number:03d}"
+        box = f"{CONTAINER_TURNS}/{stem}"
         (self.turns_dir / f"{stem}.prompt.txt").write_text(message, encoding="utf-8")
         spec = {
-            "prompt_file": f"/logs/agent/turns/{stem}.prompt.txt",
+            "prompt_file": f"{box}.prompt.txt",
             "session_id": self.session_id,
             "model": self.model_name,
             "mcp_servers": {self.params["server_name"]: {"url": self.params["mcp_url"],
@@ -55,18 +58,26 @@ class AgentEnvClaudeCode(HookConversation):
             "role": self.params["role"],
             "max_turns": prompt["max_turns"],
             "builtin_tools": prompt["builtin_tools"],
-            "out": f"/logs/agent/turns/{stem}",
+            "out": box,
         }
         (self.turns_dir / f"{stem}.spec.json").write_text(json.dumps(spec, indent=1), encoding="utf-8")
+        await environment.exec(f"mkdir -p {CONTAINER_TURNS}", user="agent", timeout_sec=60)
+        for kind in ("prompt.txt", "spec.json"):
+            await environment.upload_file(self.turns_dir / f"{stem}.{kind}", f"{box}.{kind}")
         env = {k: os.environ[k] for k in ("LITELLM_API_KEY", "LITELLM_BASE_URL") if os.environ.get(k)}
-        done = await environment.exec(f"python3 /opt/awsbench/turn.py /logs/agent/turns/{stem}.spec.json",
-                                      cwd="/app", env=env, user="agent", timeout_sec=prompt["timeout_seconds"] + 600)
+        done = await environment.exec(f"python3 /opt/awsbench/turn.py {box}.spec.json", cwd="/app", env=env,
+                                      user="agent", timeout_sec=prompt["timeout_seconds"] + 600)
+        for kind in ("stream.jsonl", "result.json"):
+            try:
+                await environment.download_file(f"{box}.{kind}", self.turns_dir / f"{stem}.{kind}")
+            except Exception:
+                pass
         result_path = self.turns_dir / f"{stem}.result.json"
         if not result_path.exists():
-            return {"response": "", "error": f"turn.py exited {done.return_code}: {(done.stderr or '')[-800:]}"}
+            output = (done.stdout or "") + (done.stderr or "")  # Harbor's docker exec folds stderr into stdout
+            return {"response": "", "error": f"turn.py exited {done.return_code}: {output[-1500:]}"}
         result = json.loads(result_path.read_text(encoding="utf-8"))
-        await environment.exec(f"cp {result['session_file']} /logs/agent/agent-session.jsonl", user="agent",
-                               timeout_sec=60)
+        await environment.download_file(result["session_file"], self.logs_dir / "agent-session.jsonl")
         result["metrics"] = self._metrics(stem, result)
         return result
 
