@@ -291,6 +291,8 @@ timeline:
       - args.text: {regex: '(?i)kwame'}
   delay: PT15M
   jitter: [0, 300]
+  unless:
+    after_event: ev-kwame-offline
   actions:
   - op: pager.ack_as
     args: {page_id: '{call.result.id}', user: kwame.asante, if_open: true}
@@ -299,6 +301,9 @@ timeline:
   - npc: kwame.asante
     wake: true
     say: K0-ack
+- id: ev-kwame-offline
+  at: '14:35:00'
+  actions: []
 - id: ev-kwame-boarding
   state: now_s >= 52500 and flag("kwame_up")
   actions:
@@ -387,6 +392,24 @@ timeline:
   actions:
   - npc: elena.sokolova
     say: E0-on-call-from-15
+# Elena holds the platform schedule from 15:00 (pager override) and acks its pages in 3-6 min (her card); the call's
+# time is ET, so the regex reads 15:00-23:59.
+- id: ev-elena-platform-page
+  after_tool:
+    tool: pager_page
+    where:
+      t: {regex: ' (?:1[5-9]|2[0-3]):'}
+      any:
+      - args.schedule: {regex: '(?i)platform'}
+      - args.user: {regex: '(?i)^\s*platform\s*$'}
+  once: false
+  delay: PT3M
+  jitter: [0, 180]
+  actions:
+  - op: pager.ack_as
+    args: {page_id: '{call.result.id}', user: elena.sokolova, if_open: true}
+  - npc: elena.sokolova
+    say: E1-page-ack
 - id: ev-tomas-contacted
   after_tool:
     tool: (chat_dm|chat_post|pager_page)
@@ -738,9 +761,15 @@ npcs:
         where: '#inc-4495-routemap'
         mention: true
         text: Elena here, platform on-call from 15:00. I don't know routemap well; follow docs/state-recovery.md and the IC.
+      E1-page-ack:
+        where: dm
+        text: Elena here, platform on-call from 15:00. I don't know routemap well; follow docs/state-recovery.md and the IC.
+    page_ack: PT4M
     rules:
+    # ask_only: once 15:00 passes this rule is skipped and the next one answers (a spent on_request rule is silence)
     - id: EL1-before-15
       on_request: true
+      ask_only: true
       unless_state: now_s >= 54000
       match:
         any: ['.']
@@ -820,6 +849,7 @@ npcs:
     rules:
     - id: TI1-before-15
       on_request: true
+      ask_only: true
       unless_state: now_s >= 54000
       match:
         any: ['.']

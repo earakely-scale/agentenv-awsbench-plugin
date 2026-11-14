@@ -927,9 +927,9 @@ CLAIM_RESOLVED = re.compile(r"(?i)(?:\b(?:is|are|now|been|has)|'re|'s)\s+(?:now\
                             r"\ball\s+(?:\d+\s+)?(?:affected\s+)?(?:merchants?|routes?)\s+(?:are\s+|have been\s+)?(?:now\s+)?"
                             r"(?:restored|routing|repaired|recovered|fixed)\b")
 CLAIM_MITIGATED = re.compile(r"(?i)(?:\b(?:is|are|now|been)|'re|'s)\s+(?:now\s+)?mitigated\b|^\s*mitigated\b")
-HEDGE = re.compile(r"(?i)\bnot\b|n't\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|\bshould\b|\byet\b|"
-                   r"\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimate[ds]?|eta|earliest|criteria|requires?|"
-                   r"needs?|promise|unless|whether|projected|projections?|forecast\w*)\b")
+HEDGE = re.compile(r"(?i)\bnot\b|n[’']t\b|\buntil\b|\bonce\b|\bwhen\b|\bif\b|\bbefore\b|\bwill\b|[’']ll\b|\bshould\b|"
+                   r"\byet\b|\bpending\b|\bexpect|\bwould\b|\?|\b(?:after|then|estimate[ds]?|eta|earliest|criteria|"
+                   r"requires?|needs?|promise|unless|whether|projected|projections?|forecast\w*|as soon as|whichever)\b")
 FUTURE_TIME = re.compile(r"(?i)\b(?:around\s+~?|by\s+~?\s*)(\d{1,2}):(\d\d)")
 CLAIM_LEAD = re.compile(r"(?i)^\s*(?:@[\w.-]+[,:]?\s+)*(?:(?:incident|OPS-\d+)\s+)?(?:update\s+[\d:]+(?:\s*ET)?\s*[:,-]?\s*)?"
                         r"(?:status\s*[:=-]\s*)?(mitigated|resolved)\b")
