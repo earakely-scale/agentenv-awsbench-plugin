@@ -754,15 +754,19 @@ def change_records(inp):
 SHORT_VERBS = {"Cancel": "cancel", "Suspend": "suspend", "Resume": "resum", "Stop": "stop", "Start": "start",
                "Terminate": "terminat", "Delete": "delet", "Detach": "detach", "Deregister": "deregist",
                "Disable": "disabl", "Enable": "enabl", "Reboot": "reboot"}
+PAUSE_VERBS = {"true": {"paus"}, "false": {"unpaus", "resum"}}  # a `..._paused` flag set to true or false
+VERBS = set(SHORT_VERBS.values()) | {v for vs in PAUSE_VERBS.values() for v in vs}
 VALUE_KEYS = ("Value", "desiredCount", "DesiredCapacity", "MinSize", "MaxSize", "MinCapacity", "MaxCapacity")
 SHORT_STOP = GENERIC_TOKENS | {"internal", "vantleaf", "cluster", "service"}
-NEW_VALUE = re.compile(r"(?:->|→|=>|⇒|=|(?<![a-z])to(?![a-z]))\s*(\d+(?:\.\d+)?|true|false)(?![a-z])")
+NEW_VALUE = re.compile(r"(?:->|→|=>|⇒|=|(?<![a-z])to(?![a-z]))\s*(?:[a-z]{1,8}(?:\s+[a-z]{1,8})?\s*)?"
+                       r"(\d+(?:\.\d+)?|(?<![a-z])(?:true|false))(?![a-z])")
 WHAT_END = re.compile(r"\||(?<![a-z])(?:why|undo|auth|rollback)\s*:")
 
 
 def shorthand(change):
     """How a reader names an AWS write without its full resource name: the words of its resource (`ledger`,
-    `ingress`, `webhooks`, `concurrency`), the verb of a cancel/suspend/stop-like operation, and the value it set."""
+    `ingress`, `webhooks`, `concurrency`), the verb of a cancel/suspend/stop-like operation or of setting a `..._paused`
+    flag (`unpaused`), and the value it set."""
     words, verbs, values = set(), set(), set()
     for r in change["rows"]:
         if not r["service"] or not recordable(r):
@@ -771,6 +775,8 @@ def shorthand(change):
                   if len(w) >= 5 and w.isalpha() and w not in SHORT_STOP}
         first = re.match(r"[A-Z][a-z]+", r["operation"])
         verbs |= {SHORT_VERBS[first.group(0)]} if first and first.group(0) in SHORT_VERBS else set()
+        if "paused" in str(r["params"].get("Name", "")).lower():
+            verbs |= PAUSE_VERBS.get(str(r["params"].get("Value")).lower(), set())
         values |= {str(v).lower() for k in VALUE_KEYS if isinstance(v := r["params"].get(k), (str, int, float, bool))}
     return words, verbs, values
 
@@ -785,9 +791,9 @@ def same_value(a, b):
 def shorthand_credits(made, shorts, at, text):
     """Indexes of the changes a record names in shorthand. In each `CHANGE:` item's <what> (before its why, undo or
     auth), a mention of a change's resource family credits it when its clause also has the change's verb ('cancelled
-    ledger-ingress refresh') or the value it set after an arrow or `to` ('webhooks 2->5'). Mentions next to each other
-    narrow one family ('webhook concurrency'); a verb or value that fits two changes made in the record's window credits
-    neither."""
+    ledger-ingress refresh', 'unpaused consumer') or the value it set after an arrow or `to`, at most two short words
+    between ('webhooks 2->5', 'webhooks10→normal25'). Mentions next to each other narrow one family ('webhook
+    concurrency'); a verb or value that fits two changes made in the record's window credits neither."""
     window = {i: shorts[i] for i, c in enumerate(made) if c["t"] <= at <= c["t"] + timedelta(minutes=15)}
     words = {w for aliases, _, _ in window.values() for w in aliases}
     credited = set()
@@ -810,7 +816,7 @@ def shorthand_credits(made, shorts, at, text):
             values = NEW_VALUE.findall(what[start if k else 0:stop])
             verb_scope = what[subjects[k - 1][1] if k else 0:stop]
             fits = [[i for i in ids if any(same_value(v, x) for x in window[i][2])] for v in values]
-            fits += [[i for i in ids if verb in window[i][1]] for verb in set(SHORT_VERBS.values())
+            fits += [[i for i in ids if verb in window[i][1]] for verb in VERBS
                      if re.search(rf"(?<![a-z]){verb}", verb_scope)]
             credited |= {f[0] for f in fits if len(f) == 1}
     return credited
