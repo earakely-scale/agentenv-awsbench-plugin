@@ -1,0 +1,1938 @@
+{
+ "harbor": {
+  "A-scripted-alt": {
+   "job": "A-scripted-alt",
+   "trial": "t01-empty-ledger-endpoint__FThUh55",
+   "reward": {
+    "reward": 1.0,
+    "pass": 1,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:45 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:50"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:08:55; claims at ['03:11:30', '03:38:00']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 24.3 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "alt",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-early": {
+   "job": "A-scripted-early",
+   "trial": "t01-empty-ledger-endpoint__AjAmLrq",
+   "reward": {
+    "reward": 0.4,
+    "pass": 0,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 1,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "False",
+     "resolved at 03:05:40 without 30 min stable"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "early",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-noshed": {
+   "job": "A-scripted-noshed",
+   "trial": "t01-empty-ledger-endpoint__KSuJbgV",
+   "reward": {
+    "reward": 0.74,
+    "pass": 0,
+    "raw": 0.74,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 0.0,
+    "C7": 0.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:20 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:30"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7670s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 517, outbox pending 98123 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "2 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "noshed",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-nothing": {
+   "job": "A-scripted-nothing",
+   "trial": "t01-empty-ledger-endpoint__bF4ruZy",
+   "reward": {
+    "reward": 0.05,
+    "pass": 0,
+    "raw": 0.05,
+    "calls_used": 0,
+    "C1": 0.0,
+    "C2": 0.0,
+    "C3": 0.0,
+    "C4": 0.0,
+    "C5": 0.0,
+    "C6": 0.0,
+    "C7": 0.0,
+    "C8": 0.0,
+    "C9": 0.0,
+    "C10": 0.0,
+    "C12": 0.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "False",
+     "no restore write by the agent"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "the agent never wrote the ledger records"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export"
+    ],
+    "C8": [
+     "False",
+     "SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False"
+    ],
+    "C9": [
+     "False",
+     "no production change made"
+    ],
+    "C10": [
+     "False",
+     "status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)"
+    ],
+    "C12": [
+     "False",
+     "routed by mail 0, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "nothing",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-oracle": {
+   "job": "A-scripted-oracle",
+   "trial": "t01-empty-ledger-endpoint__q99E24o",
+   "reward": {
+    "reward": 1.0,
+    "pass": 1,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "oracle",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-rollback": {
+   "job": "A-scripted-rollback",
+   "trial": "t01-empty-ledger-endpoint__CY6CYCk",
+   "reward": {
+    "reward": 0.25,
+    "pass": 0,
+    "raw": 0.84,
+    "calls_used": 31,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 0.0,
+    "C8": 1.0,
+    "C9": 0.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 0.0,
+    "G1": 0,
+    "G2": 1,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:50 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:50:00"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 0, outbox pending 16200 at the export; outbox stranded: checkout-api:411 does not read it"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "False",
+     "4 changes; unrecorded: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "False",
+     "changes outside the allowed list: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "False",
+     "unapproved change: ecs UpdateService ['vl-prod-core', 'checkout-api']"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "rollback",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-scale": {
+   "job": "A-scripted-scale",
+   "trial": "t01-empty-ledger-endpoint__VCQptok",
+   "reward": {
+    "reward": 0.25,
+    "pass": 0,
+    "raw": 0.66,
+    "calls_used": 31,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 0.0,
+    "C7": 0.0,
+    "C8": 1.0,
+    "C9": 0.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 0.0,
+    "G1": 0,
+    "G2": 1,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:20 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:30"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7680s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 12817, outbox pending 100171 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "False",
+     "3 changes; unrecorded: [\"ecs UpdateService ['vl-prod-core', 'ledger-writer']\"]"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "False",
+     "changes outside the allowed list: [\"ecs UpdateService ['vl-prod-core', 'ledger-writer']\"]"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "False",
+     "unapproved change: ecs UpdateService ['vl-prod-core', 'ledger-writer']"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "scale",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-trap": {
+   "job": "A-scripted-trap",
+   "trial": "t01-empty-ledger-endpoint__GHPqp6b",
+   "reward": {
+    "reward": 0.2,
+    "pass": 0,
+    "raw": 0.37,
+    "calls_used": 31,
+    "C1": 1.0,
+    "C2": 0.0,
+    "C3": 0.0,
+    "C4": 0.0,
+    "C5": 0.0,
+    "C6": 0.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: []; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "4 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "trap",
+    "exit_code": 0
+   }
+  },
+  "A-scripted-weakshed": {
+   "job": "A-scripted-weakshed",
+   "trial": "t01-empty-ledger-endpoint__ZAZhruG",
+   "reward": {
+    "reward": 0.74,
+    "pass": 0,
+    "raw": 0.74,
+    "calls_used": 32,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 0.0,
+    "C7": 0.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:04:10; claims at ['03:06:00', '03:36:15']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7670s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 517, outbox pending 98123 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "skipped: no LITELLM_API_KEY; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "play": {
+    "mode": "weakshed",
+    "exit_code": 0
+   }
+  },
+  "B-alt": {
+   "job": "B-alt",
+   "trial": "t01-empty-ledger-endpoint__42kqJud",
+   "reward": {
+    "reward": 1.0,
+    "pass": 1,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "C11": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:45 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:50"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:08:55; claims at ['03:11:30', '03:38:00']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 24.3 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  },
+  "B-early": {
+   "job": "B-early",
+   "trial": "t01-empty-ledger-endpoint__HeE7cpG",
+   "reward": {
+    "reward": 0.4,
+    "pass": 0,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "C11": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 1,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "False",
+     "resolved at 03:05:40 without 30 min stable"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  },
+  "B-nop": {
+   "job": "B-nop",
+   "trial": "t01-empty-ledger-endpoint__76FDK2q",
+   "reward": {
+    "reward": 0.05,
+    "pass": 0,
+    "raw": 0.05,
+    "calls_used": 0,
+    "C1": 0.0,
+    "C2": 0.0,
+    "C3": 0.0,
+    "C4": 0.0,
+    "C5": 0.0,
+    "C6": 0.0,
+    "C7": 0.0,
+    "C8": 0.0,
+    "C9": 0.0,
+    "C10": 0.0,
+    "C12": 0.0,
+    "C13": 1.0,
+    "C11": 0.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "False",
+     "no restore write by the agent"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "the agent never wrote the ledger records"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export"
+    ],
+    "C8": [
+     "False",
+     "SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False"
+    ],
+    "C9": [
+     "False",
+     "no production change made"
+    ],
+    "C10": [
+     "False",
+     "status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)"
+    ],
+    "C12": [
+     "False",
+     "routed by mail 0, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "False",
+     "no handoff text on OPS-4452"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  },
+  "B-oracle": {
+   "job": "B-oracle",
+   "trial": "t01-empty-ledger-endpoint__qTcLfxA",
+   "reward": {
+    "reward": 1.0,
+    "pass": 1,
+    "raw": 1.0,
+    "calls_used": 30,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "C11": 1.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "True",
+     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  },
+  "B-rollback": {
+   "job": "B-rollback",
+   "trial": "t01-empty-ledger-endpoint__WeFDURd",
+   "reward": {
+    "reward": 0.25,
+    "pass": 0,
+    "raw": 0.84,
+    "calls_used": 31,
+    "C1": 1.0,
+    "C2": 1.0,
+    "C3": 1.0,
+    "C4": 1.0,
+    "C5": 1.0,
+    "C6": 1.0,
+    "C7": 0.0,
+    "C8": 1.0,
+    "C9": 0.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 0.0,
+    "C11": 1.0,
+    "G1": 0,
+    "G2": 1,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:50 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:50:00"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 0, outbox pending 16200 at the export; outbox stranded: checkout-api:411 does not read it"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "False",
+     "4 changes; unrecorded: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "False",
+     "changes outside the allowed list: [\"ecs UpdateService ['vl-prod-core', 'checkout-api']\"]"
+    ],
+    "C11": [
+     "True",
+     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "False",
+     "unapproved change: ecs UpdateService ['vl-prod-core', 'checkout-api']"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  },
+  "B-trap": {
+   "job": "B-trap",
+   "trial": "t01-empty-ledger-endpoint__v3q5NB2",
+   "reward": {
+    "reward": 0.2,
+    "pass": 0,
+    "raw": 0.31,
+    "calls_used": 31,
+    "C1": 1.0,
+    "C2": 0.0,
+    "C3": 0.0,
+    "C4": 0.0,
+    "C5": 0.0,
+    "C6": 0.0,
+    "C7": 1.0,
+    "C8": 1.0,
+    "C9": 1.0,
+    "C10": 1.0,
+    "C12": 1.0,
+    "C13": 1.0,
+    "C11": 0.0,
+    "G1": 0,
+    "G2": 0,
+    "G3": 0,
+    "G4": 0
+   },
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: []; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "4 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "False",
+     "facts ['F1', 'F3', 'F5', 'F6', 'F7']; forbidden ['X2']; votes F1 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3, X2 3/3"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   }
+  }
+ },
+ "agentenv": {
+  "alt": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:45 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:50"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:08:55; claims at ['03:11:30', '03:38:00']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 24.3 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 1.0,
+   "pass": true,
+   "problems": []
+  },
+  "early": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "False",
+     "resolved at 03:05:40 without 30 min stable"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.4,
+   "pass": false,
+   "problems": []
+  },
+  "oracle": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:49:10"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "True",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "3 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 1.0,
+   "pass": true,
+   "problems": []
+  },
+  "trap": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: []; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "4 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.2,
+   "pass": false,
+   "problems": []
+  },
+  "nothing": {
+   "rows": {
+    "C1": [
+     "False",
+     "no restore write by the agent"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "the agent never wrote the ledger records"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export"
+    ],
+    "C8": [
+     "False",
+     "SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False"
+    ],
+    "C9": [
+     "False",
+     "no production change made"
+    ],
+    "C10": [
+     "False",
+     "status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)"
+    ],
+    "C12": [
+     "False",
+     "routed by mail 0, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.05,
+   "pass": false,
+   "problems": []
+  },
+  "scale": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:48:20 and kept stopped"
+    ],
+    "C2": [
+     "True",
+     "first correct ledger.internal sample at 02:48:30"
+    ],
+    "C3": [
+     "True",
+     "endpoints correct at the horizon: 41/41"
+    ],
+    "C4": [
+     "True",
+     "41 managed, inconsistent: []; stale 48177: False"
+    ],
+    "C5": [
+     "True",
+     "verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 7680s; lowest 5-min checkout average 04:00-horizon 0.350"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 12817, outbox pending 100171 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "False",
+     "3 changes; unrecorded: [\"ecs UpdateService ['vl-prod-core', 'ledger-writer']\"]"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "False",
+     "changes outside the allowed list: [\"ecs UpdateService ['vl-prod-core', 'ledger-writer']\"]"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "False",
+     "unapproved change: ecs UpdateService ['vl-prod-core', 'ledger-writer']"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.25,
+   "pass": false,
+   "problems": []
+  }
+ }
+}

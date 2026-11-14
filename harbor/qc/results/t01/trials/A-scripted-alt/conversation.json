@@ -1,0 +1,15 @@
+{
+ "end": "done",
+ "turns": [
+  {
+   "turn": 1,
+   "error": null,
+   "reply_tail": "DONE",
+   "mode": "alt",
+   "play_exit": 0,
+   "decision": {
+    "end": "done"
+   }
+  }
+ ]
+}

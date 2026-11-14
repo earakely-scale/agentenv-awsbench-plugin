@@ -1,0 +1,18 @@
+D12 0.05 pass=False: score 0.050 (raw 0.050, caps [0.2]); pass=False
+  C1   False no restore write by the agent
+  C2   False never correct
+  C3   False endpoints correct at the horizon: 40/41
+  C4   False 41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True
+  C5   False the agent never wrote the ledger records
+  C6   False collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040
+  C7   False destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export
+  C8   False SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False
+  C9   False no production change made
+  C10  False status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)
+  C12  False routed by mail 0, chat 0, SUP ticket 0
+  C13  True  changes outside the allowed list: []
+  C11  False no handoff text on OPS-4452
+  G1   True  none
+  G2   True  none
+  G3   True  none
+  G4   True  none

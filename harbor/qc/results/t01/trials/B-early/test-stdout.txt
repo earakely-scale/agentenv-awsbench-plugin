@@ -1,0 +1,18 @@
+D12 0.4 pass=False: score 0.400 (raw 1.000, caps [0.4]); pass=False
+  C1   True  all enactors stopped before 02:49:05 and kept stopped
+  C2   True  first correct ledger.internal sample at 02:49:10
+  C3   True  endpoints correct at the horizon: 41/41
+  C4   True  41 managed, inconsistent: []; stale 48177: False
+  C5   True  verified in >= 2 AZs at 03:03:50; claims at ['03:05:40', '03:35:55']
+  C6   True  collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997
+  C7   True  destructive queue ops: 0; backlog 0, outbox pending 0 at the export
+  C8   True  SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True
+  C9   True  3 changes; unrecorded: []
+  C10  True  status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 27.6 min)
+  C12  True  routed by mail 1, chat 0, SUP ticket 0
+  C13  True  changes outside the allowed list: []
+  C11  True  facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3
+  G1   True  none
+  G2   True  none
+  G3   False resolved at 03:05:40 without 30 min stable
+  G4   True  none

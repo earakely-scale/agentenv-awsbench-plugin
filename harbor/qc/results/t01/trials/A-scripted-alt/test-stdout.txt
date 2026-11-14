@@ -1,0 +1,18 @@
+D12 1.0 pass=True: score 1.000 (raw 1.000, caps []); pass=True
+  C1   True  all enactors stopped before 02:48:45 and kept stopped
+  C2   True  first correct ledger.internal sample at 02:48:50
+  C3   True  endpoints correct at the horizon: 41/41
+  C4   True  41 managed, inconsistent: []; stale 48177: False
+  C5   True  verified in >= 2 AZs at 03:08:55; claims at ['03:11:30', '03:38:00']
+  C6   True  collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.997
+  C7   True  destructive queue ops: 0; backlog 0, outbox pending 0 at the export
+  C8   True  SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True
+  C9   True  3 changes; unrecorded: []
+  C10  True  status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 24.3 min)
+  C12  True  routed by mail 1, chat 0, SUP ticket 0
+  C13  True  changes outside the allowed list: []
+  C11  True  skipped: no LITELLM_API_KEY; comms bucket renormalized
+  G1   True  none
+  G2   True  none
+  G3   True  none
+  G4   True  none

@@ -1,0 +1,230 @@
+Traceback (most recent call last):
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 613, in run
+    await self._prepare()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 652, in _prepare
+    await self._setup_agent_environment()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 1875, in _setup_agent_environment
+    await self._start_agent_environment()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 1881, in _start_agent_environment
+    await asyncio.wait_for(
+  File "/usr/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 1108, in start
+    await self._run_docker_compose_command(["build"])
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 808, in _run_docker_compose_command
+    raise RuntimeError(
+RuntimeError: Docker compose command failed for environment t01-empty-ledger-endpoint. Command: docker compose --project-name t01-empty-ledger-endpoint__4xjyudt__env --project-directory /home/ubuntu/harbor-t01/repo/harbor/t01-empty-ledger-endpoint/environment -f /tmp/tmp4rgc3j4u/t01-empty-ledger-endpoint__4XjYudT__env-docker-compose-resources.json -f /home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker-compose-build.yaml -f /home/ubuntu/harbor-t01/repo/harbor/t01-empty-ledger-endpoint/environment/docker-compose.yaml -f /tmp/tmpz3cudccl/docker-compose-environment.json -f /tmp/tmpducx8dhu/docker-compose-mounts.json build. Return code: 1. Stdout: #1 [internal] load local bake definitions
+#1 reading from stdin 2.96kB done
+#1 DONE 0.0s
+
+#2 [harness internal] load build definition from Dockerfile
+#2 transferring dockerfile: 552B done
+#2 DONE 0.0s
+
+#3 [mcp internal] load build definition from Dockerfile
+#3 transferring dockerfile: 190B done
+#3 DONE 0.0s
+
+#4 [workspace internal] load build definition from Dockerfile
+#4 transferring dockerfile: 324B done
+#4 DONE 0.0s
+
+#5 [aws internal] load build definition from Dockerfile
+#5 transferring dockerfile: 870B done
+#5 DONE 0.0s
+
+#6 [main internal] load build definition from Dockerfile
+#6 transferring dockerfile: 550B done
+#6 DONE 0.0s
+
+#7 [workspace internal] load metadata for docker.io/library/python:3.12-slim
+#7 DONE 0.1s
+
+#8 [harness internal] load metadata for public.ecr.aws/docker/library/python@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+#8 DONE 0.1s
+
+#9 [mcp internal] load metadata for public.ecr.aws/docker/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+#9 DONE 0.1s
+
+#10 [main internal] load metadata for ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6
+#10 DONE 0.1s
+
+#11 [main internal] load .dockerignore
+#11 transferring context: 2B done
+#11 DONE 0.1s
+
+#12 [workspace internal] load .dockerignore
+#12 transferring context: 59B done
+#12 DONE 0.1s
+
+#13 [aws internal] load .dockerignore
+#13 transferring context: 2B done
+#13 DONE 0.1s
+
+#14 [aws internal] load build context
+#14 DONE 0.0s
+
+#15 [workspace 1/5] FROM docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+#15 resolve docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b 0.0s done
+#15 DONE 0.0s
+
+#16 [mcp internal] load .dockerignore
+#16 transferring context: 2B done
+#16 DONE 0.1s
+
+#17 [harness internal] load .dockerignore
+#17 transferring context: 2B done
+#17 DONE 0.1s
+
+#18 [workspace internal] load build context
+#18 transferring context: 7.40kB done
+#18 DONE 0.1s
+
+#15 [harness 1/5] FROM docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+#15 resolve docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b 0.0s done
+#15 DONE 0.0s
+
+#19 [harness 1/6] FROM public.ecr.aws/docker/library/python@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+#19 resolve public.ecr.aws/docker/library/python@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b 0.0s done
+#19 DONE 0.0s
+
+#20 [workspace 3/5] COPY requirements.txt .
+#20 CACHED
+
+#21 [workspace 4/5] RUN pip install --no-cache-dir -r requirements.txt
+#21 CACHED
+
+#22 [workspace 2/5] WORKDIR /app
+#22 CACHED
+
+#23 [main internal] load build context
+#23 DONE 0.0s
+
+#14 [aws internal] load build context
+#14 transferring context: 1.71kB done
+#14 DONE 0.0s
+
+#24 [workspace 5/5] COPY awsbench_workspace /app/awsbench_workspace
+#24 CACHED
+
+#25 [mcp 1/2] FROM public.ecr.aws/docker/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+#25 resolve public.ecr.aws/docker/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 0.0s done
+#25 DONE 0.0s
+
+#26 [workspace] exporting to image
+#26 exporting layers done
+#26 exporting manifest sha256:451b3d33ac6fa6b2882af2f3f8737e63114b4f20a39e55928b614e7c03d1499c 0.0s done
+#26 exporting config sha256:be42b44588a7ca6480f0418ba3e500aef8de623ed8daeaaf5c5bf0f1457bfa13
+#26 ...
+
+#27 [mcp internal] load build context
+#27 transferring context: 32B done
+#27 DONE 0.0s
+
+#28 [main 1/4] FROM ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6
+#28 resolve ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6 0.0s done
+#28 DONE 0.0s
+
+#29 [harness internal] load build context
+#29 transferring context: 289B done
+#29 DONE 0.1s
+
+#30 [aws 5/7] RUN pip install --no-cache-dir -r /app/requirements.txt
+#30 CACHED
+
+#31 [aws 2/7] RUN apt-get update     && apt-get install -y --no-install-recommends curl ca-certificates dnsutils     && arch="amd64"     && curl -fsSL -o /tmp/aws-emulator.deb        "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/latest/aws-emulator_${arch}.deb"     && apt-get install -y --no-install-recommends /tmp/aws-emulator.deb     && rm -rf /tmp/aws-emulator.deb /var/lib/apt/lists/*
+#31 CACHED
+
+#32 [aws 3/7] WORKDIR /app
+#32 CACHED
+
+#33 [aws 4/7] COPY requirements.txt /app/requirements.txt
+#33 CACHED
+
+#34 [aws 6/7] COPY awsbench_aws /app/awsbench_aws
+#34 CACHED
+
+#35 [aws 7/7] RUN mkdir -p /data/emulator && chmod -R 777 /data
+#35 CACHED
+
+#26 [workspace] exporting to image
+#26 exporting config sha256:be42b44588a7ca6480f0418ba3e500aef8de623ed8daeaaf5c5bf0f1457bfa13 0.0s done
+#26 exporting attestation manifest sha256:d7cf5c69580c149c8ed1578402487f8de395061ddca496edaa745be25ed79e08 0.0s done
+#26 exporting manifest list sha256:1aa7af96d37ed92961bc5647e2d2ff18907358d0392ee17c38d1f225f054164c 0.0s done
+#26 naming to docker.io/awsbench-harbor/workspace:aaaae84c2d20 done
+#26 unpacking to docker.io/awsbench-harbor/workspace:aaaae84c2d20
+#26 ...
+
+#36 [mcp 2/2] COPY nginx.conf /etc/nginx/nginx.conf
+#36 CACHED
+
+#37 [harness 6/6] WORKDIR /opt/awsbench
+#37 CACHED
+
+#23 [main internal] load build context
+#23 transferring context: 171B done
+#23 DONE 0.0s
+
+#38 [main 4/4] WORKDIR /app
+#38 CACHED
+
+#39 [main] exporting to image
+#39 exporting layers done
+#39 exporting manifest sha256:49b2f4f249260fef1934f56639fcdbdccd24007079758c06979700045dbb358d
+#39 exporting manifest sha256:49b2f4f249260fef1934f56639fcdbdccd24007079758c06979700045dbb358d 0.2s done
+#39 exporting config sha256:1f6a50861bfa9768302cf9d71cf1dd46ceeb93740ddcbf69ce7f31c758d61a82
+#39 exporting config sha256:1f6a50861bfa9768302cf9d71cf1dd46ceeb93740ddcbf69ce7f31c758d61a82 0.2s done
+#39 exporting attestation manifest sha256:197e55f38011659ae4873c7805faf4ebe9da28a337b09d8f2980d6d6704590f3
+#39 ...
+
+#40 [mcp] exporting to image
+#40 exporting layers done
+#40 exporting manifest sha256:4b6b0b78e7ee4a7f0f6bd0a3cad144aa5ee05b6801d2acc5a28a5767dbc1733c 0.1s done
+#40 exporting config sha256:0900b8caa60cb1c3d9c54279227f3a7ff27f245161a805a142301d88c8cdbcf6 0.1s done
+#40 exporting attestation manifest sha256:5203daedebbccfde0921d302ab88c815cdf2ad7e18cc4b287eec3b7cd5e9be8a 0.5s done
+#40 exporting manifest list sha256:1183284fd22ee829c4d81e022b5917223345116614e8c1c4a8a4f7c6d413dccf 0.2s done
+#40 naming to docker.io/awsbench-harbor/mcp:3178df578ee2 0.2s done
+#40 ERROR: image "docker.io/awsbench-harbor/mcp:3178df578ee2": already exists
+
+#26 [workspace] exporting to image
+#26 unpacking to docker.io/awsbench-harbor/workspace:aaaae84c2d20 1.4s done
+#26 DONE 1.5s
+
+#39 [main] exporting to image
+#39 exporting attestation manifest sha256:197e55f38011659ae4873c7805faf4ebe9da28a337b09d8f2980d6d6704590f3 0.4s done
+#39 exporting manifest list sha256:b8275c81cf5841c294e5f0008c98e3d99d238e20366e09fa9fe344f0a476b943 0.1s done
+#39 naming to docker.io/library/t01-empty-ledger-endpoint__4xjyudt__env-main:latest
+#39 naming to docker.io/library/t01-empty-ledger-endpoint__4xjyudt__env-main:latest 0.1s done
+#39 unpacking to docker.io/library/t01-empty-ledger-endpoint__4xjyudt__env-main:latest
+#39 ...
+
+#41 [harness] exporting to image
+#41 exporting layers done
+#41 exporting manifest sha256:c0dcba14bd0a7a9bf19e3b7a67d70d84ad96cb9557a65e3391257e92b74cfc77 0.1s done
+#41 exporting config sha256:7f147c50029f73d3228693ec78b613c11fb4287d32e68a9254bef1d7b2b3177b 0.2s done
+#41 exporting attestation manifest sha256:0ab9790dfee5ca8c55905fdff63796341ecda8b3c9d3ee98cbbcfdf9dcc7d0ec 0.4s done
+#41 exporting manifest list sha256:c1de613d59bbbd6cc43e675db74d865218c5470158be2dcfa48defdaa689952b 0.2s done
+#41 naming to docker.io/awsbench-harbor/harness:5f70f292c044 0.1s done
+#41 unpacking to docker.io/awsbench-harbor/harness:5f70f292c044 0.4s done
+#41 CANCELED
+
+#39 [main] exporting to image
+#39 unpacking to docker.io/library/t01-empty-ledger-endpoint__4xjyudt__env-main:latest 0.2s done
+#39 CANCELED
+
+#42 [aws] exporting to image
+#42 exporting layers done
+#42 exporting manifest sha256:46bae5eafdd3b31df19ed51bb53d60633543109e4a9ec7889dd3fe9465d073c6 0.1s done
+#42 exporting config sha256:109a669cea120da93e7c720648a7ccfb66e37240553390dbf6b4c8e9aa6caadf 0.1s done
+#42 exporting attestation manifest sha256:cba21d852b04fc77a87baebbee345a6619602cb75fd352fcc4a2f8070d0887c6 0.4s done
+#42 exporting manifest list sha256:0f280cd6ddee9eb1a4df6753f79ea5d49669dacd535bd48c8c408a55c5098e06 0.1s done
+#42 naming to docker.io/awsbench-harbor/aws:c9f7f21dba9f 0.2s done
+#42 unpacking to docker.io/awsbench-harbor/aws:c9f7f21dba9f 0.7s done
+#42 CANCELED
+------
+ > [mcp] exporting to image:
+------
+target mcp: failed to solve: image "docker.io/awsbench-harbor/mcp:3178df578ee2": already exists
+
+. Stderr: None. 

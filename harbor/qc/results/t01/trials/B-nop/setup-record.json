@@ -1,0 +1,269 @@
+{
+ "server_config_changes": [
+  {
+   "step_id": "configure",
+   "service": "aws",
+   "uri": "urn:scale:awsbench-scenario/v1",
+   "args": {
+    "scenario": "t01",
+    "seed": "t01-draft-1",
+    "mode": "eval",
+    "npc_mode": "scripted"
+   },
+   "result": {
+    "ok": true,
+    "scenario": "t01",
+    "seed": "t01-draft-1",
+    "mode": "eval",
+    "start": "2026-11-17T02:40:00-05:00",
+    "window_end": "2026-11-17T05:10:00-05:00",
+    "horizon": "2026-11-17T05:10:00-05:00",
+    "seed_calls": {
+     "ok": 100,
+     "failed": 0,
+     "errors": []
+    },
+    "world": true,
+    "warnings": []
+   }
+  }
+ ],
+ "clock_configurations": [
+  {
+   "step_id": "clock",
+   "virtual_time": "2026-11-17T02:40:00-05:00",
+   "virtual_seconds_per_real_second": 0,
+   "env_get_time_url": "http://gateway:18765/clock/time",
+   "synced": [
+    {
+     "service": "aws",
+     "environment": "aws",
+     "synced": true,
+     "result": {
+      "ok": true,
+      "gateway": "http://gateway:18765",
+      "now": "2026-11-17T02:40:00-05:00",
+      "gateway_time": "2026-11-17T07:40:00+00:00"
+     }
+    },
+    {
+     "service": "workspace",
+     "environment": "workspace",
+     "synced": true,
+     "result": {
+      "ok": true,
+      "gateway": "http://gateway:18765"
+     }
+    }
+   ],
+   "skipped": [],
+   "timezone": "America/New_York",
+   "armed_at": "2026-11-17T07:40:00Z"
+  }
+ ],
+ "tool_access_changes": [
+  {
+   "step_id": "lock-all",
+   "action": "disable",
+   "role": "*",
+   "tools": [
+    "*"
+   ],
+   "result": {
+    "role": "*",
+    "disabled": [
+     "*"
+    ],
+    "allowed": []
+   }
+  },
+  {
+   "step_id": "allow-sre",
+   "action": "enable",
+   "role": "sre-primary",
+   "tools": [
+    "get_time",
+    "wait",
+    "aws_cli",
+    "aws_api",
+    "aws_query",
+    "aws_table_export",
+    "fleet_list_hosts",
+    "fleet_inspect_host",
+    "fleet_exec",
+    "fleet_restart",
+    "fleet_job_status",
+    "chat_list_channels",
+    "chat_read",
+    "chat_search",
+    "chat_get_user",
+    "chat_post",
+    "chat_dm",
+    "chat_create_channel",
+    "tickets_search",
+    "tickets_get",
+    "tickets_create",
+    "tickets_comment",
+    "tickets_update",
+    "tickets_transition",
+    "tickets_link",
+    "wiki_search",
+    "wiki_get",
+    "wiki_history",
+    "wiki_update",
+    "wiki_restore",
+    "wiki_comment",
+    "repo_list",
+    "repo_get",
+    "repo_read",
+    "repo_search",
+    "repo_log",
+    "mail_search",
+    "mail_read",
+    "mail_send",
+    "mail_reply",
+    "mail_forward",
+    "pager_list",
+    "pager_get",
+    "pager_oncall",
+    "pager_ack",
+    "pager_page",
+    "pager_note",
+    "pager_resolve",
+    "status_get",
+    "status_create",
+    "status_update"
+   ],
+   "result": {
+    "role": "sre-primary",
+    "disabled": [],
+    "allowed": [
+     "aws_api",
+     "aws_cli",
+     "aws_query",
+     "aws_table_export",
+     "chat_create_channel",
+     "chat_dm",
+     "chat_get_user",
+     "chat_list_channels",
+     "chat_post",
+     "chat_read",
+     "chat_search",
+     "fleet_exec",
+     "fleet_inspect_host",
+     "fleet_job_status",
+     "fleet_list_hosts",
+     "fleet_restart",
+     "get_time",
+     "mail_forward",
+     "mail_read",
+     "mail_reply",
+     "mail_search",
+     "mail_send",
+     "pager_ack",
+     "pager_get",
+     "pager_list",
+     "pager_note",
+     "pager_oncall",
+     "pager_page",
+     "pager_resolve",
+     "repo_get",
+     "repo_list",
+     "repo_log",
+     "repo_read",
+     "repo_search",
+     "status_create",
+     "status_get",
+     "status_update",
+     "tickets_comment",
+     "tickets_create",
+     "tickets_get",
+     "tickets_link",
+     "tickets_search",
+     "tickets_transition",
+     "tickets_update",
+     "wait",
+     "wiki_comment",
+     "wiki_get",
+     "wiki_history",
+     "wiki_restore",
+     "wiki_search",
+     "wiki_update"
+    ]
+   }
+  },
+  {
+   "step_id": "allow-harness",
+   "action": "enable",
+   "role": "harness",
+   "tools": [
+    "awsbench_control"
+   ],
+   "result": {
+    "role": "harness",
+    "disabled": [],
+    "allowed": [
+     "awsbench_control"
+    ]
+   }
+  }
+ ],
+ "tools": {
+  "sre-primary": [
+   "aws_api",
+   "aws_cli",
+   "aws_query",
+   "aws_table_export",
+   "chat_create_channel",
+   "chat_dm",
+   "chat_get_user",
+   "chat_list_channels",
+   "chat_post",
+   "chat_read",
+   "chat_search",
+   "fleet_exec",
+   "fleet_inspect_host",
+   "fleet_job_status",
+   "fleet_list_hosts",
+   "fleet_restart",
+   "get_time",
+   "mail_forward",
+   "mail_read",
+   "mail_reply",
+   "mail_search",
+   "mail_send",
+   "pager_ack",
+   "pager_get",
+   "pager_list",
+   "pager_note",
+   "pager_oncall",
+   "pager_page",
+   "pager_resolve",
+   "repo_get",
+   "repo_list",
+   "repo_log",
+   "repo_read",
+   "repo_search",
+   "status_create",
+   "status_get",
+   "status_update",
+   "tickets_comment",
+   "tickets_create",
+   "tickets_get",
+   "tickets_link",
+   "tickets_search",
+   "tickets_transition",
+   "tickets_update",
+   "wait",
+   "wiki_comment",
+   "wiki_get",
+   "wiki_history",
+   "wiki_restore",
+   "wiki_search",
+   "wiki_update"
+  ],
+  "harness": [
+   "awsbench_control"
+  ]
+ }
+}

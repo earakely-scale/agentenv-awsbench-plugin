@@ -1,0 +1,76 @@
+Traceback (most recent call last):
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 613, in run
+    await self._prepare()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 652, in _prepare
+    await self._setup_agent_environment()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 1875, in _setup_agent_environment
+    await self._start_agent_environment()
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 1881, in _start_agent_environment
+    await asyncio.wait_for(
+  File "/usr/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 1134, in start
+    await self._run_docker_compose_command(["up", *runtime.up_args])
+  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 808, in _run_docker_compose_command
+    raise RuntimeError(
+RuntimeError: Docker compose command failed for environment t01-empty-ledger-endpoint. Command: docker compose --project-name t01-empty-ledger-endpoint__bw56y26__env --project-directory /home/ubuntu/harbor-t01/repo/harbor/t01-empty-ledger-endpoint/environment -f /tmp/tmpgsxhc4on/t01-empty-ledger-endpoint__BW56y26__env-docker-compose-resources.json -f /home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/environments/docker/docker-compose-build.yaml -f /home/ubuntu/harbor-t01/repo/harbor/t01-empty-ledger-endpoint/environment/docker-compose.yaml -f /tmp/tmpjm84os80/docker-compose-environment.json -f /tmp/tmp5ct1x76q/docker-compose-mounts.json up --detach --wait. Return code: 1. Stdout: #1 [internal] load local bake definitions
+#1 reading from stdin 2.89kB done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 550B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 171B done
+#5 DONE 0.0s
+
+#6 [1/4] FROM ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6
+#6 resolve ghcr.io/scaleapi/agentenv-claude-code@sha256:d07cb7fadc6a83c0f7f1e55ecfa806f7b8cecdd5fe27d940d548b61febb4dba6 0.0s done
+#6 DONE 0.0s
+
+#7 [2/4] COPY main/ /opt/awsbench/
+#7 CACHED
+
+#8 [3/4] RUN chmod 0755 /opt/awsbench/entrypoint.sh
+#8 CACHED
+
+#9 [4/4] WORKDIR /app
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 exporting manifest sha256:d5103a460af2ad9b6089e740533406efe5769241ecce33b93bd467280a03c037 done
+#10 exporting config sha256:7fd8086124f540b658d6cae842c476af3e9da2be13ffcc5e215ef061680bcf93 done
+#10 exporting attestation manifest sha256:1bd728b76abe6fa3ea1877ffbbd8d660983183ebae4403e18556866196fbb1b1 0.0s done
+#10 exporting manifest list sha256:c3348b12a1266f5dd1618c75f7967b8d1de04e53e0c477737aff36635c64d193
+#10 exporting manifest list sha256:c3348b12a1266f5dd1618c75f7967b8d1de04e53e0c477737aff36635c64d193 0.0s done
+#10 naming to docker.io/library/t01-empty-ledger-endpoint__bw56y26__env-main:latest done
+#10 unpacking to docker.io/library/t01-empty-ledger-endpoint__bw56y26__env-main:latest 0.0s done
+#10 DONE 0.1s
+
+#11 resolving provenance for metadata file
+#11 DONE 0.0s
+ t01-empty-ledger-endpoint__bw56y26__env-main  Built
+ Network t01-empty-ledger-endpoint__bw56y26__env_default  Creating
+ Network t01-empty-ledger-endpoint__bw56y26__env_default  Created
+ Network t01-empty-ledger-endpoint__bw56y26__env_env-network  Creating
+ Network t01-empty-ledger-endpoint__bw56y26__env_env-network  Created
+ Volume t01-empty-ledger-endpoint__bw56y26__env_ctl  Creating
+ Volume t01-empty-ledger-endpoint__bw56y26__env_ctl  Created
+ Container t01-empty-ledger-endpoint__bw56y26__env-servicedb-1  Creating
+ Container t01-empty-ledger-endpoint__bw56y26__env-servicedb-1  Created
+ Container t01-empty-ledger-endpoint__bw56y26__env-aws-1  Creating
+ Container t01-empty-ledger-endpoint__bw56y26__env-workspace-1  Creating
+ Container t01-empty-ledger-endpoint__bw56y26__env-workspace-1  Error response from daemon: No such image: awsbench-harbor/workspace:aaaae84c2d20
+ Container t01-empty-ledger-endpoint__bw56y26__env-aws-1  Error response from daemon: No such image: awsbench-harbor/aws:c9f7f21dba9f
+Error response from daemon: No such image: awsbench-harbor/workspace:aaaae84c2d20
+. Stderr: None. 
