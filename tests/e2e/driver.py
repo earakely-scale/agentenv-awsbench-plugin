@@ -267,7 +267,7 @@ async def wait_through(gw, args):
     if args.get("minutes") is not None:
         target = (await gw.now()) + timedelta(minutes=float(args["minutes"]))
         args = {"until": target.isoformat()}
-    for _ in range(20):
+    for _ in range(60):
         result = await gw.call("wait", args)
         if not result.get("woke_early"):
             return result

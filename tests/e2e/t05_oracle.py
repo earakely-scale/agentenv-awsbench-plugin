@@ -230,7 +230,10 @@ def steps_for(mode):
         if mode == "miss-schedule" and tool == "wait" and args.get("until") in ("12:30:30", "12:41:00"):
             args = {"until": {"12:30:30": "13:25:30", "12:41:00": "13:26:00"}[args["until"]]}
             if args["until"] == "13:25:30":
-                out += [("wait", args), cap("status --subsystem index"), cap("coldstart --subsystem placement")]
+                out += [("wait", args), cap("status --subsystem index"), cap("coldstart --subsystem placement"),
+                        say("CHANGE: capctl coldstart --subsystem placement (index SERVING_FULL confirmed) | why: v3 "
+                            "§6 step 3 | undo: capctl coldstart --subsystem placement --abort | auth: Priya's IC "
+                            "approval")]
                 continue
         if mode == "slowest" and tag == "step3-dry":
             continue
