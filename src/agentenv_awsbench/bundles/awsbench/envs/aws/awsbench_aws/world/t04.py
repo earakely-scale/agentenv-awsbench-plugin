@@ -947,6 +947,12 @@ class Mechanics:
         except AwsError as e:
             settings = {"error": f"{e.code}: {e.message}", "deleted": True}
         settings["pitr"] = dict(self.pitr)
+        repointed = {}
+        if self.state_table() != TABLE:
+            try:
+                repointed = self.scan(self.state_table())
+            except AwsError:
+                repointed = {}
         fmt = lambda d: {f"{k[0]}|{k[1]}": v for k, v in d.items() if k in set(keys) or k[0] in ("mch_44419",
                                                                                                 "mch_44420")}
         return {"t04": {
@@ -954,6 +960,8 @@ class Mechanics:
             "reference": fmt(self.hist.snapshot(ref_t)),
             "t0_state": fmt(self.hist.snapshot(self.t_start)),
             "final_state": fmt(east if east else self.live),
+            "state_table": self.state_table(),
+            "state_table_final": fmt(repointed) if self.state_table() != TABLE else None,
             "replica_final": fmt(west),
             "dataplane": {m: self.dp.get(m) for m in sorted(self.purged | set(D.MUST_EXCLUDE))},
             "first_broken_after_start": self.first_broken,

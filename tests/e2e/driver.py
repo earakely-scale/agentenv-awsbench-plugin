@@ -34,6 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t03_oracle
+import t04_oracle
 from gw import Gateway, load_grade
 
 LEDGER = "ledger.internal.vantleaf.io"
@@ -271,6 +272,9 @@ async def wait_through(gw, args):
 async def play(gw, steps, check_clock=True, harvest=harvest):
     found, problems = {}, []
     for tool, args, *check in steps:
+        if tool == "REPAIR":
+            await t04_oracle.repair_by_hand(gw, found)
+            continue
         before = await gw.now()
         args = fill(args, found)
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
@@ -309,12 +313,13 @@ async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
     t01_modes = ("oracle", "alt", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
-    parser.add_argument("--scenario", "--task", choices=("t01", "t03"), default="t01")
-    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES)), default="oracle")
+    parser.add_argument("--scenario", "--task", choices=("t01", "t03", "t04"), default="t01")
+    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES + t04_oracle.MODES)),
+                        default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
-    t03 = args.scenario == "t03"
-    if args.mode not in (t03_oracle.MODES if t03 else t01_modes):
+    t03, t04 = args.scenario == "t03", args.scenario == "t04"
+    if args.mode not in (t03_oracle.MODES if t03 else t04_oracle.MODES if t04 else t01_modes):
         parser.error(f"--mode {args.mode} is not a {args.scenario} mode")
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
     problems = []
@@ -327,7 +332,14 @@ async def main(argv=None):
         problems += ["sre-primary can see awsbench_control"] if "awsbench_control" in sre else []
         problems += ["harness lacks awsbench_control"] if "awsbench_control" not in harness else []
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
-        if t03:
+        if t04:
+            steps = t04_oracle.alt_steps() if args.mode == "alt" else t04_oracle.steps_for(args.mode)
+            problems += await play(gw, steps, harvest=t04_oracle.harvest)
+            graded = await finish(gw, t04_oracle.load_grade())
+            if not t04_oracle.expected(args.mode, graded):
+                problems.append(f"t04 {args.mode}: unexpected D12 {graded['d12']['score']} "
+                                f"(pass={graded['d12']['result']})")
+        elif t03:
             problems += await play(gw, t03_oracle.steps_for(args.mode), harvest=t03_oracle.harvest)
             graded = await finish(gw, t03_oracle.load_grade())
             if not t03_oracle.expected(args.mode, graded):
@@ -339,7 +351,7 @@ async def main(argv=None):
         score, passed = graded["d12"]["score"], graded["d12"]["result"]
         rows = {r["id"]: r for r in graded["rows"] + graded["gates"]}
         fired = {g["id"] for g in graded["gates"] if g["fired"]}
-        expected = t03 or {"oracle": score >= 0.9 and passed, "alt": score >= 0.9 and passed, "nothing": score <= 0.1,
+        expected = t03 or t04 or {"oracle": score >= 0.9 and passed, "alt": score >= 0.9 and passed, "nothing": score <= 0.1,
                     "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
                     "noshed": not passed and not rows["C6"]["result"] and not fired,
                     "early": score <= 0.4 and fired == {"G3"},
