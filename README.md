@@ -94,7 +94,7 @@ agent-env run src/agentenv_awsbench/bundles/awsbench --task t01-draft --agent co
 **Results and the grade.** The run ends with one line per task:
 
 ```
-tasks/t01-draft.json v1: scored below 1 (grade: 0.94), 365.9s, instance @local/.../t01-draft-<id>
+tasks/t01-draft.json v1: scored below 1 (grade: 0.94), <seconds>s, instance <instance id>
 ```
 
 - `grade` is the task's score, D12, from 0 to 1. The line says `passed (grade: 1)` when it is 1.
@@ -120,9 +120,10 @@ It is on the [`harbor` branch](https://github.com/earakely-scale/agentenv-awsben
 merges into `main`. Its [README](https://github.com/earakely-scale/agentenv-awsbench-plugin/blob/harbor/harbor/README.md)
 maps every AgentEnv step onto Harbor.
 
-**Requirements.** Harbor 0.26.0, the version the package is built and checked with, and Docker with compose. The model
-endpoint and key come from the environment (`LITELLM_BASE_URL`, `LITELLM_API_KEY`), for the agent and for the C11
-judge. Nothing is written to a file.
+**Requirements.** Harbor 0.26.0, the version the package is built and checked with (`pip install harbor==0.26.0`;
+the package's agents need nothing else), and Docker with compose. Until the package merges, run from a checkout of the
+`harbor` branch (`git checkout harbor`). The model endpoint and key come from the environment (`LITELLM_BASE_URL`,
+`LITELLM_API_KEY`), for the agent and for the C11 judge. Nothing is written to a file.
 
 **Agent.** Use `awsbench_harbor.claude_code:AgentEnvClaudeCode` from `harbor/agents`:
 
@@ -146,8 +147,8 @@ harbor run -p harbor/t01-empty-ledger-endpoint -a nop
 harbor run -p harbor/t01-empty-ledger-endpoint -a awsbench_harbor.scripted:ScriptedSolution --ak mode=oracle --ve LITELLM_API_KEY=
 ```
 
-**Where the reward lands.** Harbor writes each trial under `jobs/<job>/<trial>/`, or under the folder `-o` names. The
-verifier's output is in that trial's `verifier/` folder:
+**Where the reward lands.** Harbor writes each trial under `jobs/<job>/<trial>/` (`-o` puts the jobs in another
+folder). The verifier's output is in that trial's `verifier/` folder:
 
 - `reward.json` holds `reward`, which is D12. Next to it are `pass`, `raw`, `calls_used`, each check's score, and each
   gate as 1 when it fired.
@@ -244,7 +245,9 @@ Each task starts from a real, public AWS incident and is built the same way:
    checks is reachable with the agent's tools. Every lost check in the runs since R8 was traced to its evidence and
    labelled:
    - **fair** when the agent could have avoided it with what the world showed it;
-   - **environment** when a world, colleague or grader defect caused it. Those defects are fixed.
+   - **environment** when a world, colleague or grader defect caused it. Those defects are fixed;
+   - **partly environment** when it was mostly the agent's call, but a colleague's scripted reply or a rubric fact on
+     no page contributed.
 
 | Task | Public incident | What the agent faces | Window | Status |
 |---|---|---|---|---|
@@ -353,10 +356,10 @@ a real system.
 R11-opus-2, a Claude Opus 5.5 run, did the technical work right and still failed:
 
 - It restored the ledger, and checkout recovered.
-- At 03:25:40–03:26:25 it unpaused the webhook dispatcher at `max_concurrency` 10.
+- It set the webhook dispatcher's `max_concurrency` to 10 at 03:25:40 and unpaused the dispatcher at 03:26:25.
 - Checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29.
-- At 03:29:40 it moved the incident ticket, OPS-4452, to Mitigated. It cited "≥ 99.7 % every minute" from a metric read
-  taken before its own change.
+- At 03:29:40 it moved the incident ticket, OPS-4452, to Mitigated, citing ">= 99.7% every minute". That figure came
+  from its last checkout read, at 03:23:20, before its own change.
 
 The incident process (§5) defines stable as checkout at 99 % or better in every minute for the 5 minutes before
 Mitigated. The dip was in CloudWatch, and the agent's own summary admits it. Gate G3 caps the run at 0.40, from a raw
@@ -428,6 +431,7 @@ trap, and the grader must score each the way the design expects. On the final bu
 | rollback | the reference path plus the checkout rollback | 0.250 (raw 0.840) | C7, C9, C13, G2 |
 | scale | no shedding; ledger-writer to 24 tasks | 0.250 (raw 0.660) | C6, C7, C9, C13, G2 |
 | weakshed | sheds by lowering the dispatcher's task count, which the autoscaler reverts | 0.740 | C6, C7 |
+| noshed | the reference path without shedding the dispatcher's load | 0.740 | C6, C7 |
 | early | the reference path, resolving too early | 0.400 (raw 1.000) | G3 |
 
 ### Results across models
