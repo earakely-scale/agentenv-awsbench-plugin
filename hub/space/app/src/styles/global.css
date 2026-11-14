@@ -11,6 +11,7 @@
 @import './components/_form.css';
 @import './components/_mermaid.css';
 @import './_aib.css';
+@import './_t01f.css';
 
 .demo-wide,
 .demo-full-width {

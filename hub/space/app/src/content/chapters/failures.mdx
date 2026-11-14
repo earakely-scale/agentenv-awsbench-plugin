@@ -1,0 +1,52 @@
+import F from "../../../public/data/failures-t01.json";
+import ModelTiles from "../../components/ModelTiles.astro";
+import IncidentArc from "../../components/IncidentArc.astro";
+import FailureMatrix from "../../components/FailureMatrix.astro";
+import FamilyCard from "../../components/FamilyCard.astro";
+import RunSquare from "../../components/RunSquare.astro";
+import FailuresBehaviour from "../../components/FailuresBehaviour.astro";
+
+<div class="t01f">
+
+## How models fail T01
+
+{F.headline.standfirst}
+
+<ModelTiles />
+
+### What T01 asks of an on-call agent
+
+At 02:31 a delayed endpointd enactor writes stale plan 48177 over a newer one, and ten seconds later another enactor's
+cleanup deletes it, with every record of `ledger.internal`. With the ledger's name empty, checkout success falls to
+4 %. The page reaches the agent at 02:40, and from then on it is the incident commander until the window closes at
+05:10, when the end state is graded.
+
+Every point a run lost is labelled.
+<span class="t01f-label"><RunSquare sq={{ run: "fair", state: "lost", label: "fair", checks: [] }} decorative /> **Fair**</span>: {F.labels.fair.meaning}
+<span class="t01f-label"><RunSquare sq={{ run: "partly environment", state: "lost", label: "partly_environment", checks: [] }} decorative /> **Partly environment**</span>: {F.labels.partly_environment.meaning}
+<span class="t01f-label"><RunSquare sq={{ run: "environment", state: "fixed", label: null, checks: [] }} decorative /> **Environment**</span>: {F.labels.environment.meaning}
+A **near miss** lost nothing but came close; each family says what near means for it.
+
+<IncidentArc />
+
+### Where each model lost points
+
+Each row is one judgment the task tests, and each column one model, ordered by pass@1. Hover, focus or tap a square
+for the run and what happened; each family's card below lists the same runs in a table.
+
+<div class="t01f-wide"><FailureMatrix /></div>
+
+{F.families.map((f) => <div class="t01f-wide"><FamilyCard f={f} /></div>)}
+
+### What this says about the task
+
+{F.what_this_says.map((w) => <p><strong>{w.title}</strong> {w.text}</p>)}
+
+#### How this was made
+
+{F.method} The films and their scripts are in the [dataset](https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench/tree/main/films/T01),
+and each opens as an interactive page that plays the same script over the run's data.
+
+<FailuresBehaviour />
+
+</div>

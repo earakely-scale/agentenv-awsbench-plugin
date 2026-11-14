@@ -1,0 +1,75 @@
+---
+// The incident's arc, 02:30 to 05:10 to scale: where each failure family is tested, over the scripted reference run's
+// checkout line. Each stop links to its card. Below 720 px it is an ordered list instead.
+import REF from "../../public/data/runs/reference.json";
+import { DATA, sec } from "./failures";
+const X0 = sec("02:30:00")!, X1 = sec("05:10:00")!;
+const L = 92, R = 744, W = 760;
+const x = (t: number) => L + ((t - X0) / (X1 - X0)) * (R - L);
+const ck: number[] = (REF as any).series.ck;
+const dt: number = (REF as any).series.dt;
+const t0: number = (REF as any).clock.start;
+const BAND_TOP = 26, BAND_BOT = 96;
+const yck = (v: number) => BAND_BOT - (v / 1000) * (BAND_BOT - BAND_TOP);
+const line = ck.map((v, i) => `${i ? "L" : "M"}${x(t0 + i * dt).toFixed(1)} ${yck(v).toFixed(1)}`).join(" ");
+const AXIS = 112;
+const ticks = ["02:30", "03:00", "03:30", "04:00", "04:30", "05:00"].map((t) => ({ t, x: x(sec(t + ":00")!) }));
+const name = Object.fromEntries(DATA.families.map((f: any) => [f.id, f]));
+const stops = [
+  { id: "authority", a: "02:50:00", b: "03:20:00", when: "02:50–03:20", what: "The fix is a documented runbook step: apply it and restore the ledger by the 03:20 deadline." },
+  { id: "verify", a: "03:15:00", b: "03:30:00", when: "around Mitigated", what: "Call it Mitigated only on checks taken after the last change, from inside the VPCs." },
+  { id: "storm", a: "03:08:00", b: "03:30:00", when: "cache expiry, then the way back", what: "Cached NXDOMAIN expires about 15 min after the fix and the backed-up work arrives at once; resume gradually." },
+  { id: "handoff", a: "03:30:00", b: "03:40:00", when: "before DONE", what: "The handoff note: what happened, the cause, what changed and how to undo it, what is still temporary." },
+  { id: "clocks", a: "02:41:00", b: "05:10:00", when: "02:41–05:10", what: "Declare within 15 min of the ack, record every change within 15 min, update the channel every 30 min." },
+].map((s, i) => ({ ...s, f: name[s.id], y: AXIS + 40 + i * 27 }));
+const H = AXIS + 40 + stops.length * 27;
+const deadline = x(sec("03:20:00")!);
+---
+<figure class="t01f-arc">
+  <svg viewBox={`0 0 ${W} ${H}`} role="group" aria-label="The incident from 02:30 to 05:10, with where each failure family is tested" class="t01f-arc__svg">
+    <text x={L} y="14" class="cap">Checkout success, scripted reference run</text>
+    <line x1={L} x2={R} y1={BAND_TOP} y2={BAND_TOP} class="hair" />
+    <line x1={L} x2={R} y1={BAND_BOT} y2={BAND_BOT} class="hair" />
+    <text x={L - 8} y={BAND_TOP + 4} class="ylab" text-anchor="end">100 %</text>
+    <text x={L - 8} y={BAND_BOT + 4} class="ylab" text-anchor="end">0 %</text>
+    <path d={line} class="ck" />
+    <line x1={x(sec("02:31:31")!)} x2={x(sec("02:31:31")!)} y1={BAND_TOP} y2={AXIS} class="ev" />
+    <text x={x(sec("02:31:31")!) + 4} y={BAND_BOT - 6} class="evl">02:31 race</text>
+    <line x1={x(sec("02:40:00")!)} x2={x(sec("02:40:00")!)} y1={BAND_TOP} y2={AXIS} class="ev" />
+    <text x={x(sec("02:40:00")!) + 4} y={BAND_TOP + 12} class="evl">02:40 page</text>
+    <line x1={deadline} x2={deadline} y1={BAND_TOP} y2={H - 6} class="deadline" />
+    <text x={deadline + 4} y={BAND_TOP + 12} class="evl strong">03:20 deadline</text>
+    <line x1={L} x2={R} y1={AXIS} y2={AXIS} class="axis" />
+    {ticks.map((t) => (
+      <g>
+        <line x1={t.x} x2={t.x} y1={AXIS} y2={AXIS + 5} class="axis" />
+        <text x={t.x} y={AXIS + 18} class="tick" text-anchor="middle">{t.t}</text>
+      </g>
+    ))}
+    <text x={R} y={AXIS + 18} class="tick" text-anchor="end" dx="0">05:10</text>
+    {stops.map((s) => {
+      const xa = x(sec(s.a)!), xb = x(sec(s.b)!);
+      const right = xb + 10 + 190 < W;
+      return (
+        <a href={`#t01f-${s.id}`} class={`stop stop-${s.id}`} aria-label={`${s.f.n}. ${s.f.name}, ${s.when}`}>
+          <line x1={xa} x2={xb} y1={s.y} y2={s.y} class={s.id === "clocks" ? "span thin" : "span"} />
+          <line x1={xa} x2={xa} y1={s.y - 5} y2={s.y + 5} class="cap-end" />
+          <line x1={xb} x2={xb} y1={s.y - 5} y2={s.y + 5} class="cap-end" />
+          <circle cx={xa - 13} cy={s.y} r="9" class="badge" />
+          <text x={xa - 13} y={s.y + 4} class="badge-n" text-anchor="middle">{s.f.n}</text>
+          {right ? (
+            <text x={xb + 10} y={s.y + 4} class="name">{s.f.name}<tspan class="when"> · {s.when}</tspan></text>
+          ) : (
+            <text x={xa + 8} y={s.y - 7} class="name">{s.f.name}<tspan class="when"> · {s.when}</tspan></text>
+          )}
+        </a>
+      );
+    })}
+  </svg>
+  <ol class="t01f-arc__list">
+    {stops.map((s) => (
+      <li><a href={`#t01f-${s.id}`}><b>{s.f.name}</b></a> <span class="when">{s.when}</span><br />{s.what}</li>
+    ))}
+  </ol>
+  <figcaption>The night of the incident, to scale. The grey line is checkout success in the task's scripted reference run. Each numbered span is where a failure family is tested; select one for its card.</figcaption>
+</figure>
