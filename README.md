@@ -24,13 +24,14 @@ fixed horizon, not on the transcript. The tasks, every recorded run and viewers 
 as **AwsIncidentsBench**.
 
 - **[Space](https://huggingface.co/spaces/earakely-scale/AwsIncidentsBench):** the write-up, the results and failure
-  modes, and viewers: the T01 diorama, the flight recorder, the T03 fleet board and films of the moments that decided
-  runs.
+  modes, cost against score for every task, and viewers: the T01 diorama, the flight recorder (every task), the T03
+  fleet board and films of the moments that decided runs.
 - **[Dataset](https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench):** every run's viewer JSON, scrubbed
   exports, grade and transcript, the task cards and the films.
 - **[Harbor package](harbor/):** T01 as a Harbor task that runs the same artifacts as the AgentEnv run, with its
   [parity matrix](harbor/PARITY.md) against the AgentEnv task.
-- **Docs:** the [T01](docs/T01.md) and [T03](docs/T03.md) task pages, [the environment](docs/environment.md), and
+- **Docs:** the [T01](docs/T01.md), [T03](docs/T03.md), [T04](docs/T04.md) and [T05](docs/T05.md) task pages,
+  [the environment](docs/environment.md), and
   [CONTRACTS.md](CONTRACTS.md), the interfaces between the parts.
 
 AwsBench is not affiliated with or endorsed by Amazon Web Services.
@@ -78,8 +79,21 @@ python tests/e2e/chaos.py --gateway http://127.0.0.1:<port>                 # ro
 ```
 
 The driver's other modes walk the traps: `nothing`, `trap`, `rollback`, `early`, `scale`, `weakshed` and `noshed`.
-Their scores are in [The verifier](#the-verifier). Each mode needs a freshly configured env. For T03, deploy with
-`--task t03-e2e-env` and run the driver with `--scenario t03`.
+Their scores are in [The verifier](#the-verifier). Each mode needs a freshly configured env. For the other tasks,
+deploy the task's e2e env and run the driver with its scenario:
+
+```bash
+agent-env run src/agentenv_awsbench/bundles/awsbench --task t03-e2e-env --keep
+python tests/e2e/driver.py --gateway http://127.0.0.1:<port> --scenario t03 --mode oracle
+agent-env run src/agentenv_awsbench/bundles/awsbench --task t04-purged-routes-e2e-env --keep
+python tests/e2e/driver.py --gateway http://127.0.0.1:<port> --scenario t04 --mode oracle
+agent-env run src/agentenv_awsbench/bundles/awsbench --task t05-capacity-glob-e2e-env --keep
+python tests/e2e/driver.py --gateway http://127.0.0.1:<port> --scenario t05 --mode oracle
+```
+
+T04's other modes are `alt`, `nothing`, `api-rollback`, `early-resume`, `purged-only`, `no-publish`, `whole-copy` and
+`cutover`; T05's are `alt`, `nothing`, `coldstart-all`, `miss-schedule`, `slowest`, `trust-status`, `early-resolve` and
+`rollback`. Their scores are in each task's page on the Space.
 
 **3. An agent.** The solver is Claude Code by default, with its built-in tools off, so it acts only through the env's
 tools. `--agent codex` runs the Codex CLI instead.
@@ -91,9 +105,10 @@ agent-env run src/agentenv_awsbench/bundles/awsbench --task t01-draft --agent co
 ```
 
 - `--model` is passed to the agent as is, so give the name your endpoint serves the model under.
-- `--task t03-draft` runs T03.
-- The judged checks (T01's handoff note; T03's root-cause write-up and public status text) use the same endpoint.
-  `AWSBENCH_JUDGE_MODEL` picks their model, Claude Sonnet 5.5 (`claude-sonnet-5-5`) by default for both tasks.
+- `--task t03-draft` runs T03, `--task t04-purged-routes-draft` T04 and `--task t05-capacity-glob-draft` T05.
+- The judged checks (T01's handoff note; T03's root-cause write-up and public status text; T04's handoff summary; T05's
+  #sre handover) use the same endpoint. `AWSBENCH_JUDGE_MODEL` picks their model, Claude Sonnet 5.5
+  (`claude-sonnet-5-5`) by default for every task.
   Without `LITELLM_API_KEY` they are skipped, and the other communication checks carry their points.
 - Runs use the local Docker sandbox. `--sandbox modal_vm`, or another VM provider, runs them remotely.
 
@@ -261,9 +276,12 @@ Each task starts from a real, public AWS incident and is built the same way:
 |---|---|---|---|---|
 | [T01, The Empty Ledger Endpoint](docs/T01.md) | Amazon DynamoDB, us-east-1, October 19–20, 2025: the DNS race in [AWS's post-event summary](https://aws.amazon.com/message/101925/). The retry storm comes from [LaunchDarkly's write-up](https://launchdarkly.com/blog/what-happened-what-we-learned-and-how-were-improving/) of the same day. | An automation race empties the payments ledger's internal DNS name during Black Friday week. The agent has to restore the right plan with the automation paused, wait out the hosts' cached NXDOMAIN, and shed the reconnect herd that follows. | 02:40–05:10 ET, 250 calls | Hardened build. 10 of 12 Claude Opus 5.5 runs pass. On AgentEnv and Harbor. |
 | [T03, Thread Ceiling](docs/T03.md) | Amazon Kinesis, us-east-1, November 25, 2020: [AWS's post-event summary](https://aws.amazon.com/message/11201/). | A pre-approved capacity change pushes every stream-routing host past its thread limit, and the fleet stops routing payment events to the ledger. The agent has to revert both halves of the change, restart the fleet in paced waves, and catch the ledger up before a 13:00 settlement run. | 08:15–13:00 ET, 220 calls; graded at 16:15 | Hardened build. 6 of 6 Claude Opus 5.5 runs pass. On AgentEnv. |
+| [T04, Purged Routes](docs/T04.md) | Amazon ELB, us-east-1, December 24, 2012: [AWS's post-event summary](https://aws.amazon.com/message/680587/). | A maintenance job meant for staging tombstoned 371 merchants' routes in production overnight, and the scheduled workflows rebuild them empty and publish them, breaking more merchants every tick. The agent has to stop the spread, restore the table to just before the purge, merge back exactly the purged routes while keeping later changes, publish, and resume the workflows through a canary. | 13:12–16:12 ET, about 200 calls | Final build. 4 of 5 Claude Opus 5.5 runs pass, the one failure fair. On AgentEnv. |
+| [T05, Capacity Glob Cold Start](docs/T05.md) | Amazon S3, us-east-1, February 28, 2017: [AWS's post-event summary](https://aws.amazon.com/message/41926/). | A playbook's capacity removal with a glob matched three pools of the company's object store and took 12 hosts instead of 4, halting its index and placement subsystems, and a second run is scheduled. The agent has to cancel it, re-admit the right hosts, cold-start index before placement through a long integrity check, get a public notice up through a fallback, and finish the ticket by host name. | 10:30–14:00 ET, 220 calls | Final build. 4 of 4 Claude Opus 5.5 runs pass (5 of 5 with the first round). On AgentEnv. |
 
-Both designs aim for a frontier pass rate near 10–18 %, and both are easier than that today. The Space's
-[results](https://earakely-scale-awsincidentsbench.hf.space/#results) give the numbers and the reasons.
+The designs aim for a low frontier pass rate (10–18 % for T01 and T03, 15–25 % for T04), and every task is easier than
+that today. The Space's [results](https://earakely-scale-awsincidentsbench.hf.space/#results) give the numbers and the
+reasons, and a [cost-and-score plot](https://earakely-scale-awsincidentsbench.hf.space/#cost-and-score) for every task.
 
 ## Example: T01, The Empty Ledger Endpoint
 
@@ -456,6 +474,17 @@ trap, and the grader must score each the way the design expects. On the final bu
 | Claude Fable 5.2 | Claude Code | 6 (R13) | 6 of 6 | 1.00 |
 | GPT-6 Astra | Codex CLI, default medium effort | 6 (R14) | 6 of 6 | 1.00 |
 
+**Cost and score.** What each T01 run cost against what it scored: x is the solver's model spend for the run (Claude
+Code's `total_cost_usd`, or GPT-6 Astra's token usage at list price), y the final D12, one point per run the final
+grader graded (R8 on, development runs included). The large marks are each model's means, and the dashed line is the
+Pareto frontier over them; every model but GPT-6 Astra is on it. The other tasks' plots are on the Space, and every
+point is in the dataset's [`pareto/`](https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench/tree/main/pareto)
+folder.
+
+<p align="center">
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/pareto-t01-dark.png"><img src="docs/assets/pareto-t01.png" width="800" alt="T01 cost against final D12 per run, by model: Claude Haiku 5.5 about $0.35 a run at a mean D12 of 0.41, Claude Sonnet 5.5 $0.67 at 0.82, Claude Opus 5.5 $1.93 at 0.93, Claude Fable 5.2 $3.77 at 1.00, all on the Pareto frontier, and GPT-6 Astra $12.19 at 1.00, off it"></picture>
+</p>
+
 How these runs were made and graded:
 
 - Every run is on the hardened build: R11 on 5fe025c, and R12 to R14 on 689ab3b, which adds the grader and colleague
@@ -503,11 +532,13 @@ src/agentenv_awsbench/bundles/awsbench/   the AgentEnv bundle (agent-env run <pa
   envs/workspace/                         MCP server workspace: chat, tickets, wiki, repo, mail, pager, status page
   envs/awsbench/                          the multi env over both, behind the AgentEnv gateway
   artifacts/awsbench-turn/                the post-turn hook
-  artifacts/t01-grade/, t03-grade/        the graders
-  tasks/                                  smoke, e2e-env, t01-draft, t03-smoke, t03-e2e-env, t03-draft
+  artifacts/t01-grade/ ... t05-grade/     the graders
+  tasks/                                  smoke, e2e-env, t01-draft; t03-smoke, t03-e2e-env, t03-draft; and the
+                                          same three for t04-purged-routes and t05-capacity-glob
 tests/unit/                               pure-Python tests per part
 tests/e2e/                                the scripted driver and the robustness checks
-tools/                                    run exporters, the Space and dataset builder, the film renderer
+tools/                                    run exporters, the Space and dataset builder, the cost-and-score plots,
+                                          the film renderer
 hub/                                      sources of the Hugging Face Space and dataset
 harbor/                                   the Harbor package, its parity matrix and QC
 docs/                                     task pages, the environment, README assets

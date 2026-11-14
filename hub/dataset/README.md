@@ -45,23 +45,55 @@ configs:
   data_files:
   - split: train
     path: tables/t03/checks.jsonl
+- config_name: t04-runs
+  data_files:
+  - split: train
+    path: tables/t04/runs.jsonl
+- config_name: t04-calls
+  data_files:
+  - split: train
+    path: tables/t04/calls.jsonl
+- config_name: t04-checks
+  data_files:
+  - split: train
+    path: tables/t04/checks.jsonl
+- config_name: t05-runs
+  data_files:
+  - split: train
+    path: tables/t05/runs.jsonl
+- config_name: t05-calls
+  data_files:
+  - split: train
+    path: tables/t05/calls.jsonl
+- config_name: t05-checks
+  data_files:
+  - split: train
+    path: tables/t05/checks.jsonl
+- config_name: pareto
+  data_files:
+  - split: train
+    path: pareto/pareto.csv
 ---
 
 # AwsIncidentsBench
 
 **An on-call agent works a payments outage against the real AWS API on AWS's open-source AWS Emulator, in a world with a
 clock that every call moves, failing hosts, caches and fleets, colleagues who push the wrong fix, and a fixed horizon at
-which the end state is graded. Two tasks so far: T01 "The Empty Ledger Endpoint" and T03 "Thread Ceiling".**
+which the end state is graded. Four tasks so far, each modelled on a public AWS incident: T01 "The Empty Ledger
+Endpoint", T03 "Thread Ceiling", T04 "Purged Routes" and T05 "Capacity Glob Cold Start".**
 
 - **The real AWS API.** AWS Emulator answers Route 53, DynamoDB, SSM, SQS, ECS, CloudWatch and CloudTrail; the agent
   drives it with the AWS CLI, plus fleet tools on simulated hosts and a workspace of chat, tickets, wiki, code, mail,
   pager and a public status page. A task's world can also answer AWS calls the emulator doesn't model (T03's Auto
-  Scaling group and telemetry).
+  Scaling group and telemetry, T04's table restores).
 - **Time that each call costs.** The clock is frozen between actions; a point read costs 20 s of virtual time, a write
   45 s, a broad query 75 s, and `wait` lets time pass. The task's physics moves with it (T01: traffic, DNS negative
   caches, an internal DNS automation, a ledger service that collapses under a reconnect herd; T03: a fleet of
   stream-routing hosts with a thread ceiling, an Auto Scaling group with scheduled actions, a shared bootstrap service,
-  ledger cells and a settlement run), and colleagues post, page and email on a timeline.
+  ledger cells and a settlement run; T04: a routing control plane whose scheduled workflows rewrite purged routes, a
+  data plane that loads them, point-in-time restores; T05: an object store's index and placement subsystems with
+  floors, cold starts and a long integrity check, a scheduled capacity command, and a status page that depends on the
+  store), and colleagues post, page and email on a timeline.
 - **Graded at a horizon.** When the agent stops, the world is fast-forwarded to the task's horizon and both servers'
   end state and the world's time series are graded: per-task checks, gates that cap the score, one D12 score.
 
@@ -85,6 +117,8 @@ card holds the same content, machine-readable.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | T01 | The Empty Ledger Endpoint | 02:40 ET 2026-11-17 | 05:10 | 05:10 | 250 | 13 | 4 | [tasks/T01/README.md](tasks/T01/README.md) |
 | T03 | Thread Ceiling | 08:15 ET 2026-11-16 | 13:00 | 16:15 | 220 | 14 | 6 | [tasks/T03/README.md](tasks/T03/README.md) |
+| T04 | Purged Routes | 13:12 ET 2026-11-21 | 16:12 | 16:12 | 200 | 12 | 7 | [tasks/T04/README.md](tasks/T04/README.md) |
+| T05 | Capacity Glob Cold Start | 10:30 ET 2026-11-20 | 14:00 | 14:00 | 220 | 12 | 6 | [tasks/T05/README.md](tasks/T05/README.md) |
 <!-- /tasks -->
 
 ### Task T01, The Empty Ledger Endpoint
@@ -112,25 +146,61 @@ colleagues pressing their own fixes. 220 tool calls; the window closes at 13:00 
 run passes when the core outcome checks (C02 to C06) and the routing check (C15) pass and no cap applies. Four
 rounds of T03 runs are here; the current one, T03R4, is six Claude Opus 5.5 runs on the hardened build `5fe025c`.
 
+### Task T04, Purged Routes
+
+Modelled on the Amazon ELB service event of December 24, 2012 ([post-event summary](https://aws.amazon.com/message/680587/)).
+The agent is Vantleaf's weekend on-call SRE, paged at 13:12 Eastern on Saturday, November 21, 2026: card payments fail
+for a growing number of merchants with `ROUTE_NO_HEALTHY_CELL`. On Friday evening a maintenance job meant for staging
+ran against production and tombstoned 371 merchants' routes in the routing control plane's DynamoDB table; the scaler
+and rebalancer workflows rebuild purged routes with no cells and publish them, breaking five or six more merchants per
+tick. The agent has to stop the spread, restore the table to just before the purge into a new table, merge back exactly
+the purged keys (including the ones the workflows rewrote) while keeping Saturday's legitimate changes, publish, verify
+and resume the workflows through a canary, with approvals, a status page, an approved merchant update and a handoff,
+while the payments lead pushes an API rollback that makes it worse. About 200 tool calls; the window and the horizon
+are 16:12 ET. A run passes when C1 earns full credit, the 371 routes are restored exactly (C2), C3, C4 and C5 pass and
+no gate fires. Two rounds are here: T04R1 (three development runs on `971d2bd`) and T04R2, nine runs on the final build
+`9b8347a` (five Claude Opus 5.5, two Claude Sonnet 5.5, two Claude Haiku 5.5).
+
+### Task T05, Capacity Glob Cold Start
+
+Modelled on the Amazon S3 service disruption of February 28, 2017 ([post-event summary](https://aws.amazon.com/message/41926/)).
+The agent takes over as Vantleaf's on-call SRE at 10:30 Eastern on Friday, November 20, 2026, the first day of the peak
+change freeze. At 10:24 a playbook removal, `capctl remove --pool vs-b* --select slowest --count 4`, matched three pools
+of vaultstore, Vantleaf's object store, and took 12 hosts instead of 4; the index and placement subsystems fell below
+their floors into protective halt, and a second run of the same glob is scheduled for 11:40. The agent has to cancel
+that run, re-admit the right hosts, cold-start index before placement and wait out a 104-minute integrity check, get a
+public notice up through the status page's S3 fallback, finish the ticket's last removal by host name before a 14:00
+lock without taking the billing batch's coordinators, and leave a handover in #sre. 220 tool calls; the shift and the
+horizon end at 14:00 ET. A run passes when C01, C02, C03, C05 and C07 pass and no gate fires. Two rounds are here: T05R1
+(three development runs on `6bd999c`) and T05R2, six runs on the final build `c9392b8` (four Claude Opus 5.5, one Claude
+Sonnet 5.5, one Claude Haiku 5.5).
+
 ## Results
 
 The bar the task owner set: over the Claude Opus 5.5 runs on the current build, pass@1 below 90 %, with every failure
 fair (one the agent could have avoided with what the world showed it). The current build is the hardened one, which
 removed what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that
 named the answer, colleagues who volunteered the fix, and a prompt that primed the tools. It is `5fe025c` for the R11
-and T03R4 runs and `689ab3b`, which adds the grader and colleague fixes R11 found, for T01's R12 to R14. Under the
-final grader (`f66efa2` for T01; `758e202` for T03, `689ab3b`'s grader with its judge on Claude Sonnet 5.5, T01's
-judge model):
+and T03R4 runs and `689ab3b`, which adds the grader and colleague fixes R11 found, for T01's R12 to R14; T04's and
+T05's final builds are `9b8347a` and `c9392b8`. Under the final grader (`f66efa2` for T01; `758e202` for T03,
+`689ab3b`'s grader with its judge on Claude Sonnet 5.5, T01's judge model; `98b9dcd` for T04; `b4eb0d9` for T05; every
+judge is Claude Sonnet 5.5):
 
 | Task | Opus runs | Pass@1 as graded | Pass@1, final grader | Failures | Bar |
 | --- | --- | --- | --- | --- | --- |
 | T01 | 12 (R11 + R12) | 9/12 | **10/12 (83 %)** | `R11-opus-2` and `R12-opus-5`, both G3, fair | met |
 | T03 | 6 (T03R4) | 5/6 | **6/6 (100 %)** | none | not met: no run fails |
+| T04 | 5 (T04R2) | 4/5 | **4/5 (80 %)** | `T04R2-opus-5`, C5 and C9, fair | met, thinly (4/6 with T04R1) |
+| T05 | 4 (T05R2) | 4/4 | **4/4 (100 %)** | none | not met: no run fails (5/5 with T05R1) |
 
 `R11-opus-2` and `R12-opus-5` each declared Mitigated while checkout was still below the incident process's bar of
 99 % in every minute for 5 minutes, with the impact metrics there to read. `R11-opus-4` (G2) and `T03R4-opus-2` (G4)
 were capped by grader defects, fixed since; the final grader passes both. Getting a fair T03 failure would mean adding
-difficulty back, which this round ruled out. The notes under each table say why each run lost what it lost.
+difficulty back, which this round ruled out. `T04R2-opus-5` repaired all 371 routes, then read the incident process
+as reserving the workflows' resume for a data owner nobody could name, refused the incident commander's approval and
+left them paused; five Opus runs are few, and the design expected 15–25 %. Every T05 Opus run passes; they lose C09
+(the cancelled schedule's owner told 16 to 44 minutes later, where the design's check wants 15) and C10 (no separate
+follow-up issue), both partly the environment's. The notes under each table say why each run lost what it lost.
 
 ### T01 across models
 
@@ -173,6 +243,61 @@ the model. Pooled, 16 runs a side, Harbor passed 5 and AgentEnv 8 (Fisher p = 0.
 48177, and none of the ten that did passed. The R15 gap did not persist and is consistent with sampling noise. Equal
 outcomes are still not proven: showing the mean D12 equal within ±0.15 would take about 32 runs a side. The Harbor runs
 are parity evidence and are not in the table above.
+
+### T04 and T05 by model
+
+Every T04 and T05 run, both rounds, by model, under each task's final grader. The first rounds ran on older builds whose
+colleague and grader defects are fixed since; their failures are labelled like the rest.
+
+**T04, Purged Routes**
+
+<!-- models-t04 -->
+| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |
+| --- | --- | --- | --- | --- | --- | --- |
+| Claude Haiku 5.5 | Claude Code | 2 (T04R2) | **0/2 (0 %)** | 0.545 | C2 ×2, C4 ×2, C5 ×2 | `T04R2-haiku-1` fair, `T04R2-haiku-2` fair |
+| Claude Sonnet 5.5 | Claude Code | 4 (T04R1 + T04R2) | **2/4 (50 %)** | 0.934 | C5 ×2, C8 ×2, C7 ×1 | `T04R1-sonnet-2` environment, `T04R2-sonnet-2` fair |
+| Claude Opus 5.5 | Claude Code | 6 (T04R1 + T04R2) | **4/6 (67 %)** | 0.950 | C5 ×2, C7 ×2, C12 ×2 | `T04R1-opus-1` environment, `T04R2-opus-5` fair |
+<!-- /models-t04 -->
+
+**T05, Capacity Glob Cold Start**
+
+<!-- models-t05 -->
+| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |
+| --- | --- | --- | --- | --- | --- | --- |
+| Claude Haiku 5.5 | Claude Code | 1 (T05R2) | **0/1 (0 %)** | 0.200 | C02 ×1, C05 ×1, C06 ×1 | `T05R2-haiku-1` fair |
+| Claude Sonnet 5.5 | Claude Code | 3 (T05R1 + T05R2) | **2/3 (67 %)** | 0.650 | C09 ×3, C10 ×3, C12 ×1 | `T05R1-sonnet-2` fair |
+| Claude Opus 5.5 | Claude Code | 5 (T05R1 + T05R2) | **5/5 (100 %)** | 0.900 | C09 ×5, C10 ×5 | none |
+<!-- /models-t05 -->
+
+## Cost and score
+
+Each task's cost against its score: one point per run the final grader graded (development runs included), x the
+solver's model spend for the run in US dollars (Claude Code's `total_cost_usd`, or for GPT-6 Astra the list price of its
+token usage in the Codex CLI; the judge's calls are not counted), y the final D12. A larger mark sits at each model's
+mean cost and mean D12, and the dashed line is the Pareto frontier over the means. The cost axis is logarithmic when a
+task's costs span more than 10×. Made by `tools/pareto.py` from `hub/runs.json` and `hub/run_costs.json`.
+
+![T01: final D12 against cost per run, by model](pareto/pareto-t01.png)
+
+<!-- pareto -->
+| Task | Model | Runs | Pass@1 | Mean cost | Cost range | Mean D12 | On the frontier |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T01 | Claude Haiku 5.5 | 6 | 0/6 | $0.35 | $0.14–$0.53 | 0.410 | yes |
+| T01 | Claude Sonnet 5.5 | 20 | 11/20 | $0.67 | $0.51–$0.88 | 0.824 | yes |
+| T01 | Claude Opus 5.5 | 18 | 16/18 | $1.93 | $1.63–$2.34 | 0.925 | yes |
+| T01 | Claude Fable 5.2 | 6 | 6/6 | $3.77 | $3.06–$5.77 | 1.000 | yes |
+| T01 | GPT-6 Astra | 6 | 6/6 | $12.19 | $9.01–$13.64 | 1.000 | no |
+| T03 | Claude Sonnet 5.5 | 6 | 4/6 | $1.06 | $0.75–$1.26 | 0.787 | yes |
+| T03 | Claude Opus 5.5 | 15 | 14/15 | $3.23 | $2.22–$5.13 | 0.941 | yes |
+| T04 | Claude Haiku 5.5 | 2 | 0/2 | $0.32 | $0.28–$0.36 | 0.545 | yes |
+| T04 | Claude Sonnet 5.5 | 4 | 2/4 | $0.77 | $0.67–$0.90 | 0.934 | yes |
+| T04 | Claude Opus 5.5 | 6 | 4/6 | $2.54 | $1.94–$3.30 | 0.950 | yes |
+| T05 | Claude Haiku 5.5 | 1 | 0/1 | $0.41 | $0.41–$0.41 | 0.200 | yes |
+| T05 | Claude Sonnet 5.5 | 3 | 2/3 | $1.50 | $1.43–$1.56 | 0.650 | yes |
+| T05 | Claude Opus 5.5 | 5 | 5/5 | $3.73 | $2.97–$4.33 | 0.900 | yes |
+
+Plots: [T01](pareto/pareto-t01.png) ([dark](pareto/pareto-t01-dark.png)) · [T03](pareto/pareto-t03.png) ([dark](pareto/pareto-t03-dark.png)) · [T04](pareto/pareto-t04.png) ([dark](pareto/pareto-t04-dark.png)) · [T05](pareto/pareto-t05.png) ([dark](pareto/pareto-t05-dark.png)). Every point: [`pareto/pareto.csv`](pareto/pareto.csv).
+<!-- /pareto -->
 
 ### All runs
 
@@ -245,7 +370,7 @@ are parity evidence and are not in the table above.
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | not regraded | 115 | DONE 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | not regraded | 139 | DONE 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | not regraded | 81 | DONE 03:52:48 |
-| `reference` | Scripted oracle | `758e202` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
+| `reference` | Scripted oracle | `6871d5b` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
 
 **Final grader** (`f66efa2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
@@ -314,7 +439,7 @@ are parity evidence and are not in the table above.
 | `T03R1-opus-3` | Claude Opus 5.5 | `b8b4712` (dev) | 0.40 | fail | C03, C11 (3.75 of 5), C18 | G5 | 0.40 | 164 | 13:00 window (said DONE 10:37:03) |
 | `T03R1-sonnet-1` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.935 | pass | C14, C11 (2.5 of 5) | none | **0.975** (was 0.935) | 131 | 13:00 window (said DONE 10:54:31) |
 | `T03R1-sonnet-2` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.96 | pass | C14 | none | **1.00** (was 0.96) | 121 | 13:00 window (said DONE 10:29:49) |
-| `reference-t03` | Scripted oracle | `758e202` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
+| `reference-t03` | Scripted oracle | `6871d5b` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
 
 **Final grader** (`758e202`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
@@ -337,16 +462,78 @@ are parity evidence and are not in the table above.
 A check lost with points in brackets was given part of them.
 
 The runs on build `b8b4712` replied `RESULT: DONE` before the window closed, at the time in brackets, but that build's turn hook looked for DONE on a reply's last line and T03's prompt puts a two-line summary after it, so it missed the reply and the episode ran on to the window's end (fixed since). Calls after it count against the budget and are graded like any other.
+
+**T04 · Purged Routes**
+
+| Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `T04R2-haiku-1` | Claude Haiku 5.5 | `9b8347a` | 0.481235 | fail | C1 (7.5 of 15), C2 (13.42 of 15), C3, C4, C5, C8 (1.6 of 4), C9 (3.6 of 6), C12 | none | 0.481235 | 123 | DONE 14:56:10 |
+| `T04R2-haiku-2` | Claude Haiku 5.5 | `9b8347a` | 0.608 | fail | C2, C4, C5, C8 (1 of 4), C9 (4.8 of 6) | none | 0.608 | 118 | DONE 14:48:34 |
+| `T04R2-opus-1` | Claude Opus 5.5 | `9b8347a` | 0.900284 | pass | C6, C7 (5.6 of 7), C8 (3.43 of 4), C12 (5 of 8) | none | **0.956** (was 0.900284) | 161 | DONE 16:12:00 |
+| `T04R2-opus-2` | Claude Opus 5.5 | `9b8347a` | 0.99 | pass | none | none | 0.99 | 127 | DONE 16:04:05 |
+| `T04R2-opus-3` | Claude Opus 5.5 | `9b8347a` | 0.99 | pass | none | none | 0.99 | 131 | DONE 15:51:55 |
+| `T04R2-opus-4` | Claude Opus 5.5 | `9b8347a` | 0.99 | pass | none | none | 0.99 | 120 | DONE 14:48:40 |
+| `T04R2-opus-5` | Claude Opus 5.5 | `9b8347a` | 0.848 | fail | C5, C9 (4.8 of 6), C12 (2 of 8) | none | **0.898** (was 0.848) | 111 | DONE 15:13:47 |
+| `T04R2-sonnet-1` | Claude Sonnet 5.5 | `9b8347a` | 0.983332 | pass | C8 (3.33 of 4) | none | 0.983332 | 120 | DONE 15:49:10 |
+| `T04R2-sonnet-2` | Claude Sonnet 5.5 | `9b8347a` | 0.898 | fail | C5, C9 (4.8 of 6) | none | 0.898 | 113 | DONE 15:10:23 |
+| `T04R1-opus-1` | Claude Opus 5.5 | `971d2bd` (dev) | 0.828572 | fail | C5, C8 (2.86 of 4), C10, C12 (5 of 8) | none | **0.876** (was 0.828572) | 139 | DONE 16:12:00 |
+| `T04R1-sonnet-1` | Claude Sonnet 5.5 | `971d2bd` (dev) | 0.40 | fail | C7 (5.6 of 7), C8 (2 of 4), C9 (4.8 of 6), C12 (5 of 8) | G7 | **0.946** (was 0.40, now a pass) | 98 | DONE 15:43:05 |
+| `T04R1-sonnet-2` | Claude Sonnet 5.5 | `971d2bd` (dev) | 0.40 | fail | C5, C9 (4.8 of 6), C12 (6 of 8) | G7 | **0.91** (was 0.40) | 112 | DONE 15:38:05 |
+
+**Final grader** (`98b9dcd`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+
+- `T04R2-haiku-1`: 0.481235 · fair. Unchanged. Fair fail: PITR to Fri 15:00 ET instead of 19:42 (C2 332/371, C4 ungraded, 3 keys left tombstoned: C3, C5); route_spec only for the 34 rebuilt routes; routemap-api rollback to :57 at 14:01 (TR1, N = 22, C1 0.5); X1 in its handoff (C12 0); never resumed (C5, C9); unrecorded pauses (C8).
+- `T04R2-haiku-2`: 0.608 · fair. Unchanged. Fair fail: merged route_spec (and lifecycle) without settlement_profile, deliberately (C2 0/371, C4 ungraded); never resumed (C5, C9); unrecorded pauses and a merge (C8). C12 0.75.
+- `T04R2-opus-1`: **0.956** (was 0.900284) · partly environment. 98b9dcd: deleting its own temporary cell-7 alarm is new monitoring (C6, C8 now full; +0.056). C7 and C12 0.625 partly environment: at 15:46 it waited 1,545 s for the 16:35 rebalancer run and the unannounced 16:12 window refused its ticket handoff, which is only in the final reply (not exported). Pass.
+- `T04R2-opus-2`: 0.99 · fair. Unchanged. C12 misses F8's standing-access half (SEC-205's PlatformEng standing prod write; fair, not core). Pass.
+- `T04R2-opus-3`: 0.99 · fair. Unchanged. C12 misses F8's standing-access half (SEC-205's PlatformEng standing prod write; fair, not core). Pass.
+- `T04R2-opus-4`: 0.99 · fair. Unchanged (alternate containment through the EventBridge rules, N = 0). C12 misses F8's standing-access half (SEC-205's PlatformEng standing prod write; fair, not core). Pass.
+- `T04R2-opus-5`: **0.898** (was 0.848) · fair. Fair fail. C5 (core) and C9: repaired all 371 by 13:57, then read IP v12 §6 (".runbook steps reserved for the owner, such as resuming paused automation") as reserving the resume for a data owner; refused Priya's 15:09 APPROVED at 15:13 although Kwame ("priya is the approver"), Elena ("Priya approves") and Daniel ("Get her APPROVED") all pointed to her and docs/state-recovery.md §8 names no approver; ended with 89 calls left. 620a2a6 reads the incident ticket from the HANDOFF note on: C12 re-judged once, 0.25 -> 0.875 (+0.05).
+- `T04R2-sonnet-1`: 0.983332 · fair. Unchanged. C8: the 15:20:56 canary resume recorded 24 min later (fair). C12 misses F8's standing-access half (SEC-205's PlatformEng standing prod write; fair, not core). Pass.
+- `T04R2-sonnet-2`: 0.898 · fair. Unchanged. Fair fail: C5 (core) and C9, workflows left paused for a data owner after Kwame and Elena (14:29, 15:04) named Priya; it never asked her and ended at 15:10. C12 misses F8's standing-access half (SEC-205's PlatformEng standing prod write; fair, not core).
+- `T04R1-opus-1`: **0.876** (was 0.828572) · environment. Recorded 0.829 at 971d2bd; final 0.876 (the 8ef696a/df4b6f2 grader fixes, C12 re-judged once in R1 QC). C5 env-confounded (at 971d2bd Elena was silent after 15:00, fixed in 8ef696a: it waited on her for the data-owner decision, Priya approved at 16:04, only the scaler canary was on at 16:12); C7 and C12 0.625: the 16:12 window closed before its ticket handoff (partly environment).
+- `T04R1-sonnet-1`: **0.946** (was 0.40, now a pass) · fair. Recorded 0.400 (G7 read Owen's "We'll update you as soon as it's resolved" as a resolved claim, fixed in 8ef696a). Fair process losses: C7 (a 51-minute update gap, IP §4) and C8 (3 resume steps without a CHANGE record within 15 min). C12 0.75 (F4, F8). Pass.
+- `T04R1-sonnet-2`: **0.91** (was 0.40) · environment. Recorded 0.400 (the same G7 false positive, fixed in 8ef696a). C5 env-confounded: it held the rebalancer for Platform's OK while Elena was silent at 971d2bd (fixed in 8ef696a). C12 0.875 (F8).
+
+A check lost with points in brackets was given part of them.
+
+**T05 · Capacity Glob Cold Start**
+
+| Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `T05R2-haiku-1` | Claude Haiku 5.5 | `c9392b8` | 0.20 | fail | C02, C05, C06, C08, C09, C10, C07, C12 | G2 | 0.20 | 171 | DONE 13:59:57 |
+| `T05R2-opus-1` | Claude Opus 5.5 | `c9392b8` | 0.80 | pass | C09, C10, C12 | none | **0.90** (was 0.80) | 209 | DONE 13:48:24 |
+| `T05R2-opus-2` | Claude Opus 5.5 | `c9392b8` | 0.90 | pass | C09, C10 | none | 0.90 | 167 | DONE 13:43:47 |
+| `T05R2-opus-3` | Claude Opus 5.5 | `c9392b8` | 0.90 | pass | C09, C10 | none | 0.90 | 190 | DONE 13:46:36 |
+| `T05R2-opus-4` | Claude Opus 5.5 | `c9392b8` | 0.80 | pass | C09, C10, C12 | none | **0.90** (was 0.80) | 187 | DONE 13:42:00 |
+| `T05R2-sonnet-1` | Claude Sonnet 5.5 | `c9392b8` | 0.80 | pass | C09, C10, C12 | none | **0.90** (was 0.80) | 183 | DONE 13:47:05 |
+| `T05R1-opus-1` | Claude Opus 5.5 | `6bd999c` (dev) | 0.95 | pass | C10 | none | **0.90** (was 0.95) | 187 | DONE 13:48:41 |
+| `T05R1-sonnet-1` | Claude Sonnet 5.5 | `6bd999c` (dev) | 0.40 | fail | C10 | G6 | **0.80** (was 0.40, now a pass) | 178 | DONE 13:45:46 |
+| `T05R1-sonnet-2` | Claude Sonnet 5.5 | `6bd999c` (dev) | 0.40 | fail | C09, C10 | G5 | **0.25** (was 0.40) | 185 | DONE 13:52:14 |
+
+**Final grader** (`b4eb0d9`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+
+- `T05R2-haiku-1`: 0.20 · partly environment. Fair, every check: index cold start 11:44:47 and placement 13:30:11, fully serving 13:51, after the 13:15 pre-flight (C02, the inaction cap 0.2); trusted the status tool's publish: pending and never wrote the S3 banner STATUS-02 describes (C07); no incident declared (C08); no payments fail-safe (C06); held step 3 past the 14:00 lock (C05); 4 handover facts (C12); cancel labelled DRY-RUN-CHECK with no CHANGE record (G2). Recorded C12 votes (text unchanged). C09, C10 as for every run.
+- `T05R2-opus-1`: **0.90** (was 0.80) · partly environment. C12 re-judged at b4eb0d9: its last #sre message was a short addendum, and the handover with its linked OPS-4473 note gets F1-F7 at 3/3 (+0.10). C09 (partly environment): Tomas, the sched-0192 owner, was told 44 min (OPS-4471 comment 11:22:29) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R2-opus-2`: 0.90 · partly environment. C12 re-judged at b4eb0d9; same verdict (one sample's stray text after its JSON is read as its first object). C09 (partly environment): Tomas, the sched-0192 owner, was told 15 min 40 s (OPS-4471 comment 10:57:50) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R2-opus-3`: 0.90 · partly environment. C12 re-judged at b4eb0d9; same verdict. C09 (partly environment): Tomas, the sched-0192 owner, was told 30 min (OPS-4471 comment 11:14:30) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R2-opus-4`: **0.90** (was 0.80) · partly environment. C12 re-judged at b4eb0d9: F1 and F3 now credited from the handover read whole with its OPS-4473 note (+0.10). C09 (partly environment): Tomas, the sched-0192 owner, was told 19 min (OPS-4471 comment 11:07:15) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R2-sonnet-1`: **0.90** (was 0.80) · partly environment. C12 re-judged at b4eb0d9: the graded text was a one-line correction posted 45 s after the handover; read together, F1, F2, F4, F6, F7 (+0.10). C09 (partly environment): Tomas, the sched-0192 owner, was told 84 min (@mention 12:32:01) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and it edited PB-VS-07 (v5, a warning) but filed no issue; no page asks for an issue.
+- `T05R1-opus-1`: **0.90** (was 0.95) · partly environment. Recorded 0.950 at 6bd999c. 6e27b51 counts the Tomas notice only as a DM, mail, @mention or OPS-4471 comment (C09 fails, -0.05); C12 re-judged at b4eb0d9 (handover plus its linked OPS-4473 note), still passes. C09 (partly environment): Tomas, the sched-0192 owner, was told 28 min (OPS-4471 comment 11:14:31) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R1-sonnet-1`: **0.80** (was 0.40, now a pass) · partly environment. Recorded 0.400 (a G6 false positive, fixed in 6e27b51). C12 re-judged at b4eb0d9: fails fairly, F1 1/3 (the handover never says --count is per pool or why the glob matched) and F5 1/3, 4 facts. C09 (partly environment): Tomas, the sched-0192 owner, was told 31 min (OPS-4471 comment 11:13:53) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue.
+- `T05R1-sonnet-2`: **0.25** (was 0.40) · partly environment. Fair: G2 (cap 0.25), its sched-0192 cancel at 10:39:10 had no CHANGE record within 15 min (IP §3.5 class A, §6; the 6bd999c grader let an unrelated record cover it, fixed in 6e27b51); G5, a 'Not sent.' email to Theo at Lumen & Pine at 13:50:24 (IP §4), which it disclosed. C09 (partly environment): Tomas, the sched-0192 owner, was told 113 min (@mention 12:32:01) after the cancel; the design's C09 wants the notice within 15 min, while PF §4.1(d) says only 'notify its owner' and Tomas was offline until 12:30. C10 (partly environment): no PLAT/OPS follow-up issue filed; the handover names the capctl guard and PB-VS-07 fix, and no page asks for an issue. C12 re-judged at b4eb0d9; still passes.
 <!-- /results -->
 
 Runs on older builds are **development runs**: they met env and grader bugs that the runs themselves found and that are
 fixed since. Every run since R8 was also graded again by the final grader (`f66efa2` for T01, `758e202` for T03, whose
-judge is Claude Sonnet 5.5, as T01's is) from its own exports: **D12
+judge is Claude Sonnet 5.5, as T01's is; `98b9dcd` for T04 and `b4eb0d9` for T05, with the same judge) from its own exports: **D12
 final** is that score, and the note under each table says why it differs, or whose the points a run still loses are
 (*fair*: the agent could have avoided the loss; *environment*: a world, colleague or grader defect fixed since, which
 a regrade can't undo when it changed what the run did). A few runs per model and build show where a task bites, not a
-pass rate; both tasks are still easier than their designs' 10–18 % frontier pass target. Calls count
-every charged call, `wait` included, as the meter counts them against the budget (250 in T01, 220 in T03). T03's
+pass rate; every task is still easier than its design's frontier pass target. Calls count
+every charged call, `wait` included, as the meter counts them against the budget (250 in T01, 220 in T03 and T05, 200 in
+T04). T04 and T05 have no reference row: their scripted oracles score 1.000 on deployed envs, but those exports were
+not kept. T03's
 reference has its outcome checks and its runbook check (C16) graded by the grader's own rules on its replayed world;
 its other marks are the ones the path is built to pass.
 
@@ -382,14 +569,14 @@ each run's labelled losses (schema `awsincidentsbench.failures/v1`).
 
 | Path | What |
 | --- | --- |
-| `tables/<task>/runs.jsonl` | The dataset viewer's `t01-runs` and `t03-runs` tables: one row per run and the task's reference, with its score, checks lost, gates fired, calls, end time, the task's key times (T01: restore, minutes collapsed; T03: routing back to 95 %, ledger lag under 5 min, settlement, restarts, ejections), final message and handoff note or root-cause write-up |
+| `tables/<task>/runs.jsonl` | The dataset viewer's `t01-runs`, `t03-runs`, `t04-runs` and `t05-runs` tables: one row per run (and T01's and T03's reference), with its score, checks lost, gates fired, calls, end time, the task's key times (T01: restore, minutes collapsed; T03: routing back to 95 %, ledger lag under 5 min, settlement, restarts, ejections; T04 and T05: the world's facts, such as when the spread stopped or when the store served in full), final message and handoff note or root-cause write-up |
 | `tables/<task>/calls.jsonl` | The `calls` tables: one row per charged call of every run, with its virtual start and end, tool, cost class, command or arguments, result, error, and whether it changed production |
-| `tables/<task>/checks.jsonl` | The `checks` tables: one row per check and gate of every run, with its points (and, for T03, the points earned when the grader gave part of them), whether it passed or fired, and the grader's evidence |
+| `tables/<task>/checks.jsonl` | The `checks` tables: one row per check and gate of every run, with its points (and, for T03, T04 and T05, the points earned when the grader gave part of them), whether it passed or fired, and the grader's evidence |
 | `tasks/<task>/README.md` | The task's card (see Tasks above) |
 | `tasks/<task>/task.json` | The same card, machine-readable (schema `awsincidentsbench.task/v1`): prompt, tools with their descriptions, time and budget, colleagues and their decisions, checks, gates, caps, judges' fact lists, pass rule, build |
 | `index.json` | Per task, one row per run: model, build, development flag, D12, pass, checks lost, gates fired, calls, end; plus the task's reference (schema `awsincidentsbench.index/v2`) |
-| `runs/<run>/viewer.json` | The viewers' JSON. T01 runs: schema `awsincidentsbench.viewer/v1`, documented at the top of `tools/export_run.py` (every call with its virtual times, cost class, arguments and result; the world's series every 30 s; per-host DNS recovery; levers; the ticket and status-page history; events; the agent's messages; the grade's checks; the final message and the handoff note). T03 runs: schema `awsincidentsbench.viewer/v2`, documented at the top of `tools/export_t03.py` (the same, with T03's series every 30 s from 06:00: hosts by state, routing share, per-cell ledger lag and backlog, the ASG, restarts in flight, load-shed, canary, a sample host's threads and limit, the scheduled hold's state; every host's state every 30 s; the hold's history, settlement, ejections and OOM kills) |
-| `runs/<run>/aws-export.json` | The `aws` server's horizon export: `episode`, the `action_log` of every call and world write, the `meter`, the `world` (T01: endpointd, DNS, ledger, traffic; T03: `t03` with srcoord, backlog, cellmap, memory, ASG, hold, settlement, canary; both: timeline, approvals), `aws_state` and `start_state` |
+| `runs/<run>/viewer.json` | The viewers' JSON. T01 runs: schema `awsincidentsbench.viewer/v1`, documented at the top of `tools/export_run.py` (every call with its virtual times, cost class, arguments and result; the world's series every 30 s; per-host DNS recovery; levers; the ticket and status-page history; events; the agent's messages; the grade's checks; the final message and the handoff note). T03 runs: schema `awsincidentsbench.viewer/v2`, documented at the top of `tools/export_t03.py` (the same, with T03's series every 30 s from 06:00: hosts by state, routing share, per-cell ledger lag and backlog, the ASG, restarts in flight, load-shed, canary, a sample host's threads and limit, the scheduled hold's state; every host's state every 30 s; the hold's history, settlement, ejections and OOM kills). T04 and T05 runs: schema `awsincidentsbench.viewer/v3`, documented at the top of `tools/export_mech.py` (the shared fields, with the world's lanes described in the data: T04's payment failures, purged routes unrestored and failing, workflow switches and alarms; T05's index and placement states, card authorization errors, receipt backlog and public notice; and each run's key facts) |
+| `runs/<run>/aws-export.json` | The `aws` server's horizon export: `episode`, the `action_log` of every call and world write, the `meter`, the `world` (T01: endpointd, DNS, ledger, traffic; T03: `t03` with srcoord, backlog, cellmap, memory, ASG, hold, settlement, canary; T04: `t04` with the state table, data plane, workflows, publishes, restores and telemetry; T05: `t05` with vaultstore, schedules, impact, receipts, deadlines and telemetry; every task: timeline, approvals), `aws_state` and `start_state` |
 | `runs/<run>/workspace-export.json` | The `workspace` server's export: chat, tickets, wiki, repo, mail, pager and status records, each with its full history, and its action log |
 | `runs/<run>/grade.json` | The grader's rows: D12 with its caps and buckets, every check and gate with its evidence |
 | `runs/<run>/transcript.md` | A rendered view of the agent's session: the prompt, every tool call with its arguments and result, the agent's messages |
@@ -397,22 +584,26 @@ each run's labelled losses (schema `awsincidentsbench.failures/v1`).
 | `films/T01/<id>.mp4`, `.poster.png`, `.vtt` | The T01 failure films, their posters and captions (see Films above) |
 | `films/T01/scripts/` | The film scripts and the stage they name |
 | `films/T01/failures-t01.json` | The data of the Space's How models fail T01 chapter |
+| `pareto/pareto.csv`, `pareto.json`, `pareto-<task>.png`, `pareto-<task>-dark.png` | Cost against score: one row per run (task, run, model, the solver's cost in US dollars and where it comes from, final D12, pass, development run), each task's model means and Pareto frontier, and the plots in light and dark (see Cost and score above) |
 
-T01 runs are named `R<round>-<model>[-<n>]`, T03 runs `T03R<round>-<model>-<n>`; a round is one build of the
-environment.
+T01 runs are named `R<round>-<model>[-<n>]`, T03, T04 and T05 runs `T0<n>R<round>-<model>-<n>`; a round is one build
+of the environment. `pareto/` holds the cost-and-score data: `pareto.csv` (one row per run: task, run, model, cost,
+final D12, pass, whether it is a development run, where the cost comes from), `pareto.json` and the plots
+`pareto-<task>.png` and `pareto-<task>-dark.png`.
 
 ## How the runs were made
 
 Each run deploys the AwsBench bundle with AgentEnv on a Linux host, arms the gateway clock at the task's start (02:40 ET
-for T01, 08:15 ET for T03) and prompts the solver once with the page. The solver is Claude Code driving Claude Opus 5.5, Claude Sonnet 5.5, Claude Haiku 5.5 or Claude Fable 5.2
+for T01, 08:15 ET for T03, 13:12 ET for T04, 10:30 ET for T05) and prompts the solver once with the page (in T05, the
+shift handover). The solver is Claude Code driving Claude Opus 5.5, Claude Sonnet 5.5, Claude Haiku 5.5 or Claude Fable 5.2
 through a model endpoint, with its built-in tools off, so it acts only through the environment's `aws` and `workspace`
 MCP tools; for GPT-6 Astra it is the Codex CLI agent (0.147.0, `codex exec`) with the same tools, whose run folders keep
 its event stream as `trajectory-1.json` instead of a Claude Code session. A
 post-turn hook lets up to ten minutes of virtual time pass between turns and wakes the agent with what arrived. The
 episode ends at DONE, at the call budget or at the window's end (on the T03R1 build the hook missed `RESULT: DONE`;
-see the note under the T03 results); the world is then fast-forwarded to the horizon (05:10 for T01, 16:15 for T03) and graded by `artifacts/t01-grade/verify.py` or `artifacts/t03-grade/verify.py`, whose judges
-(T01's C11 handoff note, T03's C13 root-cause write-up and C18 public status text) are one LLM, Claude Sonnet 5.5 by
-default, given a fixed fact list.
+see the note under the T03 results); the world is then fast-forwarded to the horizon (05:10 for T01, 16:15 for T03, 16:12 for T04, 14:00 for T05) and graded by the task's `artifacts/t0<n>-grade/verify.py`, whose judges
+(T01's C11 handoff note, T03's C13 root-cause write-up and C18 public status text, T04's C12 handoff summary, T05's C12
+#sre handover) are one LLM, Claude Sonnet 5.5 by default, given a fixed fact list.
 
 Each task's reference is its scripted oracle path (`tests/e2e/driver.py` for T01, `tests/e2e/t03_oracle.py` for T03),
 replayed by `tools/build_hub_data.py` through the world package in process with in-memory AWS and workspace fakes: the
@@ -438,10 +629,20 @@ every 30 s; for every T03 run here the replay's per-minute host counts match the
   branch's head when each run started.
 - **Heuristics in the viewer JSON.** Which checks a call "bears on" is read from its tool and arguments, not from the
   grader; the grade's own evidence is in `grade.json`.
-- **Calibration is open.** Both tasks are meant to sit near a 10–18 % frontier pass rate. On the hardened build Opus
+- **No T04 or T05 reference.** Their scripted oracles were graded on deployed envs (D12 1.000 each, with the
+  shortcut and trap paths each task's card lists), but those exports were not kept, and neither task has an in-process
+  replay yet, so the viewer has no reference to compare their runs with.
+- **One known T04 realism defect, no grade effect.** ECS's describe calls for three routing services come from the
+  emulator unpatched (no running tasks), although the world serves their traffic; only the Haiku runs called them.
+- **Calibration is open.** T04's design aimed for Opus near 15–25 %; on its final build Opus passes 4 of 5, and T05's
+  Opus runs pass every time. T01 and T03 are meant to sit near a 10–18 % frontier pass rate. On the hardened build Opus
   passes T01 in 10 of 12 runs and T03 in 6 of 6, Claude Fable 5.2 and GPT-6 Astra pass all six of their T01 runs,
   Claude Sonnet 5.5 passes 8 of 16 on slightly later builds, and Claude Haiku 5.5 passes none of six. Adding difficulty is the task owner's call.
-- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve.
+- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve; in T04 and T05,
+  C12 decides eight and ten.
+- **Costs.** The cost of a run is the solver's own model spend; Claude Code reports its session's cost, which for the
+  T03R1 runs includes turns the build's hook added after the agent's `RESULT: DONE`. The judge calls (three per judged
+  check) are not included.
 
 ## License
 

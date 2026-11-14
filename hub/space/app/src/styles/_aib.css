@@ -42,6 +42,8 @@
 .aib-xm .xm-lost { color: var(--muted-color); }
 .aib-xm .xm-fails { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .aib-xm .xm-f { white-space: nowrap; }
+.aib-xm .xm-fails { min-width: 0; }
+.aib-xm .xm-f:has(code) { white-space: normal; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
 .aib-xm .xm-f code { font-size: .86em; }
 .aib-xm .loss { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: .8em; font-weight: 600; line-height: 1.55; border: 1px solid currentColor; }
 .aib-xm .loss.fair { color: #1d6fb8; }

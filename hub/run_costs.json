@@ -1,0 +1,397 @@
+{
+  "about": "The solver's model spend per run in US dollars, for tools/pareto.py: Claude Code's total_cost_usd for the session, or, for GPT-6 Astra in the Codex CLI, OpenAI's list price of the run's per-request token usage. Judge calls are not included. Runs not listed have no known per-run cost.",
+  "runs": {
+    "R10-opus-1": {
+      "usd": 1.879,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R10-opus-2": {
+      "usd": 1.893,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R10-opus-3": {
+      "usd": 1.842,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R10-sonnet-1": {
+      "usd": 0.585,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R10-sonnet-2": {
+      "usd": 0.555,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-1": {
+      "usd": 1.872,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-2": {
+      "usd": 2.124,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-3": {
+      "usd": 2.042,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-4": {
+      "usd": 1.993,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-5": {
+      "usd": 1.663,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R11-opus-6": {
+      "usd": 2.333,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-1": {
+      "usd": 0.372,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-2": {
+      "usd": 0.461,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-3": {
+      "usd": 0.402,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-4": {
+      "usd": 0.196,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-5": {
+      "usd": 0.526,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-haiku-6": {
+      "usd": 0.141,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-1": {
+      "usd": 2.341,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-2": {
+      "usd": 1.991,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-3": {
+      "usd": 1.907,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-4": {
+      "usd": 1.631,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-5": {
+      "usd": 2.042,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R12-opus-6": {
+      "usd": 1.848,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-1": {
+      "usd": 3.193,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-2": {
+      "usd": 3.781,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-3": {
+      "usd": 3.172,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-4": {
+      "usd": 3.666,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-5": {
+      "usd": 3.055,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R13-fable-6": {
+      "usd": 5.774,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R14-astra-1": {
+      "usd": 12.82,
+      "source": "OpenAI list price of Codex's per-request token usage, from the spend ledger"
+    },
+    "R14-astra-2": {
+      "usd": 11.46,
+      "source": "OpenAI list price of Codex's per-request token usage, from the spend ledger"
+    },
+    "R14-astra-3": {
+      "usd": 13.2511,
+      "source": "OpenAI list price of Codex's per-request token usage, from the run's summary.json"
+    },
+    "R14-astra-4": {
+      "usd": 9.0056,
+      "source": "OpenAI list price of Codex's per-request token usage, from the run's summary.json"
+    },
+    "R14-astra-5": {
+      "usd": 13.6399,
+      "source": "OpenAI list price of Codex's per-request token usage, from the run's summary.json"
+    },
+    "R14-astra-6": {
+      "usd": 12.9505,
+      "source": "OpenAI list price of Codex's per-request token usage, from the run's summary.json"
+    },
+    "R15-sonnet-ae-1": {
+      "usd": 0.7776,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-2": {
+      "usd": 0.6966,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-3": {
+      "usd": 0.5308,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-4": {
+      "usd": 0.6611,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-5": {
+      "usd": 0.68,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-6": {
+      "usd": 0.6173,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-7": {
+      "usd": 0.5666,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R15-sonnet-ae-8": {
+      "usd": 0.7276,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-1": {
+      "usd": 0.771,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-2": {
+      "usd": 0.5569,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-3": {
+      "usd": 0.8811,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-4": {
+      "usd": 0.8246,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-5": {
+      "usd": 0.6033,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-6": {
+      "usd": 0.5119,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-7": {
+      "usd": 0.6498,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R16-sonnet-ae-8": {
+      "usd": 0.8056,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "R8-opus-1": {
+      "usd": 1.85,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R8-opus-2": {
+      "usd": 1.872,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R8-opus-3": {
+      "usd": 1.691,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R8-sonnet-1": {
+      "usd": 0.745,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "R8-sonnet-2": {
+      "usd": 0.582,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R1-opus-1": {
+      "usd": 5.127,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger; cumulative over the turns the build's hook added after the agent's RESULT: DONE"
+    },
+    "T03R1-opus-2": {
+      "usd": 3.926,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger; cumulative over the turns the build's hook added after the agent's RESULT: DONE"
+    },
+    "T03R1-opus-3": {
+      "usd": 4.334,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger; cumulative over the turns the build's hook added after the agent's RESULT: DONE"
+    },
+    "T03R1-sonnet-1": {
+      "usd": 1.21,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger; cumulative over the turns the build's hook added after the agent's RESULT: DONE"
+    },
+    "T03R1-sonnet-2": {
+      "usd": 1.041,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger; cumulative over the turns the build's hook added after the agent's RESULT: DONE"
+    },
+    "T03R2-opus-1": {
+      "usd": 3.138,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R2-opus-2": {
+      "usd": 3.249,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R2-opus-3": {
+      "usd": 3.744,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R2-sonnet-1": {
+      "usd": 1.258,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R2-sonnet-2": {
+      "usd": 0.748,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R3-opus-1": {
+      "usd": 2.596,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R3-opus-2": {
+      "usd": 2.941,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R3-opus-3": {
+      "usd": 2.649,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R3-sonnet-1": {
+      "usd": 1.073,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R3-sonnet-2": {
+      "usd": 1.039,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-1": {
+      "usd": 2.919,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-2": {
+      "usd": 3.158,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-3": {
+      "usd": 2.219,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-4": {
+      "usd": 2.761,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-5": {
+      "usd": 2.949,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T03R4-opus-6": {
+      "usd": 2.677,
+      "source": "Claude Code's total_cost_usd for the session, from the spend ledger"
+    },
+    "T04R1-opus-1": {
+      "usd": 3.0377,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R1-sonnet-1": {
+      "usd": 0.6656,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R1-sonnet-2": {
+      "usd": 0.7776,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-haiku-1": {
+      "usd": 0.3599,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-haiku-2": {
+      "usd": 0.2832,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-opus-1": {
+      "usd": 3.3021,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-opus-2": {
+      "usd": 2.2454,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-opus-3": {
+      "usd": 2.2874,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-opus-4": {
+      "usd": 2.4557,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-opus-5": {
+      "usd": 1.9357,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-sonnet-1": {
+      "usd": 0.9015,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T04R2-sonnet-2": {
+      "usd": 0.7507,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R1-opus-1": {
+      "usd": 3.6066,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R1-sonnet-1": {
+      "usd": 1.4336,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R1-sonnet-2": {
+      "usd": 1.5614,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-haiku-1": {
+      "usd": 0.4081,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-opus-1": {
+      "usd": 3.9643,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-opus-2": {
+      "usd": 2.9735,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-opus-3": {
+      "usd": 3.7742,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-opus-4": {
+      "usd": 4.3262,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    },
+    "T05R2-sonnet-1": {
+      "usd": 1.5137,
+      "source": "Claude Code's total_cost_usd for the session, from the run's summary.json"
+    }
+  }
+}

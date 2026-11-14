@@ -11,7 +11,7 @@ One AgentEnv `multi` env over two MCP servers behind the AgentEnv gateway:
 takes the agent lane, advances the world and the gateway clock to its execution time, runs, and lets the world observe
 it: action events, colleagues' replies, cancellations of timeline events the call made moot. Between the agent's turns
 the harness lets up to ten minutes pass and wakes the agent with whatever arrived. The agent has at most 250 tool calls
-in T01 and 220 in T03.
+in T01, 220 in T03 and T05, and 200 in T04.
 
 **Physics.** The world ticks every 10 s, and a scenario picks its mechanics. In T01, checkout success follows which hosts
 can resolve the ledger; ledger-writer's regime (healthy, degraded, collapsed) follows offered load against capacity; the
@@ -19,11 +19,20 @@ webhook backlog and the checkout outbox drain or grow with the dispatcher's conc
 set. In T03, each of about 130 stream-routing hosts holds threads against its user's process limit, learns its peers
 over time, rebuilds its shard map every 30 minutes and is ejected by its coordinator if it stays warming too long;
 the Auto Scaling group, its scheduled actions and its scaling activities are served from the world's state, a shared
-bootstrap service can be overloaded, and eight ledger cells fall behind or catch up with the hosts that route. The
-physics is deterministic per seed, so a scripted path scores the same every time.
+bootstrap service can be overloaded, and eight ledger cells fall behind or catch up with the hosts that route. In
+T04, about 4,100 merchants' routes live in a DynamoDB table with a replica in a second region, point-in-time recovery
+and nightly backups; a scaler, a rebalancer and a reconciler rewrite routes on EventBridge schedules behind SSM
+switches, a publisher pushes them to a payments data plane, and payment failures, alarms and logs follow what the data
+plane loaded. In T05, about 170 hosts of an object store sit in pools with floors; its index and placement subsystems
+halt below their floors and come back only through cold starts with a long integrity check, and payments, receipts,
+merchant downloads, a billing batch and the public status page all follow the store's state. The physics is
+deterministic per seed, so a scripted path scores the same every time.
 
 **Colleagues.** Scripted characters with jobs and moods: in T01 the payments lead who blames the last deploy and wants a
 rollback, the rotation incident commander who approves changes outside the runbooks, the endpointd owner on his phone,
 a key merchant's CTO who emails; in T03 the author of the change behind the outage, the platform on-call, the incident
-commander, finance waiting on settlement, and a key merchant with a sale that morning. Their lines and the agent's replies are matched by a deterministic classifier, so the
+commander, finance waiting on settlement, and a key merchant with a sale that morning; in T04 a payments lead pushing
+an API rollback, an infrastructure director pushing a backup cutover, platform on-calls who change at 15:00 and
+Merchant Success waiting for approved wording; in T05 an engineering manager demanding a deploy's rollback, the previous
+on-call back at 12:30 with advice that would take the wrong hosts, and a billing owner with a 14:00 deadline. Their lines and the agent's replies are matched by a deterministic classifier, so the
 same reply gets the same answer.

@@ -8,13 +8,16 @@ export const FG = IDX.final_grader || {};
 ## Methods and caveats
 
 **How the runs were made.** Each run deploys the AwsBench bundle with AgentEnv, arms the gateway clock at the task's
-start (02:40 ET for T01, 08:15 ET for T03), and prompts the solver once with the page; a post-turn hook lets up to ten
+start (02:40 ET for T01, 08:15 ET for T03, 13:12 ET for T04, 10:30 ET for T05), and prompts the solver once with
+the page (in T05, the shift handover); a post-turn hook lets up to ten
 minutes pass between turns and wakes the agent with what arrived. The solver is Claude Code driving Claude Opus 5.5, Claude
 Sonnet 5.5, Claude Haiku 5.5 or Claude Fable 5.2 through a model endpoint, with its built-in tools off: it acts only
 through the `aws` and `workspace` MCP tools. GPT-6 Astra runs in the Codex CLI agent (0.147.0, `codex exec`) with the
 same tools, at the API's default medium effort, since that Codex has no metadata for the model and sends no effort. T01's budget is 250 tool calls and the 02:40–05:10 window, graded at 05:10; T03's is 220 calls and the
-08:15–13:00 window, with the world then fast-forwarded to the 16:15 horizon and graded there. The judges (T01's C11
-handoff, T03's C13 root-cause write-up and C18 public text) are one LLM, Claude Sonnet 5.5 by default, given a fixed fact list.
+08:15–13:00 window, with the world then fast-forwarded to the 16:15 horizon and graded there; T04's is about 200
+calls and 13:12–16:12, T05's 220 calls and 10:30–14:00, each graded at its window's end. The judges (T01's C11 handoff,
+T03's C13 root-cause write-up and C18 public text, T04's C12 handoff summary, T05's C12 #sre handover) are one LLM,
+Claude Sonnet 5.5 by default, given a fixed fact list.
 
 **What the viewers read.** `tools/export_run.py` turns each run folder into the viewers' JSON: the agent's calls from
 the `aws` server's meter and action log, with arguments and results from the agent's session; the world's series
@@ -38,10 +41,17 @@ own presimulation, the same in every run.
 physics, timeline and colleagues, timed by the same meter, with waits run to their full length. On a deployed env T01's
 path grades D12 1.0. T03's outcome checks (C02 to C06, C15) are computed by the grader's own rules on the replayed
 world, and so is its runbook check (C16); its other process and communication marks are the ones the path is built to
-pass.
+pass. T04 and T05 have no reference here: their scripted oracles score 1.000 on deployed envs, but those exports were
+not kept and neither task has an in-process replay yet. Their runs' viewer data (`tools/export_mech.py`) describes the
+world's lanes in the data itself, from each run's exported series.
+
+**Cost.** The cost-and-score plots read each run's solver spend from `hub/run_costs.json`: Claude Code's own
+`total_cost_usd` for the session, or for GPT-6 Astra the list price of its token usage in the Codex CLI, as recorded
+when the run was made; the judge's calls are not counted. `tools/pareto.py` draws them with the final grader's D12.
 
 **The final grader.** Every run since R8 was graded again offline, from its own exports, by the final grader: T01's at build
-<code>{FG.build}</code> (R8 to R10 at 9b076a2, whose later grader fixes move none of them), T03's at 758e202. T01's grader at <code>{FG.build}</code> also credits a change record that names its change in shorthand
+<code>{FG.build}</code> (R8 to R10 at 9b076a2, whose later grader fixes move none of them), T03's at 758e202, T04's at
+98b9dcd and T05's at b4eb0d9. T01's grader at <code>{FG.build}</code> also credits a change record that names its change in shorthand
 (C9: cd49049, then f66efa2 for a value a word or two past the arrow and the verb of a paused flag); of every T01 run
 since R8 it moves only five of the six GPT-6 Astra runs, from 0.97 to 1.00. The Claude Sonnet 5.5 runs of R15 were built
 at 1633470, whose grader is 689ab3b's, and it moves none of them; those of R16 were built at f79c1db, with this grader. T03's grader is 689ab3b's with its judge on Claude Sonnet 5.5 (758e202), the model T01's judge
@@ -55,14 +65,17 @@ moves, or that still loses points, has a note saying why and whose the loss is.
   what they show. The current runs are on the hardened build: for T01, R11 (six Claude Opus 5.5 runs on 5fe025c)
   and R12 to R14 (six each of Claude Haiku 5.5, Claude Opus 5.5, Claude Fable 5.2 and GPT-6 Astra, on 689ab3b), and
   R15 and R16 (eight Claude Sonnet 5.5 runs each, on 1633470 and f79c1db, slightly later builds of the same task whose
-  environment adds the R12 and R13 quality-check fixes); for T03, T03R4, six Claude Opus 5.5 runs on 5fe025c.
+  environment adds the R12 and R13 quality-check fixes); for T03, T03R4, six Claude Opus 5.5 runs on 5fe025c; for
+  T04, T04R2, nine runs on 9b8347a (five Opus, two Sonnet, two Haiku); for T05, T05R2, six runs on c9392b8 (four Opus,
+  one Sonnet, one Haiku). T04R1 and T05R1 are development runs.
 - **Builds.** The R8 and T03R1 run folders' build files were left blank by the run script; the commit shown is the
   branch's head when each run started.
 - **Few runs.** Twelve Opus runs of T01 and six of T03 on the current build, six to sixteen runs of each other model,
   and three Opus and two Sonnet runs per earlier build show where a task bites, not a rate. A GPT-6 Astra run costs
   about $12.
-- **Calibration.** Both tasks are easier than their designs intend; see Results for the numbers and the reasons.
-- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve. The final grader's
+- **Calibration.** Every task is easier than its design intends; see Results for the numbers and the reasons.
+- **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve; in T04 and T05,
+  C12 decides eight and ten. The final grader's
   re-judged rows are single samples of three votes each.
 
 {SAID.length > 0 && <ul class="aib-tail"><li><strong>T03R1's DONE was missed.</strong> T03's prompt asks for <code>RESULT: DONE</code> followed by a two-line summary, and the {SAID.length} agents on build {SAIDB} replied that way, between {SAID.map((r) => r.said_done).sort()[0].slice(0, 5)} and {SAID.map((r) => r.said_done).sort().slice(-1)[0].slice(0, 5)}. That build's turn hook looked for DONE on a reply's last line, so it didn't see it: it kept waking the agent every ten minutes, and the episode ran on to the 13:00 window. The results table gives each agent's first <code>RESULT: DONE</code>; calls after it count against the budget and are graded like any other. Later builds end the episode on it.</li></ul>}

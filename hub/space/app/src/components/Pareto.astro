@@ -1,0 +1,158 @@
+---
+// Cost against score for one task, drawn at compile time from public/data/pareto.json (tools/pareto.py): one point per
+// run, a larger mark per model at its mean cost and mean D12, and the Pareto frontier over the means. Two SVGs, one laid
+// out for the article column and one for phone width, so the labels keep a readable size; the table repeats every value.
+import PARETO from "../../public/data/pareto.json";
+const { task } = Astro.props;
+const T = (PARETO as any).tasks[task];
+const MODELS = (PARETO as any).models;
+const fmt$ = (v: number) => (v >= 10 ? `$${v.toFixed(1)}` : `$${v.toFixed(2)}`);
+const tick$ = (v: number) => `$${Number(v.toPrecision(2))}`;
+const d3 = (v: number) => v.toFixed(3);
+const lo = Math.min(...T.points.map((p: any) => p.cost));
+const hi = Math.max(...T.points.map((p: any) => p.cost));
+const yMin = Math.min(0, Math.floor((Math.min(...T.points.map((p: any) => p.d12)) - 0.05) * 10) / 10);
+
+function ticksFor(log: boolean): number[] {
+  if (log) {
+    const out: number[] = [];
+    for (let e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)); e++)
+      for (const m of [1, 2, 5]) { const v = m * 10 ** e; if (v >= lo / 1.25 && v <= hi * 1.25) out.push(v); }
+    return out;
+  }
+  const step = [0.25, 0.5, 1, 2, 5].find((s) => (hi - 0) / s <= 7) || 5;
+  const out: number[] = [];
+  for (let v = 0; v <= hi * 1.1 + 1e-9; v += step) out.push(Number(v.toFixed(2)));
+  return out;
+}
+const SHAPE = (shape: string, x: number, y: number, r: number) => {
+  const f = (n: number) => n.toFixed(1);
+  if (shape === "circle") return `<circle cx="${f(x)}" cy="${f(y)}" r="${f(r)}"/>`;
+  if (shape === "square") return `<rect x="${f(x - r * 0.9)}" y="${f(y - r * 0.9)}" width="${f(r * 1.8)}" height="${f(r * 1.8)}" rx="1.5"/>`;
+  if (shape === "triangle") return `<path d="M${f(x)},${f(y - r * 1.1)}L${f(x + r)},${f(y + r * 0.75)}L${f(x - r)},${f(y + r * 0.75)}Z"/>`;
+  if (shape === "diamond") return `<path d="M${f(x)},${f(y - r * 1.15)}L${f(x + r * 1.05)},${f(y)}L${f(x)},${f(y + r * 1.15)}L${f(x - r * 1.05)},${f(y)}Z"/>`;
+  const a = r * 1.05, b = r * 0.38;
+  return `<path d="M${f(x - b)},${f(y - a)}H${f(x + b)}V${f(y - b)}H${f(x + a)}V${f(y + b)}H${f(x + b)}V${f(y + a)}H${f(x - b)}V${f(y + b)}H${f(x - a)}V${f(y - b)}H${f(x - b)}Z"/>`;
+};
+const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+
+function draw(W: number, H: number, fs: number, narrow: boolean): string {
+  const L = narrow ? 40 : 48, R = narrow ? 14 : 24, Tp = 14, B = narrow ? 40 : 44;
+  const pw = W - L - R, ph = H - Tp - B;
+  const log = T.log_x;
+  const ticks = ticksFor(log);
+  const x0 = log ? Math.log10(Math.min(ticks[0], lo / 1.15)) : 0, x1 = log ? Math.log10(Math.max(ticks[ticks.length - 1], hi * 1.12)) : Math.max(ticks[ticks.length - 1], hi * 1.08);
+  const X = (c: number) => L + ((log ? Math.log10(c) : c) - x0) / (x1 - x0) * pw;
+  const Y = (d: number) => Tp + (1.05 - d) / (1.05 - yMin) * ph;
+  let s = `<rect class="pa-bg" x="0" y="0" width="${W}" height="${H}"/>`;
+  for (let v = yMin; v <= 1.0001; v += 0.2) {
+    const y = Y(v);
+    s += `<line class="pa-grid" x1="${L}" x2="${L + pw}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/><text class="pa-tick" x="${L - 6}" y="${(y + fs * 0.35).toFixed(1)}" text-anchor="end">${v.toFixed(1)}</text>`;
+  }
+  for (const v of ticks) {
+    const x = X(v);
+    if (x < L - 1 || x > L + pw + 1) continue;
+    s += `<line class="pa-grid" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${Tp}" y2="${Tp + ph}"/><text class="pa-tick" x="${x.toFixed(1)}" y="${Tp + ph + fs + 4}" text-anchor="middle">${tick$(v)}</text>`;
+  }
+  s += `<line class="pa-axis" x1="${L}" x2="${L + pw}" y1="${Tp + ph}" y2="${Tp + ph}"/>`;
+  s += `<text class="pa-lab" x="${L + pw / 2}" y="${H - 6}" text-anchor="middle">Cost per run, solver only (USD${log ? ", log scale" : ""})</text>`;
+  s += `<text class="pa-lab" transform="translate(${narrow ? 11 : 13},${Tp + ph / 2}) rotate(-90)" text-anchor="middle">Final D12</text>`;
+  const by: any = Object.fromEntries(T.models.map((m: any) => [m.key, m]));
+  const fr = T.frontier.map((k: string) => by[k]);
+  if (fr.length > 1) {
+    let d = `M${X(fr[0].mean_cost).toFixed(1)},${Y(fr[0].mean_d12).toFixed(1)}`;
+    for (let i = 1; i < fr.length; i++) d += `H${X(fr[i].mean_cost).toFixed(1)}V${Y(fr[i].mean_d12).toFixed(1)}`;
+    s += `<path class="pa-front" d="${d}"/>`;
+  }
+  const rp = narrow ? 3.6 : 4.2, rm = narrow ? 7 : 8.5;
+  for (const p of T.points) {
+    const sp = MODELS[p.model];
+    s += `<g class="pa-run pa-${p.model}"><title>${esc(`${p.run} · ${sp.name} · $${p.cost.toFixed(2)} · D12 ${d3(p.d12)} ${p.pass ? "pass" : "fail"}${p.dev ? " · development run" : ""}`)}</title>${SHAPE(sp.shape, X(p.cost), Y(p.d12), rp)}</g>`;
+  }
+  // Labels: each model's name and means beside its mark, at the first of eight spots whose box stays in the plot and
+  // clears the other labels and the other models' marks.
+  const boxes: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const marks = T.models.map((m: any) => ({ x: X(m.mean_cost), y: Y(m.mean_d12) }));
+  for (const m of T.models) {
+    const sp = MODELS[m.key];
+    const x = X(m.mean_cost), y = Y(m.mean_d12);
+    s += `<g class="pa-mean pa-${m.key}"><title>${esc(`${sp.name}: ${m.runs} runs, pass@1 ${m.passed}/${m.runs}, mean cost $${m.mean_cost.toFixed(2)}, mean D12 ${d3(m.mean_d12)}${m.frontier ? ", on the frontier" : ""}`)}</title>${SHAPE(sp.shape, x, y, rm)}</g>`;
+    const label = narrow ? sp.short.replace(" 5.5", "").replace(" 5.2", "").replace("GPT-6 ", "") : sp.short;
+    const val = `${fmt$(m.mean_cost)} · ${d3(m.mean_d12)}`;
+    const w = Math.max(label.length, val.length) * fs * 0.58, h = fs * 2.25;
+    const spots = [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 2.2], [-1, 2.2], [1, -2.2], [-1, -2.2]];
+    let best: any = null;
+    for (const [sx, sy] of spots) {
+      const x0 = sx > 0 ? x + rm + 3 : x - rm - 3 - w;
+      const y0 = sy > 0 ? y + (sy - 1) * h + rm * 0.2 : y + (sy + 1) * h - h - rm * 0.2;
+      const b = { x0, x1: x0 + w, y0, y1: y0 + h };
+      const inside = b.x0 >= L && b.x1 <= L + pw + R - 2 && b.y0 >= Tp - 4 && b.y1 <= Tp + ph;
+      const hits = boxes.some((o) => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0) ||
+        marks.some((q: any) => (q.x !== x || q.y !== y) && q.x > b.x0 - rm && q.x < b.x1 + rm && q.y > b.y0 - rm && q.y < b.y1 + rm);
+      if (inside && !hits) { best = b; break; }
+      if (!best && inside) best = b;
+    }
+    best = best || { x0: x + rm + 3, x1: x + rm + 3 + w, y0: y, y1: y + h };
+    boxes.push(best);
+    s += `<text class="pa-mlab" x="${best.x0.toFixed(1)}" y="${(best.y0 + fs * 0.95).toFixed(1)}">${esc(label)}</text>`;
+    s += `<text class="pa-mval" x="${best.x0.toFixed(1)}" y="${(best.y0 + fs * 2.05).toFixed(1)}">${val}</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${task}: final D12 against cost per run, by model`)}" style="--pa-fs:${fs}px">${s}</svg>`;
+}
+const wide = draw(700, 380, 12, false);
+const narrow = draw(360, 330, 11, true);
+const legend = T.models.map((m: any) => ({ key: m.key, name: MODELS[m.key].name, shape: MODELS[m.key].shape }));
+---
+<figure class="aib-pareto">
+  <p class="pa-title">{task} · {T.title}: cost and score per run</p>
+  <ul class="pa-legend">
+    {legend.map((l: any) => (
+      <li><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" class={`pa-${l.key}`} set:html={SHAPE(l.shape, 7, 7, 5)} /> {l.name}</li>
+    ))}
+    <li><svg width="22" height="10" viewBox="0 0 22 10" aria-hidden="true"><path class="pa-front" d="M1,8H11V2H21" /></svg> Pareto frontier over the model means</li>
+  </ul>
+  <div class="pa-wide" set:html={wide} />
+  <div class="pa-narrow" set:html={narrow} />
+  <figcaption>Small marks: one run each. Large marks: the model's mean cost and mean final D12. {T.points.length} runs; cost spans {T.cost_span}×{T.log_x ? ", so the cost axis is logarithmic" : ""}.{T.notes.length ? " " + T.notes.join("; ") + "." : ""}</figcaption>
+  <div class="table-scroll">
+    <table class="aib-results pa-table">
+      <thead><tr><th>Model</th><th>Runs</th><th>Pass@1</th><th>Mean cost</th><th>Cost range</th><th>Mean D12</th><th>Frontier</th></tr></thead>
+      <tbody>
+        {T.models.map((m: any) => (
+          <tr><td>{MODELS[m.key].name}</td><td>{m.runs}</td><td>{m.passed}/{m.runs}</td><td>{fmt$(m.mean_cost)}</td><td>{fmt$(m.min_cost)}–{fmt$(m.max_cost)}</td><td>{d3(m.mean_d12)}</td><td>{m.frontier ? "yes" : "no"}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</figure>
+
+<style is:global>
+  .aib-pareto { margin: 1.4em 0 2em; --pa-haiku: #1baf7a; --pa-sonnet: #eb6834; --pa-opus: #2a78d6; --pa-fable: #0b0b0b; --pa-astra: #52514e; --pa-bg: #fcfcfb; --pa-grid: rgba(0, 0, 0, .08); }
+  [data-theme="dark"] .aib-pareto { --pa-haiku: #199e70; --pa-sonnet: #d95926; --pa-opus: #3987e5; --pa-fable: #f0efec; --pa-astra: #c3c2b7; --pa-bg: #1a1a19; --pa-grid: rgba(255, 255, 255, .1); }
+  .aib-pareto .pa-title { font-weight: 600; margin: 0 0 .4em; }
+  .aib-pareto .pa-legend { list-style: none; margin: 0 0 .5em; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .86em; color: var(--muted-color); }
+  .aib-pareto .pa-legend li { margin: 0; display: inline-flex; align-items: center; gap: 5px; }
+  .aib-pareto .pa-wide svg, .aib-pareto .pa-narrow svg { display: block; width: 100%; height: auto; overflow: visible; font-family: inherit; }
+  .aib-pareto .pa-legend svg { display: inline-block; flex: none; vertical-align: middle; }
+  .aib-pareto .pa-wide svg, .aib-pareto .pa-narrow svg { border-radius: 8px; }
+  .aib-pareto .pa-narrow { display: none; }
+  @media (max-width: 560px) { .aib-pareto .pa-wide { display: none; } .aib-pareto .pa-narrow { display: block; } }
+  .aib-pareto .pa-bg { fill: var(--pa-bg); }
+  .aib-pareto .pa-grid { stroke: var(--pa-grid); stroke-width: 1; }
+  .aib-pareto .pa-axis { stroke: var(--border-color); stroke-width: 1; }
+  .aib-pareto .pa-tick { fill: var(--muted-color); font-size: var(--pa-fs); font-variant-numeric: tabular-nums; }
+  .aib-pareto .pa-lab { fill: var(--muted-color); font-size: var(--pa-fs); }
+  .aib-pareto .pa-front { fill: none; stroke: var(--muted-color); stroke-width: 2; stroke-dasharray: 5 4; }
+  .aib-pareto .pa-run { opacity: .55; }
+  .aib-pareto .pa-run:hover, .aib-pareto .pa-mean:hover { opacity: 1; }
+  .aib-pareto .pa-mean > :not(title) { stroke: var(--pa-bg); stroke-width: 2; }
+  .aib-pareto .pa-mlab { fill: var(--text-color); font-size: var(--pa-fs); font-weight: 600; paint-order: stroke; stroke: var(--pa-bg); stroke-width: 3px; stroke-linejoin: round; }
+  .aib-pareto .pa-mval { fill: var(--muted-color); font-size: var(--pa-fs); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--pa-bg); stroke-width: 3px; stroke-linejoin: round; }
+  .aib-pareto .pa-haiku { fill: var(--pa-haiku); }
+  .aib-pareto .pa-sonnet { fill: var(--pa-sonnet); }
+  .aib-pareto .pa-opus { fill: var(--pa-opus); }
+  .aib-pareto .pa-fable { fill: var(--pa-fable); }
+  .aib-pareto .pa-astra { fill: var(--pa-astra); }
+  .aib-pareto figcaption { color: var(--muted-color); font-size: .86em; margin-top: .5em; }
+  .aib-pareto .pa-table { margin-top: .6em; font-size: .9em; }
+</style>

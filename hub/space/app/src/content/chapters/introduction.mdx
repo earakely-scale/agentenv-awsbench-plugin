@@ -15,16 +15,19 @@ the page that matters arrives while you are typing. What counts is the state of 
 - **A world around the API.** Each task brings its own physics: in T01 a fleet of hosts with DNS negative caches, an
   internal DNS automation with its own race and a ledger service that collapses under a reconnect herd; in T03 a fleet of
   stream-routing hosts with a thread ceiling, an Auto Scaling group with scheduled actions, a shared bootstrap service
-  and a ledger backlog that a settlement run depends on. In both, colleagues and customers post, page and email on a
-  timeline, some of them answering what the agent says.
+  and a ledger backlog that a settlement run depends on; in T04 a routing control plane whose scheduled workflows
+  rewrite purged routes and a data plane that loads them; in T05 an object store whose index and placement subsystems
+  halt below their floors and need cold starts. In each, colleagues and customers post, page and email on a timeline,
+  some of them answering what the agent says.
 - **Graded at a horizon.** When the agent says DONE, the world is fast-forwarded to a fixed horizon and the end state of
   both servers, and the time series the world recorded, are graded. The agent's reasoning is never read.
 
 None of it needs a change to AgentEnv: everything runs on its existing steps, gateway clock and protocol SDK. This page
-is the public face of AwsBench, the plugin that builds it. It has two tasks so far: T01, "The Empty Ledger Endpoint",
-and T03, "Thread Ceiling". Each is modelled on a real, public AWS incident, rebuilt inside a fictional company: T01 on
-the Amazon DynamoDB DNS race in us-east-1 of October 2025, T03 on the Amazon Kinesis event in us-east-1 of November
-2020. [Tasks](#tasks) says which, how each task maps onto it, and how its verifier grades. Every result below is read
+is the public face of AwsBench, the plugin that builds it. It has four tasks so far: T01, "The Empty Ledger
+Endpoint", T03, "Thread Ceiling", T04, "Purged Routes", and T05, "Capacity Glob Cold Start". Each is modelled on a real,
+public AWS incident, rebuilt inside a fictional company: T01 on the Amazon DynamoDB DNS race in us-east-1 of October
+2025, T03 on the Amazon Kinesis event in us-east-1 of November 2020, T04 on the Amazon ELB service event in us-east-1 of
+December 2012, T05 on the Amazon S3 service disruption in us-east-1 of February 2017. [Tasks](#tasks) says which, how each task maps onto it, and how its verifier grades. Every result below is read
 from recorded runs, and every viewer on this page runs on those runs' own exports.
 
 AwsIncidentsBench is not affiliated with or endorsed by Amazon Web Services.

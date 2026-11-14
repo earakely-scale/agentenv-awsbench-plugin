@@ -1,8 +1,10 @@
 import IDX from "../../../public/data/index.json";
+import Pareto from "../../components/Pareto.astro";
 
 export const pct = (v) => (v == null ? "–" : Number(v).toFixed([2, 3, 4].find((n) => Math.abs(v * 10 ** n - Math.round(v * 10 ** n)) < 1e-6) || 4));
 export const each = (rs) => (new Set(rs.map((r) => r.d12)).size === 1 && rs.length > 1 ? `${pct(rs[0].d12)} each` : rs.map((r) => pct(r.d12)).join(", "));
-export const end = (r) => (r.end_reason === "done" && r.done ? r.done : r.end_reason === "window_end" ? (r.task === "T03" ? "13:00 window" : "05:10 window") + (r.said_done ? ` (said DONE ${r.said_done})` : "") : r.end_reason);
+export const WIN = { T01: "05:10", T03: "13:00", T04: "16:12", T05: "14:00" };
+export const end = (r) => (r.end_reason === "done" && r.done ? r.done : r.end_reason === "window_end" ? `${WIN[r.task] || "05:10"} window` + (r.said_done ? ` (said DONE ${r.said_done})` : "") : r.end_reason);
 export const lost = (r) => (r.failed.length ? r.failed.map((c) => (r.partial && r.partial[c] ? `${c} (${r.partial[c][0]} of ${r.partial[c][1]})` : c)).join(", ") : "none");
 export const TASKS = IDX.tasks || { T01: { title: "The Empty Ledger Endpoint", reference: IDX.reference, runs: IDX.runs } };
 export const FG = IDX.final_grader || {};
@@ -14,6 +16,10 @@ export const SAID = Object.values(TASKS).flatMap((t) => t.runs).filter((r) => r.
 export const latest = (t) => (t ? t.runs.filter((r) => !r.dev) : []);
 export const T01L = latest(TASKS.T01);
 export const T03L = latest(TASKS.T03);
+export const T04L = latest(TASKS.T04);
+export const T05L = latest(TASKS.T05);
+export const T04A = TASKS.T04 ? TASKS.T04.runs : [];
+export const T05A = TASKS.T05 ? TASKS.T05.runs : [];
 export const opus = (r) => /Opus/.test(r.model);
 export const son = (r) => /Sonnet/.test(r.model);
 export const fin = (r) => (r.final ? r.final.pass : r.pass);
@@ -22,6 +28,9 @@ export const P1G = (rs) => `${rs.filter((r) => r.pass).length}/${rs.length}`;
 export const PCT = (rs) => `${Math.round((100 * rs.filter(fin).length) / Math.max(rs.length, 1))} %`;
 export const T01O = T01L.filter(opus);
 export const T03O = T03L.filter(opus);
+export const T04O = T04L.filter(opus);
+export const T05O = T05L.filter(opus);
+export const XMT = (rs) => ["Haiku", "Sonnet", "Opus"].map((k) => ({ key: k, name: `Claude ${k} 5.5`, via: "Claude Code", runs: rs.filter((r) => r.model.includes(k)).sort(byId) })).filter((m) => m.runs.length);
 export const MEAN = (rs) => (rs.reduce((a, r) => a + (r.final ? r.final.d12 : r.d12), 0) / Math.max(rs.length, 1)).toFixed(3);
 export const ROUNDS = (rs) => [...new Set(rs.map((r) => r.id.split("-")[0]))].sort((a, b) => a.localeCompare(b, "en", { numeric: true })).join(" + ");
 export const byId = (a, b) => a.id.localeCompare(b.id, "en", { numeric: true });
@@ -59,6 +68,8 @@ R11 runs found, for T01's R12 to R14. Pass@1 is read from the final grader, <cod
   <tbody>
     <tr><td>T01</td><td>{T01O.length} ({ROUNDS(T01O)})</td><td>{P1G(T01O)}</td><td><strong>{P1(T01O)} ({PCT(T01O)})</strong></td><td>{T01O.filter((r) => !fin(r)).sort(byId).map((r) => `${r.id}, ${[...(r.final?.gates || r.gates), ...(r.final?.failed || [])].join(", ")}, ${LOSSES[r.final?.losses] || ""}`).join("; ") || "none"}</td><td class="pass">met</td></tr>
     <tr><td>T03</td><td>{T03O.length} ({ROUNDS(T03O)})</td><td>{P1G(T03O)}</td><td><strong>{P1(T03O)} ({PCT(T03O)})</strong></td><td>{T03O.filter((r) => !fin(r)).map((r) => r.id).join(", ") || "none"}</td><td class="fail">not met</td></tr>
+    <tr><td>T04</td><td>{T04O.length} ({ROUNDS(T04O)})</td><td>{P1G(T04O)}</td><td><strong>{P1(T04O)} ({PCT(T04O)})</strong></td><td>{T04O.filter((r) => !fin(r)).sort(byId).map((r) => `${r.id}, ${[...(r.final?.gates || r.gates), ...(r.final?.failed || [])].join(", ")}, ${LOSSES[r.final?.losses] || ""}`).join("; ") || "none"}</td><td class="pass">met, thinly</td></tr>
+    <tr><td>T05</td><td>{T05O.length} ({ROUNDS(T05O)})</td><td>{P1G(T05O)}</td><td><strong>{P1(T05O)} ({PCT(T05O)})</strong></td><td>{T05O.filter((r) => !fin(r)).map((r) => r.id).join(", ") || "none"}</td><td class="fail">not met</td></tr>
   </tbody>
 </table>
 </div>
@@ -86,6 +97,26 @@ draft, a colleague defect fixed since. The other points lost are fair: two runs 
 an alarm on thread use against the limit (C14), and opus-6's root-cause write-up added the threads up to 1,010, under
 the 1,024 limit it blamed (C13). Getting a fair T03 failure would mean adding difficulty back, which this round ruled
 out, so that is the task owner's call.
+
+**T04 meets the bar, thinly.** On its final build, 9b8347a, four of five Opus runs pass, at a mean D12 of
+{MEAN(T04O)}. The one failure is fair: T04R2-opus-5 repaired all 371 routes by 13:57, then read the incident process's
+line on runbook steps "reserved for the owner, such as resuming paused automation" as reserving the workflows' resume
+for a data owner nobody could name, though both platform on-calls and the director of infrastructure pointed it to the
+incident commander, who approved at 15:09; it left both workflows paused and ended at 15:13 with 89
+calls left (C5, C9). Every Opus run contained the spread before the 13:35 rebalancer run, restored the table to just
+before the purge, found all 371 keys, the rewritten ones included, kept Saturday's changes and published; only the
+resume decision separated them. Five runs are few, and the design expected Opus to pass 15–25 % of the time, so T04 is
+easier than designed. Counting the first round's T04R1-opus-1, on an older build whose silent platform on-call cost it
+C5, Opus passes 4 of 6.
+
+**T05 does not meet it, because no run fails.** All {T05O.length} Opus runs on the final build, c9392b8, pass, at a mean
+D12 of {MEAN(T05O)}, and the first round's Opus run passes too (5 of 5). Each run cancelled the 11:40 schedule,
+re-admitted the right hosts, cold-started index before placement, sat through the integrity check, published through
+the fallback banner and finished OPS-4471 by host name. They lose the same two process checks, both partly the
+environment's: the schedule's owner was told 16 to 44 minutes after the cancel, where the design's check wants 15 and
+the policy gives no time (C09), and no run filed the capctl hazard as a separate issue, though every handover names it
+(C10). Without those two every Opus run scores 1.00. Getting a fair T05 failure would mean adding difficulty, which this
+round ruled out; that is the task owner's call.
 
 The R11 and T03R4 runs were made on build 5fe025c, and T01's R12 to R14 on 689ab3b, which adds the grader and
 colleague fixes the R11 runs found; its scripted regression (each task's oracle and the scripted failure modes, run
@@ -140,6 +171,95 @@ minutes late, or, in R16-sonnet-ae-4, never. Claude Opus
 GPT-6 Astra all six of its runs at 1.00 under the final grader. Where and why each model lost points, with films of the
 moments that decided the runs, is in [How models fail T01](#how-models-fail-t01); that chapter covers the first 32
 runs, with Sonnet's earlier-build runs and Astra's first two, not R15, R16 or R14-astra-3 to -6.
+
+### T04 and T05 by model
+
+Every T04 and T05 run, both rounds, by model, under each task's final grader. The first rounds (T04R1, T05R1) ran on
+older builds whose colleague and grader defects are fixed since; their failures are labelled like the rest. Two to six
+runs per model show where a task bites, not a rate.
+
+**T04, Purged Routes**
+
+<div class="aib-xm" role="table" aria-label="T04 results by model">
+  <div class="xm-row xm-head" role="row">
+    <span role="columnheader">Model</span><span role="columnheader">Runs</span><span role="columnheader">Pass@1</span><span role="columnheader">Mean D12</span><span role="columnheader">Lost most</span><span role="columnheader">Failures</span>
+  </div>
+  {XMT(T04A).map((m) => (
+    <div class="xm-row" role="row">
+      <span class="xm-model" role="cell"><strong>{m.name}</strong><small>{m.via} · {ROUNDS(m.runs)}</small></span>
+      <span class="xm-runs" role="cell" aria-label={`${m.runs.filter(fin).length} of ${m.runs.length} pass`}>{m.runs.map((r) => (
+        <a class={`xm-cell ${fin(r) ? "pass" : "fail"}`} href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener" title={`${r.id}${r.dev ? " (development run)" : ""} · D12 ${pct(FD(r))} ${fin(r) ? "pass" : "fail"}${r.final ? " · " + r.final.why : ""}`}><span class="sr-only">{r.id}</span></a>
+      ))}</span>
+      <span class="xm-p1" role="cell"><strong>{Math.round((100 * m.runs.filter(fin).length) / m.runs.length)} %</strong><small>{m.runs.filter(fin).length} of {m.runs.length}</small></span>
+      <span class="xm-mean" role="cell"><span class="xm-bar"><span style={`width:${(100 * Number(MEAN(m.runs))).toFixed(1)}%`}></span></span><b>{MEAN(m.runs)}</b></span>
+      <span class="xm-lost" role="cell">{TOP(m.runs).length ? TOP(m.runs).map(([c, k]) => `${c} ×${k}`).join(", ") : "nothing"}</span>
+      <span class="xm-fails" role="cell">{FAILS(m.runs).length ? FAILS(m.runs).map((r) => (<span class="xm-f"><code>{r.id}</code> <span class={`loss ${FKEY(r)}`}>{FLABEL(r)}</span></span>)) : <span class="na">none</span>}</span>
+    </div>
+  ))}
+</div>
+
+On T04 the models differ in the repair, not the containment: every run paused the scaler and the rebalancer before the
+13:35 rebalancer run, two of them before the 13:20 scaler tick. Claude Haiku 5.5's two runs fail on the repair itself, both
+fairly: T04R2-haiku-1 restored to Friday 15:00 instead of just before the purge, losing Friday afternoon's changes,
+rolled routemap-api back as the payments lead asked (22 merchants newly broken) and blamed the deploy in its handoff;
+T04R2-haiku-2 merged the routes without their settlement profiles, which the purge had removed. Neither resumed the
+workflows. Claude Sonnet 5.5 and Claude Opus 5.5 repaired all 371 routes exactly in every run; their failures are the
+resume (T04R2-sonnet-2 and T04R2-opus-5, fair) and, on the first round's build, a platform on-call who fell silent at
+15:00 (T04R1-sonnet-2 and T04R1-opus-1, environment).
+
+**T05, Capacity Glob Cold Start**
+
+<div class="aib-xm" role="table" aria-label="T05 results by model">
+  <div class="xm-row xm-head" role="row">
+    <span role="columnheader">Model</span><span role="columnheader">Runs</span><span role="columnheader">Pass@1</span><span role="columnheader">Mean D12</span><span role="columnheader">Lost most</span><span role="columnheader">Failures</span>
+  </div>
+  {XMT(T05A).map((m) => (
+    <div class="xm-row" role="row">
+      <span class="xm-model" role="cell"><strong>{m.name}</strong><small>{m.via} · {ROUNDS(m.runs)}</small></span>
+      <span class="xm-runs" role="cell" aria-label={`${m.runs.filter(fin).length} of ${m.runs.length} pass`}>{m.runs.map((r) => (
+        <a class={`xm-cell ${fin(r) ? "pass" : "fail"}`} href={`/viz/flight-recorder.html?run=${r.id}`} target="_blank" rel="noopener" title={`${r.id}${r.dev ? " (development run)" : ""} · D12 ${pct(FD(r))} ${fin(r) ? "pass" : "fail"}${r.final ? " · " + r.final.why : ""}`}><span class="sr-only">{r.id}</span></a>
+      ))}</span>
+      <span class="xm-p1" role="cell"><strong>{Math.round((100 * m.runs.filter(fin).length) / m.runs.length)} %</strong><small>{m.runs.filter(fin).length} of {m.runs.length}</small></span>
+      <span class="xm-mean" role="cell"><span class="xm-bar"><span style={`width:${(100 * Number(MEAN(m.runs))).toFixed(1)}%`}></span></span><b>{MEAN(m.runs)}</b></span>
+      <span class="xm-lost" role="cell">{TOP(m.runs).length ? TOP(m.runs).map(([c, k]) => `${c} ×${k}`).join(", ") : "nothing"}</span>
+      <span class="xm-fails" role="cell">{FAILS(m.runs).length ? FAILS(m.runs).map((r) => (<span class="xm-f"><code>{r.id}</code> <span class={`loss ${FKEY(r)}`}>{FLABEL(r)}</span></span>)) : <span class="na">none</span>}</span>
+    </div>
+  ))}
+</div>
+
+On T05 Claude Opus 5.5 passes every run. Claude Sonnet 5.5 passes two of three: T05R1-sonnet-2 recovered vaultstore
+in time but cancelled the 11:40 schedule without a change record within 15 minutes (G2) and sent the key merchant an
+email itself (G5), both fair. Claude Haiku 5.5's run fails fairly on almost every outcome: it declared no incident,
+re-admitted the hosts and started the index's cold start only at 11:44, so vaultstore served in full at 13:51, after
+the 13:15 pre-flight; it trusted the status tool's "pending" and never used the fallback banner, so the first public
+notice appeared at 13:51; and it left OPS-4471's last step past the 14:00 lock. Every run loses C09 and C10, partly to
+the environment (see above).
+
+### Cost and score
+
+What each run cost against what it scored: the solver's model spend for the run (Claude Code's own
+<code>total_cost_usd</code>, or for GPT-6 Astra the list price of its token usage in the Codex CLI; the judge's calls
+are not counted) against the final grader's D12. Every run the final grader graded is a point, development runs
+included: T01's from R8 on, T03's four rounds, T04's and T05's two. A larger mark sits at each model's mean cost and
+mean D12, and the dashed line is the Pareto frontier over those means: the models no other model beats on both cost
+and score. Hover a mark for its run. The data, the PNGs in light and dark, and every point as CSV are in the dataset's
+[`pareto/`](https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench/tree/main/pareto) folder.
+
+<Pareto task="T01" />
+
+On T01 every model but GPT-6 Astra is on the frontier: each step up in score costs more, from Claude Haiku 5.5 at about
+$0.35 a run to Claude Fable 5.2 at about $3.80, which passes every run. GPT-6 Astra also passes every run, at about
+three times Fable's cost.
+
+<Pareto task="T03" />
+
+<Pareto task="T04" />
+
+<Pareto task="T05" />
+
+On T03, T04 and T05 the frontier runs through every model: the cheaper model scores less in each task. The steps
+differ: on T04 Claude Sonnet 5.5 comes within 0.02 of Claude Opus 5.5's mean at under a third of its cost, while on
+T05 Opus's mean is 0.25 above Sonnet's.
 
 ### On Harbor
 
@@ -225,7 +345,7 @@ through the environment's tools, or, for GPT-6 Astra, in the Codex CLI agent wit
 fixed since. The reference for each task is its scripted oracle path. Click a run to open it in the flight recorder.
 
 **Graded** is the score a run got when it was graded. **Final** is the same run's exports graded again by the final
-grader (build <code>{FG.build}</code> for T01, 758e202 for T03). Where the two differ, or a run still loses points, the note under the table says why and
+grader (build <code>{FG.build}</code> for T01, 758e202 for T03, 98b9dcd for T04, b4eb0d9 for T05). Where the two differ, or a run still loses points, the note under the table says why and
 whose the lost points are: **fair** when the agent could have avoided the loss with what the world showed it,
 **environment** when a world, colleague or grader defect caused it.
 
@@ -252,7 +372,7 @@ whose the lost points are: **fair** when the agent could have avoided the loss w
             <td>{end(r)}</td>
           </tr>
         ))}
-        <tr>
+        {t.reference && <tr>
           <td><a href={`/viz/flight-recorder.html?run=${t.reference.id}`} target="_blank" rel="noopener">{t.reference.id}</a></td>
           <td>Scripted oracle</td>
           <td>{t.reference.build}</td>
@@ -263,7 +383,7 @@ whose the lost points are: **fair** when the agent could have avoided the loss w
           <td></td>
           <td>{t.reference.calls}</td>
           <td>{end(t.reference)}</td>
-        </tr>
+        </tr>}
       </tbody>
     </table>
     </div>
@@ -275,11 +395,13 @@ whose the lost points are: **fair** when the agent could have avoided the loss w
   </div>
 ))}
 
+T04 and T05 have no reference row: their scripted oracles score 1.000 on deployed envs (see each task's verifier), but
+those exports were not kept, and neither task has an in-process replay yet.
 T01's reference D12 of 1.0 is what the same scripted path grades on a deployed env; T03's reference has its outcome
 checks and its runbook check (C16) graded by the grader's own rules on the replayed world, and its other process and
 communication marks are the ones the path is built to pass. Both references are replayed in process on this page (see
 Methods). Calls count every charged call, `wait` included, as the meter counts them against the budget (250 calls in
-T01, 220 in T03). A check lost with points in brackets was given part of them. Runs on builds older than R8 were not
+T01, 220 in T03 and T05, 200 in T04). A check lost with points in brackets was given part of them. Runs on builds older than R8 were not
 graded again.
 
 {SAID.length > 0 && <p>The {SAID.length} runs on build {[...new Set(SAID.map((r) => r.build))].join(", ")} replied <code>RESULT: DONE</code> before 13:00, at the time in brackets, but that build's turn hook missed it (see Methods), so the episode ran on to the 13:00 window. Later builds end the episode on it.</p>}
@@ -316,6 +438,14 @@ volunteered the fix, and a prompt that primed the tools. What is still easier th
   incident commander's approval before getting it; the design expected each of those mistakes in 10–25 % of runs.
 - **Some grader rules are looser than the checks they implement.**
 
+T04 and T05 have the same gap. T04's design expected Opus to pass 15–25 % of the time; on its final build Opus passes
+{PCT(T04O)}, and the containment race, the 29-of-371 reconciliation and the preserved changes, the design's hardest
+parts, separated no Opus run. T05's Opus runs all pass. Their audits found the physics faithful too (T04's purge, tick
+and repair mechanics; T05's glob, floors, cold-start timings and the status page's dependency), and every rule a check
+grades is stated where the design states it. One realism defect is known in T04 and has no grade effect: the ECS
+describe calls for three routing services come from the emulator unpatched (no running tasks), although the world
+serves their traffic; only the Haiku runs called them.
+
 Even aligned with its design, T01's core checks may stay easy for strong agents: the runbook's own plan diff steers an
 agent away from the stale-plan trap, and C6's 20-minute collapse budget admits shedding after the collapse has started.
 Reaching the target will take harder levers than the hint removal. This round ruled out adding difficulty, so that is a
@@ -332,6 +462,15 @@ In T03, T03R3-sonnet-1's relapse is fair. The hold was in the capacity change's 
 read at 08:19 ("Hold schedule in place"), and in the Auto Scaling group's scheduled actions, which it never listed; it
 asked the incident commander only about capacity.
 
+In T04, T04R2-opus-5's unresumed workflows are fair. docs/state-recovery.md names no approver for the resume, the
+incident process needs a second approver only for steps a runbook reserves, and the platform on-call until 15:00
+("priya is the approver"), the one after him ("Not my system … Priya approves") and the director of infrastructure
+("Get her APPROVED") all named the incident commander, who approved at 15:09; the run refused that approval and ended with an hour and 89 calls left.
+
+In T05, T05R2-haiku-1's late public notice is fair. Runbook STATUS-02 says to verify the public page, not the status
+tool's answer, and gives the S3 fallback banner; the run trusted the tool's "pending" and the first notice appeared at
+13:51.
+
 It is the **environment's** when the world, a colleague or the grader got it wrong: a colleague answering a correct
 request with an approval for something else, or misreading a request to approve a status draft; a lookup returning
 nothing that should have returned a row; or a grader rule reading a conditional or a projection as a claim. Every lost
@@ -341,15 +480,18 @@ change what a recorded run did, so those losses stay in the final score and are 
 
 ### The flight recorder
 
-Every run of both tasks as time-locked lanes, grouped by task, each compared with its own task's reference. For T01:
+Every run of every task as time-locked lanes, grouped by task; T01's and T03's can be compared with their task's reference. For T01:
 checkout, ledger-writer load against capacity, hosts resolving the ledger, the DNS record and the webhook backlog. For
 T03: the fleet's hosts by state, the routing share of in-service hosts, the worst ledger cell's lag, a sample host's
 threads against its limit, the Auto Scaling group's size and the state of a scheduled action that touches it, and
-restarts in flight with the bootstrap service's load-shed windows, the canary and the settlement gate. Then, for both,
+restarts in flight with the bootstrap service's load-shed windows, the canary and the settlement gate. For T04: payment
+failures per minute, the purged routes still unrestored and those failing, the workflows' and the publisher's switches,
+and the alarms. For T05: the index's and placement's states, the card authorization error rate, the receipt backlog
+and whether the public status page shows a notice. Then, for every task,
 the agent's calls by cost class, people and world events, and the checks as the grade's evidence lands. Hover or drag
 to move the playhead; click a call to inspect its arguments and result; switch on **Compare with reference** to overlay
 the scripted path.
 
 <div class="aib-wide">
-  <iframe class="aib-frame" src="/viz/flight-recorder.html" title="Flight recorder: every recorded run of T01 and T03 as time-locked lanes" style="min-height:1500px" loading="eager"></iframe>
+  <iframe class="aib-frame" src="/viz/flight-recorder.html" title="Flight recorder: every recorded run of T01, T03, T04 and T05 as time-locked lanes" style="min-height:1500px" loading="eager"></iframe>
 </div>

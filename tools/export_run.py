@@ -776,7 +776,11 @@ def task_of(run_dir: Path) -> str:
 
 def export_run(run_dir: Path, run_id: str, label: str | None = None, dev: bool = False, note: str = "",
                build: str | None = None, t03_root: Path | None = None, work: Path | None = None) -> dict:
-    """One run folder as viewer JSON: T01's schema v1 below, T03's v2 in export_t03."""
+    """One run folder as viewer JSON: T01's schema v1 below, T03's v2 in export_t03, T04's and T05's v3 in export_mech."""
+    if task_of(run_dir) in ("T04", "T05"):
+        import export_mech
+        build = build or ((run_dir / "BUILD").read_text().strip() if (run_dir / "BUILD").exists() else "")
+        return export_mech.export_run_mech(run_dir, run_id, label, dev, note, build)
     if task_of(run_dir) == "T03":
         import export_t03
         if t03_root is None:

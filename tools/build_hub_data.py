@@ -4,7 +4,7 @@
 
 RUNS_DIR holds one folder per run (``aws-export.json``, ``workspace-export.json``, ``instance-context.json``,
 ``agent-session.jsonl``, ``transcript.md``, ``BUILD``), named ``<round>-<model>`` (``R8-opus-1``, ``T03R1-sonnet-2``).
-The task (T01 or T03) is the scenario the aws export's episode names. ``hub/runs.json`` labels them: which are
+The task (T01, T03, T04 or T05) is the scenario the aws export's episode names. ``hub/runs.json`` labels them: which are
 development runs on older builds, a note for each, and a ``build`` where the folder's BUILD file lacks the commit. A
 folder it doesn't list is exported as a current run. Each task has a reference: the scripted oracle path
 (``tests/e2e/driver.py`` for T01, ``tests/e2e/t03_oracle.py`` for T03), replayed here through the world package in
@@ -56,9 +56,15 @@ SHOWCASE = ROOT / "hub/showcase"
 SPACE_FILMS = ROOT / "hub/space/app/public/films"
 FILM_MEDIA = (".mp4", ".poster.png", ".vtt")
 FILM_MAX_BYTES = 8 * 1024 * 1024
-TASKS = {"T01": "The Empty Ledger Endpoint", "T03": "Thread Ceiling"}
-REF_ID = {"T01": "reference", "T03": "reference-t03"}
-CORE = {"T01": ("C1", "C2", "C3", "C4", "C6", "C7"), "T03": ("C02", "C03", "C04", "C05", "C06", "C15")}
+PARETO = ROOT / "hub/pareto"  # tools/pareto.py's output: pareto.json, pareto.csv, the PNGs and the card's table
+PARETO_TABLE = PARETO / "table.md"
+TASKS = {"T01": "The Empty Ledger Endpoint", "T03": "Thread Ceiling", "T04": "Purged Routes",
+         "T05": "Capacity Glob Cold Start"}
+REF_ID = {"T01": "reference", "T03": "reference-t03"}  # T04 and T05 have no in-process reference (export_mech.py)
+CORE = {"T01": ("C1", "C2", "C3", "C4", "C6", "C7"), "T03": ("C02", "C03", "C04", "C05", "C06", "C15"),
+        "T04": ("C1", "C2", "C3", "C4", "C5"), "T05": ("C01", "C02", "C03", "C05", "C07")}
+WINDOW = {"T01": "05:10", "T03": "13:00", "T04": "16:12", "T05": "14:00"}
+MECH = ("T04", "T05")
 
 
 def default_t03_root() -> Path:
@@ -277,7 +283,11 @@ def index_row(v: dict) -> dict:
            "calls": v["clock"]["calls_used"], "done": X.hms(v["clock"]["done"]), "end_reason": v["clock"]["end_reason"],
            "final": v.get("regrade")}
     sm = v["summary"]
-    if v.get("task") == "T03":
+    if v.get("task") in MECH:
+        row.update(facts={f["k"]: f["v"] for f in sm.get("facts", [])},
+                   partial={c["id"]: [c["earned"], c["w"]] for c in v["checks"]
+                            if not c["gate"] and c["result"] is False and c.get("earned")})
+    elif v.get("task") == "T03":
         row.update(said_done=X.hms(v["clock"].get("said_done")) if v["clock"].get("said_done") else None,
                    partial={c["id"]: [c["earned"], c["w"]] for c in v["checks"]
                             if not c["gate"] and c["result"] is False and c.get("earned")},
@@ -301,7 +311,7 @@ def results_table(index: dict) -> str:
         out += ["", f"**{task} · {t['title']}**", "",
                 "| Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-        for r in t["runs"] + [t["reference"]]:
+        for r in t["runs"] + [t["reference"]] * bool(t["reference"]):
             d12 = "" if r["d12"] is None else d12_text(r["d12"])
             dev = " (dev)" if r["dev"] else ""
             out.append(f"| `{r['id']}` | {r['model']} | `{r['build']}`{dev} | {d12} | {'pass' if r['pass'] else 'fail'} | "
@@ -331,12 +341,14 @@ MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Sonnet 5.5", "Claude Cod
           ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"), ("GPT-6 Astra", "Codex CLI, effort medium"))
 
 
-def models_table(index: dict) -> str:
-    """The dataset card's cross-model view of T01's current (non-development) runs, under the final grader."""
+def models_table(index: dict, task: str = "T01", dev: bool = False) -> str:
+    """The dataset card's cross-model view of a task's runs under the final grader: T01's current (non-development)
+    runs, or with ``dev`` every run the final grader regraded (T04's and T05's two rounds)."""
     fin = lambda r: r["final"] if r.get("final") else {"d12": r["d12"], "pass": r["pass"], "failed": r["failed"], "gates": r["gates"]}
-    rows = [r for r in index["tasks"]["T01"]["runs"] if not r["dev"]]
+    rows = [r for r in index["tasks"][task]["runs"] if (dev and r.get("final")) or not r["dev"]]
     out = ["| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |", "| --- | --- | --- | --- | --- | --- | --- |"]
     for name, via in MODELS:
+        via = via if task == "T01" else "Claude Code"
         mine = sorted((r for r in rows if r["model"] == name), key=lambda r: [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", r["id"])])
         if not mine:
             continue
@@ -347,7 +359,7 @@ def models_table(index: dict) -> str:
             for c in [*fin(r)["failed"], *fin(r)["gates"]]:
                 lost[c] = lost.get(c, 0) + 1
         top = sorted(lost.items(), key=lambda kv: (-kv[1], [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", kv[0])]))[:3]
-        rounds = " + ".join(sorted({r["id"].split("-")[0] for r in mine}, key=lambda x: int(x[1:])))
+        rounds = " + ".join(sorted({r["id"].split("-")[0] for r in mine}, key=lambda x: int(x.split("R")[-1])))
         fails = [f"`{r['id']}` {LOSSES.get((r.get('final') or {}).get('failure') or (r.get('final') or {}).get('losses'), 'unlabelled')}"
                  for r in mine if not fin(r)["pass"]]
         out.append(f"| {name} | {via} | {len(mine)} ({rounds}) | **{n}/{len(mine)} ({round(100 * n / len(mine))} %)** | "
@@ -384,7 +396,7 @@ def end_text(r: dict) -> str:
     if r["end_reason"] == "done" and r["done"]:
         return f"DONE {r['done']}"
     if r["end_reason"] == "window_end":
-        window = "13:00" if r.get("task") == "T03" else "05:10"
+        window = WINDOW.get(r.get("task") or "T01", "05:10")
         return f"{window} window" + (f" (said DONE {r['said_done']})" if r.get("said_done") else "")
     return r["end_reason"] or ""
 
@@ -445,6 +457,23 @@ def films(render: bool = True, playwright: str | None = None) -> list[Path]:
     return written
 
 
+def pareto_files() -> list[Path]:
+    """tools/pareto.py's cost-and-score data and plots, into the Space's data and the dataset's pareto/ folder."""
+    written: list[Path] = []
+    if not (PARETO / "pareto.json").exists():
+        print("  no hub/pareto/pareto.json: run tools/pareto.py first; the cost-and-score plots are left out")
+        return written
+    written.append(write_json(SPACE_DATA / "pareto.json", json.loads((PARETO / "pareto.json").read_text())))
+    for f in sorted(PARETO.iterdir()):
+        if f.suffix in (".csv", ".png", ".json"):
+            dst = DATASET / "pareto" / f.name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+            if f.suffix != ".png":
+                written.append(dst)
+    return written
+
+
 def films_table() -> str:
     """The dataset card's films section: one row per film in each task's failure showcase."""
     rows = ["| Film | Failure family | Model | Run | Compared with | Length | MP4 |", "| --- | --- | --- | --- | --- | --- | --- |"]
@@ -469,8 +498,14 @@ def films_table() -> str:
 def fill_card(index: dict, cards: dict[str, dict]) -> Path:
     card = DATASET / "README.md"
     text = card.read_text()
-    for name, body in (("results", results_table(index)), ("models", models_table(index)), ("tasks", TC.tasks_table(cards)),
-                       ("films", films_table())):
+    sections = [("results", results_table(index)), ("models", models_table(index)), ("tasks", TC.tasks_table(cards)),
+                ("films", films_table())]
+    sections += [(f"models-{t.lower()}", models_table(index, t, dev=True)) for t in MECH if t in index["tasks"]]
+    if PARETO_TABLE.exists():
+        sections.append(("pareto", PARETO_TABLE.read_text().strip()))
+    for name, body in sections:
+        if f"<!-- {name} -->" not in text:
+            continue
         start, end = f"<!-- {name} -->", f"<!-- /{name} -->"
         head, rest = text.split(start, 1)
         text = head + start + "\n" + body + "\n" + end + rest.split(end, 1)[1]
@@ -487,7 +522,7 @@ def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[d
     runs, calls, checks = [], [], []
     for v in views:
         row = index_row(v)
-        sm, t03 = v["summary"], v.get("task") == "T03"
+        sm, t03, mech = v["summary"], v.get("task") == "T03", v.get("task") in MECH
         runs.append({"run": v["id"], "task": v.get("task", "T01"), "kind": v["kind"], "model": v["model"], "build": v["build"],
                      "development_run": v["dev"],
                      "d12": v["score"]["d12"], "raw": v["score"]["raw"], "passed": v["score"]["pass"],
@@ -497,15 +532,16 @@ def tables(views: list[dict], grades: dict[str, list[dict]]) -> dict[str, list[d
                      "gates_fired": ", ".join(row["gates"]), "calls": v["clock"]["calls_used"], "done_at": _hms(v["clock"]["done"]),
                      "end_reason": v["clock"]["end_reason"],
                      "said_done_at": _hms(v["clock"].get("said_done")) if t03 else None,
-                     "restore_at": None if t03 else _hms(sm.get("restore_at")),
-                     "collapsed_min": None if t03 else float(sm["collapsed_min"] or 0),
-                     "checkout_stable_from": None if t03 else (sm["stable_from"] or ""),
+                     "restore_at": None if t03 or mech else _hms(sm.get("restore_at")),
+                     "collapsed_min": None if t03 or mech else float(sm["collapsed_min"] or 0),
+                     "checkout_stable_from": None if t03 or mech else (sm["stable_from"] or ""),
+                     "world_facts": "; ".join(f"{f['k']}: {f['v']}" for f in sm.get("facts", [])) if mech else None,
                      "routing_95_from": _hms(sm.get("routing_from")) if t03 else None,
                      "lag_under_5min_at": _hms(sm.get("lag_clear_at")) if t03 else None,
                      "settlement_1230": sm["settlement"].get("readiness_1230") if t03 else None,
                      "agent_restarts": sm.get("agent_restarts") if t03 else None,
                      "ejections": sm.get("ejections") if t03 else None,
-                     "note": v["note"], "final_message": v["final"] or "",
+                     "note": v["note"], "final_message": v["final"] or "", "incident": v.get("incident") if mech else None,
                      "handoff_note": "" if t03 else (v["handoff"] or ""), "rca_comment": (v["handoff"] or "") if t03 else ""})
         for st in v["steps"]:
             calls.append({"run": v["id"], "task": v.get("task", "T01"), "call": st["n"], "start": _hms(st["at"]), "end": _hms(st["end"]), "tool": st["tool"],
@@ -589,7 +625,7 @@ def build(runs_dir: Path, t03_root: Path | None = None, render: bool = True, pla
         print(f"  {view['task']} {view['id']:15} {view['model']:18} build {view['build']}  D12 {view['score']['d12']}  "
               f"{'pass' if view['score']['pass'] else 'FAIL'}  calls {view['clock']['calls_used']}")
     refs = {}
-    for task in sorted(set(tasks.values()) | {"T01"}):
+    for task in sorted((set(tasks.values()) | {"T01"}) & set(REF_ID)):
         same = [f for f in folders if tasks[f.name] == task]
         ws0 = json.loads((same[-1] / "workspace-export.json").read_text()) if same else {}
         if task == "T01":
@@ -602,15 +638,16 @@ def build(runs_dir: Path, t03_root: Path | None = None, render: bool = True, pla
         written.append(write_json(DATASET / ref["id"] / "viewer.json", ref))
         print(f"  {task} {ref['id']:15} scripted oracle    build {ref['build']}  calls {ref['clock']['calls_used']}  "
               f"done {X.hms(ref['clock']['done'])}")
-    by_task = {task: {"title": TASKS[task], "reference": index_row(refs[task]),
-                      "runs": [index_row(v) for v in views if v.get("task", "T01") == task]} for task in sorted(refs)}
+    by_task = {task: {"title": TASKS[task], "reference": index_row(refs[task]) if task in refs else None,
+                      "runs": [index_row(v) for v in views if v.get("task", "T01") == task]}
+               for task in sorted(set(tasks.values()) | {"T01"})}
     index = {"schema": "awsincidentsbench.index/v2", "generated_from": [v["id"] for v in views], "tasks": by_task,
              "final_grader": manifest.get("final_grader"),
              "task": "T01", "reference": by_task["T01"]["reference"], "runs": by_task["T01"]["runs"]}
     written.append(write_json(SPACE_DATA / "index.json", index))
     written.append(write_json(DATASET / "index.json", index))
     for name, rows in tables(views + list(refs.values()), grades).items():
-        for task in sorted(refs):
+        for task in sorted(by_task):
             mine = [r for r in rows if r["task"] == task]
             keep = [k for k in (mine[0] if mine else {}) if any(r.get(k) is not None for r in mine)]
             written.append(write_jsonl(DATASET / "tables" / task.lower() / f"{name}.jsonl",
@@ -619,6 +656,7 @@ def build(runs_dir: Path, t03_root: Path | None = None, render: bool = True, pla
     written += TC.write_cards(DATASET / "tasks", cards)
     written.append(write_json(SPACE_DATA / "tasks.json", {"schema": TC.SCHEMA, "tasks": cards}))
     written += films(render, playwright)
+    written += pareto_files()
     written.append(fill_card(index, cards))
     X.check_clean(written)
     for p in written:
@@ -642,7 +680,7 @@ def publish() -> None:
         api.upload_folder(repo_id=REPO, repo_type=kind, folder_path=str(path), commit_message="Update AwsIncidentsBench data",
                           ignore_patterns=["app/node_modules/**", "app/dist/**", "app/.astro/**", "**/.DS_Store"],
                           delete_patterns=["runs/**", "reference/**", "reference-*/**", "tables/**", "tasks/**",
-                                           "films/**", "app/public/data/**", "app/public/films/**"])
+                                           "films/**", "pareto/**", "app/public/data/**", "app/public/films/**"])
         print(f"published {kind} {REPO}")
 
 

@@ -2,7 +2,7 @@
 
     python tools/build_task_cards.py [--out DIR]
 
-For T01 and T03, writes ``<DIR>/<task>/README.md`` (the card) and ``<DIR>/<task>/task.json`` (the same, machine-readable)
+For every task (T01, T03, T04, T05), writes ``<DIR>/<task>/README.md`` (the card) and ``<DIR>/<task>/task.json`` (the same, machine-readable)
 into the dataset build output (``hub/dataset/tasks`` by default). Every part is read from where it is defined: the
 prompt, tools, turn hook and grader from the task json; start, window, horizon, budget and colleagues' decisions from the
 aws scenario; who the colleagues are from the workspace scenario; tool descriptions from the two servers' ``@tool``
@@ -38,7 +38,7 @@ REPO = "earakely-scale/AwsIncidentsBench"
 GITHUB = "https://github.com/earakely-scale/agentenv-awsbench-plugin"
 SPACE = f"https://huggingface.co/spaces/{REPO}"
 DATASET = f"https://huggingface.co/datasets/{REPO}"
-TASKS = {"T01": "t01-draft", "T03": "t03-draft"}
+TASKS = {"T01": "t01-draft", "T03": "t03-draft", "T04": "t04-purged-routes-draft", "T05": "t05-capacity-glob-draft"}
 SCHEMA = "awsincidentsbench.task/v1"
 BUCKETS = {"outcome": "Outcome", "process": "Process", "comms": "Communication"}
 # Served by AgentEnv's gateway while its clock is armed, not by either server here.
@@ -118,7 +118,7 @@ def disclaimer() -> str:
 
 def _run_tasks(text: str) -> set[str]:
     """The tasks of the run ids a text names: ``T03R4-opus-2`` is T03's, a bare ``R11-opus-2`` T01's."""
-    return {m.group(1) or "T01" for m in re.finditer(r"\b(T\d\d)?R\d+-(?:opus|sonnet)", text)}
+    return {m.group(1) or "T01" for m in re.finditer(r"\b(T\d\d)?R\d+-(?:opus|sonnet|haiku|fable|astra)", text)}
 
 
 def fair_failure(task: str) -> list[str]:
@@ -223,7 +223,7 @@ def grader_rules(task: str, grade_id: str) -> dict:
         fn = getattr(g, cid.lower(), None)
         doc = " ".join((inspect.getdoc(fn) or "").split()) if fn else ""
         checks.append({"id": cid, "bucket": bucket, "points": points, "rule": title, "core": cid in g.CORE,
-                       "mitigation": cid == g.MITIGATION, "judged": cid in judged, "depends_on": depends.get(cid),
+                       "mitigation": cid == getattr(g, "MITIGATION", None), "judged": cid in judged, "depends_on": depends.get(cid),
                        "detail": doc})
     gates = []
     for gid, (klass, title) in g.GATES.items():
@@ -248,10 +248,20 @@ def grader_rules(task: str, grade_id: str) -> dict:
     totals = {}
     for c in checks:
         totals[c["bucket"]] = totals.get(c["bucket"], 0) + c["points"]
+    mitigation = getattr(g, "MITIGATION", None)
+    inaction = (f"if {mitigation} fails, the score is capped at {g.INACTION_CAP}" if mitigation else
+                INACTION.get(task, f"the score is capped at {g.INACTION_CAP} when the mitigation fails"))
+    passes = (f"every core check ({', '.join(g.CORE)}) and {mitigation} pass and no gate fires" if mitigation and
+              mitigation not in g.CORE else f"every core check ({', '.join(g.CORE)}) passes and no gate fires")
     return {"grader": f"artifacts/{grade_id}/verify.py", "checks": checks, "gates": gates, "judges": judges,
-            "buckets": totals, "core": list(g.CORE), "mitigation": g.MITIGATION, "inaction_cap": g.INACTION_CAP,
-            "caps": g.CAPS, "score": "D12 = min(1, raw, every cap that applies); raw = the points earned over 100",
-            "pass": f"every core check ({', '.join(g.CORE)}) and {g.MITIGATION} pass and no gate fires"}
+            "buckets": totals, "core": list(g.CORE), "mitigation": mitigation, "inaction_cap": g.INACTION_CAP,
+            "inaction": inaction, "caps": g.CAPS,
+            "score": "D12 = min(1, raw, every cap that applies); raw = the points earned over 100", "pass": passes}
+
+
+# T04's grader has no single mitigation check: C1 scores in tiers, and under half of it caps the score (verify.py).
+INACTION = {"T04": "if C1 earns under half its points (more than 23 purged merchants newly broken after 13:12), the "
+                   "score is capped at 0.2"}
 
 
 def build_card(task: str) -> dict:
@@ -275,6 +285,7 @@ def build_card(task: str) -> dict:
     grade_step = next(s for s in steps if s["type"] == "env_outcome_verifier")
     chapter = chapter_text(task)
     page = next((" ".join(p.split()) for p in prompt_step["prompt"].split("\n\n") if re.search(r"\bPG-\d+", p)), "")
+    lead = " ".join(prompt_step["prompt"].split("\n\n")[0].split())
     start = step["clock"]["virtual_time"]
     task_paths = [f"src/agentenv_awsbench/bundles/awsbench/tasks/{name}.json",
                   f"src/agentenv_awsbench/bundles/awsbench/envs/aws/awsbench_aws/scenarios/{configure['scenario']}.yaml",
@@ -283,7 +294,9 @@ def build_card(task: str) -> dict:
     from datetime import datetime
     when = datetime.fromisoformat(start)
     story = (f"Vantleaf's on-call SRE is paged at {when.strftime('%H:%M')} ET on {when.strftime('%A, %B')} "
-             f"{when.day}, {when.year}: \"{page}\"")
+             f"{when.day}, {when.year}: \"{page}\"" if page else
+             f"Vantleaf's on-call SRE starts a shift at {when.strftime('%H:%M')} ET on {when.strftime('%A, %B')} "
+             f"{when.day}, {when.year}: \"{lead}\"")
     return {
         "schema": SCHEMA, "id": task, "title": scenario["title"], "story": story, "task_file": f"tasks/{name}.json",
         "scenario": configure["scenario"], "seed": configure.get("seed"), "npc_mode": configure.get("npc_mode"),
@@ -387,7 +400,7 @@ def render(c: dict) -> str:
     out += ["## Checks", "",
             f"From `{g['grader']}`: {len(g['checks'])} checks in three buckets ("
             + ", ".join(f"{BUCKETS[b].lower()} {p}" for b, p in g["buckets"].items()) + " points). **Core** checks "
-            f"decide a pass. If {g['mitigation']} fails, the score is capped at {g['inaction_cap']}.", "",
+            f"decide a pass; {g['inaction']}.", "",
             "| Check | Bucket | Points | Core | Rule |", "| --- | --- | --- | --- | --- |"]
     for ch in g["checks"]:
         rule = ch["rule"]
@@ -418,9 +431,9 @@ def render(c: dict) -> str:
     for gate in g["gates"]:
         rule = gate["rule"] + (f". {gate['detail']}" if gate["detail"] else "")
         out.append(f"| {gate['id']} | {gate['cap']} | {_cell(rule)} |")
-    out += [f"| {g['mitigation']} fails | {g['inaction_cap']} | the mitigation check: "
-            + _cell(next(ch["rule"] for ch in g["checks"] if ch["mitigation"])) + " |",
-            ""] + [f"{c_} (`docs/{c['id']}.md`)" for c_ in g["claims"]] + [
+    out += [(f"| {g['mitigation']} fails | {g['inaction_cap']} | the mitigation check: "
+             + _cell(next(ch["rule"] for ch in g["checks"] if ch["mitigation"])) + " |") if g["mitigation"] else
+            f"| C1 under half | {g['inaction_cap']} | {_cell(g['inaction'])} |", ""] + [f"{c_} (`docs/{c['id']}.md`)" for c_ in g["claims"]] + [
             "", f"**Score.** {g['score']}. **Pass.** A run passes when {g['pass']}.", ""]
     out += ["## What a fair failure looks like", "",
             "From the article's *What makes a failure fair*: every lost check in the recorded runs was traced to its "
