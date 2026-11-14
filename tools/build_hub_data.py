@@ -289,6 +289,11 @@ def index_row(v: dict) -> dict:
     return row
 
 
+def final_build(grader: dict, task: str) -> str | None:
+    """The final grader's build for a task: hub/runs.json's ``builds`` names a task's own, else ``build``."""
+    return (grader.get("builds") or {}).get(task) or grader.get("build")
+
+
 def results_table(index: dict) -> str:
     """The dataset card's results tables, one per task, from the index."""
     out = []
@@ -303,7 +308,7 @@ def results_table(index: dict) -> str:
                        f"{lost_text(r)} | {', '.join(r['gates']) or 'none'} | {final_text(r)} | {r['calls']} | {end_text(r)} |")
         notes = [r for r in t["runs"] if r.get("final") and (r["final"]["losses"] or not same_grade(r))]
         if notes:
-            out += ["", f"**Final grader** (`{index['final_grader']['build']}`). Why a run's final D12 differs from the "
+            out += ["", f"**Final grader** (`{final_build(index['final_grader'], task)}`). Why a run's final D12 differs from the "
                         "grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a "
                         "world or colleague defect fixed since):", ""]
             out += [f"- `{r['id']}`: {final_text(r)}{' · ' + LOSSES[r['final']['losses']] if r['final']['losses'] else ''}. "
@@ -565,7 +570,7 @@ def build(runs_dir: Path, t03_root: Path | None = None, render: bool = True, pla
         view = X.export_run(folder, folder.name, meta.get("label"), bool(meta.get("dev")), meta.get("note", ""),
                             build=builds[folder.name], t03_root=root, work=work)
         if meta.get("final"):
-            view["regrade"] = dict(meta["final"], grader=manifest.get("final_grader", {}).get("build"))
+            view["regrade"] = dict(meta["final"], grader=final_build(manifest.get("final_grader") or {}, tasks[folder.name]))
         views.append(view)
         written.append(write_json(SPACE_DATA / "runs" / f"{view['id']}.json", view))
         out = DATASET / "runs" / view["id"]

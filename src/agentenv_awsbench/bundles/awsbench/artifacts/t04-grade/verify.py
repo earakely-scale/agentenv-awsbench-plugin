@@ -357,7 +357,7 @@ def same_route(a, b):
         bool(sb.get("cells")) and all(sa.get(f) == sb.get(f) for f in ("pool_id", "fallback_cell", "pinned", "residency")) \
         and (a or {}).get("settlement_profile") == (b or {}).get("settlement_profile") and \
         (a or {}).get("route_id") == (b or {}).get("route_id") and (a or {}).get("idem_ns") == (b or {}).get("idem_ns") \
-        and set((sb.get("weights") or {})) == set(sb.get("cells") or []) and sum((sb.get("weights") or {}).values()) == 100
+        and set(sb.get("weights") or {}) == set(sb.get("cells") or []) and sum((sb.get("weights") or {}).values()) == 100
 
 
 def gate_at(inp, t):
@@ -451,9 +451,7 @@ def c4(inp, c2_score):
                 bad.append(f"{k} missing")
             elif rec == "ROUTE" and (any(fin.get(f) != t0.get(f) for f in ("route_id", "idem_ns")) or
                                      spec(fin).get("residency") != spec(t0).get("residency") or
-                                     any(not x.get("world_made") for x in inp.writes if "|".join(x["key"]) == k)):
-                bad.append(f"{k} changed")
-            elif rec == "LIMITS" and any(fin.get(f) != t0.get(f) for f in ("daily_cap_usd", "per_txn_cap_usd")):
+                                     any(not x.get("world_made") for x in inp.writes if "|".join(x["key"]) == k)) or rec == "LIMITS" and any(fin.get(f) != t0.get(f) for f in ("daily_cap_usd", "per_txn_cap_usd")):
                 bad.append(f"{k} changed")
     for mid in ("mch_44419", "mch_44420"):
         if not inp.final.get(f"{mid}|ROUTE") or not (inp.dp.get(mid) or {}).get("cells"):

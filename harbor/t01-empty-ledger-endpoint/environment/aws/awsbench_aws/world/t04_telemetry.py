@@ -4,7 +4,7 @@ included), and CloudWatch Logs for the routemap and payments groups. A minute `M
 minute is over. Log messages are JSON, and Logs Insights discovers their fields as it does in AWS."""
 
 import json
-from bisect import bisect_left, bisect_right
+from bisect import bisect_right
 from datetime import UTC, datetime
 
 from ..account import ACCOUNT

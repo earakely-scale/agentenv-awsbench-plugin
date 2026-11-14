@@ -26,12 +26,12 @@ Each mode needs a freshly configured env (the episode ends at the horizon). Exit
 command exits non-zero, since a path that silently fails grades as a different path.
 """
 import argparse
-from zoneinfo import ZoneInfo
 import asyncio
 import json
 import sys
 from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t03_oracle
@@ -271,7 +271,7 @@ async def wait_through(gw, args):
     return result
 
 
-async def play(gw, steps, check_clock=True, harvest=harvest):
+async def play(gw, steps, check_clock=True, harvest=harvest, skip_past=False):
     found, problems = {}, []
     for tool, args, *check in steps:
         if tool == "REPAIR":
@@ -279,7 +279,7 @@ async def play(gw, steps, check_clock=True, harvest=harvest):
             continue
         before = await gw.now()
         args = fill(args, found)
-        if tool == "wait" and args.get("until") and len(args["until"]) <= 8 and before.astimezone(ET).strftime(
+        if skip_past and tool == "wait" and args.get("until") and len(args["until"]) <= 8 and before.astimezone(ET).strftime(
                 "%H:%M:%S") >= args["until"].rjust(8, "0"):
             print(f"  {before.isoformat()}  skip wait until {args['until']} (already past)")
             continue
@@ -340,7 +340,7 @@ async def main(argv=None):
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
         if t04:
             steps = t04_oracle.alt_steps() if args.mode == "alt" else t04_oracle.steps_for(args.mode)
-            problems += await play(gw, steps, harvest=t04_oracle.harvest)
+            problems += await play(gw, steps, harvest=t04_oracle.harvest, skip_past=True)
             graded = await finish(gw, t04_oracle.load_grade())
             if not t04_oracle.expected(args.mode, graded):
                 problems.append(f"t04 {args.mode}: unexpected D12 {graded['d12']['score']} "

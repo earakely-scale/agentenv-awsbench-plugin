@@ -682,6 +682,18 @@ def test_judge_answer_reads_a_trailing_comma_and_keeps_quotes_of_a_valid_one():
         grade.judge_answer('{"facts": {"P1": {"conveyed": true, "quote": "x}}')
 
 
+def test_c13_f9_asks_for_the_run_s_own_changes_from_its_audit_log():
+    assert "bf-capacity-hold" not in grade.JUDGE_FACTS["C13"]["F9"]
+    without_hold = grade.changes_truth(grade.Inputs(*exports(*oracle(hold=False))))
+    assert "UpdateAutoScalingGroup" in without_hold and "DeleteScheduledAction" not in without_hold
+    assert '"Value": "authoritative"' in without_hold and "fleet_restart" in without_hold
+    with_hold = grade.changes_truth(grade.Inputs(*exports(*oracle())))
+    assert "DeleteScheduledAction" in with_hold and "bf-capacity-hold" in with_hold
+    prompt = grade.judge_prompt("C13", "x", without_hold)
+    assert prompt.index(without_hold) < prompt.index("CALIBRATION") and "a text's time within a few minutes" in prompt
+    assert grade.changes_truth(grade.Inputs(*exports(Log(), []))).endswith("of the log's agrees): none.")
+
+
 def test_judge_majority_and_key_terms():
     canary = "Canary vl-ledger-e2e-canary-failing in ALARM since 08:09 ET"
     blind = 'they went INSUFFICIENT_DATA and the status page auto-synced to "operational"'

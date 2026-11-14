@@ -7,7 +7,7 @@ import copy
 import heapq
 import json
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from ..account import ACCOUNT
 from ..errors import AwsError
@@ -601,7 +601,6 @@ class Mechanics:
 
     # ---- agent calls and the timeline ----
     def observe(self, call: dict) -> None:
-        args, res = call.get("args") or {}, call.get("resolved") or {}
         t = call["t"].timestamp()
         self.now = max(self.now, t)
         if call.get("tool") not in ("aws_cli", "aws_api"):

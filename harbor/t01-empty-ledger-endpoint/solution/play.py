@@ -125,7 +125,7 @@ async def wait_through(gw, args):
     return result
 
 
-async def play(gw, steps, check_clock=True, harvest=harvest):
+async def play(gw, steps, check_clock=True, harvest=harvest, skip_past=False):
     found, problems = {}, []
     for tool, args, *check in steps:
         if tool == "REPAIR":
@@ -133,6 +133,10 @@ async def play(gw, steps, check_clock=True, harvest=harvest):
             continue
         before = await gw.now()
         args = fill(args, found)
+        if skip_past and tool == "wait" and args.get("until") and len(args["until"]) <= 8 and before.astimezone(ET).strftime(
+                "%H:%M:%S") >= args["until"].rjust(8, "0"):
+            print(f"  {before.isoformat()}  skip wait until {args['until']} (already past)")
+            continue
         result = await (wait_through(gw, args) if tool == "wait" else gw.call(tool, args))
         after = await gw.now()
         harvest(tool, result, found)
