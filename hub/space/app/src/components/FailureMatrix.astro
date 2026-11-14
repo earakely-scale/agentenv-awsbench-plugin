@@ -1,0 +1,50 @@
+---
+// The model x failure-family matrix: one square per run in each cell, the count line under it. A table on wide
+// screens; below 760 px each family becomes a block with a row per model.
+import RunSquare from "./RunSquare.astro";
+import { DATA, MODELS, BUILD_NOTE, cell, countLine } from "./failures";
+const legend = [
+  { sq: { run: "Lost points, fair", state: "lost", label: "fair", checks: [] }, text: "lost points, fair" },
+  { sq: { run: "Lost points, partly environment", state: "lost", label: "partly_environment", checks: [] }, text: "partly environment" },
+  { sq: { run: "Knock-on", state: "knock_on", label: null, checks: [] }, text: "knock-on of the family-1 decision" },
+  { sq: { run: "Near miss", state: "near", label: null, checks: [] }, text: "near miss" },
+  { sq: { run: "Grader defect, fixed", state: "fixed", label: null, checks: [] }, text: "grader defect, now fixed" },
+  { sq: { run: "Nothing lost", state: "clean", label: null, checks: [] }, text: "nothing lost" },
+];
+---
+<figure class="t01f-matrix">
+  <ul class="t01f-legend" aria-label="Legend">
+    {legend.map((l) => (
+      <li><RunSquare sq={{ ...l.sq, note: null }} decorative /><span>{l.text}</span></li>
+    ))}
+  </ul>
+  <div class="t01f-matrix__scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col" class="t01f-matrix__corner">Failure family</th>
+          {MODELS.map((m) => (
+            <th scope="col"><span class="m">{m.short}</span><span class="p">{m.pass_at_1}</span><span class="b">{BUILD_NOTE[m.id]}</span></th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {DATA.families.map((f: any) => (
+          <tr>
+            <th scope="row"><a href={`#t01f-${f.id}`}><span class="n">{f.n}</span>{f.name}</a></th>
+            {MODELS.map((m) => {
+              const c = cell(f.id, m.id);
+              return (
+                <td data-model={`${m.short} · ${m.pass_at_1}`}>
+                  <span class="sqs">{c.squares.map((sq: any) => <RunSquare sq={sq} />)}</span>
+                  <span class="cnt">{countLine(c)}</span>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <figcaption>One square per run, final grader. Sonnet ran only on earlier builds; GPT-6 Astra ran twice, through the Codex CLI. Each family's card lists every run that isn't clean, with the same notes the squares show on hover or focus.</figcaption>
+</figure>

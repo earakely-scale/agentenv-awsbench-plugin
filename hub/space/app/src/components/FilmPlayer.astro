@@ -1,0 +1,39 @@
+---
+// One film: the MP4 with its poster and a hidden caption track (the captions are burned in), a cue line that copies
+// the active caption below 640 px where the burned-in text is about 9 px tall, a transcript and the interactive link.
+import fs from "node:fs";
+import path from "node:path";
+import Accordion from "./Accordion.astro";
+const { id, title, duration_s, hidden = false } = Astro.props;
+const vtt = path.join(process.cwd(), "public/films", `${id}.vtt`);
+const cues: { at: string; text: string }[] = [];
+if (fs.existsSync(vtt)) {
+  for (const block of fs.readFileSync(vtt, "utf8").split(/\n\s*\n/)) {
+    const m = /(\d\d):(\d\d):(\d\d)\.\d+\s+-->.*\n([\s\S]+)/.exec(block);
+    if (m) cues.push({ at: `${Number(m[2])}:${m[3]}`, text: m[4].trim().replace(/\s*\n\s*/g, " ") });
+  }
+}
+const mins = `${Math.floor(duration_s / 60)}:${String(Math.round(duration_s % 60)).padStart(2, "0")}`;
+---
+<figure class="t01f-film" data-film={id} hidden={hidden}>
+  <div class="t01f-film__frame">
+    <video controls playsinline preload="none" poster={`/films/${id}.poster.png`} width="1280" height="720" aria-label={`Film: ${title}`}>
+      <source src={`/films/${id}.mp4`} type="video/mp4" />
+      <track kind="captions" src={`/films/${id}.vtt`} srclang="en" label="English" />
+    </video>
+  </div>
+  <p class="t01f-film__cue" aria-hidden="true"></p>
+  <figcaption class="t01f-film__meta">
+    <span class="dur">{title} · {mins}</span>
+    <a href={`/viz/film.html?script=/films/scripts/${id}.json`} target="_blank" rel="noopener">Open the interactive version</a>
+  </figcaption>
+  {cues.length > 0 && (
+    <Accordion title="Transcript" class="t01f-film__transcript">
+      <ol>
+        {cues.map((c) => (
+          <li><span class="at">{c.at}</span> {c.text}</li>
+        ))}
+      </ol>
+    </Accordion>
+  )}
+</figure>

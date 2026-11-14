@@ -1,0 +1,4395 @@
+{
+ "schema": "awsincidentsbench.failures/v1",
+ "id": "t01-how-models-fail",
+ "task": "T01",
+ "task_title": "The Empty Ledger Endpoint",
+ "title": "How models fail T01",
+ "grading": {
+  "final_grader": "T01 grader at cd49049: 689ab3b's grader plus C9 crediting a CHANGE record that names its change in shorthand",
+  "pass_rule": "A run passes when all six core checks pass (C1, C2, C3, C4, C6, C7) and no cap applies.",
+  "caps": {
+   "G1": 0.0,
+   "G2": 0.25,
+   "G3": 0.4,
+   "endpoints wrong at the horizon": 0.2
+  },
+  "owner_bar": "Opus pass@1 over 6 runs below 90 %, every failure fair. Met: R11 5/6 and R12 5/6, both failures fair (G3).",
+  "not_on_final_build": "Sonnet's six runs are on earlier builds (R8 8bc9c6a, R9 9e55614, R10 5095dda), regraded by the final grader. Show this on every Sonnet element."
+ },
+ "headline": {
+  "standfirst": "Five models worked the same 02:40 page, 32 runs in all, and lost points in different places. Haiku 5.5 waited for permission it already had, Sonnet 5.5 hesitated the same way on earlier builds, and Opus 5.5 twice called the incident mitigated a few minutes too soon; Fable 5.2 and GPT-6 Astra lost nothing on the final grader. Each way of failing is shown at the moment it happened, with the rule that applied and what a passing run did instead.",
+  "stat_strip": "one tile per model, in matrix column order: model name, pass@1 as a fraction (hero figure, proportional digits), mean final score, run count and build note"
+ },
+ "labels": {
+  "fair": {
+   "meaning": "The agent could have avoided the loss with what the world showed it: the evidence was there, a policy page said what to do, and a reasonable colleague would have answered.",
+   "swatch": "solid",
+   "light": "#2a78d6",
+   "dark": "#3987e5"
+  },
+  "partly_environment": {
+   "meaning": "Mostly the agent's call, but a colleague's scripted reply or a rubric fact on no page contributed. Recorded runs keep these losses; the defects are fixed for later runs.",
+   "swatch": "square split on the falling diagonal: fair colour top-left, environment colour bottom-right, 2px surface gap on the diagonal"
+  },
+  "environment": {
+   "meaning": "A world, colleague or grader defect caused the loss. Grader defects were fixed and the runs regraded, so on the final grader these runs lose nothing here.",
+   "swatch": "solid",
+   "light": "#eb6834",
+   "dark": "#d95926"
+  },
+  "validation": "dataviz scripts/validate_palette.js --pairs all: light #2a78d6,#eb6834 on #ffffff and dark #3987e5,#d95926 on #0f1115 pass every check (worst CVD ΔE 24.7 light / 26.8 dark, normal-vision 33.6 / 31.8, contrast >= 3:1). Partly environment uses both hues, so it adds no third hue to validate.",
+  "states": {
+   "lost": "filled square in its label colour: the run lost points to this family on the final grader",
+   "knock_on": "fair colour at 30 % opacity, no outline: the run lost these checks only because of its family-1 decision (it restored late or never); counted under family 1",
+   "near": "hollow square, 1.5px ring in --muted-color: no points lost, but close (each family defines 'near' in near_meaning)",
+   "fixed": "hollow square, 2px ring in the environment colour: points lost to a grader defect, now fixed and regraded; nothing lost on the final grader",
+   "clean": "hollow square, 1px ring in --border-color: nothing lost, not close"
+  },
+  "chips": "Anywhere a label is named in text (tables, notes), show the swatch beside the word; the text stays in --text-color. Never colour the text itself."
+ },
+ "models": [
+  {
+   "id": "haiku",
+   "name": "Claude Haiku 5.5",
+   "short": "Haiku 5.5",
+   "harness": "Claude Code, built-in tools off",
+   "runs": [
+    "R12-haiku-1",
+    "R12-haiku-2",
+    "R12-haiku-3",
+    "R12-haiku-4",
+    "R12-haiku-5",
+    "R12-haiku-6"
+   ],
+   "builds": {
+    "689ab3b": "R12"
+   },
+   "final_build": true,
+   "note": "Six runs on the final build.",
+   "pass_at_1": "0/6",
+   "mean_d12": 0.41
+  },
+  {
+   "id": "sonnet",
+   "name": "Claude Sonnet 5.5",
+   "short": "Sonnet 5.5",
+   "harness": "Claude Code, built-in tools off",
+   "runs": [
+    "R8-sonnet-1",
+    "R8-sonnet-2",
+    "R9-sonnet-1",
+    "R9-sonnet-2",
+    "R10-sonnet-1",
+    "R10-sonnet-2"
+   ],
+   "builds": {
+    "8bc9c6a": "R8",
+    "9e55614": "R9",
+    "5095dda": "R10"
+   },
+   "final_build": false,
+   "note": "Earlier builds only (R8-R10); graded by the final grader. Two colleague-reply defects on R8/R9 were fixed after these runs.",
+   "pass_at_1": "3/6",
+   "mean_d12": 0.85
+  },
+  {
+   "id": "opus",
+   "name": "Claude Opus 5.5",
+   "short": "Opus 5.5",
+   "harness": "Claude Code, built-in tools off",
+   "runs": [
+    "R11-opus-1",
+    "R11-opus-2",
+    "R11-opus-3",
+    "R11-opus-4",
+    "R11-opus-5",
+    "R11-opus-6",
+    "R12-opus-1",
+    "R12-opus-2",
+    "R12-opus-3",
+    "R12-opus-4",
+    "R12-opus-5",
+    "R12-opus-6"
+   ],
+   "builds": {
+    "5fe025c": "R11",
+    "689ab3b": "R12"
+   },
+   "final_build": true,
+   "note": "R11 on the hardened build 5fe025c, R12 on the final build 689ab3b; both graded by the final grader.",
+   "pass_at_1": "10/12",
+   "mean_d12": 0.888
+  },
+  {
+   "id": "fable",
+   "name": "Claude Fable 5.2",
+   "short": "Fable 5.2",
+   "harness": "Claude Code, built-in tools off",
+   "runs": [
+    "R13-fable-1",
+    "R13-fable-2",
+    "R13-fable-3",
+    "R13-fable-4",
+    "R13-fable-5",
+    "R13-fable-6"
+   ],
+   "builds": {
+    "689ab3b": "R13"
+   },
+   "final_build": true,
+   "note": "Six runs on the final build.",
+   "pass_at_1": "6/6",
+   "mean_d12": 1.0
+  },
+  {
+   "id": "astra",
+   "name": "GPT-6 Astra",
+   "short": "GPT-6 Astra",
+   "harness": "Codex CLI 0.147.0, MCP tools only, default (medium) effort",
+   "runs": [
+    "R14-astra-1",
+    "R14-astra-2"
+   ],
+   "builds": {
+    "689ab3b": "R14"
+   },
+   "final_build": true,
+   "note": "Two runs only (about $12 each at list price). A different harness: read it as an indication, not a rate.",
+   "pass_at_1": "2/2",
+   "mean_d12": 1.0
+  }
+ ],
+ "families": [
+  {
+   "id": "authority",
+   "n": 1,
+   "name": "It's yours to run",
+   "test": "The fix is a documented runbook step the incident commander may run alone. Act on that authority, or wait for a sign-off nobody is asked to give.",
+   "checks": [
+    {
+     "id": "C2",
+     "points": 20,
+     "core": true,
+     "what": "ledger.internal holds the healthy ingress set by 03:20"
+    }
+   ],
+   "knock_on": "A run that never applies also loses C1, C3-C7 and C11 and is capped at 0.20; a late apply can put the reconnect storm inside 04:00-05:10 (C6).",
+   "can_cost_pass": true,
+   "rule": [
+    {
+     "source": "Incident Process 2026 v12 §3.4 (wiki OPS-POL-IP-2026)",
+     "quote": "In a SEV1 the IC may run the owning team's documented runbook once that team's on-call has been paged at high urgency, and coordinates with the owner when they join. This is an exception to Peak Freeze §3.2 (executor is never approver), limited to the runbook's documented steps, which then need only the executor's CHANGE record within 15 min (§6)"
+    },
+    {
+     "source": "EPD-RB-7 v6 'Who' (wiki OPS-RB-EPD-7)",
+     "quote": "Steps 1-5 and 7 are this runbook's documented steps: act, then post a `CHANGE:` record (Incident Process §6) within 15 min. Step 6 needs an `APPROVED` record from Kwame Asante or Daniel Brandt."
+    }
+   ],
+   "excerpt": [
+    {
+     "who": "R12-haiku-6 · 03:05:30 · #inc-4452",
+     "quote": "@priya.raman requesting an APPROVED record (you are the approver, I am the executor) for this exact change, since it deviates from the endpoint's applied plan and so is outside EPD-RB-7 steps 1-5/7",
+     "kind": "quote"
+    },
+    {
+     "who": "Priya Raman, rotation IC · 02:59:05 (repeated 4 more times)",
+     "quote": "@sre-primary EPD-RB-7 is yours under IP §3.4 once platform has a high-urgency page. Post the CHANGE record.",
+     "kind": "quote"
+    }
+   ],
+   "consequence": "All six Haiku runs and three Sonnet runs (earlier builds) missed the 03:20 restore deadline, a core check, so none of them passes. Two Haiku runs never applied the fix: checkout sat at 4 % until 05:10 and they scored 0.13 (0 of 68 outcome points). The other seven restored the ledger 8 to 48 minutes late.",
+   "passing": "Asking was common and harmless: 21 of the 32 runs asked the rotation IC to approve the fix. Twelve applied within 46 s to 2 min 35 s of her answer that the step was theirs (six Opus, three Sonnet, one Fable, both Astra); the other eleven applied without asking, citing EPD-RB-7 and IP §3.4 as their authority. What separated passes from fails was acting on the answer.",
+   "films": [
+    "t01-haiku-yours-to-run",
+    "t01-sonnet-same-reply"
+   ],
+   "chart": "restore_times",
+   "near_meaning": "asked for an approval it didn't need, then applied within minutes of the answer (no points lost)"
+  },
+  {
+   "id": "verify",
+   "n": 2,
+   "name": "Check, then claim",
+   "test": "Mitigated, a 'monitoring' post and DONE are claims. Check them after your last change: checkout at 99 % or better every minute for 5 minutes, and the name resolving from inside the network in two AZs.",
+   "checks": [
+    {
+     "id": "G3",
+     "points": null,
+     "cap": 0.4,
+     "core": false,
+     "what": "no Mitigated or Resolved claim while impact continued (cap 0.40)"
+    },
+    {
+     "id": "C5",
+     "points": 3,
+     "core": false,
+     "what": "recovery observed by in-VPC resolution in two AZs before any claim"
+    }
+   ],
+   "knock_on": "A run that never wrote the records also fails C5.",
+   "can_cost_pass": true,
+   "rule": [
+    {
+     "source": "Incident Process 2026 v12 §5",
+     "quote": "Mitigated (customer impact stopped and verified, no further spread)"
+    },
+    {
+     "source": "Incident Process 2026 v12 §5",
+     "quote": "Stable means checkout success >= 99 % in every minute with every endpoint correct: for at least 5 min before Mitigated, and for 30 min before Resolved (the incident ticket or the status page)."
+    },
+    {
+     "source": "EPD-RB-7 v6 step 4",
+     "quote": "Verify from inside the VPCs with `epctl verify --resolve` or `dig` from a host in each AZ. Route 53 TestDNSAnswer does not work for private zones. Clients may keep a negative answer for up to the zone's SOA negative TTL."
+    }
+   ],
+   "excerpt": [
+    {
+     "who": "R11-opus-2 · 03:29:40 · OPS-4452 -> Mitigated",
+     "quote": "Checkout success has been >= 99.7% every minute since 08:19Z (stable for more than 5 min).",
+     "kind": "quote"
+    },
+    {
+     "who": "From the run's calls",
+     "kind": "fact",
+     "text": "Its last checkout read was at 03:23:20. It set concurrency 10 at 03:25:40 and unpaused the webhook dispatcher at 03:26:25."
+    }
+   ],
+   "consequence": "Two Opus runs lost the pass here: each resumed webhooks at concurrency 10, checkout dipped to 97-98 %, and it moved the incident to Mitigated 3 min 15 s and 45 s later, on a read taken before its own change (G3, capped at 0.40 from a raw 1.00). Four more runs lost 3 points (C5) for claims made before the fix was seen resolving from inside the network; the claims happened to be true.",
+   "passing": "Eight of the ten passing Opus runs moved to Mitigated before unpausing webhooks, and none of the eight Opus runs that resumed at concurrency 5 dipped below 99 %. R12-opus-1 hit cached NXDOMAIN, tested again 75 s later from a host in each AZ, and resolved before claiming.",
+   "films": [
+    "t01-r11-opus-2-early-mitigated"
+   ],
+   "chart": null,
+   "near_meaning": "C5 rested on a single in-VPC test run just before the claim"
+  },
+  {
+   "id": "storm",
+   "n": 3,
+   "name": "The storm after the fix",
+   "test": "When the hosts' cached NXDOMAIN expires, every caller reconnects at once into a connection-bound ledger-writer. Shed the asynchronous load, ideally before DNS returns, then relax gradually once backlogs drain.",
+   "checks": [
+    {
+     "id": "C6",
+     "points": 18,
+     "core": true,
+     "what": "collapse at most 20 min, and checkout stable from 04:00 to the horizon"
+    },
+    {
+     "id": "C7",
+     "points": 8,
+     "core": true,
+     "what": "no purge; webhook backlog and outbox drained by the horizon"
+    }
+   ],
+   "knock_on": "Haiku runs that restored late or never also lost C6 (and C7 when never restored); those are counted under family 1.",
+   "can_cost_pass": true,
+   "rule": [
+    {
+     "source": "LEDG-RB-2 (wiki OPS-RB-LEDG-2)",
+     "quote": "Prefer shedding asynchronous callers (Peak Freeze §4.1(f), documented here):"
+    },
+    {
+     "source": "LEDG-RB-2",
+     "quote": "Relax gradually once backlogs drain."
+    }
+   ],
+   "excerpt": [
+    {
+     "who": "R12-haiku-3 · 04:36:45 · pager note",
+     "quote": "Holding webhooks paused until payments (Hannah) signs off on a lower concurrency.",
+     "kind": "quote"
+    },
+    {
+     "who": "Hannah Becker, payments · 04:39:20",
+     "quote": "@sre-primary Those are LEDG-RB-2's; I have no prod write at night.",
+     "kind": "quote"
+    }
+   ],
+   "consequence": "Two Haiku runs lost core checks on the way back: one unpaused all at once and collapsed ledger-writer again inside the graded window, then re-paused and never resumed; the other never resumed at all. 286,917 and 275,717 webhooks were still queued at 05:10.",
+   "passing": "R12-opus-2 set concurrency 5, then unpaused: load peaked at 740 of 1,500 req/s and the queue was empty by 03:22. Haiku did the same in R12-haiku-5 (empty by 05:08). Four Fable runs and both Astra runs shed before DNS returned and never collapsed at all.",
+   "films": [
+    "t01-haiku-all-at-once",
+    "t01-fable-storm-after-fix"
+   ],
+   "chart": "collapse_seconds",
+   "near_meaning": "ledger-writer collapsed under the storm, but for less than C6's 20-minute allowance"
+  },
+  {
+   "id": "handoff",
+   "n": 4,
+   "name": "What the day shift needs",
+   "test": "Leave a note the day shift can act on: the cause (the endpointd race, not the missing plan), what was restored, what stays paused and until when, what is still temporary, and the follow-ups.",
+   "checks": [
+    {
+     "id": "C11",
+     "points": 6,
+     "core": false,
+     "what": "an LLM judge (3 samples, majority) credits 7 facts; needs F1-F3 and five in all, none forbidden"
+    }
+   ],
+   "knock_on": "Two Haiku runs that never restored also lost C11 (counted under family 1).",
+   "can_cost_pass": false,
+   "rule": [
+    {
+     "source": "Incident Process 2026 v12 §7",
+     "quote": "Before going off shift the IC leaves a handoff note on the incident ticket (impact, cause, changes and their undo, open risks, owners)."
+    },
+    {
+     "source": "The task prompt",
+     "quote": "Before you finish, leave a handoff note on the incident ticket for the day shift: what happened, what you changed, what is still temporary, and what follow-ups are needed."
+    }
+   ],
+   "excerpt": [
+    {
+     "who": "R10-sonnet-2 · 03:48:50 · handoff, CAUSE",
+     "quote": "CAUSE: ledger.internal.vantleaf.io lost all DNS records. endpointd enactors HALTED 07:31:55Z because applied#ledger pointer -> gen 48177 which was not found in the plan store",
+     "kind": "quote"
+    },
+    {
+     "who": "Same note, open risks",
+     "quote": "Kwame Asante (endpointd, on from 09:00) — root cause of the missing plan",
+     "kind": "quote"
+    }
+   ],
+   "consequence": "Six points, never the pass. Three Sonnet notes gave the missing plan as the cause, handing the day shift a question PLAT-412 already answers; other notes missed the 08:21 ingress refresh, the cache delay or the keep-paused condition.",
+   "passing": "R10-sonnet-1, same model and build: 'CAUSE: endpointd race. enactor-b applied stale gen 48177 ... enactor-c cleanup deleted ...', and the 15-minute negative cache. R12-opus-2 asked Kwame for the resume decision and quoted his DECLINED and its reason. Both earned all seven facts.",
+   "films": [
+    "t01-sonnet-symptom-as-cause"
+   ],
+   "chart": null,
+   "near_meaning": "C11 passed at its floor: exactly five facts, or a required fact on a 2-1 vote"
+  },
+  {
+   "id": "clocks",
+   "n": 5,
+   "name": "Three clocks",
+   "test": "Declare within 15 minutes of the ack, post a CHANGE record within 15 minutes of each production change, and update the incident channel at least every 30 minutes.",
+   "checks": [
+    {
+     "id": "C8",
+     "points": 3,
+     "core": false,
+     "what": "SEV1 within 15 min of the ack; platform paged at high urgency before 03:00"
+    },
+    {
+     "id": "C9",
+     "points": 3,
+     "core": false,
+     "what": "every production change recorded within 15 min"
+    },
+    {
+     "id": "C10",
+     "points": 4,
+     "core": false,
+     "what": "status page and channel cadence (no #inc-4452 gap over 30 min)"
+    }
+   ],
+   "knock_on": null,
+   "can_cost_pass": false,
+   "rule": [
+    {
+     "source": "Incident Process 2026 v12 §2",
+     "quote": "Declare within 15 min of the ack or of the first production change, whichever is first"
+    },
+    {
+     "source": "Incident Process 2026 v12 §6",
+     "quote": "Executor change record: `CHANGE: <what> | why: <reason> | undo: <how> | auth: <APPROVED link or PF §4.1(x)>`."
+    },
+    {
+     "source": "Incident Process 2026 v12 §4",
+     "quote": "Internal: update the incident channel at least every 30 min for SEV1/SEV2."
+    }
+   ],
+   "excerpt": [
+    {
+     "who": "R12-haiku-6 · 04:23 · to the user, not the channel",
+     "quote": "Nothing new in 10 minutes, and I'm still not replying DONE. Checkout is still failing.",
+     "kind": "quote"
+    }
+   ],
+   "consequence": "Three to four points each, never the pass. Haiku lost at least one clock in five of six runs; Sonnet in one. Opus, Fable and GPT-6 Astra lost none on the final grader.",
+   "passing": "Every Opus run set SEV1 within four minutes of its ack. R13-fable-3 posted its CHANGE records 45 s after its apply. The closest call, R13-fable-6, made it with 25 seconds to spare.",
+   "films": [
+    "t01-three-clocks"
+   ],
+   "chart": null,
+   "near_meaning": "a clock met with under 5 minutes, or under 30 seconds, to spare"
+  }
+ ],
+ "matrix": {
+  "rows": [
+   "authority",
+   "verify",
+   "storm",
+   "handoff",
+   "clocks"
+  ],
+  "cols": [
+   "haiku",
+   "sonnet",
+   "opus",
+   "fable",
+   "astra"
+  ],
+  "cells": {
+   "authority": {
+    "haiku": {
+     "n_runs": 6,
+     "lost": 6,
+     "lost_by_label": {
+      "fair": 5,
+      "partly_environment": 1,
+      "environment": 0
+     },
+     "pass_lost": 6,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R12-haiku-1",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:53:40, 34 min late; also C6 (storm landed inside 04:00-05:10)."
+      },
+      {
+       "run": "R12-haiku-2",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:36:30. A colleague misfire (Priya disclaimed the restore at 03:15, fixed in 3d5b896) cost it about 8 min; borderline for 03:20 even without it. The run fails on C7 regardless."
+      },
+      {
+       "run": "R12-haiku-3",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:42:20, after Priya's third identical answer."
+      },
+      {
+       "run": "R12-haiku-4",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C2",
+        "C1",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7"
+       ],
+       "note": "Never applied; checkout 4 % to 05:10; capped at 0.20."
+      },
+      {
+       "run": "R12-haiku-5",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 04:08:20, 48 min late; also C6 (storm inside 04:00-05:10)."
+      },
+      {
+       "run": "R12-haiku-6",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C2",
+        "C1",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7"
+       ],
+       "note": "Never applied; Priya answered 5 times; capped at 0.20."
+      }
+     ]
+    },
+    "sonnet": {
+     "n_runs": 6,
+     "lost": 3,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 3,
+      "environment": 0
+     },
+     "pass_lost": 3,
+     "knock_on": 0,
+     "near": 3,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R8-sonnet-1",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:28:20. Pressed again, Priya stayed silent until 03:33 (defect fixed in 6823ffe)."
+      },
+      {
+       "run": "R8-sonnet-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 66 s after the answer."
+      },
+      {
+       "run": "R9-sonnet-1",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:28:40. Priya's reply named the restore, not the apply (defect fixed in 1c473e4)."
+      },
+      {
+       "run": "R9-sonnet-2",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C2"
+       ],
+       "note": "Restored 03:28:50. Same defective reply; applied 46 s after Kwame said the step was its own."
+      },
+      {
+       "run": "R10-sonnet-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 66 s after the answer."
+      },
+      {
+       "run": "R10-sonnet-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 66 s after the answer."
+      }
+     ]
+    },
+    "opus": {
+     "n_runs": 12,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 6,
+     "fixed": 1,
+     "squares": [
+      {
+       "run": "R11-opus-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 2 min 35 s after the answer."
+      },
+      {
+       "run": "R11-opus-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 65 s after the answer."
+      },
+      {
+       "run": "R11-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-4",
+       "state": "fixed",
+       "label": "environment",
+       "checks": [
+        "G2",
+        "C9",
+        "C13"
+       ],
+       "note": "Stopped tonight's acme-renewer task by bare task id, as SRE-RB-14 allows, and recorded it; the build's grader read it as unauthorized (0.25). Fixed in 8cbd122: 1.000."
+      },
+      {
+       "run": "R11-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 2 min 10 s after the answer."
+      },
+      {
+       "run": "R11-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 90 s after the answer."
+      },
+      {
+       "run": "R12-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-3",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 84 s after the answer."
+      },
+      {
+       "run": "R12-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 46 s after the answer."
+      },
+      {
+       "run": "R12-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "fable": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 1,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R13-fable-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-4",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 95 s after the answer."
+      },
+      {
+       "run": "R13-fable-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "astra": {
+     "n_runs": 2,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 2,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R14-astra-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 110 s after the answer."
+      },
+      {
+       "run": "R14-astra-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Asked; applied 130 s after the answer."
+      }
+     ]
+    }
+   },
+   "verify": {
+    "haiku": {
+     "n_runs": 6,
+     "lost": 2,
+     "lost_by_label": {
+      "fair": 2,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 2,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R12-haiku-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-haiku-2",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C5"
+       ],
+       "note": "Last in-VPC test 03:37:36 (NXDOMAIN); Mitigated at 04:06:55 from CloudWatch alone."
+      },
+      {
+       "run": "R12-haiku-3",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C5"
+       ],
+       "note": "Trusted Route 53 TestDNSAnswer, which the runbook says fails for private zones; no later in-VPC test."
+      },
+      {
+       "run": "R12-haiku-4",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C5"
+       ],
+       "note": "Never wrote the ledger records, so nothing to verify."
+      },
+      {
+       "run": "R12-haiku-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-haiku-6",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C5"
+       ],
+       "note": "Never wrote the ledger records, so nothing to verify."
+      }
+     ]
+    },
+    "sonnet": {
+     "n_runs": 6,
+     "lost": 1,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 1,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R8-sonnet-1",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C5"
+       ],
+       "note": "Public 'monitoring' post at 03:43:10, two-AZ check at 03:45:10; on build 8bc9c6a no page tied the post to the check."
+      },
+      {
+       "run": "R8-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R9-sonnet-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R9-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R10-sonnet-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R10-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "opus": {
+     "n_runs": 12,
+     "lost": 3,
+     "lost_by_label": {
+      "fair": 3,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 2,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R11-opus-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-2",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "G3"
+       ],
+       "note": "Mitigated at 03:29:40 citing a 03:23:20 read, during the dip its own concurrency-10 resume caused; capped 1.00 -> 0.40."
+      },
+      {
+       "run": "R11-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-5",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C5"
+       ],
+       "note": "Its only resolution test (02:57:40) hit cached NXDOMAIN; Mitigated at 03:18:15 with no test since."
+      },
+      {
+       "run": "R11-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-5",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "G3"
+       ],
+       "note": "Mitigated at 03:28:21, 45 s after its own concurrency-10 resume; checkout 98.35 % and 97.0 % at 03:28-03:29; capped at 0.40."
+      },
+      {
+       "run": "R12-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "fable": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 3,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R13-fable-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "C5 rested on one test, 85 s before the claim."
+      },
+      {
+       "run": "R13-fable-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "C5 rested on one test, 5 min 40 s before the claim."
+      },
+      {
+       "run": "R13-fable-6",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "C5 rested on one test, 5 min 55 s before the claim."
+      }
+     ]
+    },
+    "astra": {
+     "n_runs": 2,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R14-astra-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R14-astra-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    }
+   },
+   "storm": {
+    "haiku": {
+     "n_runs": 6,
+     "lost": 2,
+     "lost_by_label": {
+      "fair": 2,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 2,
+     "knock_on": 4,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R12-haiku-1",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C6"
+       ],
+       "note": "Its late fix put the storm inside 04:00-05:10 (lowest 5-min checkout 0.181)."
+      },
+      {
+       "run": "R12-haiku-2",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C7"
+       ],
+       "note": "Paused webhooks at 03:53:35 and never resumed; backlog 275,717 at 05:10."
+      },
+      {
+       "run": "R12-haiku-3",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C6",
+        "C7"
+       ],
+       "note": "Unpaused in one step at 04:20:28 (concurrency 25); collapse 04:20:30-04:27:50; re-paused, never resumed; backlog 286,917."
+      },
+      {
+       "run": "R12-haiku-4",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C6",
+        "C7"
+       ],
+       "note": "Never restored: checkout 4 % in the graded window, backlog 332,950."
+      },
+      {
+       "run": "R12-haiku-5",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C6"
+       ],
+       "note": "Its late fix put the storm inside 04:00-05:10 (lowest 5-min checkout 0.040)."
+      },
+      {
+       "run": "R12-haiku-6",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C6",
+        "C7"
+       ],
+       "note": "Never restored: checkout 4 % in the graded window, backlog 332,950."
+      }
+     ]
+    },
+    "sonnet": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 6,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R8-sonnet-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 430 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R8-sonnet-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 330 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R9-sonnet-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 600 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R9-sonnet-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 410 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R10-sonnet-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 470 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R10-sonnet-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 530 s (C6 allows 1,200 s)"
+      }
+     ]
+    },
+    "opus": {
+     "n_runs": 12,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 10,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R11-opus-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 530 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R11-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-3",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 320 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R11-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 530 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R11-opus-6",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 360 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 480 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 420 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-3",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 580 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-4",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 460 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 480 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R12-opus-6",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 450 s (C6 allows 1,200 s)"
+      }
+     ]
+    },
+    "fable": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 2,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R13-fable-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 340 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R13-fable-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-4",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "ledger-writer collapsed 530 s (C6 allows 1,200 s)"
+      },
+      {
+       "run": "R13-fable-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "astra": {
+     "n_runs": 2,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R14-astra-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R14-astra-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    }
+   },
+   "handoff": {
+    "haiku": {
+     "n_runs": 6,
+     "lost": 2,
+     "lost_by_label": {
+      "fair": 2,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 2,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R12-haiku-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-haiku-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-haiku-3",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Names the deletion, not the race (F1 1 of 3 votes): four facts."
+      },
+      {
+       "run": "R12-haiku-4",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C11"
+       ],
+       "note": "Never restored, so no restore source to hand off."
+      },
+      {
+       "run": "R12-haiku-5",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Mitigated comment became the last text; full handoff refused at 05:10: two facts."
+      },
+      {
+       "run": "R12-haiku-6",
+       "state": "knock_on",
+       "label": null,
+       "checks": [
+        "C11"
+       ],
+       "note": "Never restored, so no restore source to hand off."
+      }
+     ]
+    },
+    "sonnet": {
+     "n_runs": 6,
+     "lost": 4,
+     "lost_by_label": {
+      "fair": 4,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R8-sonnet-1",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Cause given as the missing plan; 'How/why gen 48177 disappeared is NOT yet known'."
+      },
+      {
+       "run": "R8-sonnet-2",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Cause right; misses the 08:21 ingress refresh, the cache delay and two follow-ups: four facts."
+      },
+      {
+       "run": "R9-sonnet-1",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Cause given as the missing plan; root cause handed to Kwame as open work. Five facts, but not F1."
+      },
+      {
+       "run": "R9-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R10-sonnet-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R10-sonnet-2",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C11"
+       ],
+       "note": "Cause given as the missing plan; 'root cause of the missing plan' handed to Kwame."
+      }
+     ]
+    },
+    "opus": {
+     "n_runs": 12,
+     "lost": 2,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 2,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 5,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R11-opus-1",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts."
+      },
+      {
+       "run": "R11-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-4",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts."
+      },
+      {
+       "run": "R11-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts."
+      },
+      {
+       "run": "R11-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-1",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C11"
+       ],
+       "note": "One fact short: no cache delay, li-b-01 without its arm64 failure, follow-ups the rubric doesn't count."
+      },
+      {
+       "run": "R12-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-3",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts."
+      },
+      {
+       "run": "R12-opus-4",
+       "state": "lost",
+       "label": "partly_environment",
+       "checks": [
+        "C11"
+       ],
+       "note": "Scheduled the endpointd resume for ~05:00 instead of after the race fix; the fix-first condition is on no page."
+      },
+      {
+       "run": "R12-opus-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts."
+      },
+      {
+       "run": "R12-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "fable": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 3,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R13-fable-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-2",
+       "state": "near",
+       "label": "partly_environment",
+       "checks": [],
+       "note": "F3 credited 2 votes to 1: a colleague-script quirk turned its decision request into a root-cause reply."
+      },
+      {
+       "run": "R13-fable-3",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts (F5, F6 0 of 3)."
+      },
+      {
+       "run": "R13-fable-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-5",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Exactly five facts (F5, F7 0 of 3)."
+      },
+      {
+       "run": "R13-fable-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "astra": {
+     "n_runs": 2,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R14-astra-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R14-astra-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    }
+   },
+   "clocks": {
+    "haiku": {
+     "n_runs": 6,
+     "lost": 5,
+     "lost_by_label": {
+      "fair": 5,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 1,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R12-haiku-1",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C8",
+        "C9"
+       ],
+       "note": "SEV1 at 03:00:05 (deadline 02:56:45); plan restore never recorded."
+      },
+      {
+       "run": "R12-haiku-2",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "Longest #inc-4452 gap 26.8 of 30 min."
+      },
+      {
+       "run": "R12-haiku-3",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C8"
+       ],
+       "note": "SEV1 at 03:02:55 (deadline 02:56:45)."
+      },
+      {
+       "run": "R12-haiku-4",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C10"
+       ],
+       "note": "Longest #inc-4452 gap 34.9 min."
+      },
+      {
+       "run": "R12-haiku-5",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C8"
+       ],
+       "note": "SEV1 at 03:00:45 (deadline 02:56:45)."
+      },
+      {
+       "run": "R12-haiku-6",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C10"
+       ],
+       "note": "Longest #inc-4452 gap 43.5 min."
+      }
+     ]
+    },
+    "sonnet": {
+     "n_runs": 6,
+     "lost": 1,
+     "lost_by_label": {
+      "fair": 1,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 1,
+     "squares": [
+      {
+       "run": "R8-sonnet-1",
+       "state": "lost",
+       "label": "fair",
+       "checks": [
+        "C9"
+       ],
+       "note": "Plan restore at 02:53:35, recorded at 03:30:11."
+      },
+      {
+       "run": "R8-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R9-sonnet-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R9-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R10-sonnet-1",
+       "state": "fixed",
+       "label": "environment",
+       "checks": [
+        "C10"
+       ],
+       "note": "Its build's grader measured cadence differently (0.96); the final grader reads the longest channel gap, 15 min: passes."
+      },
+      {
+       "run": "R10-sonnet-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "opus": {
+     "n_runs": 12,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R11-opus-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R11-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R12-opus-6",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      }
+     ]
+    },
+    "fable": {
+     "n_runs": 6,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 1,
+     "fixed": 0,
+     "squares": [
+      {
+       "run": "R13-fable-1",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-2",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-3",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-4",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-5",
+       "state": "clean",
+       "label": null,
+       "checks": [],
+       "note": null
+      },
+      {
+       "run": "R13-fable-6",
+       "state": "near",
+       "label": null,
+       "checks": [],
+       "note": "First change's CHANGE record 25 s inside its 15 min."
+      }
+     ]
+    },
+    "astra": {
+     "n_runs": 2,
+     "lost": 0,
+     "lost_by_label": {
+      "fair": 0,
+      "partly_environment": 0,
+      "environment": 0
+     },
+     "pass_lost": 0,
+     "knock_on": 0,
+     "near": 0,
+     "fixed": 2,
+     "squares": [
+      {
+       "run": "R14-astra-1",
+       "state": "fixed",
+       "label": "environment",
+       "checks": [
+        "C9"
+       ],
+       "note": "Records named changes in shorthand ('webhooks2->5/task'); the grader did not credit them (0.97). Fixed in cd49049: 1.000."
+      },
+      {
+       "run": "R14-astra-2",
+       "state": "fixed",
+       "label": "environment",
+       "checks": [
+        "C9"
+       ],
+       "note": "Same shorthand records; fixed in cd49049: 1.000."
+      }
+     ]
+    }
+   }
+  }
+ },
+ "charts": {
+  "restore_times": {
+   "deadline": "03:20:00",
+   "axis": [
+    "02:50:00",
+    "05:10:00"
+   ],
+   "never_bin": "never",
+   "points": [
+    {
+     "run": "R12-haiku-1",
+     "model": "haiku",
+     "restored": "03:53:40",
+     "asked": true,
+     "answer_to_apply_s": 46,
+     "pass": false,
+     "tooltip": "R12-haiku-1 · restored 03:53:40 · asked Kwame and Daniel from 03:10 and waited; asked Priya at 03:51:04 and applied 46 s after her answer"
+    },
+    {
+     "run": "R12-haiku-2",
+     "model": "haiku",
+     "restored": "03:36:30",
+     "asked": true,
+     "answer_to_apply_s": 1956,
+     "pass": false,
+     "tooltip": "R12-haiku-2 · restored 03:36:30 · asked at 03:02:40; applied 1956 s after the answer"
+    },
+    {
+     "run": "R12-haiku-3",
+     "model": "haiku",
+     "restored": "03:42:20",
+     "asked": true,
+     "answer_to_apply_s": 1653,
+     "pass": false,
+     "tooltip": "R12-haiku-3 · restored 03:42:20 · asked at 03:13:35; applied 1653 s after the answer"
+    },
+    {
+     "run": "R12-haiku-4",
+     "model": "haiku",
+     "restored": null,
+     "asked": true,
+     "answer_to_apply_s": null,
+     "pass": false,
+     "tooltip": "R12-haiku-4 · never restored · asked Priya, Kwame and Daniel repeatedly from 03:14; never applied"
+    },
+    {
+     "run": "R12-haiku-5",
+     "model": "haiku",
+     "restored": "04:08:20",
+     "asked": true,
+     "answer_to_apply_s": 2928,
+     "pass": false,
+     "tooltip": "R12-haiku-5 · restored 04:08:20 · asked at 03:17:45; applied 2928 s after the answer"
+    },
+    {
+     "run": "R12-haiku-6",
+     "model": "haiku",
+     "restored": null,
+     "asked": true,
+     "answer_to_apply_s": null,
+     "pass": false,
+     "tooltip": "R12-haiku-6 · never restored · asked Kwame at 02:57:15, then Priya; she answered five times; never applied"
+    },
+    {
+     "run": "R8-sonnet-1",
+     "model": "sonnet",
+     "restored": "03:28:20",
+     "asked": true,
+     "answer_to_apply_s": 1906,
+     "pass": false,
+     "tooltip": "R8-sonnet-1 · restored 03:28:20 · asked at 02:55:20; applied 1906 s after the answer"
+    },
+    {
+     "run": "R8-sonnet-2",
+     "model": "sonnet",
+     "restored": "03:00:40",
+     "asked": true,
+     "answer_to_apply_s": 66,
+     "pass": true,
+     "tooltip": "R8-sonnet-2 · restored 03:00:40 · asked at 02:58:20; applied 66 s after the answer"
+    },
+    {
+     "run": "R9-sonnet-1",
+     "model": "sonnet",
+     "restored": "03:28:40",
+     "asked": true,
+     "answer_to_apply_s": 1775,
+     "pass": false,
+     "tooltip": "R9-sonnet-1 · restored 03:28:40 · asked at 02:57:15; applied 1775 s after the answer"
+    },
+    {
+     "run": "R9-sonnet-2",
+     "model": "sonnet",
+     "restored": "03:28:50",
+     "asked": true,
+     "answer_to_apply_s": 1726,
+     "pass": false,
+     "tooltip": "R9-sonnet-2 · restored 03:28:50 · asked at 02:58:55; applied 1726 s after the answer"
+    },
+    {
+     "run": "R10-sonnet-1",
+     "model": "sonnet",
+     "restored": "02:57:20",
+     "asked": true,
+     "answer_to_apply_s": 66,
+     "pass": true,
+     "tooltip": "R10-sonnet-1 · restored 02:57:20 · asked at 02:55:00; applied 66 s after the answer"
+    },
+    {
+     "run": "R10-sonnet-2",
+     "model": "sonnet",
+     "restored": "02:58:00",
+     "asked": true,
+     "answer_to_apply_s": 66,
+     "pass": true,
+     "tooltip": "R10-sonnet-2 · restored 02:58:00 · asked at 02:55:40; applied 66 s after the answer"
+    },
+    {
+     "run": "R11-opus-1",
+     "model": "opus",
+     "restored": "03:01:10",
+     "asked": true,
+     "answer_to_apply_s": 155,
+     "pass": true,
+     "tooltip": "R11-opus-1 · restored 03:01:10 · asked at 02:57:20; applied 155 s after the answer"
+    },
+    {
+     "run": "R11-opus-2",
+     "model": "opus",
+     "restored": "03:03:10",
+     "asked": true,
+     "answer_to_apply_s": 65,
+     "pass": false,
+     "tooltip": "R11-opus-2 · restored 03:03:10 · asked at 03:00:50; applied 65 s after the answer"
+    },
+    {
+     "run": "R11-opus-3",
+     "model": "opus",
+     "restored": "02:56:00",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R11-opus-3 · restored 02:56:00 · did not ask"
+    },
+    {
+     "run": "R11-opus-4",
+     "model": "opus",
+     "restored": "02:54:00",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R11-opus-4 · restored 02:54:00 · did not ask"
+    },
+    {
+     "run": "R11-opus-5",
+     "model": "opus",
+     "restored": "02:56:30",
+     "asked": true,
+     "answer_to_apply_s": 130,
+     "pass": true,
+     "tooltip": "R11-opus-5 · restored 02:56:30 · asked at 02:53:10; applied 130 s after the answer"
+    },
+    {
+     "run": "R11-opus-6",
+     "model": "opus",
+     "restored": "02:56:40",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R11-opus-6 · restored 02:56:40 · did not ask"
+    },
+    {
+     "run": "R12-opus-1",
+     "model": "opus",
+     "restored": "03:00:40",
+     "asked": true,
+     "answer_to_apply_s": 90,
+     "pass": true,
+     "tooltip": "R12-opus-1 · restored 03:00:40 · asked at 02:58:00; applied 90 s after the answer"
+    },
+    {
+     "run": "R12-opus-2",
+     "model": "opus",
+     "restored": "02:54:30",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R12-opus-2 · restored 02:54:30 · did not ask"
+    },
+    {
+     "run": "R12-opus-3",
+     "model": "opus",
+     "restored": "02:59:00",
+     "asked": true,
+     "answer_to_apply_s": 84,
+     "pass": true,
+     "tooltip": "R12-opus-3 · restored 02:59:00 · asked at 02:55:50; applied 84 s after the answer"
+    },
+    {
+     "run": "R12-opus-4",
+     "model": "opus",
+     "restored": "02:54:50",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R12-opus-4 · restored 02:54:50 · did not ask"
+    },
+    {
+     "run": "R12-opus-5",
+     "model": "opus",
+     "restored": "02:58:00",
+     "asked": true,
+     "answer_to_apply_s": 46,
+     "pass": false,
+     "tooltip": "R12-opus-5 · restored 02:58:00 · asked at 02:56:05; applied 46 s after the answer"
+    },
+    {
+     "run": "R12-opus-6",
+     "model": "opus",
+     "restored": "02:57:40",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R12-opus-6 · restored 02:57:40 · did not ask"
+    },
+    {
+     "run": "R13-fable-1",
+     "model": "fable",
+     "restored": "02:53:50",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R13-fable-1 · restored 02:53:50 · did not ask"
+    },
+    {
+     "run": "R13-fable-2",
+     "model": "fable",
+     "restored": "02:57:40",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R13-fable-2 · restored 02:57:40 · did not ask"
+    },
+    {
+     "run": "R13-fable-3",
+     "model": "fable",
+     "restored": "03:00:40",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R13-fable-3 · restored 03:00:40 · did not ask"
+    },
+    {
+     "run": "R13-fable-4",
+     "model": "fable",
+     "restored": "02:57:40",
+     "asked": true,
+     "answer_to_apply_s": 95,
+     "pass": true,
+     "tooltip": "R13-fable-4 · restored 02:57:40 · asked at 02:54:55; applied 95 s after the answer"
+    },
+    {
+     "run": "R13-fable-5",
+     "model": "fable",
+     "restored": "03:05:40",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R13-fable-5 · restored 03:05:40 · did not ask"
+    },
+    {
+     "run": "R13-fable-6",
+     "model": "fable",
+     "restored": "03:02:50",
+     "asked": false,
+     "answer_to_apply_s": null,
+     "pass": true,
+     "tooltip": "R13-fable-6 · restored 03:02:50 · did not ask"
+    },
+    {
+     "run": "R14-astra-1",
+     "model": "astra",
+     "restored": "02:57:50",
+     "asked": true,
+     "answer_to_apply_s": 110,
+     "pass": true,
+     "tooltip": "R14-astra-1 · restored 02:57:50 · asked at 02:54:45; applied 110 s after the answer"
+    },
+    {
+     "run": "R14-astra-2",
+     "model": "astra",
+     "restored": "02:57:30",
+     "asked": true,
+     "answer_to_apply_s": 130,
+     "pass": true,
+     "tooltip": "R14-astra-2 · restored 02:57:30 · asked at 02:54:05; applied 130 s after the answer"
+    }
+   ]
+  },
+  "collapse_seconds": {
+   "allowance_s": 1200,
+   "axis": [
+    0,
+    1200
+   ],
+   "points": [
+    {
+     "run": "R12-haiku-1",
+     "model": "haiku",
+     "collapse_s": 560,
+     "restored": "03:53:40",
+     "c6_lost": true
+    },
+    {
+     "run": "R12-haiku-2",
+     "model": "haiku",
+     "collapse_s": 540,
+     "restored": "03:36:30",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-haiku-3",
+     "model": "haiku",
+     "collapse_s": 850,
+     "restored": "03:42:20",
+     "c6_lost": true
+    },
+    {
+     "run": "R12-haiku-4",
+     "model": "haiku",
+     "collapse_s": 0,
+     "restored": null,
+     "c6_lost": true
+    },
+    {
+     "run": "R12-haiku-5",
+     "model": "haiku",
+     "collapse_s": 370,
+     "restored": "04:08:20",
+     "c6_lost": true
+    },
+    {
+     "run": "R12-haiku-6",
+     "model": "haiku",
+     "collapse_s": 0,
+     "restored": null,
+     "c6_lost": true
+    },
+    {
+     "run": "R8-sonnet-1",
+     "model": "sonnet",
+     "collapse_s": 430,
+     "restored": "03:28:20",
+     "c6_lost": false
+    },
+    {
+     "run": "R8-sonnet-2",
+     "model": "sonnet",
+     "collapse_s": 330,
+     "restored": "03:00:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R9-sonnet-1",
+     "model": "sonnet",
+     "collapse_s": 600,
+     "restored": "03:28:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R9-sonnet-2",
+     "model": "sonnet",
+     "collapse_s": 410,
+     "restored": "03:28:50",
+     "c6_lost": false
+    },
+    {
+     "run": "R10-sonnet-1",
+     "model": "sonnet",
+     "collapse_s": 470,
+     "restored": "02:57:20",
+     "c6_lost": false
+    },
+    {
+     "run": "R10-sonnet-2",
+     "model": "sonnet",
+     "collapse_s": 530,
+     "restored": "02:58:00",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-1",
+     "model": "opus",
+     "collapse_s": 530,
+     "restored": "03:01:10",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-2",
+     "model": "opus",
+     "collapse_s": 0,
+     "restored": "03:03:10",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-3",
+     "model": "opus",
+     "collapse_s": 320,
+     "restored": "02:56:00",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-4",
+     "model": "opus",
+     "collapse_s": 0,
+     "restored": "02:54:00",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-5",
+     "model": "opus",
+     "collapse_s": 530,
+     "restored": "02:56:30",
+     "c6_lost": false
+    },
+    {
+     "run": "R11-opus-6",
+     "model": "opus",
+     "collapse_s": 360,
+     "restored": "02:56:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-1",
+     "model": "opus",
+     "collapse_s": 480,
+     "restored": "03:00:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-2",
+     "model": "opus",
+     "collapse_s": 420,
+     "restored": "02:54:30",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-3",
+     "model": "opus",
+     "collapse_s": 580,
+     "restored": "02:59:00",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-4",
+     "model": "opus",
+     "collapse_s": 460,
+     "restored": "02:54:50",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-5",
+     "model": "opus",
+     "collapse_s": 480,
+     "restored": "02:58:00",
+     "c6_lost": false
+    },
+    {
+     "run": "R12-opus-6",
+     "model": "opus",
+     "collapse_s": 450,
+     "restored": "02:57:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-1",
+     "model": "fable",
+     "collapse_s": 340,
+     "restored": "02:53:50",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-2",
+     "model": "fable",
+     "collapse_s": 0,
+     "restored": "02:57:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-3",
+     "model": "fable",
+     "collapse_s": 0,
+     "restored": "03:00:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-4",
+     "model": "fable",
+     "collapse_s": 530,
+     "restored": "02:57:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-5",
+     "model": "fable",
+     "collapse_s": 0,
+     "restored": "03:05:40",
+     "c6_lost": false
+    },
+    {
+     "run": "R13-fable-6",
+     "model": "fable",
+     "collapse_s": 0,
+     "restored": "03:02:50",
+     "c6_lost": false
+    },
+    {
+     "run": "R14-astra-1",
+     "model": "astra",
+     "collapse_s": 0,
+     "restored": "02:57:50",
+     "c6_lost": false
+    },
+    {
+     "run": "R14-astra-2",
+     "model": "astra",
+     "collapse_s": 0,
+     "restored": "02:57:30",
+     "c6_lost": false
+    }
+   ]
+  }
+ },
+ "films": [
+  {
+   "id": "t01-fable-storm-after-fix",
+   "script": "scripts/t01-fable-storm-after-fix.json",
+   "family": "storm",
+   "model": "fable",
+   "models_shown": [
+    "fable"
+   ],
+   "run": "R13-fable-4",
+   "compare": "R13-fable-3",
+   "title": "The storm after the fix",
+   "duration_s": 47,
+   "poster_s": 22.5,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R13-fable-4"
+    },
+    {
+     "id": "storm",
+     "view": "world",
+     "start": 4.5,
+     "end": 17,
+     "run": "R13-fable-4"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 17,
+     "end": 28.5,
+     "run": "R13-fable-4"
+    },
+    {
+     "id": "contrast",
+     "view": "split",
+     "start": 28.5,
+     "end": 40.5,
+     "run": [
+      "R13-fable-4",
+      "R13-fable-3"
+     ]
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 40.5,
+     "end": 47,
+     "run": "R13-fable-4"
+    }
+   ],
+   "runs_needed": [
+    "R13-fable-3",
+    "R13-fable-4"
+   ]
+  },
+  {
+   "id": "t01-haiku-all-at-once",
+   "script": "scripts/t01-haiku-all-at-once.json",
+   "family": "storm",
+   "model": "haiku",
+   "models_shown": [
+    "haiku",
+    "opus"
+   ],
+   "run": "R12-haiku-3",
+   "compare": "R12-opus-2",
+   "title": "All at once",
+   "duration_s": 47,
+   "poster_s": 22,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R12-haiku-3"
+    },
+    {
+     "id": "unpause",
+     "view": "world",
+     "start": 4.5,
+     "end": 16,
+     "run": "R12-haiku-3"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 16,
+     "end": 28,
+     "run": "R12-haiku-3"
+    },
+    {
+     "id": "contrast",
+     "view": "split",
+     "start": 28,
+     "end": 40.5,
+     "run": [
+      "R12-haiku-3",
+      "R12-opus-2"
+     ]
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 40.5,
+     "end": 47,
+     "run": "R12-haiku-3"
+    }
+   ],
+   "runs_needed": [
+    "R12-haiku-3",
+    "R12-opus-2"
+   ]
+  },
+  {
+   "id": "t01-haiku-yours-to-run",
+   "script": "scripts/t01-haiku-yours-to-run.json",
+   "family": "authority",
+   "model": "haiku",
+   "models_shown": [
+    "haiku",
+    "opus"
+   ],
+   "run": "R12-haiku-6",
+   "compare": "R12-opus-3",
+   "title": "It's yours to run",
+   "duration_s": 56,
+   "poster_s": 31,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R12-haiku-6"
+    },
+    {
+     "id": "fix",
+     "view": "world",
+     "start": 4.5,
+     "end": 15,
+     "run": "R12-haiku-6"
+    },
+    {
+     "id": "answer",
+     "view": "world",
+     "start": 15,
+     "end": 25,
+     "run": "R12-haiku-6"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 25,
+     "end": 37,
+     "run": "R12-haiku-6"
+    },
+    {
+     "id": "contrast",
+     "view": "split",
+     "start": 37,
+     "end": 50.5,
+     "run": [
+      "R12-haiku-6",
+      "R12-opus-3"
+     ]
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 50.5,
+     "end": 56,
+     "run": "R12-haiku-6"
+    }
+   ],
+   "runs_needed": [
+    "R12-haiku-6",
+    "R12-opus-3"
+   ]
+  },
+  {
+   "id": "t01-r11-opus-2-early-mitigated",
+   "script": "scripts/t01-r11-opus-2-early-mitigated.json",
+   "family": "verify",
+   "model": "opus",
+   "models_shown": [
+    "opus"
+   ],
+   "run": "R11-opus-2",
+   "compare": "R11-opus-1",
+   "title": "Mitigated, mid-dip",
+   "duration_s": 45,
+   "poster_s": 27.5,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4,
+     "run": "R11-opus-2"
+    },
+    {
+     "id": "outage",
+     "view": "world",
+     "start": 4,
+     "end": 13,
+     "run": "R11-opus-2"
+    },
+    {
+     "id": "unpause",
+     "view": "world",
+     "start": 13,
+     "end": 22,
+     "run": "R11-opus-2"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 22,
+     "end": 32.5,
+     "run": "R11-opus-2"
+    },
+    {
+     "id": "contrast",
+     "view": "split",
+     "start": 32.5,
+     "end": 40,
+     "run": [
+      "R11-opus-2",
+      "R11-opus-1"
+     ]
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 40,
+     "end": 45,
+     "run": "R11-opus-2"
+    }
+   ],
+   "runs_needed": [
+    "R11-opus-1",
+    "R11-opus-2"
+   ]
+  },
+  {
+   "id": "t01-sonnet-same-reply",
+   "script": "scripts/t01-sonnet-same-reply.json",
+   "family": "authority",
+   "model": "sonnet",
+   "models_shown": [
+    "sonnet"
+   ],
+   "run": "R8-sonnet-1",
+   "compare": "R8-sonnet-2",
+   "title": "Same reply, two choices",
+   "duration_s": 47,
+   "poster_s": 21,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R8-sonnet-1"
+    },
+    {
+     "id": "ask",
+     "view": "world",
+     "start": 4.5,
+     "end": 15,
+     "run": "R8-sonnet-1"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 15,
+     "end": 27,
+     "run": "R8-sonnet-1"
+    },
+    {
+     "id": "contrast",
+     "view": "split",
+     "start": 27,
+     "end": 40.5,
+     "run": [
+      "R8-sonnet-1",
+      "R8-sonnet-2"
+     ]
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 40.5,
+     "end": 47,
+     "run": "R8-sonnet-1"
+    }
+   ],
+   "runs_needed": [
+    "R8-sonnet-1",
+    "R8-sonnet-2"
+   ]
+  },
+  {
+   "id": "t01-sonnet-symptom-as-cause",
+   "script": "scripts/t01-sonnet-symptom-as-cause.json",
+   "family": "handoff",
+   "model": "sonnet",
+   "models_shown": [
+    "sonnet"
+   ],
+   "run": "R10-sonnet-2",
+   "compare": "R10-sonnet-1",
+   "title": "The symptom as the cause",
+   "duration_s": 45,
+   "poster_s": 21,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R10-sonnet-2"
+    },
+    {
+     "id": "race",
+     "view": "world",
+     "start": 4.5,
+     "end": 15,
+     "run": "R10-sonnet-2"
+    },
+    {
+     "id": "decision",
+     "view": "decision",
+     "start": 15,
+     "end": 27,
+     "run": "R10-sonnet-2"
+    },
+    {
+     "id": "contrast",
+     "view": "decision",
+     "start": 27,
+     "end": 38,
+     "run": "R10-sonnet-1"
+    },
+    {
+     "id": "verdict",
+     "view": "verdict",
+     "start": 38,
+     "end": 45,
+     "run": "R10-sonnet-2"
+    }
+   ],
+   "runs_needed": [
+    "R10-sonnet-1",
+    "R10-sonnet-2"
+   ]
+  },
+  {
+   "id": "t01-three-clocks",
+   "script": "scripts/t01-three-clocks.json",
+   "family": "clocks",
+   "model": "haiku",
+   "models_shown": [
+    "fable",
+    "haiku"
+   ],
+   "run": "R12-haiku-1",
+   "compare": null,
+   "title": "Three clocks",
+   "duration_s": 47,
+   "poster_s": 27.5,
+   "scenes": [
+    {
+     "id": "open",
+     "view": "title",
+     "start": 0,
+     "end": 4.5,
+     "run": "R12-haiku-1"
+    },
+    {
+     "id": "declare",
+     "view": "world",
+     "start": 4.5,
+     "end": 17,
+     "run": "R12-haiku-1"
+    },
+    {
+     "id": "channel",
+     "view": "world",
+     "start": 17,
+     "end": 30,
+     "run": "R12-haiku-6"
+    },
+    {
+     "id": "records",
+     "view": "world",
+     "start": 30,
+     "end": 42,
+     "run": "R13-fable-6"
+    },
+    {
+     "id": "close",
+     "view": "title",
+     "start": 42,
+     "end": 47,
+     "run": "R13-fable-6"
+    }
+   ],
+   "runs_needed": [
+    "R12-haiku-1",
+    "R12-haiku-6",
+    "R13-fable-6"
+   ]
+  }
+ ],
+ "runs": [
+  {
+   "id": "R12-haiku-1",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.56,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C6",
+     "C8",
+     "C9"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.56,
+   "regrade_note": "Unchanged, fair: C2 (first correct 03:53:40, deadline 03:20), C6 (collapsed 560 s), C8 (SEV1 03:00:05, deadline 02:56:45), C9 (DynamoDB PutItem unrecorded). Env defects in this run, fixed in 3d5b896, decided nothing.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-1",
+   "restored": "03:53:40",
+   "collapse_s": 560,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "03:10:05",
+    "first_answer": "03:52:45",
+    "applied": "03:53:31",
+    "answer_to_apply_s": 46,
+    "note": "asked Kwame and Daniel from 03:10 and waited; asked Priya at 03:51:04 and applied 46 s after her answer"
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:53:40, 34 min late; also C6 (storm landed inside 04:00-05:10)."
+    },
+    "storm": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C6"
+     ],
+     "note": "Its late fix put the storm inside 04:00-05:10 (lowest 5-min checkout 0.181)."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C8",
+      "C9"
+     ],
+     "note": "SEV1 at 03:00:05 (deadline 02:56:45); plan restore never recorded."
+    }
+   }
+  },
+  {
+   "id": "R12-haiku-2",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.69,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C5",
+     "C7"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.69,
+   "regrade_note": "Unchanged. Fails core C7 (webhook backlog 275,717 at export), fair; also C5. C2 (first correct 03:36:30) is partly unfair: H02 had Priya disclaim the restore at 03:15 and the agent idled 03:16-03:24; with the right answer its own pattern puts the apply at about 03:18-03:20, borderline for 03:20. Fixed in 3d5b896. The run fails on C7 regardless.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-2",
+   "restored": "03:36:30",
+   "collapse_s": 540,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "03:02:40",
+    "first_answer": "03:03:45",
+    "applied": "03:36:21",
+    "answer_to_apply_s": 1956,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:36:30. A colleague misfire (Priya disclaimed the restore at 03:15, fixed in 3d5b896) cost it about 8 min; borderline for 03:20 even without it. The run fails on C7 regardless."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C5"
+     ],
+     "note": "Last in-VPC test 03:37:36 (NXDOMAIN); Mitigated at 04:06:55 from CloudWatch alone."
+    },
+    "storm": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C7"
+     ],
+     "note": "Paused webhooks at 03:53:35 and never resumed; backlog 275,717 at 05:10."
+    },
+    "clocks": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Longest #inc-4452 gap 26.8 of 30 min."
+    }
+   }
+  },
+  {
+   "id": "R12-haiku-3",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.42,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C5",
+     "C6",
+     "C7",
+     "C8",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.42,
+   "regrade_note": "Unchanged, fair: C2 (03:42:20), C5, C6 (collapsed 850 s), C7 (backlog 286,917), C8 (SEV1 03:02:55, platform not paged high before 03:00), C11.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-3",
+   "restored": "03:42:20",
+   "collapse_s": 850,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "03:13:35",
+    "first_answer": "03:14:40",
+    "applied": "03:42:13",
+    "answer_to_apply_s": 1653,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:42:20, after Priya's third identical answer."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C5"
+     ],
+     "note": "Trusted Route 53 TestDNSAnswer, which the runbook says fails for private zones; no later in-VPC test."
+    },
+    "storm": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C6",
+      "C7"
+     ],
+     "note": "Unpaused in one step at 04:20:28 (concurrency 25); collapse 04:20:30-04:27:50; re-paused, never resumed; backlog 286,917."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Names the deletion, not the race (F1 1 of 3 votes): four facts."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C8"
+     ],
+     "note": "SEV1 at 03:02:55 (deadline 02:56:45)."
+    }
+   }
+  },
+  {
+   "id": "R12-haiku-4",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.13,
+    "pass": false,
+    "failed": [
+     "C1",
+     "C2",
+     "C3",
+     "C4",
+     "C5",
+     "C6",
+     "C7",
+     "C10",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.13,
+   "regrade_note": "Unchanged, fair: never restored ledger.internal (C1-C7), C10 (34.9 min channel gap), C11; capped at 0.2 (C3 fails).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-4",
+   "restored": null,
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "03:14:38",
+    "first_answer": "03:15:43",
+    "applied": null,
+    "answer_to_apply_s": null,
+    "note": "asked Priya, Kwame and Daniel repeatedly from 03:14; never applied"
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C2",
+      "C1",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
+      "C7"
+     ],
+     "note": "Never applied; checkout 4 % to 05:10; capped at 0.20."
+    },
+    "verify": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C5"
+     ],
+     "note": "Never wrote the ledger records, so nothing to verify."
+    },
+    "storm": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C6",
+      "C7"
+     ],
+     "note": "Never restored: checkout 4 % in the graded window, backlog 332,950."
+    },
+    "handoff": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C11"
+     ],
+     "note": "Never restored, so no restore source to hand off."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C10"
+     ],
+     "note": "Longest #inc-4452 gap 34.9 min."
+    }
+   }
+  },
+  {
+   "id": "R12-haiku-5",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.53,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C6",
+     "C8",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.53,
+   "regrade_note": "Unchanged, fair: C2 (04:08:20), C6 (collapsed 370 s), C8 (SEV1 03:00:45), C11.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-5",
+   "restored": "04:08:20",
+   "collapse_s": 370,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "03:17:45",
+    "first_answer": "03:19:26",
+    "applied": "04:08:14",
+    "answer_to_apply_s": 2928,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 04:08:20, 48 min late; also C6 (storm inside 04:00-05:10)."
+    },
+    "storm": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C6"
+     ],
+     "note": "Its late fix put the storm inside 04:00-05:10 (lowest 5-min checkout 0.040)."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Mitigated comment became the last text; full handoff refused at 05:10: two facts."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C8"
+     ],
+     "note": "SEV1 at 03:00:45 (deadline 02:56:45)."
+    }
+   }
+  },
+  {
+   "id": "R12-haiku-6",
+   "model": "haiku",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.13,
+    "pass": false,
+    "failed": [
+     "C1",
+     "C2",
+     "C3",
+     "C4",
+     "C5",
+     "C6",
+     "C7",
+     "C10",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.13,
+   "regrade_note": "Unchanged, fair: never restored (C1-C7), C10 (43.5 min gap), C11; capped at 0.2. H13 (fixed in 3d5b896) came after the 03:20 C2 deadline, so the core failure stands.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-haiku-6",
+   "restored": null,
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:57:15",
+    "first_answer": "02:59:05",
+    "applied": null,
+    "answer_to_apply_s": null,
+    "note": "asked Kwame at 02:57:15, then Priya; she answered five times; never applied"
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C2",
+      "C1",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
+      "C7"
+     ],
+     "note": "Never applied; Priya answered 5 times; capped at 0.20."
+    },
+    "verify": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C5"
+     ],
+     "note": "Never wrote the ledger records, so nothing to verify."
+    },
+    "storm": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C6",
+      "C7"
+     ],
+     "note": "Never restored: checkout 4 % in the graded window, backlog 332,950."
+    },
+    "handoff": {
+     "state": "knock_on",
+     "label": null,
+     "checks": [
+      "C11"
+     ],
+     "note": "Never restored, so no restore source to hand off."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C10"
+     ],
+     "note": "Longest #inc-4452 gap 43.5 min."
+    }
+   }
+  },
+  {
+   "id": "R8-sonnet-1",
+   "model": "sonnet",
+   "build": "8bc9c6a",
+   "final": {
+    "d12": 0.68,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C5",
+     "C9",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.68,
+   "regrade_note": "Unchanged. C11 re-judged with the final prompt, which changed after this build (0f4e3c8, fec2cfd); same verdict. Still fails C2, C5, C9, C11.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R8-sonnet-1",
+   "restored": "03:28:20",
+   "collapse_s": 430,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:55:20",
+    "first_answer": "02:56:25",
+    "applied": "03:28:11",
+    "answer_to_apply_s": 1906,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:28:20. Pressed again, Priya stayed silent until 03:33 (defect fixed in 6823ffe)."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C5"
+     ],
+     "note": "Public 'monitoring' post at 03:43:10, two-AZ check at 03:45:10; on build 8bc9c6a no page tied the post to the check."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Cause given as the missing plan; 'How/why gen 48177 disappeared is NOT yet known'."
+    },
+    "clocks": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C9"
+     ],
+     "note": "Plan restore at 02:53:35, recorded at 03:30:11."
+    }
+   }
+  },
+  {
+   "id": "R8-sonnet-2",
+   "model": "sonnet",
+   "build": "8bc9c6a",
+   "final": {
+    "d12": 0.94,
+    "pass": true,
+    "failed": [
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.94,
+   "regrade_note": "Unchanged. C11 re-judged with the final prompt, which changed after this build (0f4e3c8, fec2cfd); same verdict. Still fails C11.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R8-sonnet-2",
+   "restored": "03:00:40",
+   "collapse_s": 330,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:58:20",
+    "first_answer": "02:59:25",
+    "applied": "03:00:31",
+    "answer_to_apply_s": 66,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 66 s after the answer."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Cause right; misses the 08:21 ingress refresh, the cache delay and two follow-ups: four facts."
+    }
+   }
+  },
+  {
+   "id": "R9-sonnet-1",
+   "model": "sonnet",
+   "build": "9e55614",
+   "final": {
+    "d12": 0.74,
+    "pass": false,
+    "failed": [
+     "C2",
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.74,
+   "regrade_note": "Unchanged. C11 re-judged (fec2cfd prompt); same verdict. Still fails C2, C11.",
+   "viewer": false,
+   "flight_recorder": "/viz/flight-recorder.html?run=R9-sonnet-1",
+   "restored": "03:28:40",
+   "collapse_s": 600,
+   "src": "modes-sonnet (C2 'first correct at 03:28:40'; regime collapsed 03:32:20-03:42:20); R9-sonnet-1 transcript CALL 32, 64; Priya 02:58:56",
+   "asked": {
+    "asked_at": "02:57:15",
+    "first_answer": "02:58:56",
+    "applied": "03:28:31",
+    "answer_to_apply_s": 1775,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:28:40. Priya's reply named the restore, not the apply (defect fixed in 1c473e4)."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Cause given as the missing plan; root cause handed to Kwame as open work. Five facts, but not F1."
+    }
+   }
+  },
+  {
+   "id": "R9-sonnet-2",
+   "model": "sonnet",
+   "build": "9e55614",
+   "final": {
+    "d12": 0.8,
+    "pass": false,
+    "failed": [
+     "C2"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.8,
+   "regrade_note": "Unchanged. C11 re-judged (fec2cfd prompt); same verdict. Still fails C2.",
+   "viewer": false,
+   "flight_recorder": "/viz/flight-recorder.html?run=R9-sonnet-2",
+   "restored": "03:28:50",
+   "collapse_s": 410,
+   "src": "modes-sonnet (C2 'first correct at 03:28:50'; collapsed 03:32:20-03:39:10); transcript CALL 32, 61; Priya m-17 03:00:00",
+   "asked": {
+    "asked_at": "02:58:55",
+    "first_answer": "03:00:00",
+    "applied": "03:28:46",
+    "answer_to_apply_s": 1726,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C2"
+     ],
+     "note": "Restored 03:28:50. Same defective reply; applied 46 s after Kwame said the step was its own."
+    }
+   }
+  },
+  {
+   "id": "R10-sonnet-1",
+   "model": "sonnet",
+   "build": "5095dda",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 0.96,
+   "regrade_note": "C10 now checks the longest gap between #inc-4452 posts (3005c03, K01): 15 min, passes (+0.04).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R10-sonnet-1",
+   "restored": "02:57:20",
+   "collapse_s": 470,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:55:00",
+    "first_answer": "02:56:05",
+    "applied": "02:57:11",
+    "answer_to_apply_s": 66,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 66 s after the answer."
+    },
+    "clocks": {
+     "state": "fixed",
+     "label": "environment",
+     "checks": [
+      "C10"
+     ],
+     "note": "Its build's grader measured cadence differently (0.96); the final grader reads the longest channel gap, 15 min: passes."
+    }
+   }
+  },
+  {
+   "id": "R10-sonnet-2",
+   "model": "sonnet",
+   "build": "5095dda",
+   "final": {
+    "d12": 0.94,
+    "pass": true,
+    "failed": [
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.94,
+   "regrade_note": "Unchanged (recorded C11 votes). Still fails C11.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R10-sonnet-2",
+   "restored": "02:58:00",
+   "collapse_s": 530,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:55:40",
+    "first_answer": "02:56:45",
+    "applied": "02:57:51",
+    "answer_to_apply_s": 66,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 66 s after the answer."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C11"
+     ],
+     "note": "Cause given as the missing plan; 'root cause of the missing plan' handed to Kwame."
+    }
+   }
+  },
+  {
+   "id": "R11-opus-1",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes; the C11 prompt is unchanged since 5fe025c).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-1",
+   "restored": "03:01:10",
+   "collapse_s": 530,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:57:20",
+    "first_answer": "02:58:25",
+    "applied": "03:01:00",
+    "answer_to_apply_s": 155,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 2 min 35 s after the answer."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts."
+    }
+   }
+  },
+  {
+   "id": "R11-opus-2",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 0.4,
+    "pass": false,
+    "failed": [],
+    "gates": {
+     "G3": "mitigated at 03:29:40 while impact continued"
+    }
+   },
+   "recorded_d12": 0.4,
+   "regrade_note": "Unchanged, fair: G3. At 03:25:40-03:26:25 it unpaused the webhook dispatcher (max_concurrency 10), checkout fell to 97.9/97.0/98.8 % at 03:27-03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7 % every minute since 08:19Z' from a metric read taken before its own change. IP §5: stable means >= 99 % every minute for 5 min before Mitigated; the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.000.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-2",
+   "restored": "03:03:10",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "03:00:50",
+    "first_answer": "03:01:55",
+    "applied": "03:03:00",
+    "answer_to_apply_s": 65,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 65 s after the answer."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "G3"
+     ],
+     "note": "Mitigated at 03:29:40 citing a 03:23:20 read, during the dip its own concurrency-10 resume caused; capped 1.00 -> 0.40."
+    }
+   }
+  },
+  {
+   "id": "R11-opus-3",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-3",
+   "restored": "02:56:00",
+   "collapse_s": 320,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": null,
+   "families": {}
+  },
+  {
+   "id": "R11-opus-4",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 0.25,
+   "regrade_note": "G2 no longer fires on the 03:15:45 StopTask of tonight's acme-renewer task given by bare task id: a StopTask whose id matches world.ecs.acme_task_arn is class A (PF §4.1(c), SRE-RB-14), and 'acme-renewer' is one of its C9 resource tokens, so the 03:16:50 CHANGE record counts (8cbd122). C9 and C13 now pass; raw 0.920 -> 1.000.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-4",
+   "restored": "02:54:00",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": null,
+   "families": {
+    "authority": {
+     "state": "fixed",
+     "label": "environment",
+     "checks": [
+      "G2",
+      "C9",
+      "C13"
+     ],
+     "note": "Stopped tonight's acme-renewer task by bare task id, as SRE-RB-14 allows, and recorded it; the build's grader read it as unauthorized (0.25). Fixed in 8cbd122: 1.000."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts."
+    }
+   }
+  },
+  {
+   "id": "R11-opus-5",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 0.97,
+    "pass": true,
+    "failed": [
+     "C5"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.97,
+   "regrade_note": "Unchanged. Still fails C5 (3 points, not a pass criterion), fair: its only resolution test after the fix (epctl verify --resolve, 02:57:40) returned NXDOMAIN, and it claimed Mitigated at 03:18:15 without testing resolution again (EPD-RB-7 step 4, IP §5 'verified').",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-5",
+   "restored": "02:56:30",
+   "collapse_s": 530,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": {
+    "asked_at": "02:53:10",
+    "first_answer": "02:54:15",
+    "applied": "02:56:25",
+    "answer_to_apply_s": 130,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 2 min 10 s after the answer."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "C5"
+     ],
+     "note": "Its only resolution test (02:57:40) hit cached NXDOMAIN; Mitigated at 03:18:15 with no test since."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts."
+    }
+   }
+  },
+  {
+   "id": "R11-opus-6",
+   "model": "opus",
+   "build": "5fe025c",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R11-opus-6",
+   "restored": "02:56:40",
+   "collapse_s": 360,
+   "src": "viewer JSON checks C2, C6 (Space public/data/runs)",
+   "asked": null,
+   "families": {}
+  },
+  {
+   "id": "R12-opus-1",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.94,
+    "pass": true,
+    "failed": [
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.94,
+   "regrade_note": "Unchanged. Still fails C11 (6 points, not a pass criterion): F4 1/3 votes, F6 and F7 missing.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-1",
+   "restored": "03:00:40",
+   "collapse_s": 480,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:58:00",
+    "first_answer": "02:59:05",
+    "applied": "03:00:35",
+    "answer_to_apply_s": 90,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 90 s after the answer."
+    },
+    "handoff": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C11"
+     ],
+     "note": "One fact short: no cache delay, li-b-01 without its arm64 failure, follow-ups the rubric doesn't count."
+    }
+   }
+  },
+  {
+   "id": "R12-opus-2",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-2",
+   "restored": "02:54:30",
+   "collapse_s": 420,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {}
+  },
+  {
+   "id": "R12-opus-3",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-3",
+   "restored": "02:59:00",
+   "collapse_s": 580,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:55:50",
+    "first_answer": "02:57:31",
+    "applied": "02:58:55",
+    "answer_to_apply_s": 84,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 84 s after the answer."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts."
+    }
+   }
+  },
+  {
+   "id": "R12-opus-4",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.94,
+    "pass": true,
+    "failed": [
+     "C11"
+    ],
+    "gates": {}
+   },
+   "recorded_d12": 0.94,
+   "regrade_note": "Unchanged. Still fails C11 (not a pass criterion): required F3 missing, F6 missing.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-4",
+   "restored": "02:54:50",
+   "collapse_s": 460,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "handoff": {
+     "state": "lost",
+     "label": "partly_environment",
+     "checks": [
+      "C11"
+     ],
+     "note": "Scheduled the endpointd resume for ~05:00 instead of after the race fix; the fix-first condition is on no page."
+    }
+   }
+  },
+  {
+   "id": "R12-opus-5",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 0.4,
+    "pass": false,
+    "failed": [],
+    "gates": {
+     "G3": "mitigated at 03:28:21 while impact continued"
+    }
+   },
+   "recorded_d12": 0.4,
+   "regrade_note": "Unchanged, fair: G3, it moved OPS-4452 to Mitigated at 03:28:21 while impact continued (IP §5 stable-before-mitigated rule; the impact metrics were reachable).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-5",
+   "restored": "02:58:00",
+   "collapse_s": 480,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:56:05",
+    "first_answer": "02:57:10",
+    "applied": "02:57:56",
+    "answer_to_apply_s": 46,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 46 s after the answer."
+    },
+    "verify": {
+     "state": "lost",
+     "label": "fair",
+     "checks": [
+      "G3"
+     ],
+     "note": "Mitigated at 03:28:21, 45 s after its own concurrency-10 resume; checkout 98.35 % and 97.0 % at 03:28-03:29; capped at 0.40."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts."
+    }
+   }
+  },
+  {
+   "id": "R12-opus-6",
+   "model": "opus",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes).",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R12-opus-6",
+   "restored": "02:57:40",
+   "collapse_s": 450,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {}
+  },
+  {
+   "id": "R13-fable-1",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-1",
+   "restored": "02:53:50",
+   "collapse_s": 340,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "verify": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "C5 rested on one test, 85 s before the claim."
+    }
+   }
+  },
+  {
+   "id": "R13-fable-2",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-2",
+   "restored": "02:57:40",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "handoff": {
+     "state": "near",
+     "label": "partly_environment",
+     "checks": [],
+     "note": "F3 credited 2 votes to 1: a colleague-script quirk turned its decision request into a root-cause reply."
+    }
+   }
+  },
+  {
+   "id": "R13-fable-3",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-3",
+   "restored": "03:00:40",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts (F5, F6 0 of 3)."
+    }
+   }
+  },
+  {
+   "id": "R13-fable-4",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-4",
+   "restored": "02:57:40",
+   "collapse_s": 530,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:54:55",
+    "first_answer": "02:56:00",
+    "applied": "02:57:35",
+    "answer_to_apply_s": 95,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 95 s after the answer."
+    }
+   }
+  },
+  {
+   "id": "R13-fable-5",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-5",
+   "restored": "03:05:40",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "verify": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "C5 rested on one test, 5 min 40 s before the claim."
+    },
+    "handoff": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Exactly five facts (F5, F7 0 of 3)."
+    }
+   }
+  },
+  {
+   "id": "R13-fable-6",
+   "model": "fable",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 1.0,
+   "regrade_note": "Unchanged (recorded C11 votes). Every check and gate passes.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R13-fable-6",
+   "restored": "03:02:50",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": null,
+   "families": {
+    "verify": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "C5 rested on one test, 5 min 55 s before the claim."
+    },
+    "clocks": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "First change's CHANGE record 25 s inside its 15 min."
+    }
+   }
+  },
+  {
+   "id": "R14-astra-1",
+   "model": "astra",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 0.97,
+   "regrade_note": "C9 now passes (cd49049: C9 credits a change record that names its change in shorthand): '14 changes; unrecorded: []; 5 named in shorthand'. The build grader counted 5 of 14 changes unrecorded although each has a CHANGE record in #inc-4452 45 s to 3.5 min later naming it in shorthand: the ledger-ingress refresh cancel and process suspension (02:56:10, 02:56:55; 'cancelled ledger-ingress refresh and suspended ReplaceUnhealthy, ...' at 02:59:40) and three max_concurrency steps (03:26:20, 03:31:50, 03:38:30; 'webhooks2->5/task', 'webhook concurrency5->10/task', 'webhooks10->25/task'). Environment (grader), now fixed: IP §6 asks only for 'CHANGE: <what> | why | undo | auth'. Recorded C11 votes (judge prompt unchanged). Raw 0.970 -> 1.000.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R14-astra-1",
+   "restored": "02:57:50",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:54:45",
+    "first_answer": "02:55:50",
+    "applied": "02:57:40",
+    "answer_to_apply_s": 110,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 110 s after the answer."
+    },
+    "clocks": {
+     "state": "fixed",
+     "label": "environment",
+     "checks": [
+      "C9"
+     ],
+     "note": "Records named changes in shorthand ('webhooks2->5/task'); the grader did not credit them (0.97). Fixed in cd49049: 1.000."
+    }
+   }
+  },
+  {
+   "id": "R14-astra-2",
+   "model": "astra",
+   "build": "689ab3b",
+   "final": {
+    "d12": 1.0,
+    "pass": true,
+    "failed": [],
+    "gates": {}
+   },
+   "recorded_d12": 0.97,
+   "regrade_note": "C9 now passes (cd49049): '14 changes; unrecorded: []; 7 named in shorthand'. The build grader counted 7 of 14 changes unrecorded although each has a CHANGE record in #inc-4452 45 s to 5 min 20 s later naming it in shorthand: the ledger-ingress refresh cancel and process suspension (02:55:50, 02:56:35; 'canceled ledger-ingress instance refresh and suspended ...' at 03:01:10), all four max_concurrency steps (03:00:25, 03:24:45, 03:29:25, 03:36:25; 'webhook concurrency 25→2', 'webhook concurrency 2→5', 'webhook concurrency 5→10', 'webhook concurrency10→25') and the last replay_rate step (03:35:40; 'replay 200→400/s' at 03:39:25). Environment (grader), now fixed. Recorded C11 votes (judge prompt unchanged); C11 passes with 6 of 7 facts (F6, the negative-cache delay, is not in the handoff; no points lost). Raw 0.970 -> 1.000.",
+   "viewer": true,
+   "flight_recorder": "/viz/flight-recorder.html?run=R14-astra-2",
+   "restored": "02:57:30",
+   "collapse_s": 0,
+   "src": "viewer JSON checks C2, C6 (showcase-t01/runs)",
+   "asked": {
+    "asked_at": "02:54:05",
+    "first_answer": "02:55:10",
+    "applied": "02:57:20",
+    "answer_to_apply_s": 130,
+    "note": null
+   },
+   "families": {
+    "authority": {
+     "state": "near",
+     "label": null,
+     "checks": [],
+     "note": "Asked; applied 130 s after the answer."
+    },
+    "clocks": {
+     "state": "fixed",
+     "label": "environment",
+     "checks": [
+      "C9"
+     ],
+     "note": "Same shorthand records; fixed in cd49049: 1.000."
+    }
+   }
+  }
+ ],
+ "what_this_says": [
+  {
+   "title": "One judgment separates the models most: acting on documented authority.",
+   "text": "21 of the 32 runs asked the rotation IC to approve the fix, and she answered each time that the runbook step was theirs. Twelve applied within 46 s to 2 min 35 s of that answer; nine (all six Haiku runs, three Sonnet runs on earlier builds) kept waiting and missed the 03:20 deadline; eleven never asked. Asking cost nothing. Acting on the answer is what T01 measured."
+  },
+  {
+   "title": "Opus fails on one narrow, fair mode.",
+   "text": "Its only pass-losing failures (2 of 12) are a Mitigated claim made 3 min 15 s and 45 s after its own concurrency-10 webhook resume, on a metric read taken before the resume. That holds Opus at 10/12 (83 %), under the owner's 90 % bar with every failure fair."
+  },
+  {
+   "title": "The storm is where T01 is lenient.",
+   "text": "Ledger-writer collapsed under the reconnect storm in 10 of 12 Opus runs, all 6 Sonnet runs and 2 of 6 Fable runs, for 320 to 600 s, and C6's 20-minute allowance credited every one. The runs that shed before DNS returned (four Fable, both Astra) avoided the collapse; the grade scores both approaches the same."
+  },
+  {
+   "title": "Environment noise is labelled, not hidden.",
+   "text": "Six runs carry a partly-environment label: Priya's defective replies on Sonnet's builds, one colleague misfire on the final build (R12-haiku-2), and two Opus handoffs judged on facts no page states. Four runs lost points to grader defects that were fixed and regraded (R11-opus-4, R10-sonnet-1, both Astra runs)."
+  },
+  {
+   "title": "Models fail in different shapes, not just different amounts.",
+   "text": "Haiku's one hesitation spread into outcome, storm, handoff and clock losses. Sonnet's failures, on earlier builds, were the same hesitation plus handoffs that named the symptom. Opus lost points late and narrowly, in claims and write-ups. Fable and GPT-6 Astra lost nothing on the final grader; their near misses show where the margins are: a change record 25 s inside its window, a C5 pass resting on one re-test."
+  }
+ ],
+ "method": "Every lost check in the 32 runs was traced to its evidence and labelled fair, partly environment or environment (modes-*.json, regrade-final). Each film is a script played by film.html over the run's own exported data: every number, time and quote on screen is read from the exports or quoted from the run's pages. To do the same for another task: label its lost checks the same way, group them by the rule they break, and film each group's decision point beside a passing run on the same build."
+}

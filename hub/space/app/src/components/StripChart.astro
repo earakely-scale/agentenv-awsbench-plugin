@@ -1,0 +1,111 @@
+---
+// A dot strip, one row per model, drawn at compile time: charts.restore_times (when ledger.internal came back) or
+// charts.collapse_seconds (how long ledger-writer collapsed after the fix). HTML rather than one scaled SVG, so its
+// labels keep their size at phone width. Every dot takes focus and carries its value; the table repeats them all.
+import Accordion from "./Accordion.astro";
+import { DATA, MODELS, sec, hm } from "./failures";
+const { kind } = Astro.props;
+const C = DATA.charts[kind];
+const restore = kind === "restore_times";
+const SPAN = 88; // percent of the track the time axis takes; the 'never' bin sits right of it
+let x0: number, x1: number, ticks: { x: number; text: string }[], guide: { x: number; text: string };
+if (restore) {
+  x0 = sec(C.axis[0])!;
+  x1 = sec(C.axis[1])!;
+  ticks = [];
+  for (let t = x0; t <= x1; t += 1800) ticks.push({ x: t, text: hm(`${String(Math.floor(t / 3600)).padStart(2, "0")}:${String(Math.floor((t % 3600) / 60)).padStart(2, "0")}`) });
+  guide = { x: sec(C.deadline)!, text: "03:20 deadline (C2)" };
+} else {
+  x0 = C.axis[0];
+  x1 = C.axis[1];
+  ticks = [0, 300, 600, 900, 1200].map((t) => ({ x: t, text: t === 0 ? "0 s" : `${t.toLocaleString("en-US")} s` }));
+  guide = { x: C.allowance_s, text: "C6 allows 20 min" };
+}
+const pos = (v: number) => (SPAN * (v - x0)) / (x1 - x0);
+const NEVER = 95;
+const omitted = restore ? [] : C.points.filter((p: any) => p.restored == null).map((p: any) => p.run);
+const pts = C.points.filter((p: any) => restore || p.restored != null);
+const tipOf = (p: any) =>
+  restore
+    ? p.tooltip
+    : `${p.run} · ledger-writer collapsed ${p.collapse_s} s after the fix · restored ${p.restored}${p.c6_lost ? " · C6 lost, for checkout inside 04:00–05:10" : ""}`;
+const direct: Record<string, string> = restore
+  ? { haiku: "all six after 03:20" }
+  : { haiku: "C6 lost in three runs for checkout inside 04:00–05:10, not for collapse length", fable: "shed before DNS returned", astra: "shed before DNS returned" };
+const rows = MODELS.map((m: any) => {
+  const mine = pts.filter((p: any) => p.model === m.id).map((p: any) => {
+    const v = restore ? sec(p.restored) : p.collapse_s;
+    return { p, v, x: v == null ? NEVER : pos(Math.min(Math.max(v, x0), x1)) };
+  });
+  const placed: { x: number; y: number }[] = [];
+  const near = restore ? 1.1 : 1.6;
+  for (const d of mine.sort((a: any, b: any) => a.x - b.x)) {
+    const y = [0, -7, 7, -14, 14].find((yy) => !placed.some((q) => q.y === yy && Math.abs(q.x - d.x) < near)) ?? 0;
+    placed.push({ x: d.x, y });
+    (d as any).y = y;
+  }
+  return { m, dots: mine };
+});
+const title = restore ? "When ledger.internal came back, every run" : "How long ledger-writer collapsed after the fix";
+---
+<figure class={`t01f-strip ${restore ? "is-restore" : "is-collapse"}`}>
+  <p class="t01f-chart-title">{title}</p>
+  {restore ? (
+    <p class="t01f-strip__key"><span class="k-dot" aria-hidden="true"></span> restored <span class="k-dot asked" aria-hidden="true"></span> asked the rotation IC to approve first</p>
+  ) : (
+    <p class="t01f-strip__key"><span class="k-dot" aria-hidden="true"></span> one run: how long ledger-writer stayed collapsed after the fix</p>
+  )}
+  <div class="t01f-strip__plot">
+    <div class="t01f-strip__row t01f-strip__guide" aria-hidden="true">
+      <span class="lab"></span>
+      <span class="track"><span class="guide-label" style={`left:${pos(guide.x).toFixed(2)}%`}>{guide.text}</span></span>
+      <span class="direct"></span>
+    </div>
+    {rows.map((r: any) => (
+      <div class="t01f-strip__row">
+        <span class="lab">{r.m.short}</span>
+        <span class="track">
+          <span class="guide" style={`left:${pos(guide.x).toFixed(2)}%`} aria-hidden="true"></span>
+          {ticks.map((t) => <span class="grid" style={`left:${pos(t.x).toFixed(2)}%`} aria-hidden="true"></span>)}
+          {r.dots.map((d: any) => (
+            <span class={`dot${restore && d.p.asked ? " asked" : ""}`} style={`left:${d.x.toFixed(2)}%;top:calc(50% + ${d.y}px)`} tabindex="0" role="img" aria-label={tipOf(d.p)} data-tip={tipOf(d.p)}></span>
+          ))}
+        </span>
+        <span class="direct">{direct[r.m.id] || ""}</span>
+      </div>
+    ))}
+    <div class="t01f-strip__row t01f-strip__axis" aria-hidden="true">
+      <span class="lab"></span>
+      <span class="track">
+        {ticks.map((t) => <span class="tick" style={`left:${pos(t.x).toFixed(2)}%`}>{t.text}</span>)}
+        {restore && <span class="tick never" style={`left:${NEVER}%`}>never</span>}
+      </span>
+      <span class="direct"></span>
+    </div>
+  </div>
+  {omitted.length > 0 && (
+    <p class="t01f-strip__note">{omitted.join(" and ")} are left out: they never restored the ledger, so nothing collapsed.</p>
+  )}
+  <Accordion title="The chart as a table">
+    <div class="table-scroll">
+      <table class="t01f-table">
+        <thead>
+          {restore ? (
+            <tr><th>Run</th><th>Model</th><th>Restored</th><th>Asked first</th><th>Answer to apply</th></tr>
+          ) : (
+            <tr><th>Run</th><th>Model</th><th>Collapse</th><th>Restored</th><th>C6 lost</th></tr>
+          )}
+        </thead>
+        <tbody>
+          {rows.flatMap((r: any) => r.dots.slice().sort((a: any, b: any) => C.points.indexOf(a.p) - C.points.indexOf(b.p)).map((d: any) => (
+            restore ? (
+              <tr><td><code>{d.p.run}</code></td><td>{r.m.short}</td><td>{d.p.restored || "never"}</td><td>{d.p.asked ? "yes" : "no"}</td><td>{d.p.answer_to_apply_s != null ? `${d.p.answer_to_apply_s.toLocaleString("en-US")} s` : "–"}</td></tr>
+            ) : (
+              <tr><td><code>{d.p.run}</code></td><td>{r.m.short}</td><td>{d.p.collapse_s} s</td><td>{d.p.restored}</td><td>{d.p.c6_lost ? "yes" : "no"}</td></tr>
+            )
+          )))}
+        </tbody>
+      </table>
+    </div>
+  </Accordion>
+</figure>

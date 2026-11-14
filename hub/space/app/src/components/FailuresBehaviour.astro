@@ -1,0 +1,79 @@
+---
+// Behaviour for the failures chapter: one tooltip for every square and dot (fixed, kept inside the viewport), film
+// tabs (switching pauses the other film), and each film's cue line, which copies the active caption.
+---
+<div class="t01f-tip" id="t01f-tip" role="tooltip" hidden></div>
+<script>
+  const tip = document.getElementById("t01f-tip") as HTMLElement | null;
+  let owner: HTMLElement | null = null;
+  const place = (el: HTMLElement) => {
+    if (!tip) return;
+    tip.textContent = el.dataset.tip || "";
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight, vw = document.documentElement.clientWidth;
+    let left = r.left + r.width / 2 - w / 2;
+    left = Math.max(8, Math.min(left, vw - w - 8));
+    let top = r.top - h - 8;
+    if (top < 8) top = r.bottom + 8;
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+    owner = el;
+  };
+  const hide = (el?: HTMLElement | null) => {
+    if (!tip || (el && el !== owner)) return;
+    tip.hidden = true;
+    owner = null;
+  };
+  const target = (e: Event) => (e.target instanceof Element ? (e.target.closest(".t01f [data-tip]") as HTMLElement | null) : null);
+  document.addEventListener("pointerover", (e) => { const el = target(e); if (el) place(el); });
+  document.addEventListener("pointerout", (e) => { const el = target(e); if (el && document.activeElement !== el) hide(el); });
+  document.addEventListener("focusin", (e) => { const el = target(e); if (el) place(el); });
+  document.addEventListener("focusout", (e) => { const el = target(e); if (el) hide(el); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  window.addEventListener("scroll", () => hide(), { passive: true });
+
+  document.querySelectorAll<HTMLElement>(".t01f-card").forEach((card) => {
+    const tabs = Array.from(card.querySelectorAll<HTMLButtonElement>("[data-film-tab]"));
+    const select = (btn: HTMLButtonElement) => {
+      tabs.forEach((t) => {
+        const on = t === btn;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        const panel = card.querySelector<HTMLElement>(`[data-film-panel="${t.dataset.filmTab}"]`);
+        if (!panel) return;
+        panel.hidden = !on;
+        if (!on) panel.querySelectorAll("video").forEach((v) => v.pause());
+      });
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener("click", () => select(t));
+      t.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        next.focus();
+        select(next);
+      });
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>(".t01f-film").forEach((fig) => {
+    const video = fig.querySelector("video");
+    const cue = fig.querySelector<HTMLElement>(".t01f-film__cue");
+    if (!video || !cue) return;
+    const hook = () => {
+      const track = video.textTracks && video.textTracks[0];
+      if (!track) return;
+      track.mode = "hidden";
+      track.addEventListener("cuechange", () => {
+        const active = track.activeCues && track.activeCues[0];
+        cue.textContent = active ? (active as VTTCue).text : "";
+      });
+    };
+    hook();
+    video.textTracks && video.textTracks.addEventListener && video.textTracks.addEventListener("addtrack", hook);
+    video.addEventListener("play", () => {
+      document.querySelectorAll<HTMLVideoElement>(".t01f-film video").forEach((v) => { if (v !== video) v.pause(); });
+    });
+  });
+</script>

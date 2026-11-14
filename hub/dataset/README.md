@@ -155,6 +155,14 @@ C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) f
 
 | Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `R15-sonnet-ae-1` | Claude Sonnet 5.5 | `1633470` | 0.80 | fail | C2 | none | not regraded | 110 | DONE 04:31:10 |
+| `R15-sonnet-ae-2` | Claude Sonnet 5.5 | `1633470` | 0.71 | fail | C2, C9, C11 | none | not regraded | 99 | DONE 04:16:30 |
+| `R15-sonnet-ae-3` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | not regraded | 84 | DONE 03:53:59 |
+| `R15-sonnet-ae-4` | Claude Sonnet 5.5 | `1633470` | 1.00 | pass | none | none | not regraded | 88 | DONE 03:53:54 |
+| `R15-sonnet-ae-5` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | not regraded | 92 | DONE 04:14:36 |
+| `R15-sonnet-ae-6` | Claude Sonnet 5.5 | `1633470` | 0.91 | pass | C9, C11 | none | not regraded | 90 | DONE 03:54:04 |
+| `R15-sonnet-ae-7` | Claude Sonnet 5.5 | `1633470` | 0.94 | pass | C11 | none | not regraded | 83 | DONE 03:51:34 |
+| `R15-sonnet-ae-8` | Claude Sonnet 5.5 | `1633470` | 0.74 | fail | C2, C11 | none | not regraded | 102 | DONE 04:17:59 |
 | `R14-astra-1` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 139 | DONE 04:16:45 |
 | `R14-astra-2` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 124 | DONE 03:55:25 |
 | `R13-fable-1` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 152 | DONE 04:19:14 |
@@ -286,6 +294,34 @@ every charged call, `wait` included, as the meter counts them against the budget
 reference has its outcome checks and its runbook check (C16) graded by the grader's own rules on its replayed world;
 its other marks are the ones the path is built to pass.
 
+## Films: how models fail T01
+
+Seven short films (45 to 56 s each, 1280×720, no sound) show where T01 runs lost points: each plays one run's own
+exported data at the moment that decided it, with the rule that applied, and most set it beside a run on the same build
+that passed. They belong to the chapter "How models fail T01" in the [Space's article](https://huggingface.co/spaces/earakely-scale/AwsIncidentsBench),
+which sorts every lost point of the 32 T01 runs (Claude Haiku 5.5, Sonnet 5.5, Opus 5.5 and Fable 5.2, and GPT-6 Astra)
+into five failure families, each labelled fair, partly environment or environment. Every caption names its source, and
+every quote of an agent is read from the run's data, so a quote that drifted from it would show on screen.
+
+<!-- films -->
+| Film | Failure family | Model | Run | Compared with | Length | MP4 |
+| --- | --- | --- | --- | --- | --- | --- |
+| [`t01-haiku-yours-to-run`](films/T01/t01-haiku-yours-to-run.mp4) · It's yours to run | 1. It's yours to run | Haiku 5.5, Opus 5.5 | `R12-haiku-6` | `R12-opus-3` | 56 s | 2.8 MB |
+| [`t01-sonnet-same-reply`](films/T01/t01-sonnet-same-reply.mp4) · Same reply, two choices | 1. It's yours to run | Sonnet 5.5 | `R8-sonnet-1` | `R8-sonnet-2` | 47 s | 1.9 MB |
+| [`t01-r11-opus-2-early-mitigated`](films/T01/t01-r11-opus-2-early-mitigated.mp4) · Mitigated, mid-dip | 2. Check, then claim | Opus 5.5 | `R11-opus-2` | `R11-opus-1` | 45 s | 2.8 MB |
+| [`t01-fable-storm-after-fix`](films/T01/t01-fable-storm-after-fix.mp4) · The storm after the fix | 3. The storm after the fix | Fable 5.2 | `R13-fable-4` | `R13-fable-3` | 47 s | 2.1 MB |
+| [`t01-haiku-all-at-once`](films/T01/t01-haiku-all-at-once.mp4) · All at once | 3. The storm after the fix | Haiku 5.5, Opus 5.5 | `R12-haiku-3` | `R12-opus-2` | 47 s | 2.1 MB |
+| [`t01-sonnet-symptom-as-cause`](films/T01/t01-sonnet-symptom-as-cause.mp4) · The symptom as the cause | 4. What the day shift needs | Sonnet 5.5 | `R10-sonnet-2` | `R10-sonnet-1` | 45 s | 2.0 MB |
+| [`t01-three-clocks`](films/T01/t01-three-clocks.mp4) · Three clocks | 5. Three clocks | Fable 5.2, Haiku 5.5 | `R12-haiku-1` | none (montage) | 47 s | 2.1 MB |
+<!-- /films -->
+
+Each film is `films/T01/<id>.mp4` (H.264), with `<id>.poster.png` (its decision frame) and `<id>.vtt` (the burned-in
+captions as WebVTT). `films/T01/scripts/<id>.json` is the script (schema `awsincidentsbench.film/v1`) that
+`tools/render_films.mjs` plays through the Space's `viz/film.html` over `runs/<run>/viewer.json`, and
+`films/T01/scripts/stages/t01.json` the stage it names. `films/T01/failures-t01.json` holds the chapter's data: the five
+families with their rules and decision points, the model × family matrix (one entry per run), both charts' points and
+each run's labelled losses (schema `awsincidentsbench.failures/v1`).
+
 ## Files
 
 | Path | What |
@@ -302,6 +338,9 @@ its other marks are the ones the path is built to pass.
 | `runs/<run>/grade.json` | The grader's rows: D12 with its caps and buckets, every check and gate with its evidence |
 | `runs/<run>/transcript.md` | A rendered view of the agent's session: the prompt, every tool call with its arguments and result, the agent's messages |
 | `reference/viewer.json`, `reference-t03/viewer.json` | Each task's scripted reference path in its viewer schema |
+| `films/T01/<id>.mp4`, `.poster.png`, `.vtt` | The T01 failure films, their posters and captions (see Films above) |
+| `films/T01/scripts/` | The film scripts and the stage they name |
+| `films/T01/failures-t01.json` | The data of the Space's How models fail T01 chapter |
 
 T01 runs are named `R<round>-<model>[-<n>]`, T03 runs `T03R<round>-<model>-<n>`; a round is one build of the
 environment.
