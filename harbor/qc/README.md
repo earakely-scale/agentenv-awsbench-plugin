@@ -50,9 +50,15 @@ recorded runs, 2,379 calls (689ab3b), and the 16 live R15 runs, 1,535 calls (163
 played 2 turns, resumed the same session for turn 2, sent the hook's digest byte for byte, and made byte-identical model
 requests once the env's random server name is normalized.
 
-**Live** ([`results/t01/live-r15.md`](results/t01/live-r15.md)): 8 Sonnet 5.5 runs per system before these fixes;
-identical model input and env answers; Harbor 1/8 pass, mean D12 0.62; AgentEnv 4/8, 0.85 (PARITY.md has the
-intervals and what they do and do not show).
+**Live**, Sonnet 5.5, 8 runs per system in each round:
+- **R15** ([`results/t01/live-r15.md`](results/t01/live-r15.md)) ran before these fixes. Model input and env answers
+  were identical. Harbor passed 1/8 (mean D12 0.62), AgentEnv 4/8 (0.85).
+- **R16** ([`results/t01/live-r16.md`](results/t01/live-r16.md)) ran at f79c1db, with every model request of both systems
+  logged through a pass-through proxy. The requests and their serving were the same on both. Harbor passed 4/8 (0.79),
+  AgentEnv 4/8 (0.77).
+- **Pooled**, 16 per side: 5/16 vs 8/16 passes (Fisher p = 0.47), mean D12 0.70 vs 0.81 (p = 0.25).
+
+PARITY.md has the intervals and what they do and do not show.
 
 20 Harbor trials ran at this commit (15 QC, 4 replays, 1 multi-turn) with no harness error and no trial left
 ungraded.

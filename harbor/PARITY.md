@@ -15,10 +15,16 @@ it does or does not affect the task.
 - export the same world and grade it with the same grader (byte for byte), the same scoring and the same judge settings.
 
 **What it does not claim.** That a sampled model scores the same on both systems in every run, or that the score
-distributions are proven equal: no number of runs gives that with certainty. The 8 + 8 live Sonnet runs (R15) differ in
-the direction of a lower Harbor score (below), at a size chance can produce at n = 8, with no mechanism found after every
-input was compared. Proving outcome equivalence needs a pre-registered equivalence test with about 32 runs per side for a
-±0.15 margin on D12 (about $55 of model spend) or 72 for ±0.10 (about $120); it was not run.
+distributions are proven equal: no number of runs gives that with certainty. What the live Sonnet runs show:
+- R15 (8 + 8, build 1633470) scored lower on Harbor, with no mechanism found after every input was compared.
+- R16 (8 + 8, f79c1db) ran with every model request of both systems logged through a proxy. The requests and the
+  serving were the same on both, and so were the outcomes: 4/8 passes on each, mean D12 0.79 vs 0.77.
+- Pooled, 16 per side: 5/16 vs 8/16 passes (Fisher p = 0.47); mean D12 0.70 vs 0.81, a difference of -0.10 (95% CI -0.26
+  to +0.06).
+
+So no outcome difference is shown, and equivalence is not shown either. Proving it needs a pre-registered equivalence
+test: about 32 runs per side for a ±0.15 margin on D12, or 72 for ±0.10. At R16's measured $0.80 per run, judge
+included, that is about $51 or $115 of model spend. It was not run.
 
 **Where Harbor deliberately differs.** A trial whose score would measure something other than the model gets no
 reward on Harbor (Harbor records it as an error and leaves it out of the job's mean), where AgentEnv grades it and marks
@@ -37,10 +43,10 @@ Status: **=** identical; **= by construction** identical because the same file o
 | 4 | Gateway, service-db, agent images | published digests (agentenv-framework 0.9.1521) | the same digests | = | `PROVENANCE.json` `images`; compose blocks rendered by the framework's own `create_docker_compose` (unit test) |
 | 5 | Setup: configure (seed `t01-draft-1`), clock, lock-all, allow-sre, allow-harness | runner steps 2-6 | harness sidecar, same protocol calls, values from the task file | = | `setup.json` equals the task's steps (unit test); `setup-record.json`; replays reproduce the recordings |
 | 6 | Tool access | gateway `/mcp` as `sre-primary` | nginx front forwarding only `/mcp`, forcing `AgentEnv-Role: sre-primary` | = | the harness lists the role's tools through the front before it turns healthy; 57 tools in every turn's `init` (checked each turn) |
-| 7 | The model's first request | | | = (after `envNNNN`) | R15: system prompt, 57 tool schemas, snapshots, attachments and first user message equal in all 16 runs |
+| 7 | The model's requests | | | = (after `envNNNN` and per-run ids) | R15: system prompt, 57 tool schemas, snapshots, attachments and first user message equal in all 16 runs. R16, every request through a logging proxy: 785 agent requests with one system prompt, one tool list, one parameter set and the same injected content and headers; the 16 first requests byte-identical but the per-run ids in `metadata`, which the endpoint reported dropping on every request |
 | 8 | Claude Code | 2.1.322 in the published agent image, `claude_bridge.run_claude()` | the same image and function, called with the A2A server's arguments | = | version and binary hash checked at setup; argv equal apart from the MCP URL (never sent to the model) |
 | 9 | CLI environment | the agent container's | the same names and values, rebuilt from the image | ≈ | 5 variables are AgentEnv-only: `AGENT_ENV_ROLE`, `PWD`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS` (the local store's transfer CA); none reaches a request (R15 §3.1-3.2) |
-| 10 | Model endpoint and key | `deploy_agent` env; a loopback URL becomes `host.docker.internal` | a 0600 file per turn, read and deleted by `turn.py`; a loopback URL becomes `host.docker.internal` (`host-gateway` in compose) | = (to the CLI) | unit test; the key is never in an argv or the exec's environment |
+| 10 | Model endpoint and key | `deploy_agent` env; a loopback URL becomes `host.docker.internal` | a 0600 file per turn, read and deleted by `turn.py`; a loopback URL becomes `host.docker.internal` (`host-gateway` in compose) | = (to the CLI) | unit test; the key is never in an argv or the exec's environment. R16: the same route, model and response headers for every response on both systems; `x-litellm-tags` equal on every request (`taskId:@local/~/awsbench/…/t01-draft`), because AgentEnv ran from `~/awsbench`, the path the package's task id names |
 | 11 | Peer-agents MCP server | the agent's A2A server, in process | the SDK's same `PeerAgents()` on the same loopback port, started before the container is up | = | tool list in `init`; `main` starts only once it answers |
 | 12 | Conversation loop | `prompt_agent`: up to 150 conversation turns, `--max-turns 300`, hook after each turn | `HookConversation`: the same loop and limits | = | multi-turn check (below); replays of 1-8 turn runs |
 | 13 | Post-turn hook | `awsbench-turn` hook, run in process | the same file, run in the harness with the same `Turn` and env interface | = by construction | byte copy (unit test); decisions and records equal in every replay |
@@ -48,7 +54,7 @@ Status: **=** identical; **= by construction** identical because the same file o
 | 15 | Horizon and exports | `horizon` step, grader's `fetch()` | `[[verifier.collect]]` runs the same step and `fetch()` | = | exports equal in every replay (0 differences) |
 | 16 | Grader | `t01-grade/verify.py` (sha256 `41f2efc6…`) | the same file in `tests/` and the harness | = by construction | byte copy (unit test, `export_harbor.py --check` in the unit suite) |
 | 17 | Score | `weighted_average` of the rows = D12 | the framework's `scoring.py` (byte copy) | = by construction | `reward` = D12 with the same rounding |
-| 18 | C11 judge | litellm, `AWSBENCH_JUDGE_MODEL` (default `claude-sonnet-5-5`), 3 samples, temperature 0 | the same code and default, forwarded; `judge_on` and `judge_answered` in `reward.json` | = | R15: 3 of 3 samples answered with the same model in every run on both |
+| 18 | C11 judge | litellm, `AWSBENCH_JUDGE_MODEL` (default `claude-sonnet-5-5`), 3 samples, temperature 0, in the host process | the same code and default, forwarded; `judge_on` and `judge_answered` in `reward.json`; in the verifier container | ≈ | R15: 3 of 3 samples answered with the same model in every run on both. R16: the same request body, prompt template, model and serving on both; the client header `x-stainless-runtime-version` differs (3.12.16 in Harbor's verifier container, 3.12.3 in the host's Python), which the judge model does not see |
 | 19 | Clock | rate 0: only tool calls move it, one at a time under the meter's lock | the same gateway and servers | = | |
 | 20 | Time limit | sandbox TTL 21,600 s from deploy (not graded) | `[agent] timeout_sec = 21600` over the conversation (graded) | ≈ | T01 runs take about 3 minutes; neither limit has been reached |
 | 21 | Trials that do not measure the model | graded; the step is marked failed | no reward (see below) | ≠ (deliberate) | unit tests |
@@ -138,7 +144,13 @@ Result (`qc/results/t01/multiturn/multiturn.json`):
 - every model request is byte-identical across the systems (system prompt, messages, 57 tool schemas, model, limits)
   once the env's random `envNNNN` server name is normalized. Request metadata and headers differ only in per-run ids
   (session, device), the endpoint's port, and the `x-litellm-tags` attribution header, which names the task by its
-  local id and so by the checkout path (equal when AgentEnv runs from the same path, as in R15).
+  local id and so by the checkout path. The header is equal when AgentEnv runs from the path the package's task id
+  names, `~/awsbench`:
+  - in R15, both systems passed the bridge the same task id;
+  - in R16 the proxy showed the same header on every request.
+
+The path also ran live in R16, once on each system: Harbor 2 (4 turns) and AgentEnv 4 (2 turns). Each run's model ended
+its first turn without DONE, the hook woke it with its digests, and both conversations ended `done`.
 
 ### Live runs: Sonnet 5.5, 8 per system (R15, before this change)
 
@@ -155,15 +167,71 @@ Same model, endpoint and judge settings, interleaved on one host (build 1633470,
 | Turns | 1 in all 16 (DONE in turn 1) | | |
 
 The difference points one way on every outcome metric, and those metrics are correlated (one signal, not three). No
-mechanism was found: identical inputs, identical env answers, equal latency, the same injected content (the wall-time
-`silent_turn_reminder` fired 5.6 vs 5.0 times per run, with the same text), the same model on every assistant record. The
-live runs predate the fixes here; none of the fixed defects fired in them (every turn connected both servers, every
-hook decision arrived, no endpoint failure before a tool call).
+mechanism was found:
+- identical inputs and identical env answers;
+- equal latency;
+- the same injected content: the wall-time `silent_turn_reminder` fired 5.6 vs 5.0 times per run, with the same text;
+- the same model on every assistant record.
+
+The live runs predate the fixes here, and none of the fixed defects fired in them: every turn connected both servers,
+every hook decision arrived, and no endpoint failed before a tool call. R16 (below) repeated the comparison on this
+build and found no difference.
+
+### Live runs through a logging proxy: Sonnet 5.5, 8 per system (R16, f79c1db)
+
+The same comparison, on the package as it is here (AWS Emulator 1.0.353-1, agentenv-framework 0.9.1521, Harbor 0.26.0).
+Both systems ran from one checkout on one host, interleaved, at most 3 per system at once. Their model endpoint was a
+pass-through proxy that logged every request and response, one port per run, in front of the same endpoint and key.
+Before any run, two checks showed the proxy changes nothing:
+- requests sent through it as raw bytes reached a recording upstream byte for byte, and the answers came back byte for
+  byte, streamed and compressed alike;
+- a real request gave the same model and the same response headers through the proxy as it did directly.
+
+Per-run tables: [`qc/results/t01/live-r16.md`](qc/results/t01/live-r16.md).
+
+What reached the model was the same on both systems, across all 785 agent requests (385 Harbor, 400 AgentEnv):
+- the path, parameters (`max_tokens`, adaptive thinking, effort `medium`, context management, streaming), system prompt
+  and 57 tool schemas;
+- the request headers, `x-litellm-tags` included, apart from the per-run session id;
+- the injected content: the prompt, Claude Code's environment note, its wall-time reminder (4.9 vs 5.4 per run) and hook
+  digests;
+- the 16 first requests are byte-identical apart from the per-run device and session ids in `metadata`, and the
+  endpoint reported dropping `metadata` on every request from both systems.
+
+The serving was the same too:
+- every response named the same model and came back with the same route headers and status 200;
+- nothing was retried;
+- per-run latency, thinking tokens and output tokens did not differ (p ≥ 0.16).
+
+The C11 judge's 48 requests had the same body, prompt template, model and serving on both systems. They differ in one
+client header, `x-stainless-runtime-version` (matrix row 18).
+
+| | R15 (1633470) | R16 (f79c1db) | Pooled, 16 per side |
+|---|---|---|---|
+| Passes, Harbor vs AgentEnv | 1/8 vs 4/8 | 4/8 vs 4/8 | 5/16 vs 8/16: difference -0.19 (Newcombe -0.47 to 0.14), Fisher p = 0.47, stratified by round p = 0.48 |
+| Mean D12 | 0.62 vs 0.85 | 0.79 vs 0.77 | 0.70 vs 0.81: difference -0.10 (bootstrap -0.26 to +0.06), Mann-Whitney p = 0.28, permutation within rounds p = 0.25 |
+| Applied stale plan 48177 | 4/8 vs 0/8 | 2/8 vs 4/8 | 6/16 vs 4/16, Fisher p = 0.70 |
+| Ledger correct by 03:20 (C2) | 2 vs 4 | 4 vs 4 | 6 vs 8, Fisher p = 0.72 |
+| Never restored | 1 vs 0 | 1 vs 1 | 2 vs 1 |
+| Conversations longer than one turn | none | 1 vs 1 (4 and 2 turns, both ended `done`) | |
+
+What the pooled runs show:
+- **The trap.** Applying 48177 decides the runs on both systems: none of the 10 runs that applied it passed (mean D12
+  0.62), while 13 of the 22 that did not passed (mean D12 0.82). In R15 it hit only Harbor; in R16 it hit both, more
+  often AgentEnv.
+- **The stalled runs.** The two R16 runs that never restored, one per system, applied 48177, asked for an approval nobody
+  gave, ended their first turn without DONE and were woken by the hook until the horizon (0.19 each).
+- **Equivalence.** The 90% interval of the pooled D12 difference, -0.23 to +0.02, does not fit inside a ±0.15 margin.
+  The runs show no difference, and they do not show equivalence.
+
+R16's model spend was $12.80: $11.07 for Claude Code and $1.74 for 48 judge calls, measured from the proxy's usage at
+list price. Claude Code's own totals give the same $11.07.
 
 ## Not identical, and why
 
-1. **The live outcome numbers** (above). Mechanism parity is shown; outcome equivalence is not, and cannot be shown with
-   certainty for a sampled model.
+1. **The live outcome numbers** (above). R15 scored lower on Harbor, R16 did not, and the pooled runs show no
+   difference. Mechanism parity is shown, and so is the identity of every model request and its serving in R16. Outcome
+   equivalence is not shown, and cannot be shown with certainty for a sampled model.
 2. **Trials that do not measure the model** get no reward on Harbor and a graded, failed step on AgentEnv (table above).
    This changes no grade of a run both systems count.
 3. **Time limits** mean different things (matrix row 20); never reached by T01.
@@ -177,7 +245,14 @@ hook decision arrived, no endpoint failure before a tool call).
    `[[environment.mcp_servers]]` but get one turn, no wake-up digest and no DONE, so their scores are not comparable.
 7. **Emulator version of the earlier evidence**: rounds 1-2 and the R15 runs ran AWS Emulator 1.0.338-1, which AWS no
    longer serves; the package and the AgentEnv task now pin 1.0.353-1, which round 3 and the scripted QC ran.
-8. **apt packages in the aws image** (`curl`, `ca-certificates`, `dnsutils`) come from Debian at build time. They are
+8. **The judge's client header** `x-stainless-runtime-version`, 3.12.16 vs 3.12.3. It reports the Python of the process
+   the grader runs in: Harbor's verifier container, or the host where agent-env grades. It is a request header, not
+   model input (matrix row 18).
+9. **`x-litellm-tags` follows AgentEnv's checkout path.** AgentEnv names the task by its path relative to the home
+   directory, and the package carries `@local/~/awsbench/…/t01-draft`. The two are equal when AgentEnv runs from
+   `~/awsbench`, as in R15 and R16. From another path they differ, and an endpoint that routes by tag could serve the
+   two differently.
+10. **apt packages in the aws image** (`curl`, `ca-certificates`, `dnsutils`) come from Debian at build time. They are
    infrastructure: the world's `dig` and `curl` are simulated in Python, not these binaries.
 
 ## The critique, item by item
@@ -190,7 +265,7 @@ hook decision arrived, no endpoint failure before a tool call).
 | 4 | Harbor-only failures graded as valid | fixed: end records; no reward after a Harbor-side failure or a first turn that failed before any tool call; `turns`, `conversation` in `reward.json` |
 | 5 | Multi-turn Claude Code never run on Harbor | run: see "Multi-turn path" |
 | 6 | No check that both MCP servers connected | fixed: peers readiness, front healthcheck, harness lists tools through the front, per-turn `init` check |
-| 7 | Outcome parity unproven | stated: mechanism parity with the intervals above; an equivalence test is sized, not run |
+| 7 | Outcome parity unproven | stated: mechanism parity with the intervals above. R16 logged every model request and found the same requests and serving on both systems, with 4/8 passes each; pooled over 16 per side, no difference. An equivalence test is sized, not run |
 | 8 | Judge mode and model not pinned or reported | fixed: `AWSBENCH_JUDGE_MODEL` forwarded with the grader's default, `judge_on`/`judge_answered` reported, no reward without a key unless `AWSBENCH_JUDGE=off`, or with fewer than 2 answers |
 | 9 | QC evidence weaker than described | fixed: the AgentEnv side runs t01-draft's own setup (seed `t01-draft-1`); only the graded trial is kept; driver logs committed; README rewritten |
 | 10 | No-op scores 0.05 | documented: fail means `pass = 0` (the reward is below 1 and capped) |
