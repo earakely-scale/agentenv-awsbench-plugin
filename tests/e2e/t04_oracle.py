@@ -206,6 +206,10 @@ def steps_for(mode):
             continue
         if mode == "cutover" and tag == "after-restore":
             args = {"until": "13:43:30"}
+        if mode in ("early-resume", "whole-copy") and tool == "wait" and args.get("until") == "14:27:00":
+            args = {"until": "14:45:00"}
+        if mode == "whole-copy" and tool == "wait" and args.get("until") == "14:01:30":
+            args = {"minutes": 11}
         if mode == "early-resume" and tag == "resume":
             continue
         if mode == "early-resume" and tag == "daniel":
