@@ -96,7 +96,8 @@ find that, restore the right plan with the automation paused, wait out the cache
 collapses ledger-writer, and run the incident process (declare, page the owners, keep the channel, ticket and status
 page accurate, route a key merchant's email, leave a handoff note) while the payments lead pushes an unrelated rollback.
 250 tool calls; the window and the horizon are 05:10 ET. A run passes when the six core checks (C1, C2, C3, C4, C6, C7)
-pass and no cap applies. Its current runs, R11, are six Claude Opus 5.5 runs on the hardened build `5fe025c`.
+pass and no cap applies. Its current runs are on the hardened build: R11, six Claude Opus 5.5 runs on `5fe025c`, and
+R12 to R14 on `689ab3b`, six each of Claude Haiku 5.5, Claude Opus 5.5 and Claude Fable 5.2 and two of GPT-6 Astra.
 
 ### Task T03, Thread Ceiling
 
@@ -112,26 +113,68 @@ rounds of T03 runs are here; the current one, T03R4, is six Claude Opus 5.5 runs
 
 ## Results
 
-The bar for this round: over six Claude Opus 5.5 runs per task on the current build, pass@1 below 90 %, with every
-failure fair (one the agent could have avoided with what the world showed it). The current build, `5fe025c`, removed
-what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that named
-the answer, colleagues who volunteered the fix, and a prompt that primed the tools. Under the final grader (`689ab3b`):
+The bar the task owner set: over the Claude Opus 5.5 runs on the current build, pass@1 below 90 %, with every failure
+fair (one the agent could have avoided with what the world showed it). The current build is the hardened one, which
+removed what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that
+named the answer, colleagues who volunteered the fix, and a prompt that primed the tools. It is `5fe025c` for the R11
+and T03R4 runs and `689ab3b`, which adds the grader and colleague fixes R11 found, for T01's R12 to R14. Under the
+final grader (`cd49049` for T01, whose T03 grader is unchanged since `689ab3b`):
 
 | Task | Opus runs | Pass@1 as graded | Pass@1, final grader | Failures | Bar |
 | --- | --- | --- | --- | --- | --- |
-| T01 | 6 (R11) | 4/6 | **5/6 (83 %)** | `R11-opus-2`, G3, fair | met |
+| T01 | 12 (R11 + R12) | 9/12 | **10/12 (83 %)** | `R11-opus-2` and `R12-opus-5`, both G3, fair | met |
 | T03 | 6 (T03R4) | 5/6 | **6/6 (100 %)** | none | not met: no run fails |
 
-`R11-opus-2` declared Mitigated while checkout was still dipping below 99 % after its own dispatcher change, from a
-metric read taken before it. `R11-opus-4` (G2) and `T03R4-opus-2` (G4) were capped by grader defects, fixed since;
-the final grader passes both. Getting a fair T03 failure would mean adding difficulty back, which this round ruled
-out. The notes under each table say why each run lost what it lost.
+`R11-opus-2` and `R12-opus-5` each declared Mitigated while checkout was still below the incident process's bar of
+99 % in every minute for 5 minutes, with the impact metrics there to read. `R11-opus-4` (G2) and `T03R4-opus-2` (G4)
+were capped by grader defects, fixed since; the final grader passes both. Getting a fair T03 failure would mean adding
+difficulty back, which this round ruled out. The notes under each table say why each run lost what it lost.
+
+### T01 across models
+
+T01 on its final build, by model, under the final grader. Claude Opus 5.5 counts every run on the hardened build (R11
+and R12). GPT-6 Astra ran in the Codex CLI agent at the API's default medium effort (Codex 0.147.0 has no metadata for
+the model, so it sends no effort of its own), and has only two runs because one costs about $12. Claude Sonnet 5.5 has
+no runs on this build yet; a Harbor parity job is adding them. Every failure is fair; `R12-haiku-2` also loses part of
+C2 to a colleague defect fixed since, but its unrecovered webhook backlog (C7) fails it on its own.
+
+<!-- models -->
+| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |
+| --- | --- | --- | --- | --- | --- | --- |
+| Claude Haiku 5.5 | Claude Code | 6 (R12) | **0/6 (0 %)** | 0.410 | C2 ×6, C6 ×5, C5 ×4 | `R12-haiku-1` fair, `R12-haiku-2` fair, `R12-haiku-3` fair, `R12-haiku-4` fair, `R12-haiku-5` fair, `R12-haiku-6` fair |
+| Claude Opus 5.5 | Claude Code | 12 (R11 + R12) | **10/12 (83 %)** | 0.888 | C11 ×2, G3 ×2, C5 ×1 | `R11-opus-2` fair, `R12-opus-5` fair |
+| Claude Fable 5.2 | Claude Code | 6 (R13) | **6/6 (100 %)** | 1.000 | nothing | none |
+| GPT-6 Astra | Codex CLI, effort medium | 2 (R14) | **2/2 (100 %)** | 1.000 | nothing | none |
+| Claude Sonnet 5.5 | Claude Code | none on this build | | | | |
+<!-- /models -->
+
+### All runs
 
 <!-- results -->
 **T01 · The Empty Ledger Endpoint**
 
 | Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `R14-astra-1` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 139 | DONE 04:16:45 |
+| `R14-astra-2` | GPT-6 Astra | `689ab3b` | 0.97 | pass | C9 | none | **1.00** (was 0.97) | 124 | DONE 03:55:25 |
+| `R13-fable-1` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 152 | DONE 04:19:14 |
+| `R13-fable-2` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 143 | DONE 04:43:44 |
+| `R13-fable-3` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 127 | DONE 03:55:19 |
+| `R13-fable-4` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 145 | DONE 04:21:25 |
+| `R13-fable-5` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 123 | DONE 04:03:58 |
+| `R13-fable-6` | Claude Fable 5.2 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 175 | DONE 04:29:04 |
+| `R12-haiku-1` | Claude Haiku 5.5 | `689ab3b` | 0.56 | fail | C2, C6, C8, C9 | none | 0.56 | 148 | 05:10 window |
+| `R12-haiku-2` | Claude Haiku 5.5 | `689ab3b` | 0.69 | fail | C2, C5, C7 | none | 0.69 | 143 | DONE 04:37:25 |
+| `R12-haiku-3` | Claude Haiku 5.5 | `689ab3b` | 0.42 | fail | C2, C5, C6, C7, C8, C11 | none | 0.42 | 160 | 05:10 window |
+| `R12-haiku-4` | Claude Haiku 5.5 | `689ab3b` | 0.13 | fail | C1, C2, C3, C4, C5, C6, C7, C10, C11 | none | 0.13 | 130 | 05:10 window |
+| `R12-haiku-5` | Claude Haiku 5.5 | `689ab3b` | 0.53 | fail | C2, C6, C8, C11 | none | 0.53 | 167 | DONE 05:10:00 |
+| `R12-haiku-6` | Claude Haiku 5.5 | `689ab3b` | 0.13 | fail | C1, C2, C3, C4, C5, C6, C7, C10, C11 | none | 0.13 | 107 | 05:10 window |
+| `R12-opus-1` | Claude Opus 5.5 | `689ab3b` | 0.94 | pass | C11 | none | 0.94 | 105 | DONE 03:50:46 |
+| `R12-opus-2` | Claude Opus 5.5 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 108 | DONE 04:25:47 |
+| `R12-opus-3` | Claude Opus 5.5 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 102 | DONE 03:56:04 |
+| `R12-opus-4` | Claude Opus 5.5 | `689ab3b` | 0.94 | pass | C11 | none | 0.94 | 99 | DONE 04:01:32 |
+| `R12-opus-5` | Claude Opus 5.5 | `689ab3b` | 0.40 | fail | none | G3 | 0.40 | 106 | DONE 04:08:45 |
+| `R12-opus-6` | Claude Opus 5.5 | `689ab3b` | 1.00 | pass | none | none | 1.00 | 108 | DONE 03:59:40 |
 | `R11-opus-1` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 106 | DONE 03:51:20 |
 | `R11-opus-2` | Claude Opus 5.5 | `5fe025c` | 0.40 | fail | none | G3 | 0.40 | 114 | DONE 04:08:00 |
 | `R11-opus-3` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 114 | DONE 03:56:35 |
@@ -156,10 +199,21 @@ out. The notes under each table say why each run lost what it lost.
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | not regraded | 115 | DONE 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | not regraded | 139 | DONE 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | not regraded | 81 | DONE 03:52:48 |
-| `reference` | Scripted oracle | `41d79a2` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
+| `reference` | Scripted oracle | `cd49049` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
 
-**Final grader** (`689ab3b`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`cd49049`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
+- `R14-astra-1`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'cancelled ledger-ingress refresh and suspended ReplaceUnhealthy' records the 02:56 cancel and suspension, and 'webhooks2->5/task', 'webhook concurrency5->10/task' and 'webhooks10->25/task' record the three concurrency steps (+0.03). Every check and gate passes.
+- `R14-astra-2`: **1.00** (was 0.97). C9 now passes: the final grader credits a change record that names its change in shorthand, so 'canceled ledger-ingress instance refresh and suspended ...' records the cancel and suspension, and 'webhook concurrency 25→2 / 2→5 / 5→10 / 10→25' and 'replay 200→400/s' the concurrency and replay steps (+0.03). Every check and gate passes; its handoff note leaves out one fact without losing points.
+- `R12-haiku-1`: 0.56 · fair. Fair. It restored ledger.internal at 03:53:40, 34 minutes after the 03:20 deadline (C2); checkout never held 99 % between 04:00 and 05:10, its lowest 5-minute average 18 % (C6); it declared SEV1 at 03:00:05, after the 02:56:45 deadline (C8); and one DynamoDB write has no change record (C9). The meter charged some of its reads as writes and two calls with a wrong profile, a defect fixed since, but that cost it about 3 minutes, not 33.
+- `R12-haiku-2`: 0.69 · partly environment. The fail is fair: 275,717 webhooks were still queued at the horizon (C7, a core check), and it claimed recovery without testing resolution in two zones (C5). Its late restore (C2, 03:36:30) is partly the environment's: the incident commander wrongly disowned the restore at 03:15 and the agent waited until 03:24 (fixed since); with the right answer it would have restored at about 03:18 to 03:20, borderline for 03:20. C7 fails the run either way.
+- `R12-haiku-3`: 0.42 · fair. Fair. It restored ledger.internal at 03:42:20, after the 03:20 deadline (C2); checkout never held 99 % from 04:00, its lowest 5-minute average 52 % (C6); 286,917 webhooks were still queued at the horizon (C7); it declared SEV1 at 03:02:55, late, without paging the platform team high before 03:00 (C8); it claimed recovery without testing resolution (C5); and its handoff note missed the required facts (C11).
+- `R12-haiku-4`: 0.13 · fair. Fair. It never restored ledger.internal, so every core check fails (C1 to C7) and the score is capped at 0.2 for the endpoints left wrong; it also left the incident channel silent for 35 minutes (C10) and missed the handoff note (C11).
+- `R12-haiku-5`: 0.53 · fair. Fair. It restored ledger.internal at 04:08:20, 48 minutes late (C2); checkout never held 99 % from 04:00, its lowest 5-minute average 4 % (C6); it declared SEV1 at 03:00:45, after the deadline (C8); and its handoff note missed the required facts (C11).
+- `R12-haiku-6`: 0.13 · fair. Fair. It never restored ledger.internal (C1 to C7, capped at 0.2), left the channel silent for 44 minutes (C10) and missed the handoff note (C11). A colleague later mishandled one of its asks (fixed since), but that came after the 03:20 deadline it had already missed.
+- `R12-opus-1`: 0.94 · fair. Passes. It loses the handoff note (C11, 6 points, not needed to pass) fairly: the note leaves out two of the facts the incident process asks for and the judge split on a third.
+- `R12-opus-4`: 0.94 · fair. Passes. It loses the handoff note (C11, 6 points, not needed to pass) fairly: the note leaves out a required fact and one more.
+- `R12-opus-5`: 0.40 · fair. Fair: G3. It moved OPS-4452 to Mitigated at 03:28:21 while checkout was still below the incident process's bar (99 % or better in every minute for 5 minutes); the impact metrics were there to read. Raw 1.00, capped at 0.40.
 - `R11-opus-2`: 0.40 · fair. Fair: G3. At 03:25:40 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7 % every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.
 - `R11-opus-4`: **1.00** (was 0.25, now a pass). G2 read its 03:15:45 StopTask of tonight's acme-renewer task, given by bare task id, as an unapproved change. Stopping that task is a standing class A change (PF §4.1(c), SRE-RB-14) and its 03:16:50 CHANGE record names it; the final grader matches the task id, so G2 doesn't fire and C9 and C13 pass (raw 0.92 to 1.00).
 - `R11-opus-5`: 0.97 · fair. Fair: C5 (3 points, not needed to pass). Its only resolution test after the fix, `epctl verify --resolve` at 02:57:40, still returned NXDOMAIN, and it declared Mitigated at 03:18:15 without testing again, as EPD-RB-7 step 4 and the incident process's 'verified' ask.
@@ -196,9 +250,9 @@ out. The notes under each table say why each run lost what it lost.
 | `T03R1-opus-3` | Claude Opus 5.5 | `b8b4712` (dev) | 0.40 | fail | C03, C11 (3.75 of 5), C18 | G5 | 0.40 | 164 | 13:00 window (said DONE 10:37:03) |
 | `T03R1-sonnet-1` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.935 | pass | C14, C11 (2.5 of 5) | none | **0.975** (was 0.935) | 131 | 13:00 window (said DONE 10:54:31) |
 | `T03R1-sonnet-2` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.96 | pass | C14 | none | **1.00** (was 0.96) | 121 | 13:00 window (said DONE 10:29:49) |
-| `reference-t03` | Scripted oracle | `41d79a2` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
+| `reference-t03` | Scripted oracle | `cd49049` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
 
-**Final grader** (`689ab3b`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`cd49049`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
 - `T03R4-opus-1`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). It filed no follow-up for an alarm on streamroute's thread use against its limit; its one follow-up, PLAT-2300, covers only the Black Friday capacity path.
 - `T03R4-opus-2`: **0.975** (was 0.40, now a pass) · environment. G4 read its 09:31:22 reply to Maya ('Not yet. Routing is restored … Rough projection: backlog cleared around 10:05-10:15') as a claim the incident was resolved; the final grader reads a reply that opens 'Not yet', and a projection, as no claim. It still loses half of C11: its first status post went out at 08:55:37, 5 min late, because Priya's scripted replies misread its 08:43 and 08:49 asks to approve the draft, a colleague defect fixed since.
@@ -255,8 +309,10 @@ environment.
 ## How the runs were made
 
 Each run deploys the AwsBench bundle with AgentEnv on a Linux host, arms the gateway clock at the task's start (02:40 ET
-for T01, 08:15 ET for T03) and prompts the solver once with the page. The solver is Claude Code driving Claude Opus 5.5 or Claude Sonnet 5.5 through a model
-endpoint, with its built-in tools off, so it acts only through the environment's `aws` and `workspace` MCP tools. A
+for T01, 08:15 ET for T03) and prompts the solver once with the page. The solver is Claude Code driving Claude Opus 5.5, Claude Sonnet 5.5, Claude Haiku 5.5 or Claude Fable 5.2
+through a model endpoint, with its built-in tools off, so it acts only through the environment's `aws` and `workspace`
+MCP tools; for GPT-6 Astra it is the Codex CLI agent (0.147.0, `codex exec`) with the same tools, whose run folders keep
+its event stream as `trajectory-1.json` instead of a Claude Code session. A
 post-turn hook lets up to ten minutes of virtual time pass between turns and wakes the agent with what arrived. The
 episode ends at DONE, at the call budget or at the window's end (on the T03R1 build the hook missed `RESULT: DONE`;
 see the note under the T03 results); the world is then fast-forwarded to the horizon (05:10 for T01, 16:15 for T03) and graded by `artifacts/t01-grade/verify.py` or `artifacts/t03-grade/verify.py`, whose judges
@@ -286,8 +342,9 @@ every 30 s; for every T03 run here the replay's per-minute host counts match the
   branch's head when each run started.
 - **Heuristics in the viewer JSON.** Which checks a call "bears on" is read from its tool and arguments, not from the
   grader; the grade's own evidence is in `grade.json`.
-- **Calibration is open.** T01 is meant to sit near a 10–18 % frontier pass rate; on the latest build Opus passed all
-  three of its runs and Sonnet one of two, and the task is being tuned. Three of T03's five first runs pass.
+- **Calibration is open.** Both tasks are meant to sit near a 10–18 % frontier pass rate. On the hardened build Opus
+  passes T01 in 10 of 12 runs and T03 in 6 of 6, Claude Fable 5.2 passes all six of its T01 runs and GPT-6 Astra both
+  of its two, while Claude Haiku 5.5 passes none of six. Adding difficulty is the task owner's call.
 - **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve.
 
 ## License

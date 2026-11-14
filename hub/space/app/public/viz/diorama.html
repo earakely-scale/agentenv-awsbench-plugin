@@ -346,7 +346,7 @@ let IDX, REFV, RUNV;
 try {
   IDX = await getJ('index.json');
   const want = new URLSearchParams(location.search).get('run');
-  const row = IDX.runs.find(r => r.id === want) || IDX.runs.find(r => !r.dev) || IDX.runs[0];
+  const row = IDX.runs.find(r => r.id === want) || IDX.runs.find(r => !r.dev && /Opus/.test(r.model)) || IDX.runs.find(r => !r.dev) || IDX.runs[0];
   [REFV, RUNV] = await Promise.all([getJ('runs/reference.json'), getJ('runs/' + row.id + '.json')]);
 } catch (e) { document.getElementById('phase').textContent = 'Could not load the run data.'; return; }
 const VIEW = { oracle: REFV, run: RUNV };
@@ -1315,7 +1315,7 @@ $('scRef').addEventListener('click', () => setScen('oracle'));
 $('scTrap').addEventListener('click', () => setScen('run'));
 $('scTrap').textContent = SCN.run.label; $('scTrap').classList.toggle('trap', !SCN.run.pass);
 (function picker(){ const sel = $('runPick'); if (!sel) return;
-  sel.innerHTML = IDX.runs.map(r => `<option value="${esc(r.id)}"${r.id === RUNV.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + Number(r.d12).toFixed(2))}</option>`).join('');
+  sel.innerHTML = IDX.runs.map(r => `<option value="${esc(r.id)}"${r.id === RUNV.id ? ' selected' : ''}>${esc(r.model + ' · ' + r.id + (r.dev ? ' (dev, ' + r.build + ')' : '') + ' · D12 ' + Number(r.d12).toFixed(2) + (r.final && Math.abs(r.final.d12 - r.d12) > 1e-6 ? ' → ' + Number(r.final.d12).toFixed(2) : ''))}</option>`).join('');
   sel.addEventListener('change', () => { const u = new URL(location.href); u.searchParams.set('run', sel.value); location.replace(u.toString()); }); })();
 
 /* scrubber */

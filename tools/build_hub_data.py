@@ -310,6 +310,33 @@ def results_table(index: dict) -> str:
 
 
 LOSSES = {"fair": "fair", "env": "environment", "mixed": "partly environment"}
+MODELS = (("Claude Haiku 5.5", "Claude Code"), ("Claude Opus 5.5", "Claude Code"), ("Claude Fable 5.2", "Claude Code"),
+          ("GPT-6 Astra", "Codex CLI, effort medium"))
+
+
+def models_table(index: dict) -> str:
+    """The dataset card's cross-model view of T01's current (non-development) runs, under the final grader."""
+    fin = lambda r: r["final"] if r.get("final") else {"d12": r["d12"], "pass": r["pass"], "failed": r["failed"], "gates": r["gates"]}
+    rows = [r for r in index["tasks"]["T01"]["runs"] if not r["dev"]]
+    out = ["| Model | Agent | Runs | Pass@1 | Mean D12 | Lost most | Failures |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    for name, via in MODELS:
+        mine = sorted((r for r in rows if r["model"] == name), key=lambda r: [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", r["id"])])
+        if not mine:
+            continue
+        n = sum(fin(r)["pass"] for r in mine)
+        mean = sum(fin(r)["d12"] for r in mine) / len(mine)
+        lost: dict[str, int] = {}
+        for r in mine:
+            for c in [*fin(r)["failed"], *fin(r)["gates"]]:
+                lost[c] = lost.get(c, 0) + 1
+        top = sorted(lost.items(), key=lambda kv: (-kv[1], [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", kv[0])]))[:3]
+        rounds = " + ".join(sorted({r["id"].split("-")[0] for r in mine}, key=lambda x: int(x[1:])))
+        fails = [f"`{r['id']}` {LOSSES.get((r.get('final') or {}).get('failure') or (r.get('final') or {}).get('losses'), 'unlabelled')}"
+                 for r in mine if not fin(r)["pass"]]
+        out.append(f"| {name} | {via} | {len(mine)} ({rounds}) | **{n}/{len(mine)} ({round(100 * n / len(mine))} %)** | "
+                   f"{mean:.3f} | {', '.join(f'{c} ×{k}' for c, k in top) or 'nothing'} | {', '.join(fails) or 'none'} |")
+    out.append("| Claude Sonnet 5.5 | Claude Code | none on this build | | | | |")
+    return "\n".join(out)
 
 
 def same_grade(r: dict) -> bool:
@@ -349,7 +376,7 @@ def end_text(r: dict) -> str:
 def fill_card(index: dict, cards: dict[str, dict]) -> Path:
     card = DATASET / "README.md"
     text = card.read_text()
-    for name, body in (("results", results_table(index)), ("tasks", TC.tasks_table(cards))):
+    for name, body in (("results", results_table(index)), ("models", models_table(index)), ("tasks", TC.tasks_table(cards))):
         start, end = f"<!-- {name} -->", f"<!-- /{name} -->"
         head, rest = text.split(start, 1)
         text = head + start + "\n" + body + "\n" + end + rest.split(end, 1)[1]
