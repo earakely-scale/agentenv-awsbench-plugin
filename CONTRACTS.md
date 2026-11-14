@@ -90,7 +90,7 @@ Each charged call:
 **Cost classes** (seconds): `free 0`, `point_read 20`, `write 45`, `broad 75`.
 - Defaults per tool: every `*_get`, `*_read`, `*_list*`, `*_search`, `*_history`, `*_log`, `fleet_list_hosts`,
   `fleet_inspect_host`, `fleet_job_status` and read AWS operations (`Describe*`, `Get*`, `List*`, `Lookup*`,
-  `TestDNSAnswer`) are `point_read`. Writes are `write`. `aws_query`, `aws_table_export`, Logs Insights queries and
+  `TestDNSAnswer`) are `point_read`, and so are `aws s3 cp` from S3 to stdout and `aws s3 presign`. Writes are `write`. `aws_query`, `aws_table_export`, Logs Insights queries and
   `fleet_exec` on more than one host are `broad`. `get_time` and `awsbench_control` are `free`. `wait` is charged as
   `free` plus the waited time.
 - An ordered list of regex overrides on `fleet_exec` commands comes from the scenario; the first match wins.

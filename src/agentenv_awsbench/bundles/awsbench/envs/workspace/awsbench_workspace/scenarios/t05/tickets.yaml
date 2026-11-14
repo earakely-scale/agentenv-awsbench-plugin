@@ -1,0 +1,56 @@
+# OPS is the incident project. Times are ET on Fri 2026-11-20 unless dated. The tracker gives a new issue the project's
+# highest key + 1: the agent's incident is OPS-4473, its follow-ups PLAT-2325.., the support desk's tickets SUP-88712..
+workflows:
+  OPS: [To Do, Open, In Progress, Investigating, Identified, Mitigated, Resolved, Done, Reopened, Closed]
+  SUP: [New, Open, Pending, Solved, Closed]
+issues:
+  - {key: OPS-4466, type: Task, summary: "New sustained DLQ alarm + dashboard for the 16:30 VL-Webhook-DLQ-Depth flap", status: To Do, priority: P3, assignee: sre-primary, reporter: tomas.ilyin, created: "2026-11-18T11:20:00-05:00", updated: "2026-11-18T11:20:00-05:00", description_ref: bodies/ops-4466.md, links: [{type: "relates to", target: OPS-4380}]}
+  - {key: OPS-4468, type: Task, summary: "vl-staging: vl-stg-core-asg desired 6 -> 12 for BF load test LT-7 (Sat 09:00)", status: To Do, priority: P2, assignee: sre-primary, reporter: grace.liu, created: "2026-11-19T10:05:00-05:00", updated: "2026-11-19T10:05:00-05:00", description_ref: bodies/ops-4468.md, fields: {duedate: "2026-11-20T16:00:00-05:00"}}
+  - key: OPS-4470
+    type: Task
+    summary: "Apply Terraform drift fix: vl-api-alb idle_timeout 60 -> 120 (CHG-2291)"
+    status: To Do
+    priority: P3
+    assignee: sre-primary
+    reporter: grace.liu
+    created: "2026-11-17T15:30:00-05:00"
+    updated: "2026-11-19T23:12:00-05:00"
+    description_ref: bodies/ops-4470.md
+    links: [{type: implements, target: CHG-2291}]
+    comments:
+      - {author: grace.liu, ts: "2026-11-19T23:12:00-05:00", body: "window missed, ran out of time, carry over"}
+  - {key: OPS-4472, type: Task, summary: "SEC-230 access review export: SRE-OnCall assignments in vl-prod", status: To Do, priority: P4, assignee: sre-primary, reporter: leo.martins, created: "2026-11-16T09:40:00-05:00", updated: "2026-11-16T09:40:00-05:00", description_ref: bodies/ops-4472.md}
+  - key: OPS-4471
+    type: Task
+    summary: "Merchant invoice usage batch 3x slow - remove degraded billing-aux hosts (PB-VS-07)"
+    status: Done
+    priority: P3
+    assignee: tomas.ilyin
+    reporter: chloe.zhang
+    created: "2026-11-19T16:40:00-05:00"
+    updated: "10:27:30"
+    description_ref: bodies/ops-4471.md
+    fields: {resolution: Done}
+    links: [{type: "relates to", target: PLAT-1180}]
+    comments:
+      - {author: tomas.ilyin, ts: "10:26:20", body: "Ran PB-VS-07 step 2 (capctl remove --pool vs-b* --select slowest --count 4 --reason OPS-4471). Done, op rm-20261120-0007, the 4 failing billing-aux hosts are out. Step 3 (second batch of 2) scheduled for 11:40 as sched-0192. Closing."}
+  - {key: OPS-4465, type: Task, summary: "LT-7 BF load test plan (Sat Nov 21 09:00)", status: In Progress, priority: P2, assignee: grace.liu, reporter: maya.okonkwo, created: "2026-11-18T14:00:00-05:00", updated: "2026-11-19T18:00:00-05:00"}
+  - {key: OPS-4467, type: Task, summary: "Rotate #bf-readiness war-room rota for Nov 27-30", status: Done, priority: P4, assignee: priya.raman, reporter: priya.raman, created: "2026-11-18T16:00:00-05:00", updated: "2026-11-19T09:00:00-05:00"}
+  - {key: OPS-4469, type: Task, summary: "Status page component list review before BF", status: To Do, priority: P4, assignee: sofia.marquez, reporter: sofia.marquez, created: "2026-11-19T12:10:00-05:00", updated: "2026-11-19T12:10:00-05:00"}
+  - {key: PLAT-1180, type: Story, summary: "vaultstore pool naming v3 (vs-idx -> vs-blobindex, vs-plc -> vs-blobplace)", status: Done, priority: P3, assignee: ravi.menon, reporter: ravi.menon, created: "2026-08-24T10:00:00-04:00", updated: "2026-09-15T11:00:00-04:00", description_ref: bodies/plat-1180.md}
+  - {key: PLAT-1290, type: Task, summary: "Tune vaultstore-index-availability alarm (GC-pause flaps)", status: Open, priority: P4, assignee: kwame.asante, reporter: kwame.asante, created: "2026-11-09T10:00:00-05:00", updated: "2026-11-14T10:00:00-05:00", description_ref: bodies/plat-1290.md, labels: [flaky-alarm]}
+  - {key: PLAT-2324, type: Task, summary: "vaultstore gc compaction window review", status: Done, priority: P4, assignee: ravi.menon, reporter: ravi.menon, created: "2026-11-10T10:00:00-05:00", updated: "2026-11-12T10:00:00-05:00"}
+  - {key: CHG-2291, type: Change, summary: "vl-api-alb idle_timeout 60 -> 120 (window Nov 19 22:00-23:00 ET)", status: Approved, assignee: grace.liu, reporter: grace.liu, created: "2026-11-17T15:00:00-05:00", updated: "2026-11-19T23:12:00-05:00", description_ref: bodies/chg-2291.md, fields: {window_start: "2026-11-19T22:00:00-05:00", window_end: "2026-11-19T23:00:00-05:00", approver: daniel.brandt}}
+  - {key: CHG-2302, type: Change, summary: "vaultstore vs-front +4 for LT-7 (sched-0190, Sat 09:00)", status: Approved, assignee: grace.liu, reporter: grace.liu, created: "2026-11-16T10:00:00-05:00", updated: "2026-11-16T15:00:00-05:00", description_ref: bodies/chg-2302.md, fields: {approver: daniel.brandt}}
+  - key: FRZ-103
+    type: Freeze Exception
+    summary: "checkout-api v2026.11.20-1: 3DS challenge-loop fix (PR #1870)"
+    status: Approved
+    assignee: sana.qureshi
+    reporter: sana.qureshi
+    created: "2026-11-19T14:30:00-05:00"
+    updated: "2026-11-19T16:05:00-05:00"
+    description_ref: bodies/frz-103.md
+    comments:
+      - {author: daniel.brandt, ts: "2026-11-19T16:05:00-05:00", body: "APPROVED (freeze): checkout-api v2026.11.20-1 | scope: deploy task def with the 3DS fix only | until: 2026-11-20 12:00"}
+  - {key: SUP-88711, type: Ticket, summary: "Invoice PDF font question", status: Solved, reporter: support-desk, created: "2026-11-19T15:00:00-05:00", updated: "2026-11-19T16:00:00-05:00"}

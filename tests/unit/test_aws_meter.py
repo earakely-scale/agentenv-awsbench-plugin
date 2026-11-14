@@ -316,3 +316,20 @@ async def test_a_job_done_inside_a_charged_call_reaches_the_banner_once():
 async def test_a_job_done_that_wakes_a_wait_is_listed_once():
     out = await meter(world=JobWorld([(START + timedelta(minutes=2), JOB)])).wait(START + timedelta(minutes=10))
     assert out["inbound"] == [JOB] and out["woke_early"]
+
+
+@pytest.mark.parametrize("command,cls", [
+    ("aws s3 cp s3://b/k -", "point_read"), ("aws s3 presign s3://b/k", "point_read"),
+    ("aws --profile vl-prod/SRE-OnCall s3 cp s3://b/k - --region us-east-1", "point_read"),
+    ("aws s3 cp s3://a/k s3://b/k", "write"), ("aws s3 rm s3://b/k", "write"), ("aws s3 ls s3://b/", "point_read")])
+def test_an_s3_download_to_stdout_is_a_read(command, cls):
+    assert classify("aws_cli", {"command": command}) == cls
+
+
+def test_t05_describe_instances_is_broad_unless_filtered_by_name_pool_or_role():
+    from awsbench_aws.world import load_scenario
+    over = load_scenario("t05")["cost_overrides"]
+    tagged = "aws ec2 describe-instances --filters Name=tag:aws:autoscaling:groupName,Values=x"
+    assert classify("aws_cli", {"command": tagged}, over) == "broad"
+    pool = "aws ec2 describe-instances --filters Name=tag:Pool,Values=vs-blobindex"
+    assert classify("aws_cli", {"command": pool}, over) == "point_read"

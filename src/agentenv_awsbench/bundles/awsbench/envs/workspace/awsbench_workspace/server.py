@@ -205,6 +205,8 @@ class WorkspaceEnv(AgentEnvEnvironment):
         except Exception as e:  # noqa: BLE001
             error, result, resolved = f"internal error: {type(e).__name__}: {e}", {"error": "internal error"}, None
         resolved = resolved or {"app": app, "recipients": [], "mentions": [], "external": False}
+        if error:
+            resolved = {**resolved, "error": error}
         self.ws.store.log({"t": self.ws.iso(t), "kind": "tool", "call_no": begin.get("call_no") if begin else None,
                            "role": role, "actor": actor, "tool": name, "args": args, "error": error,
                            "resolved": resolved, "charged": begin is not None})

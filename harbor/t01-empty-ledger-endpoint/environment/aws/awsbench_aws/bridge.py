@@ -24,6 +24,7 @@ from typing import Any
 import botocore.session
 import urllib3
 from awscli.clidriver import create_clidriver
+from awscli.customizations.s3.subcommands import CpCommand, MvCommand, SyncCommand
 from awscli.paramfile import register_uri_param_handler
 from botocore import xform_name
 from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
@@ -33,7 +34,7 @@ from .actionlog import ActionLog
 from .cloudtrail import Trail
 from .emulator import ACCESS_KEY, SECRET_KEY, Emulator
 from .errors import AwsError
-from .meter import is_read
+from .meter import CLI_VALUED, is_read
 from .ports import AwsPort
 
 urllib3.disable_warnings()
@@ -94,7 +95,51 @@ def parse_command(command: str) -> list[str]:
         raise CommandError("file:// and fileb:// values are not supported: pass the value inline")
     if tokens[1] in NOT_HERE:
         raise CommandError(f"'aws {tokens[1]}' is not available: your profile and region are set for you")
+    check_local_paths(tokens[1:])
     return tokens[1:]
+
+
+PUT_HINT = ("Write the object with aws_api: service s3, operation PutObject, params {Bucket, Key, Body: '<text>', "
+            "ContentType}")
+S3_TRANSFER = {"cp": CpCommand, "mv": MvCommand, "sync": SyncCommand}
+
+
+def check_local_paths(argv: list[str]) -> None:
+    """Refuse the s3 transfers and s3api uploads that would read or write this server's own disk or stdin; printing
+    an object (`aws s3 cp s3://b/k -`) is the one local end allowed."""
+    words, i = [], 0
+    while i < len(argv) and len(words) < 2:
+        if argv[i].startswith("-"):
+            i += 2 if argv[i] in CLI_VALUED and "=" not in argv[i] else 1
+            continue
+        words.append(argv[i])
+        i += 1
+    if words == ["s3api", "put-object"] or words == ["s3api", "upload-part"]:
+        if any(a == "--body" or a.startswith("--body=") for a in argv[i:]):
+            raise CommandError(f"--body is read as a local file path, which is not supported here. {PUT_HINT}")
+        return
+    if words[:1] != ["s3"] or len(words) < 2 or words[1] not in S3_TRANSFER:
+        return
+    table = {a["name"]: a for a in S3_TRANSFER[words[1]].ARG_TABLE if not a.get("positional_arg")}
+    paths = []
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith("--"):
+            name, eq = a[2:].partition("=")[:2]
+            spec = table.get(name)
+            takes = (spec is not None and spec.get("action") not in ("store_true", "store_false")
+                     and spec.get("nargs") != "?") or spec is None and a in CLI_VALUED
+            i += 2 if takes and not eq else 1
+            continue
+        paths.append(a)
+        i += 1
+    if paths and paths[0] == "-":
+        raise CommandError(f"reading the upload from stdin ('-') is not supported: there is no stdin here. {PUT_HINT}")
+    for k, p in enumerate(paths):
+        if not (p.startswith("s3://") or p == "-" and words[1] == "cp" and k == 1):
+            raise CommandError("local paths are not supported: they would read or write this server's own disk. Print "
+                               "an object with `aws s3 cp s3://<bucket>/<key> -`; write one with aws_api s3 PutObject "
+                               "(Body)")
 
 
 _SESSION = botocore.session.get_session()

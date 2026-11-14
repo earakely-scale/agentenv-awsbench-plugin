@@ -16,6 +16,7 @@ WORLD_OPS: dict[str, Callable] = {
     "chat.post_as": chat.post_as, "chat.dm_as": chat.dm_as, "mail.deliver": mail.deliver,
     "pager.page_as": pager.page_as, "pager.ack_as": pager.ack_as, "tickets.comment_as": tickets.comment_as,
     "tickets.update_as": tickets.update_as, "tickets.create_as": tickets.create_as,
+    "status.set_origin": status.set_origin, "status.set_view": status.set_view,
 }
 
 

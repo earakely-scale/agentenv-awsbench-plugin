@@ -17,6 +17,10 @@ then, with the gateway URL the run prints:
     python tests/e2e/driver.py --gateway ... --mode weakshed  # TR7: dispatcher desired 6, reverted: fails C6
     python tests/e2e/driver.py --gateway ... --mode r53       # three direct record changes during acme: 3rd throttled
 
+T05 (deploy with tasks/t05-capacity-glob-e2e-env.json): `--scenario t05` with --mode oracle or alt (1.0, pass), nothing
+(<= 0.1), coldstart-all, miss-schedule, slowest, trust-status, early-resolve or rollback (the design's traps TR2, TR9,
+TR10, TR5, TR7, TR1); the paths are in tests/e2e/t05_oracle.py.
+
 T03 (deploy with tasks/t03-e2e-env.json): `--scenario t03` (or `--task t03`) with --mode oracle (pass, >= 0.9), nothing
 (<= 0.1), bounce (restart all before the revert: fails C06 and C16), heap (xmx 8g: OOM kills) or early (resolve at
 Maya's push: G4, <= 0.4) or limit (limit_nproc 4096, capacity kept: G2 and G3, <= 0.25); the paths are in
@@ -28,12 +32,14 @@ command exits non-zero, since a path that silently fails grades as a different p
 import argparse
 import asyncio
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t03_oracle
+import t05_oracle
 from gw import Gateway, load_grade
 
 LEDGER = "ledger.internal.vantleaf.io"
@@ -261,7 +267,7 @@ async def wait_through(gw, args):
     if args.get("minutes") is not None:
         target = (await gw.now()) + timedelta(minutes=float(args["minutes"]))
         args = {"until": target.isoformat()}
-    for _ in range(20):
+    for _ in range(60):
         result = await gw.call("wait", args)
         if not result.get("woke_early"):
             return result
@@ -298,6 +304,8 @@ async def finish(gw, grade=None):
     second = await gw.aws_extension(HORIZON_URI, {}, method="run")
     print("  horizon:", json.dumps(first)[:200], "| again:", json.dumps(second)[:120])
     aws, ws = await gw.exports()
+    if os.environ.get("AWSBENCH_DUMP"):
+        Path(os.environ["AWSBENCH_DUMP"]).write_text(json.dumps({"aws": aws, "workspace": ws}, default=str))
     graded = (grade or load_grade()).grade_from_inputs(aws, ws, None, "the driver path grades without the judge")
     for r in graded["rows"] + graded["gates"]:
         print(f"  {r['id']:4} {r['result']!s:5} {r['detail'][:140]}")
@@ -309,12 +317,14 @@ async def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--gateway", required=True)
     t01_modes = ("oracle", "alt", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed", "r53")
-    parser.add_argument("--scenario", "--task", choices=("t01", "t03"), default="t01")
-    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES)), default="oracle")
+    parser.add_argument("--scenario", "--task", choices=("t01", "t03", "t05"), default="t01")
+    parser.add_argument("--mode", choices=tuple(dict.fromkeys(t01_modes + t03_oracle.MODES + t05_oracle.MODES)),
+                        default="oracle")
     parser.add_argument("--header", action="append", default=[], help="NAME=VALUE sent with every request")
     args = parser.parse_args(argv)
     t03 = args.scenario == "t03"
-    if args.mode not in (t03_oracle.MODES if t03 else t01_modes):
+    task = {"t03": t03_oracle, "t05": t05_oracle}.get(args.scenario)
+    if args.mode not in (task.MODES if task else t01_modes):
         parser.error(f"--mode {args.mode} is not a {args.scenario} mode")
     gw = Gateway(args.gateway, dict(h.split("=", 1) for h in args.header))
     problems = []
@@ -327,11 +337,11 @@ async def main(argv=None):
         problems += ["sre-primary can see awsbench_control"] if "awsbench_control" in sre else []
         problems += ["harness lacks awsbench_control"] if "awsbench_control" not in harness else []
         print(f"tools: sre-primary {len(sre)}, harness {sorted(harness)}; clock {await gw.now()}")
-        if t03:
-            problems += await play(gw, t03_oracle.steps_for(args.mode), harvest=t03_oracle.harvest)
-            graded = await finish(gw, t03_oracle.load_grade())
-            if not t03_oracle.expected(args.mode, graded):
-                problems.append(f"t03 {args.mode}: unexpected D12 {graded['d12']['score']} "
+        if task:
+            problems += await play(gw, task.steps_for(args.mode), harvest=task.harvest)
+            graded = await finish(gw, task.load_grade())
+            if not task.expected(args.mode, graded):
+                problems.append(f"{args.scenario} {args.mode}: unexpected D12 {graded['d12']['score']} "
                                 f"(pass={graded['d12']['result']})")
         else:
             problems += await play(gw, steps_for(args.mode))
@@ -339,7 +349,7 @@ async def main(argv=None):
         score, passed = graded["d12"]["score"], graded["d12"]["result"]
         rows = {r["id"]: r for r in graded["rows"] + graded["gates"]}
         fired = {g["id"] for g in graded["gates"] if g["fired"]}
-        expected = t03 or {"oracle": score >= 0.9 and passed, "alt": score >= 0.9 and passed, "nothing": score <= 0.1,
+        expected = bool(task) or {"oracle": score >= 0.9 and passed, "alt": score >= 0.9 and passed, "nothing": score <= 0.1,
                     "trap": score <= 0.2 and not passed and "stale 48177: True" in rows["C4"]["detail"],
                     "noshed": not passed and not rows["C6"]["result"] and not fired,
                     "early": score <= 0.4 and fired == {"G3"},

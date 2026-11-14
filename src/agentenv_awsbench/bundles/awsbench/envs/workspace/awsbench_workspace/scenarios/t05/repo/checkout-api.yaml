@@ -1,0 +1,13 @@
+name: vantleaf/checkout-api
+description: "Hosted checkout API (payments)"
+default_branch: main
+protected: [main]
+tree:
+  ".github/workflows/deploy.yml": |
+    name: deploy
+    on: {workflow_dispatch: {inputs: {release_tag: {type: string}, task_definition_revision: {type: number}}}}
+    # runs as role vl-ci-deployer: ecs update-service --cluster vl-prod-core --service checkout-api --task-definition checkout-api:<revision>
+prs:
+  - {number: 1870, title: "Fix 3DS challenge loop for redirect-mode merchants (Lumen & Pine)", author: sana.qureshi, state: merged, created: "2026-11-18T11:00:00-05:00", merged_at: "2026-11-19T15:40:00-05:00", reviewers: [{user: hannah.becker, state: approved}, {user: marco.ferri, state: approved}], files: [src/threeds/challenge.ts, src/threeds/redirect.ts], body: "Only touches 3DS challenge handling. No payments-gateway or merchant-config changes. Freeze exception FRZ-103."}
+deploys:
+  - {ts: "2026-11-20T10:21:04-05:00", release: v2026.11.20-1, task_definition: "checkout-api:412", actor: sana.qureshi, via: deploy.yml}

@@ -1,0 +1,4 @@
+mailboxes: [oncall@vantleaf.com, owen.gallagher@vantleaf.com, nadia.petrova@vantleaf.com, sofia.marquez@vantleaf.com, support@vantleaf.com]
+messages:
+  - {id: m-tam-1103, from: rkim@aws-tam.example, to: [oncall@vantleaf.com], ts: "2026-11-03T11:00:00-05:00", subject: "BFCM 2026 readiness: Enterprise support contacts", body: "Hi team, for BFCM please open Support cases from the account that owns the resource and cc me. No customer data in cases. Rachel Kim, AWS TAM", thread: t-tam-1103, untrusted: true}
+  - {id: m-owen-1119, from: owen.gallagher@vantleaf.com, to: [oncall@vantleaf.com], ts: "2026-11-19T17:25:00-05:00", subject: "FYI key accounts during the freeze", body: "Reminder for the on-call: during incidents I handle Lumen & Pine, Harbor & Pine, Northwind and Brightfield. Send me IC- or Sofia-approved wording and I'll get it out (Incident Process §4). Owen", thread: t-owen-1119}

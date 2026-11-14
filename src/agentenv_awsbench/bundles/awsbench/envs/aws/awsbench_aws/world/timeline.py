@@ -585,7 +585,10 @@ class Timeline:
         rules answer once; a later message they match gets no reply, not the default.
         An NPC's `ignore` phrases (scope phrases, citations of an approval already given) are read as unsaid.
         Each (npc, rule) answers once, and again only for a request it has not answered (`once` rules never repeat);
-        a rule whose `unless_state` holds (or `unless_fired` event fired, or `when_fired` event didn't) is skipped. An
+        a rule whose `unless_state` holds (or `unless_fired` event fired, or `when_fired` event didn't, or `when_approved`
+        {by, change} has no APPROVED in the ledger by one of `by` whose change matches, or `unless_approved` has one) is
+        skipped; for a `gates_fall_through` NPC a later rule may then answer, else a request it read stays silent.
+        A rule with `outside_draft` reads the request without the quoted draft's clauses. An
         `own_clauses` NPC reads only the clauses not opened by others' @mentions. The default answers requests only. A rule with `read: context`
         reads every clause from the first pass on, so a bundled request whose items don't each say "approve" is
         answered whole rather than by the one item that does; an `ask_lists` NPC reads a list its ask introduces or
@@ -626,6 +629,9 @@ class Timeline:
                 decides, only = "decision" in rule, bool(rule.get("ask_only"))
                 gated = bool(rule.get("on_request")) or decides or only
                 read = ask if rule.get("read") == "context" and i < 2 else scope
+                if rule.get("outside_draft") and quoted:
+                    for piece in (x.strip() for x in CLAUSE.split(quoted) if x.strip()):
+                        read = read.replace(piece, " ")
                 if i == 1 and decides and c.get("decide_on_request") and not waited and not BACKREF.search(" ".join(parts[0])):
                     continue
                 if gated != (i < 3) or i == 1 and (only or skip) or i == 2 and decides or gated and not read:
@@ -648,6 +654,8 @@ class Timeline:
                         req if gated else text, text, lambda g: self.w.endpointd.plan_fits_fleet(g) is not None)}
                 if queued and rule.get("queued_silent"):
                     return None
+                if c.get("gates_fall_through") and self._gated_off(rule):
+                    continue
                 if self._spent(npc, rule, key):
                     if gated and not only and i < 2 or rule.get("once") == "silent":
                         return None
@@ -677,11 +685,22 @@ class Timeline:
             values["draft_note"] = note["text"] if not quoted and re.search(note["when"], text or "", re.IGNORECASE) else ""
         return values
 
+    def _gated_off(self, rule: dict) -> bool:
+        """Whether the rule's state, event or approval gates keep it from answering now."""
+        return bool(rule.get("unless_state") and self.w.eval_state(rule["unless_state"])
+                    or self._held(rule.get("unless_held"))
+                    or rule.get("when_held") and not self._held(rule["when_held"])
+                    or rule.get("unless_fired") and self.fired.get(rule["unless_fired"])
+                    or rule.get("when_fired") and not self.fired.get(rule["when_fired"])
+                    or rule.get("when_approved") and not self._approved(rule["when_approved"])
+                    or rule.get("unless_approved") and self._approved(rule["unless_approved"]))
+
+    def _approved(self, spec: dict) -> bool:
+        return any(a["decision"] == "APPROVED" and a["by"] in spec["by"]
+                   and re.search(spec["change"], a["change"], re.IGNORECASE) for a in self.approvals)
+
     def _spent(self, npc: str, rule: dict, key: str) -> bool:
-        if rule.get("unless_state") and self.w.eval_state(rule["unless_state"]) or self._held(rule.get("unless_held")) \
-                or rule.get("when_held") and not self._held(rule["when_held"]) \
-                or rule.get("unless_fired") and self.fired.get(rule["unless_fired"]) \
-                or rule.get("when_fired") and not self.fired.get(rule["when_fired"]):
+        if self._gated_off(rule):
             return True
         seen = self.replied.get((npc, rule["id"]))
         return seen is not None and (bool(rule.get("once")) or not key or key in seen)
