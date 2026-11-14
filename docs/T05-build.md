@@ -196,3 +196,19 @@ Same module shape and output as t03-grade (helpers copied, not imported). Checks
 | rollback (TR1) | G4, C11; <= 0.25 | 0.250 | C11 | G4 |
 
 With the judge, the oracle's handover gets F1-F7 at 3/3 votes (C12 passes) and the oracle scores 1.0.
+
+## 8. Independent verification (hint, fairness and realism audit)
+
+Every page, capctl and host output, log line and colleague table the agent can reach was compared with the design.
+Workspace bodies are the design's overlay byte for byte (OPS-4468 drops the staging account number), and the Peak Freeze
+v3 and Incident Process v12 pages are T03's canonical copies. Fixed:
+- `capctl coldstart ... --dry-run` started a real check and `schedule cancel/add ... --dry-run` changed the schedule; the
+  help lists `--dry-run` only for remove, add and restore, so both now refuse it with nothing changed.
+- Priya's recovery and cold-start approvals said "placement only after index SERVING_FULL" whatever was asked; the design
+  records that scope only when the request states it, so her replies now echo the request.
+- `capctl status` showed "booting (allocation-map validation)" only for a placement start that would fail, and the
+  placement log had a different start line for it; both now read the same either way.
+- The healthy status page listed no components; it now lists them with the open incidents' statuses.
+Every check and gate's rule is stated where the design states it (PF §3/§4.1(d)/(f), IP §2/§4/§6, STATUS-02, v3 §6,
+OPS-4471 and Chloe's reopen), and every fact a check needs is reachable through capctl, the hosts, CloudWatch, the
+status tools or curl.
