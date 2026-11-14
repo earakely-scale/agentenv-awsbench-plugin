@@ -396,7 +396,8 @@ class Vaultstore:
                                 "index SERVING_FULL"))
         else:
             self.pl.update(boot_until=None, fail_at=t + 60 * self.p["placement_fail_min"])
-            self.pl_log.append((t, "coldstart", f"INFO coldstart: placement starting; index is {self.idx['state']}"))
+            self.pl_log.append((t, "coldstart", "INFO coldstart: placement starting; allocation-map validation against "
+                                f"index {self.idx['state']}"))
         self.set_placement(COLDSTART, t, "cold start")
         return "started"
 

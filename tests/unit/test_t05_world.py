@@ -319,3 +319,24 @@ def test_the_view_reaches_the_workspace_once_the_shift_starts():
     n = len(pushed)
     go(w, "10:40:00")
     assert len([1 for _, op, _ in w.fake_ws.ops if op == "status.set_view"]) == n
+
+
+def test_dry_run_only_where_capctl_takes_it():
+    """--dry-run on coldstart or a schedule change is refused with nothing changed, as the help lists it only for
+    remove, add and restore."""
+    w = world()
+    go(w, "10:31:00")
+    for cmd in ("capctl coldstart --subsystem index --dry-run", "capctl schedule cancel sched-0192 --dry-run",
+                "capctl schedule add --at 12:00 --dry-run -- remove --pool vs-billing-aux --hosts vsba-0420 --reason x"):
+        out, rc = sh(w, cmd)
+        assert rc == 2 and "does not take --dry-run" in out, (cmd, out)
+    assert w.mech.vs.idx["state"] == "PROTECTIVE_HALT"
+    assert w.mech.vs.scheds["sched-0192"]["state"] == "PENDING"
+
+
+def test_healthy_origin_page_lists_components():
+    w = world()
+    recover(w, placement_at="12:28:55")
+    go(w, "12:50:00")
+    page, rc = sh(w, "curl -s https://status.vantleaf.com")
+    assert rc == 0 and "<li>Hosted Checkout: Operational</li>" in page and "Nov 20, 12:50" in page

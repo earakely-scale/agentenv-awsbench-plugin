@@ -276,6 +276,12 @@ class Impact:
                       f"<p class=\"status\">{i['status'].capitalize()}</p></div>"]
         if v["source"] == "stale":
             lines += [f"<li>{name}: Operational</li>" for name in COMPONENTS.values()]
+        elif v["source"] == "origin":
+            st = {k: "operational" for k in COMPONENTS}
+            for i in self.incidents:
+                if i["status"] != "resolved" and isinstance(i["components"], dict):
+                    st.update({k: str(s) for k, s in i["components"].items() if k in st})
+            lines += [f"<li>{name}: {st[k].replace('_', ' ').capitalize()}</li>" for k, name in COMPONENTS.items()]
         stamp = datetime.fromisoformat(v["updated"]) if v["source"] == "stale" else self.m.dt(t)
         lines.append(f"<footer>Last updated {stamp.astimezone(self.m.tz):%b %d, %H:%M} ET</footer>")
         return "\n".join(lines) + "\n"

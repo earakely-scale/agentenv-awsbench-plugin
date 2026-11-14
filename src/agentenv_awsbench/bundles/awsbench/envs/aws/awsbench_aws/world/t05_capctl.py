@@ -303,7 +303,7 @@ class Commands:
         if sub in (None, "placement"):
             detail = {HALT: (f"live {vs.live('vs-blobplace')} below floor 10; " if vs.live("vs-blobplace") < 10 else "")
                       + ("index unavailable" if idx["state"] != FULL else "cold start required"),
-                      COLDSTART: "booting (allocation-map validation)" if pl.get("fail_at") else "booting",
+                      COLDSTART: "booting",
                       CRASHLOOP: f"restarting every 90s: allocation-map validation failed (index {idx['state']}); "
                                  f"restarts {self.m.tel.placement_restarts(now, 600)} in the last 10 min",
                       SERVING: ""}.get(pl["state"], "")
@@ -407,6 +407,8 @@ class Commands:
             return "\n".join(rows) + "\n", 0
         if rest[0] == "cancel":
             o, pos = opts(rest[1:])
+            if o.get("dry-run"):
+                raise Usage("capctl: schedule cancel does not take --dry-run (see capctl --help)")
             sid = pos[0] if pos else ""
             if sid not in vs.scheds:
                 return f"ERROR no such schedule {sid!r}\n", 1
@@ -429,6 +431,8 @@ class Commands:
                     r"(?:2026-11-20[T ])?\d{1,2}:\d{2}(:\d{2})?", o["at"]) else o["at"], self.m.w.start_t).timestamp()
             except ValueError:
                 raise Usage(f"capctl: --at {o['at']!r} is not a time") from None
+            if o.get("dry-run"):
+                raise Usage("capctl: schedule add does not take --dry-run (see capctl --help)")
             if at <= now:
                 return "ERROR --at is in the past\n", 1
             self.parse_change(cmd[0], cmd[1:])
@@ -461,6 +465,8 @@ class Commands:
             if not o.get("op"):
                 raise Usage("capctl: restore needs --op OPID")
         elif sub == "coldstart":
+            if o.get("dry-run"):
+                raise Usage("capctl: coldstart does not take --dry-run (see capctl --help)")
             if o.get("subsystem") not in ("index", "placement", "all"):
                 raise Usage("capctl: coldstart --subsystem index|placement|all [--abort]")
         return o
