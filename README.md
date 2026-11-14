@@ -1,6 +1,12 @@
 # AwsBench
 
 <p align="center">
+<a href="https://huggingface.co/spaces/earakely-scale/AwsIncidentsBench"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Space-AwsIncidentsBench-blue" alt="Hugging Face Space: AwsIncidentsBench"></a>
+<a href="https://huggingface.co/datasets/earakely-scale/AwsIncidentsBench"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-AwsIncidentsBench-yellow" alt="Hugging Face Dataset: AwsIncidentsBench"></a>
+<a href="harbor/"><img src="https://img.shields.io/badge/Harbor-T01%20package-555" alt="Harbor package"></a>
+</p>
+
+<p align="center">
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.gif"><img src="docs/assets/hero.gif" width="960" alt="T01 diorama: the scripted reference run from the DNS race to recovery"></picture>
 </p>
 <p align="center"><sub>The T01 diorama replaying the scripted reference run. Each house is one of Vantleaf's 30 core hosts.
