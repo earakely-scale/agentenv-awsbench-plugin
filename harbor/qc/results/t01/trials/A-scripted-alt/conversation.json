@@ -1,0 +1,20 @@
+{
+ "agent": "awsbench-scripted",
+ "end": "done",
+ "turns": 1,
+ "tool_calls": 0,
+ "turn_errors": [],
+ "error": null,
+ "detail": [
+  {
+   "turn": 1,
+   "error": null,
+   "reply_tail": "DONE",
+   "mode": "alt",
+   "play_exit": 0,
+   "decision": {
+    "end": "done"
+   }
+  }
+ ]
+}

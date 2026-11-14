@@ -1,0 +1,17 @@
+epctl 2.3.0 - endpointd operator CLI (prod; uses your forwarded AWS credentials)
+
+  epctl status
+  epctl plans list [--since G]
+  epctl plan show G [--endpoint FQDN] [--from-archive]
+  epctl plan diff G1 G2 [--endpoint FQDN] [--from-archive]
+  epctl plan diff G --live-fleet [--endpoint FQDN] [--from-archive]
+  epctl verify [--endpoint FQDN] [--resolve]
+  epctl pause|resume planner|enactor-a|enactor-b|enactor-c|enactors|all
+  epctl apply --gen G (--endpoint FQDN | --all) --manual --reason TEXT
+  epctl plan restore --gen G --from-archive
+  epctl set-applied --endpoint FQDN --gen G --reason TEXT
+
+apply --manual writes exactly plan G's records for the endpoint (UPSERT), deletes other records at that name, and sets
+applied#FQDN = {G, APPLIED, applied_by manual:<you>}. It retries Route 53 Throttling up to 3 times and warns if any enactor
+is enabled. plan show/diff --from-archive read S3 only. verify compares each applied# plan with the live records; --resolve
+also runs dig from the three enactor hosts.

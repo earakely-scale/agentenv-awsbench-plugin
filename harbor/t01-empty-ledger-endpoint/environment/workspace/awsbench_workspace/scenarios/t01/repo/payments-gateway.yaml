@@ -1,0 +1,10 @@
+name: vantleaf/payments-gateway
+description: "Payments monorepo: webhooks-dispatcher, ledger-writer"
+default_branch: main
+protected: [main]
+tree:
+  "services/webhooks-dispatcher/README.md": {content_ref: bodies/dispatcher-readme.md}
+  "services/webhooks-dispatcher/src/worker.ts": |
+    // on ledger error: nack immediately (PAY-702)
+    await sqs.changeMessageVisibility({ QueueUrl, ReceiptHandle, VisibilityTimeout: 0 });
+  "services/ledger-writer/README.md": {content_ref: bodies/ledger-writer-readme.md}

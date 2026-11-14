@@ -1,0 +1,9 @@
+url: https://status.vantleaf.com
+components:
+  - {id: checkout, name: Hosted Checkout, status: operational}
+  - {id: payments-api, name: Payments API, status: operational}
+  - {id: merchant-dashboard, name: Merchant Dashboard, status: operational}
+  - {id: webhooks, name: Webhooks, status: operational}
+  - {id: payouts, name: "Payouts & Settlement", status: operational}
+  - {id: receipts, name: Receipts, status: operational}
+incidents: []

@@ -1,0 +1,18 @@
+{
+ "horizon_step_error": null,
+ "episode": {
+  "scenario": "t01",
+  "seed": "t01-draft-1",
+  "mode": "eval",
+  "start": "2026-11-17T02:40:00-05:00",
+  "window_end": "2026-11-17T05:10:00-05:00",
+  "horizon": "2026-11-17T05:10:00-05:00",
+  "now": "2026-11-17T05:10:00-05:00",
+  "ended": true,
+  "end_reason": "horizon",
+  "done_at": "2026-11-17T03:38:00-05:00",
+  "calls_used": 30,
+  "warnings": [],
+  "workspace_dropped": 0
+ }
+}

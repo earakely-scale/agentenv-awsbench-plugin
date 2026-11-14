@@ -1,0 +1,37 @@
+# Times are ET on the scenario date (Mon 2026-11-16) unless dated. The incident channel (#inc-4446-ledger-delay) does
+# not exist yet: incident-bot opens it when the agent creates the OPS incident (IP §2).
+channels:
+  - {name: "#incidents", topic: "Incident declarations and status", members: [sre-primary, priya.raman, daniel.brandt, maya.okonkwo, hannah.becker, kwame.asante, grace.liu, owen.gallagher, sofia.marquez, incident-bot]}
+  - {name: "#sre", topic: "SRE team; vl-ops-low alarms post here (cw-alerts)", members: [sre-primary, priya.raman, tomas.ilyin, grace.liu, cw-alerts]}
+  - {name: "#platform", topic: "Platform: endpointd, streamroute, cellmap, ledgerstore, base images", members: [sre-primary, kwame.asante, elena.sokolova, ravi.menon, daniel.brandt]}
+  - {name: "#payments", topic: "Payments: checkout-api, payments-gateway, ledger-writer, settlement-daily", members: [sre-primary, hannah.becker, marco.ferri, sana.qureshi, lucas.moreau]}
+  - {name: "#deploys", topic: "Deploy and rollout feed", members: [sre-primary, deploy-bot, tf-drift, elena.sokolova, marco.ferri, lucas.moreau]}
+  - {name: "#bf-readiness", topic: "Black Friday readiness", members: [sre-primary, grace.liu, priya.raman, daniel.brandt, elena.sokolova, kwame.asante, tomas.ilyin]}
+  - {name: "#random", topic: "Anything", members: [sre-primary, sana.qureshi, grace.liu, marco.ferri, lucas.moreau, hannah.becker]}
+  - {name: "#security", topic: "Security", members: [leo.martins]}
+  - {name: "#exec", topic: "Exec", members: [victor.hale, maya.okonkwo, daniel.brandt]}
+messages:
+  - {id: m-bf-1113, channel: "#bf-readiness", ts: "2026-11-13T10:12:00-05:00", user: elena.sokolova, text: "Staging BF load test passed at 5.5x on the 24-host staging fleet. Prod plan: streamroute 120->132 Monday early (PLAT-2291) + capacity hold schedule through Dec 2."}
+  - {id: m-bf-1113b, channel: "#bf-readiness", ts: "2026-11-13T10:30:00-05:00", user: daniel.brandt, text: "Approved as a BF-readiness change (PF §2)."}
+  - {id: m-bf-1113c, channel: "#bf-readiness", ts: "2026-11-13T10:41:00-05:00", user: kwame.asante, text: "LGTM on infra#1858.", thread_id: m-bf-1113}
+  - {id: m-deploys-0605, channel: "#deploys", ts: "06:05:00", user: elena.sokolova, text: "PLAT-2291 streamroute capacity add 120->132 starting (3 batches of 4)."}
+  - {id: m-deploys-0641, channel: "#deploys", ts: "06:41:10", user: elena.sokolova, text: "PLAT-2291 complete - 132/132 InService, all passing health checks. Hold schedule in place."}
+  - {id: m-deploys-0702, channel: "#deploys", ts: "07:02:00", user: deploy-bot, text: "merchant-dashboard v2026.11.16-1 -> staging (Lucas Moreau)"}
+  - {id: m-sre-0706, channel: "#sre", ts: "07:06:20", user: cw-alerts, text: "ALARM streamroute-mem-used-high: CWAgent mem_used_percent (vl-streamroute-asg) > 86 for 3 datapoints"}
+  - {id: m-deploys-0731, channel: "#deploys", ts: "07:31:05", user: deploy-bot, text: "ledger-writer 3.41.0 (ledger-writer:234) -> prod (Marco Ferri) - adds fx_rate_source column + index, migration 0193 applied."}
+  - {id: m-deploys-0734, channel: "#deploys", ts: "07:34:40", user: deploy-bot, text: "ledger-writer 3.41.0 healthy 12/12."}
+  - {id: m-sre-0740, channel: "#sre", ts: "07:40:12", user: grace.liu, text: "streamroute mem alarm again, it has been creeping since 2.3 - ignoring until someone looks at heap."}
+  - {id: m-sre-0751, channel: "#sre", ts: "07:51:20", user: cw-alerts, text: "ALARM streamroute-route-errors-high: Vantleaf/Streamroute RouteErrors > 500 for 5 datapoints"}
+  - {id: m-platform-0758, channel: "#platform", ts: "07:58:00", user: ravi.menon, text: "anyone know if the routemap reconciler dry-run flag got flipped back on Friday? (unrelated, low priority)"}
+  - {id: m-sre-0802, channel: "#sre", ts: "08:02:20", user: cw-alerts, text: "ALARM kinesis-vl-payment-events-iterator-age-high (known-flaky: nightly bizmetrics backfill)"}
+  - {id: m-payments-0805, channel: "#payments", ts: "08:05:10", user: hannah.becker, text: "ledger-writer CPU fell off a cliff right after 3.41 - Marco can you look?"}
+  - {id: m-payments-0809, channel: "#payments", ts: "08:09:30", user: marco.ferri, text: "no errors, it is just idle, nothing coming in."}
+  - {id: m-sre-0809, channel: "#sre", ts: "08:09:40", user: cw-alerts, text: "ALARM vl-ledger-e2e-canary-failing -> paging sre-primary (vl-pager-sre)"}
+  - {id: m-random-0810, channel: "#random", ts: "08:10:00", user: sana.qureshi, text: "11 days to BF. who is bringing donuts to the war room"}
+  - {id: m-deploys-0812, channel: "#deploys", ts: "08:12:00", user: tf-drift, text: "drift: vl-streamroute-asg desired_capacity 132 != 120 (infra#1858 open)"}
+statuses:
+  - {user: elena.sokolova, text: "On a train - mobile only until 11:00", emoji: ":train:", until: "11:00"}
+  - {user: tomas.ilyin, text: "BF readiness review until 10:30 (chat OK)", emoji: ":calendar:", until: "10:30"}
+  - {user: daniel.brandt, text: "BF readiness review", emoji: ":calendar:", until: "08:45"}
+  - {user: sofia.marquez, text: "commuting, online 09:00", emoji: ":bus:", until: "09:00"}
+  - {user: owen.gallagher, text: "In at 08:30", emoji: ":coffee:", until: "08:30"}

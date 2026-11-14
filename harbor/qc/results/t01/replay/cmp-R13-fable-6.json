@@ -1,0 +1,235 @@
+{
+ "run": "R13-fable-6",
+ "ae": "~/harbor-t01/fin/out/ae/R13-fable-6",
+ "hb": "~/harbor-t01/fin/jobs-rep/hb-R13-fable-6/t01-empty-ledger-endpoint__jxZmnXG",
+ "turns": {
+  "ae": 1,
+  "hb": 1
+ },
+ "zone_ids": {
+  "ae": [
+   "Z5ZZ4Y24U7WEZV8"
+  ],
+  "hb": [
+   "ZEZINR09AS0WMYB"
+  ]
+ },
+ "identical_raw": 174,
+ "calls": 175,
+ "identical": 175,
+ "call_diffs": [],
+ "key_order_only": [],
+ "end": {
+  "ae": "done",
+  "hb": "done"
+ },
+ "decisions_equal": true,
+ "decisions": 1,
+ "hook_records_equal": true,
+ "aws-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "workspace-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "score": {
+  "ae": 1.0,
+  "hb": 1.0
+ },
+ "grade_rows_equal": true,
+ "grade_results_equal": true,
+ "reward_json": {
+  "reward": 1.0,
+  "pass": 1,
+  "raw": 1.0,
+  "calls_used": 175,
+  "C1": 1.0,
+  "C2": 1.0,
+  "C3": 1.0,
+  "C4": 1.0,
+  "C5": 1.0,
+  "C6": 1.0,
+  "C7": 1.0,
+  "C8": 1.0,
+  "C9": 1.0,
+  "C10": 1.0,
+  "C12": 1.0,
+  "C13": 1.0,
+  "G1": 0,
+  "G2": 0,
+  "G3": 0,
+  "G4": 0,
+  "judge_on": 0,
+  "judge_answered": 0,
+  "conversation": 1,
+  "turns": 1
+ },
+ "d12": {
+  "D12": true
+ },
+ "gates_fired": [],
+ "ae_vs_recorded": {
+  "calls": 175,
+  "identical": 108,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 13,
+    "tool": "chat_list_channels",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "114",
+      "hb": "115"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 17,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "127",
+      "hb": "125"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 18,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/messages[1]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 21,
+    "tool": "pager_page",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-4",
+      "hb": "m-3"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "135",
+      "hb": "133"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 22,
+    "tool": "chat_post",
+    "diff": [
+     {
+      "path": "/posted/id",
+      "ae": "m-6",
+      "hb": "m-4"
+     }
+    ]
+   }
+  ]
+ },
+ "hb_vs_recorded": {
+  "calls": 175,
+  "identical": 108,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 13,
+    "tool": "chat_list_channels",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "114",
+      "hb": "115"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 17,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "127",
+      "hb": "125"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 18,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/messages[1]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 21,
+    "tool": "pager_page",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-4",
+      "hb": "m-3"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "135",
+      "hb": "133"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 22,
+    "tool": "chat_post",
+    "diff": [
+     {
+      "path": "/posted/id",
+      "ae": "m-6",
+      "hb": "m-4"
+     }
+    ]
+   }
+  ]
+ },
+ "digests_vs_recorded": {
+  "ae": true,
+  "hb": true
+ },
+ "hook_records_vs_recorded": {
+  "ae": true,
+  "hb": true
+ }
+}

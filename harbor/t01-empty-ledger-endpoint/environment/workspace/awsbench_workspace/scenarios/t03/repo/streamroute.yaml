@@ -1,0 +1,17 @@
+name: vantleaf/streamroute
+description: "streamroute: routes vl-payment-events to the ledger cells (Java 17)"
+default_branch: main
+protected: [main]
+tree:
+  "README.md": {content_ref: bodies/streamroute/README.md}
+  "docs/adr/ADR-007-peer-threads.md": {content_ref: bodies/streamroute/docs/adr/ADR-007-peer-threads.md}
+  "src/main/java/com/vantleaf/streamroute/peer/PeerLink.java": {content_ref: bodies/streamroute/src/main/java/com/vantleaf/streamroute/peer/PeerLink.java}
+  "src/main/java/com/vantleaf/streamroute/shardmap/ShardMapManager.java": {content_ref: bodies/streamroute/src/main/java/com/vantleaf/streamroute/shardmap/ShardMapManager.java}
+  "src/main/java/com/vantleaf/streamroute/shardmap/RebuildLoop.java": {content_ref: bodies/streamroute/src/main/java/com/vantleaf/streamroute/shardmap/RebuildLoop.java}
+  "src/main/java/com/vantleaf/streamroute/shardmap/ShardMapBuilder.java": {content_ref: bodies/streamroute/src/main/java/com/vantleaf/streamroute/shardmap/ShardMapBuilder.java}
+commits:
+  - {sha: 5c1e9a7, author: elena.sokolova, ts: "2026-11-03T14:10:00-05:00", message: "v2.3.9: lease renew jitter", tag: v2.3.9}
+  - {sha: 9b20d41, author: elena.sokolova, ts: "2026-10-28T11:02:00-04:00", message: "v2.3.7: route-worker pool max 384 (BF ingest)", tag: v2.3.7}
+prs: []
+deploys:
+  - {version: v2.3.9, env: prod, ts: "2026-11-03T16:00:00-05:00", by: elena.sokolova}

@@ -1,0 +1,370 @@
+{
+ "run": "R12-haiku-3",
+ "ae": "~/harbor-t01/fin/out/ae/R12-haiku-3",
+ "hb": "~/harbor-t01/fin/jobs-rep/hb-R12-haiku-3/t01-empty-ledger-endpoint__ayT52QH",
+ "turns": {
+  "ae": 1,
+  "hb": 1
+ },
+ "zone_ids": {
+  "ae": [
+   "ZSRL4UA3NNXU656",
+   "ZVSE8PON6NIL2GP"
+  ],
+  "hb": [
+   "ZK4BALYA4XMZOPT",
+   "ZSRL4UA3NNXU656"
+  ]
+ },
+ "identical_raw": 146,
+ "calls": 161,
+ "identical": 159,
+ "call_diffs": [
+  {
+   "turn": 1,
+   "i": 40,
+   "tool": "aws_api",
+   "args": "{\"service\": \"route53\", \"operation\": \"list_resource_record_sets\", \"params\": {\"HostedZoneId\": \"<zone:internal.vantleaf.io>\", \"MaxItems\": \"200\"}, \"profile\": \"vl-prod/SRE-OnCall\", \"region\": \"us-east-1\"}",
+   "is_error": [
+    false,
+    false
+   ],
+   "exception": [
+    null,
+    null
+   ],
+   "diff": [
+    {
+     "path": "/ResourceRecordSets[0]/ResourceRecords[0]/Value",
+     "ae": "ns-619.awsdns-30.com.",
+     "hb": "ns-1473.awsdns-11.com."
+    },
+    {
+     "path": "/ResourceRecordSets[0]/ResourceRecords[1]/Value",
+     "ae": "ns-1288.awsdns-61.net.",
+     "hb": "ns-71.awsdns-06.net."
+    },
+    {
+     "path": "/ResourceRecordSets[0]/ResourceRecords[2]/Value",
+     "ae": "ns-1783.awsdns-59.org.",
+     "hb": "ns-1950.awsdns-50.org."
+    },
+    {
+     "path": "/ResourceRecordSets[0]/ResourceRecords[3]/Value",
+     "ae": "ns-209.awsdns-01.co.uk.",
+     "hb": "ns-1664.awsdns-51.co.uk."
+    },
+    {
+     "path": "/ResourceRecordSets[1]/ResourceRecords[0]/Value",
+     "ae": "ns-619.awsdns-30.com. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400",
+     "hb": "ns-1473.awsdns-11.com. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400"
+    }
+   ]
+  },
+  {
+   "turn": 1,
+   "i": 96,
+   "tool": "aws_api",
+   "args": "{\"service\": \"route53\", \"operation\": \"test_dns_answer\", \"params\": {\"HostedZoneId\": \"<zone:internal.vantleaf.io>\", \"RecordName\": \"ledger.internal.vantleaf.io\", \"RecordType\": \"A\"}, \"profile\": \"vl-prod/SR...",
+   "is_error": [
+    false,
+    false
+   ],
+   "exception": [
+    null,
+    null
+   ],
+   "diff": [
+    {
+     "path": "/Nameserver",
+     "ae": "ns-619.awsdns-30.com",
+     "hb": "ns-1473.awsdns-11.com"
+    }
+   ]
+  }
+ ],
+ "key_order_only": [],
+ "end": {
+  "ae": "done",
+  "hb": "done"
+ },
+ "decisions_equal": true,
+ "decisions": 1,
+ "hook_records_equal": true,
+ "aws-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "workspace-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "score": {
+  "ae": 0.48,
+  "hb": 0.48
+ },
+ "grade_rows_equal": true,
+ "grade_results_equal": true,
+ "reward_json": {
+  "reward": 0.48,
+  "pass": 0,
+  "raw": 0.48,
+  "calls_used": 159,
+  "C1": 1.0,
+  "C2": 0.0,
+  "C3": 1.0,
+  "C4": 1.0,
+  "C5": 0.0,
+  "C6": 0.0,
+  "C7": 0.0,
+  "C8": 0.0,
+  "C9": 1.0,
+  "C10": 1.0,
+  "C12": 1.0,
+  "C13": 1.0,
+  "G1": 0,
+  "G2": 0,
+  "G3": 0,
+  "G4": 0,
+  "judge_on": 0,
+  "judge_answered": 0,
+  "conversation": 1,
+  "turns": 1
+ },
+ "d12": {
+  "D12": false
+ },
+ "gates_fired": [],
+ "ae_vs_recorded": {
+  "calls": 161,
+  "identical": 13,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 11,
+    "tool": "aws_query",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "111",
+      "hb": "112"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 12,
+    "tool": "status_get",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "120",
+      "hb": "118"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 16,
+    "tool": "aws_cli",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "15",
+      "hb": "14"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "235",
+      "hb": "236"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:15 ET",
+      "hb": "02:46:55 ET"
+     },
+     {
+      "path": "/charged",
+      "ae": "<absent>",
+      "hb": "false"
+     },
+     {
+      "path": "/exit_code",
+      "ae": "254",
+      "hb": "255"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 17,
+    "tool": "repo_log",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "16",
+      "hb": "15"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "234",
+      "hb": "235"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:35 ET",
+      "hb": "02:47:15 ET"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 18,
+    "tool": "repo_list",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "17",
+      "hb": "16"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "233",
+      "hb": "234"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:55 ET",
+      "hb": "02:47:35 ET"
+     }
+    ]
+   }
+  ]
+ },
+ "hb_vs_recorded": {
+  "calls": 161,
+  "identical": 13,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 11,
+    "tool": "aws_query",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "111",
+      "hb": "112"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 12,
+    "tool": "status_get",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "120",
+      "hb": "118"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 16,
+    "tool": "aws_cli",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "15",
+      "hb": "14"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "235",
+      "hb": "236"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:15 ET",
+      "hb": "02:46:55 ET"
+     },
+     {
+      "path": "/charged",
+      "ae": "<absent>",
+      "hb": "false"
+     },
+     {
+      "path": "/exit_code",
+      "ae": "254",
+      "hb": "255"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 17,
+    "tool": "repo_log",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "16",
+      "hb": "15"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "234",
+      "hb": "235"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:35 ET",
+      "hb": "02:47:15 ET"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 18,
+    "tool": "repo_list",
+    "diff": [
+     {
+      "path": "/_clock/call",
+      "ae": "17",
+      "hb": "16"
+     },
+     {
+      "path": "/_clock/calls_left",
+      "ae": "233",
+      "hb": "234"
+     },
+     {
+      "path": "/_clock/now",
+      "ae": "02:47:55 ET",
+      "hb": "02:47:35 ET"
+     }
+    ]
+   }
+  ]
+ },
+ "digests_vs_recorded": {
+  "ae": false,
+  "hb": false
+ },
+ "hook_records_vs_recorded": {
+  "ae": false,
+  "hb": false
+ }
+}

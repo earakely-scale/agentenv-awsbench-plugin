@@ -1,0 +1,19 @@
+D12 0.15 pass=False: score 0.150 (raw 0.150, caps [0.2]); pass=False
+judge off; conversation ended failed_turn after 7 turn(s)
+  C1   False no restore write by the agent
+  C2   False never correct
+  C3   False endpoints correct at the horizon: 40/41
+  C4   False 41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True
+  C5   False the agent never wrote the ledger records
+  C6   False collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040
+  C7   False destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export
+  C8   True  SEV1 at 02:54:00 (deadline 02:56:45); high page to platform before 03:00 and the restore: True
+  C9   True  1 changes; unrecorded: []
+  C10  False status incident in time: True; hourly updates: True; channel every 30 min: False (longest gap 34.9 min)
+  C12  True  routed by mail 2, chat 0, SUP ticket 0
+  C13  True  changes outside the allowed list: []
+  C11  True  skipped: no LITELLM_API_KEY; comms bucket renormalized
+  G1   True  none
+  G2   True  none
+  G3   True  none
+  G4   True  none

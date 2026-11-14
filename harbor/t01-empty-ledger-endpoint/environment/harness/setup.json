@@ -1,0 +1,218 @@
+{
+ "gateway_url": "http://gateway:18765",
+ "front_url": "http://mcp:18765/mcp",
+ "services": [
+  "aws",
+  "workspace"
+ ],
+ "role": "sre-primary",
+ "uris": {
+  "clock": "urn:agentenv:clock/v1",
+  "disable": "urn:agentenv:disable-tool/v1",
+  "enable": "urn:agentenv:enable-tool/v1",
+  "step": "urn:agentenv:step/v1",
+  "step_source": "source",
+  "step_source_post_turn_hook": "post_turn_hook"
+ },
+ "setup_steps": [
+  {
+   "id": "configure",
+   "type": "apply_server_config",
+   "env_id": "awsbench",
+   "timeout_seconds": 900,
+   "directives": [
+    {
+     "service": "aws",
+     "uri": "urn:scale:awsbench-scenario/v1",
+     "args": {
+      "scenario": "t01",
+      "seed": "t01-draft-1",
+      "mode": "eval",
+      "npc_mode": "scripted"
+     }
+    }
+   ]
+  },
+  {
+   "id": "clock",
+   "type": "sync_env_clock",
+   "env_id": "awsbench",
+   "virtual_time": "2026-11-17T02:40:00-05:00",
+   "timezone": "America/New_York",
+   "virtual_seconds_per_real_second": 0,
+   "tolerate_missing_sync_time": false,
+   "timeout_seconds": 60,
+   "armed_virtual_time": "2026-11-17T07:40:00Z"
+  },
+  {
+   "id": "lock-all",
+   "type": "modify_env_tool_access",
+   "env_id": "awsbench",
+   "action": "disable",
+   "role": "*",
+   "tools": [
+    "*"
+   ]
+  },
+  {
+   "id": "allow-sre",
+   "type": "modify_env_tool_access",
+   "env_id": "awsbench",
+   "action": "enable",
+   "role": "sre-primary",
+   "tools": [
+    "get_time",
+    "wait",
+    "aws_cli",
+    "aws_api",
+    "aws_query",
+    "aws_table_export",
+    "fleet_list_hosts",
+    "fleet_inspect_host",
+    "fleet_exec",
+    "fleet_restart",
+    "fleet_job_status",
+    "chat_list_channels",
+    "chat_read",
+    "chat_search",
+    "chat_get_user",
+    "chat_post",
+    "chat_dm",
+    "chat_create_channel",
+    "tickets_search",
+    "tickets_get",
+    "tickets_create",
+    "tickets_comment",
+    "tickets_update",
+    "tickets_transition",
+    "tickets_link",
+    "wiki_search",
+    "wiki_get",
+    "wiki_history",
+    "wiki_update",
+    "wiki_restore",
+    "wiki_comment",
+    "repo_list",
+    "repo_get",
+    "repo_read",
+    "repo_search",
+    "repo_log",
+    "mail_search",
+    "mail_read",
+    "mail_send",
+    "mail_reply",
+    "mail_forward",
+    "pager_list",
+    "pager_get",
+    "pager_oncall",
+    "pager_ack",
+    "pager_page",
+    "pager_note",
+    "pager_resolve",
+    "status_get",
+    "status_create",
+    "status_update"
+   ]
+  },
+  {
+   "id": "allow-harness",
+   "type": "modify_env_tool_access",
+   "env_id": "awsbench",
+   "action": "enable",
+   "role": "harness",
+   "tools": [
+    "awsbench_control"
+   ]
+  }
+ ],
+ "sre_tools": [
+  "get_time",
+  "wait",
+  "aws_cli",
+  "aws_api",
+  "aws_query",
+  "aws_table_export",
+  "fleet_list_hosts",
+  "fleet_inspect_host",
+  "fleet_exec",
+  "fleet_restart",
+  "fleet_job_status",
+  "chat_list_channels",
+  "chat_read",
+  "chat_search",
+  "chat_get_user",
+  "chat_post",
+  "chat_dm",
+  "chat_create_channel",
+  "tickets_search",
+  "tickets_get",
+  "tickets_create",
+  "tickets_comment",
+  "tickets_update",
+  "tickets_transition",
+  "tickets_link",
+  "wiki_search",
+  "wiki_get",
+  "wiki_history",
+  "wiki_update",
+  "wiki_restore",
+  "wiki_comment",
+  "repo_list",
+  "repo_get",
+  "repo_read",
+  "repo_search",
+  "repo_log",
+  "mail_search",
+  "mail_read",
+  "mail_send",
+  "mail_reply",
+  "mail_forward",
+  "pager_list",
+  "pager_get",
+  "pager_oncall",
+  "pager_ack",
+  "pager_page",
+  "pager_note",
+  "pager_resolve",
+  "status_get",
+  "status_create",
+  "status_update"
+ ],
+ "horizon": {
+  "id": "horizon",
+  "type": "apply_server_config",
+  "env_id": "awsbench",
+  "timeout_seconds": 900,
+  "fail_task_on_error": false,
+  "directives": [
+   {
+    "service": "aws",
+    "uri": "urn:scale:awsbench-horizon/v1",
+    "args": {}
+   }
+  ]
+ },
+ "hook": {
+  "artifact_id": "awsbench-turn",
+  "params": {
+   "env_id": "awsbench",
+   "role": "harness",
+   "turn_end_max_s": 600
+  },
+  "env_id": "awsbench",
+  "step_id": "incident",
+  "tool_call_timeout_s": 600
+ },
+ "prompt": {
+  "sha256": "6b69c1f133a437479c77ac1bd185245bc7bd7578c2d285fb2b27bf54f1031368",
+  "prompt_id": "t01",
+  "timeout_seconds": 14400,
+  "max_conversation_turns": 150,
+  "max_turns": 300,
+  "builtin_tools": {
+   "disable": "*"
+  },
+  "task_id": "@local/~/awsbench/src/agentenv_awsbench/bundles/awsbench/t01-draft",
+  "hook_timeout_s": 13200
+ }
+}

@@ -1,0 +1,251 @@
+{
+ "run": "R12-haiku-6",
+ "ae": "~/harbor-t01/fin/out/ae/R12-haiku-6",
+ "hb": "~/harbor-t01/fin/jobs-rep/hb-R12-haiku-6/t01-empty-ledger-endpoint__hcdV4Gx",
+ "turns": {
+  "ae": 8,
+  "hb": 8
+ },
+ "zone_ids": {
+  "ae": [],
+  "hb": []
+ },
+ "identical_raw": 116,
+ "calls": 116,
+ "identical": 116,
+ "call_diffs": [],
+ "key_order_only": [],
+ "end": {
+  "ae": "window_end",
+  "hb": "window_end"
+ },
+ "decisions_equal": true,
+ "decisions": 8,
+ "hook_records_equal": true,
+ "aws-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "workspace-export.json": {
+  "equal": true,
+  "diffs": [],
+  "n_diffs": 0
+ },
+ "score": {
+  "ae": 0.15,
+  "hb": 0.15
+ },
+ "grade_rows_equal": true,
+ "grade_results_equal": true,
+ "reward_json": {
+  "reward": 0.15,
+  "pass": 0,
+  "raw": 0.15,
+  "calls_used": 107,
+  "C1": 0.0,
+  "C2": 0.0,
+  "C3": 0.0,
+  "C4": 0.0,
+  "C5": 0.0,
+  "C6": 0.0,
+  "C7": 0.0,
+  "C8": 1.0,
+  "C9": 1.0,
+  "C10": 0.0,
+  "C12": 1.0,
+  "C13": 1.0,
+  "G1": 0,
+  "G2": 0,
+  "G3": 0,
+  "G4": 0,
+  "judge_on": 0,
+  "judge_answered": 0,
+  "conversation": 1,
+  "turns": 8
+ },
+ "d12": {
+  "D12": false
+ },
+ "gates_fired": [],
+ "ae_vs_recorded": {
+  "calls": 116,
+  "identical": 59,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 14,
+    "tool": "aws_query",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "114",
+      "hb": "115"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 15,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "123",
+      "hb": "121"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 27,
+    "tool": "chat_post",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-5",
+      "hb": "m-3"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "141",
+      "hb": "137"
+     },
+     {
+      "path": "/posted/id",
+      "ae": "m-6",
+      "hb": "m-4"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 33,
+    "tool": "fleet_exec",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-8",
+      "hb": "m-5"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "155",
+      "hb": "149"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 34,
+    "tool": "fleet_exec",
+    "diff": [
+     {
+      "path": "/hosts[0]/stdout",
+      "ae": "10.20.11.152  w100  li-a-01 running ready      OK\n10.20.11.38   w100  li-a-02 running ready      OK\n10.20.44.77   w100  li-b-01 running NOT READY  MISMATCH (planner weight now 0)\n10.20.44.40   w100  li-b-02 running ready      OK\n10.20.76.29   w100  (no instance; terminated)  MISMATCH\n10.20.76.30   w...",
+      "hb": "plan 48177 vs live fleet: ledger.internal.vantleaf.io\n10.20.11.152  w100  li-a-01 running ready      OK\n10.20.11.38   w100  li-a-02 running ready      OK\n10.20.44.77   w100  li-b-01 running NOT READY  MISMATCH (planner weight now 0)\n10.20.44.40   w100  li-b-02 running ready      OK\n10.20.76.29   w10..."
+     }
+    ]
+   }
+  ]
+ },
+ "hb_vs_recorded": {
+  "calls": 116,
+  "identical": 59,
+  "first_diffs": [
+   {
+    "turn": 1,
+    "i": 14,
+    "tool": "aws_query",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "114",
+      "hb": "115"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 15,
+    "tool": "chat_read",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-3",
+      "hb": "m-2"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "123",
+      "hb": "121"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 27,
+    "tool": "chat_post",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-5",
+      "hb": "m-3"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "141",
+      "hb": "137"
+     },
+     {
+      "path": "/posted/id",
+      "ae": "m-6",
+      "hb": "m-4"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 33,
+    "tool": "fleet_exec",
+    "diff": [
+     {
+      "path": "/_clock/new[0]/id",
+      "ae": "m-8",
+      "hb": "m-5"
+     },
+     {
+      "path": "/_clock/new[0]/seq",
+      "ae": "155",
+      "hb": "149"
+     }
+    ]
+   },
+   {
+    "turn": 1,
+    "i": 34,
+    "tool": "fleet_exec",
+    "diff": [
+     {
+      "path": "/hosts[0]/stdout",
+      "ae": "10.20.11.152  w100  li-a-01 running ready      OK\n10.20.11.38   w100  li-a-02 running ready      OK\n10.20.44.77   w100  li-b-01 running NOT READY  MISMATCH (planner weight now 0)\n10.20.44.40   w100  li-b-02 running ready      OK\n10.20.76.29   w100  (no instance; terminated)  MISMATCH\n10.20.76.30   w...",
+      "hb": "plan 48177 vs live fleet: ledger.internal.vantleaf.io\n10.20.11.152  w100  li-a-01 running ready      OK\n10.20.11.38   w100  li-a-02 running ready      OK\n10.20.44.77   w100  li-b-01 running NOT READY  MISMATCH (planner weight now 0)\n10.20.44.40   w100  li-b-02 running ready      OK\n10.20.76.29   w10..."
+     }
+    ]
+   }
+  ]
+ },
+ "digests_vs_recorded": {
+  "ae": true,
+  "hb": true
+ },
+ "hook_records_vs_recorded": {
+  "ae": true,
+  "hb": true
+ }
+}

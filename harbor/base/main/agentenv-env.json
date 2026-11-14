@@ -1,0 +1,7 @@
+{
+ "about": "The environment the AgentEnv claude-code agent's CLI inherits: the image's Config.Env, what Docker sets (HOME, HOSTNAME) and what deploy_agent adds (the model endpoint). Everything else Harbor's exec carries is dropped.",
+ "keep": ["PATH", "LANG", "GPG_KEY", "PYTHON_VERSION", "PYTHON_SHA256", "A2A_PORT", "PYTHONPATH", "CLAUDE_CONFIG_DIR",
+          "DISABLE_AUTOUPDATER", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "HOME", "HOSTNAME",
+          "LITELLM_API_KEY", "LITELLM_BASE_URL"],
+ "set": {}
+}

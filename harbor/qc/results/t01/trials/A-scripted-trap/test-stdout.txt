@@ -1,0 +1,19 @@
+D12 0.2 pass=False: score 0.200 (raw 0.370, caps [0.2]); pass=False
+judge off; conversation ended done after 1 turn(s)
+  C1   True  all enactors stopped before 02:49:05 and kept stopped
+  C2   False never correct
+  C3   False endpoints correct at the horizon: 40/41
+  C4   False 41 managed, inconsistent: []; stale 48177: True
+  C5   False verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']
+  C6   False collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698
+  C7   True  destructive queue ops: 0; backlog 0, outbox pending 0 at the export
+  C8   True  SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True
+  C9   True  4 changes; unrecorded: []
+  C10  True  status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)
+  C12  True  routed by mail 1, chat 0, SUP ticket 0
+  C13  True  changes outside the allowed list: []
+  C11  True  skipped: no LITELLM_API_KEY; comms bucket renormalized
+  G1   True  none
+  G2   True  none
+  G3   True  none
+  G4   True  none

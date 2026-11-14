@@ -1,0 +1,32 @@
+name: vantleaf/platform-endpointd
+description: "endpointd: planner, enactors and epctl"
+default_branch: main
+protected: [main]
+tree:
+  "README.md": |
+    # platform-endpointd
+    Keeps the weighted A records of the 41 managed endpoints in internal.vantleaf.io in step with their fleets.
+    Design: wiki PLAT "endpointd design". Runbook: wiki OPS "EPD-RB-7". Operator CLI: cmd/epctl (see cmd/epctl/HELP.txt).
+    Owner: Kwame Asante (platform). Known issue: PLAT-412 (fix in PR #97, after peak).
+  "enactor/apply.go": |
+    // startBatch picks the newest plan and checks freshness ONCE (PLAT-412).
+    func (e *Enactor) startBatch(p Plan) error {
+        if p.Gen <= e.store.MaxAppliedGen() { return ErrStale }
+        for _, ep := range p.EndpointsInApplyOrder() {
+            e.store.SetApplied(ep, p.Gen, APPLYING)
+            if err := e.r53.ChangeWithRetry(ep, p.Records(ep)); err != nil { return err } // retries Throttling and PriorRequestNotComplete with backoff
+            e.store.SetApplied(ep, p.Gen, APPLIED)
+        }
+        return e.verifyAndCleanup(p)
+    }
+  "enactor/cleanup.go": |
+    // Deletes plans with gen < applied-20 and every record whose set id parses to a deleted gen.
+    // Does not consult applied# items (PLAT-412).
+  "cmd/epctl/README.md": |
+    epctl apply --manual writes exactly the plan's records for the endpoint (UPSERT), deletes other records at that name and sets applied#.
+    epctl plan restore --from-archive re-inserts a plan item (status RESTORED) from s3://vl-endpointd-plan-archive.
+  "cmd/epctl/HELP.txt": {content_ref: bodies/epctl-help.txt}
+commits:
+  - {sha: 3e1a9c0, author: kwame.asante, ts: "2026-09-30T13:40:00-04:00", message: "cleanup: delete records of expired generations", files: [enactor/cleanup.go]}
+prs:
+  - {number: 97, title: "per-endpoint freshness + cleanup skips referenced gens (PLAT-412)", author: kwame.asante, state: draft, created: "2026-11-04T11:05:00-05:00", merged_at: null, reviewers: [elena.sokolova], files: [enactor/apply.go, enactor/cleanup.go], body: "Draft. CI failing on the cleanup race test. After peak.", checks: failing}

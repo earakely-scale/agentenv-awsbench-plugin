@@ -1,0 +1,1907 @@
+{
+ "free": [
+  "awsbench_control",
+  "get_time"
+ ],
+ "ledger": "ledger.internal.vantleaf.io",
+ "mcp_url": "http://mcp:18765/mcp",
+ "modes": {
+  "alt": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Primary on-call here, acting as incident commander. OPS-4452 is a SEV1: checkout success is about 4%. I'll post here at least every half hour."
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout failing since ~02:31. Following EPD-RB-7. #inc-4452 / OPS-4452.",
+     "schedule": "platform",
+     "title": "SEV1 OPS-4452: endpointd left ledger.internal with no records; need platform owner",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Many checkout attempts are failing. Our engineers are working on it.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Degraded checkout",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 5"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-a"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-a"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ssm put-parameter --name /vl/prod/ledger-writer/admission/enabled --value true --type String --overwrite"
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "CHANGE records:\n- epctl pause all (planner and enactors a, b, c paused) | why: EPD-RB-7 | undo: epctl resume | auth: PF 4.1(c)\n- ledger-writer admission enabled (/vl/prod/ledger-writer/admission/enabled true) | why: shed the dispatcher retry storm before DNS returns | undo: set it false | auth: PF 4.1",
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-a"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-a"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-a"
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "CHANGE records:\n- ledger.internal.vantleaf.io re-applied from plan 48199 (epctl apply --gen 48199, matches the live fleet) | why: EPD-RB-7 | undo: epctl apply the prior gen | auth: IP 3.4, PF 4.1(f)",
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "endpointd paused; ledger.internal re-applied from plan 48199 (it matches the live fleet). Admission control is shedding the dispatcher's retries. Waiting for DNS caches to catch up."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 18
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "getent hosts ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "getent hosts ledger.internal.vantleaf.io",
+     "host": "core-c-01"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "ledger.internal.vantleaf.io resolves again from core hosts in AZs a and c; checkout is coming back. Next update by 03:35."
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Merchant escalation (Harbor & Pine, mch_20871) for Support to own the reply.",
+     "to": [
+      "nadia.petrova@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "We applied a fix and checkout is recovering; we are watching it closely.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 25
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout has held steady. ledger-writer admission control stays on for now."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff for the day shift.\nWhat happened: the endpointd race in PLAT-412. enactor-b, slowed by Route 53 throttling, applied the stale plan 48177 after enactor-c had already applied 48199; enactor-c's cleanup then removed 48177 together with its records, so ledger.internal had no records and every enactor halted.\nWhat I changed: paused the planner and all enactors (epctl pause all); re-applied ledger.internal from plan 48199, which matched the live fleet, and not from 48177; turned on ledger-writer admission control (admission/enabled = true) to absorb the reconnect and retry storm from the webhooks dispatcher.\nStill temporary: endpointd stays paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume; admission control is still on.\nNotes: clients kept cached negative (NXDOMAIN) answers for several minutes after the records were back, which delayed recovery.\nFollow-ups: fix the race (PLAT-412), add an alarm on an empty managed endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "early": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ssm put-parameter --name /vl/prod/webhooks-dispatcher/max_concurrency --value 4 --type String --overwrite"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: webhooks-dispatcher max_concurrency 4; restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7, LEDG-RB-2 | undo: max_concurrency 25 | auth: IP 3.4, PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "This incident has been resolved.",
+     "id": "{status_id}",
+     "status": "resolved"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout stable. Dispatcher held at max_concurrency 4."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "noshed": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7 | undo: epctl apply previous gen | auth: PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout update: records restored; watching checkout."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "nothing": [],
+  "oracle": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ssm put-parameter --name /vl/prod/webhooks-dispatcher/max_concurrency --value 4 --type String --overwrite"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: webhooks-dispatcher max_concurrency 4; restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7, LEDG-RB-2 | undo: max_concurrency 25 | auth: IP 3.4, PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout stable. Dispatcher held at max_concurrency 4."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "rollback": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ecs update-service --cluster vl-prod-core --service checkout-api --task-definition checkout-api:411"
+    },
+    "ran"
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ssm put-parameter --name /vl/prod/webhooks-dispatcher/max_concurrency --value 4 --type String --overwrite"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: webhooks-dispatcher max_concurrency 4; restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7, LEDG-RB-2 | undo: max_concurrency 25 | auth: IP 3.4, PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout stable. Dispatcher held at max_concurrency 4."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "scale": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7 | undo: epctl apply previous gen | auth: PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ecs update-service --cluster vl-prod-core --service ledger-writer --desired-count 24"
+    },
+    "ran"
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout update: records restored; watching checkout."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "trap": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ssm put-parameter --name /vl/prod/webhooks-dispatcher/max_concurrency --value 4 --type String --overwrite"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan restore --gen 48177 --from-archive",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48177 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: webhooks-dispatcher max_concurrency 4; restored ledger.internal.vantleaf.io from plan 48177 with epctl apply | why: EPD-RB-7, LEDG-RB-2 | undo: max_concurrency 25 | auth: IP 3.4, PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout stable. Dispatcher held at max_concurrency 4."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48177 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ],
+  "weakshed": [
+   [
+    "pager_ack",
+    {
+     "id": "PG-77052"
+    },
+    null
+   ],
+   [
+    "tickets_get",
+    {
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "tickets_update",
+    {
+     "fields": {
+      "assignee": "sre-primary",
+      "severity": "SEV1"
+     },
+     "key": "OPS-4452"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "I'm IC (first responder). SEV1 declared on OPS-4452. Checkout success ~4% since 02:31. Investigating; updates here at least every 30 min."
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-hosted-zones-by-name --dns-name internal.vantleaf.io"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws route53 list-resource-record-sets --hosted-zone-id {zone_id} --start-record-name ledger.internal.vantleaf.io --max-items 12"
+    },
+    null
+   ],
+   [
+    "pager_page",
+    {
+     "details": "Checkout ~4% since 02:31. Channel #inc-4452, ticket OPS-4452.",
+     "schedule": "platform",
+     "title": "OPS-4452 SEV1: ledger.internal.vantleaf.io has no records, endpointd enactors halted; running EPD-RB-7",
+     "urgency": "high"
+    },
+    null
+   ],
+   [
+    "status_create",
+    {
+     "body": "Some card payments are failing at checkout. We are investigating.",
+     "components": {
+      "checkout": "major_outage"
+     },
+     "impact": "major",
+     "name": "Checkout errors",
+     "status": "investigating"
+    },
+    null
+   ],
+   [
+    "wiki_get",
+    {
+     "page": "OPS/EPD-RB-7 endpointd: endpoint empty or enactors halted"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl status",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl pause all",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: paused endpointd enactors and planner (epctl pause all) | why: EPD-RB-7 step 1 | undo: epctl resume | auth: PF 4.1(c)"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plans list --since 48170",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl plan diff 48199 --live-fleet --endpoint ledger.internal.vantleaf.io",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ecs update-service --cluster vl-prod-core --service webhooks-dispatcher --desired-count 6"
+    },
+    "ran"
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "epctl apply --gen 48199 --endpoint ledger.internal.vantleaf.io --manual --reason OPS-4452",
+     "host": "endpointd-enactor-b"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "CHANGE: webhooks-dispatcher desired count 6; restored ledger.internal.vantleaf.io from plan 48199 with epctl apply | why: EPD-RB-7 | undo: desired count 40, epctl apply previous gen | auth: PF 4.1(f)"
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "until": "03:03:10"
+    },
+    null
+   ],
+   [
+    "aws_cli",
+    {
+     "command": "aws ecs describe-services --cluster vl-prod-core --services webhooks-dispatcher"
+    },
+    "reverted"
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-a-01"
+    },
+    null
+   ],
+   [
+    "fleet_exec",
+    {
+     "cmd": "dig +short ledger.internal.vantleaf.io",
+     "host": "core-b-01"
+    },
+    null
+   ],
+   [
+    "mail_search",
+    {
+     "query": "Harbor"
+    },
+    null
+   ],
+   [
+    "mail_forward",
+    {
+     "id": "{callum_mail}",
+     "note": "Harbor & Pine (mch_20871) escalation from Callum Reyes, for Merchant Success.",
+     "to": [
+      "owen.gallagher@vantleaf.com"
+     ]
+    },
+    null
+   ],
+   [
+    "status_update",
+    {
+     "body": "A fix is in place and checkout is recovering. We are monitoring.",
+     "id": "{status_id}",
+     "status": "monitoring"
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Records restored, checkout recovering. Next update by 03:40."
+    },
+    null
+   ],
+   [
+    "wait",
+    {
+     "minutes": 28
+    },
+    null
+   ],
+   [
+    "chat_post",
+    {
+     "channel": "#inc-4452",
+     "text": "Checkout update: records restored; watching checkout."
+    },
+    null
+   ],
+   [
+    "tickets_comment",
+    {
+     "body": "Handoff: endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. Restored from 48199 (last verify=ok), not 48177. Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume. Dispatcher max_concurrency 4 shed the reconnect storm. Negative DNS caching delayed recovery ~15 min. Follow-ups: PLAT-412, alarm on an empty endpoint.",
+     "key": "OPS-4452"
+    },
+    null
+   ]
+  ]
+ },
+ "needed": [
+  "aws_cli",
+  "aws_query",
+  "chat_post",
+  "fleet_exec",
+  "mail_forward",
+  "mail_search",
+  "pager_ack",
+  "pager_page",
+  "status_create",
+  "status_update",
+  "tickets_comment",
+  "tickets_update",
+  "wait",
+  "wiki_get"
+ ],
+ "synonyms": {
+  "body": [
+   "body",
+   "text",
+   "comment",
+   "message"
+  ],
+  "channel": [
+   "channel",
+   "channel_id",
+   "channel_name"
+  ],
+  "cmd": [
+   "cmd",
+   "command",
+   "args",
+   "argv"
+  ],
+  "command": [
+   "command",
+   "cmd"
+  ],
+  "details": [
+   "details",
+   "body",
+   "description"
+  ],
+  "host": [
+   "selector",
+   "host",
+   "hosts",
+   "target"
+  ],
+  "id": [
+   "id",
+   "page_id",
+   "message_id",
+   "incident_id"
+  ],
+  "key": [
+   "key",
+   "ticket",
+   "ticket_key",
+   "id"
+  ],
+  "page": [
+   "page",
+   "title",
+   "page_id",
+   "slug",
+   "path"
+  ],
+  "query": [
+   "query",
+   "q",
+   "text"
+  ],
+  "schedule": [
+   "schedule",
+   "to",
+   "target",
+   "service"
+  ],
+  "text": [
+   "text",
+   "message",
+   "body"
+  ],
+  "title": [
+   "title",
+   "summary",
+   "subject"
+  ],
+  "to": [
+   "to",
+   "recipients",
+   "user",
+   "to_user"
+  ]
+ }
+}
