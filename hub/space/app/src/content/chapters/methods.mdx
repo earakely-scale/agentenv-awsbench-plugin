@@ -40,7 +40,8 @@ world, and so is its runbook check (C16); its other process and communication ma
 pass.
 
 **The final grader.** Every run since R8 was graded again offline, from its own exports, by the grader at build
-`{FG.build}`. A judged check keeps its recorded votes when the final grader sends the judge the same prompt; otherwise
+<code>{FG.build}</code>: the runs through T03R3 at 9b076a2, whose later grader fixes move none of them, and the R11 and T03R4 runs
+at <code>{FG.build}</code> itself. A judged check keeps its recorded votes when the final grader sends the judge the same prompt; otherwise
 it is judged again once, three samples, with the final prompt. Only grader changes can move a score this way: world and
 colleague fixes can't change what a recorded run did. The results table shows both scores, and each run whose score
 moves, or that still loses points, has a note saying why and whose the loss is.
@@ -48,10 +49,12 @@ moves, or that still loses points, has a note saying why and whose the loss is.
 **Caveats.**
 
 - **Development runs.** Runs on older builds met env and grader bugs that the runs themselves found; they are kept for
-  what they show. The latest runs are R10 for T01 and T03R3 for T03.
+  what they show. The current runs are R11 for T01 and T03R4 for T03, six Claude Opus 5.5 runs each on the hardened
+  build 5fe025c.
 - **Builds.** The R8 and T03R1 run folders' build files were left blank by the run script; the commit shown is the
   branch's head when each run started.
-- **Few runs.** Three Opus and two Sonnet runs per build show where a task bites, not a rate.
+- **Few runs.** Six Opus runs per task on the current build, and three Opus and two Sonnet runs per earlier build,
+  show where a task bites, not a rate. The current round ran Opus only.
 - **Calibration.** Both tasks are easier than their designs intend; see Results for the numbers and the reasons.
 - **The judges are noisy.** In T01, C11 decides about six points; in T03, C13 and C18 decide twelve. The final grader's
   re-judged rows are single samples of three votes each.

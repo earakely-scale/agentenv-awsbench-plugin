@@ -17,7 +17,7 @@ Writes ``hub/space/app/public/data/`` (the viewers' ``index.json`` and ``runs/<i
 ``viewer.json``, the scrubbed ``aws-export.json`` and ``workspace-export.json``, ``grade.json`` and ``transcript.md``;
 plus ``index.json``, the dataset viewer's ``tables/<task>/{runs,calls,checks}.jsonl`` and each task's card,
 ``tasks/<task>/{README.md,task.json}`` from ``tools/build_task_cards.py``, which the Space reads as ``tasks.json``), then fails if any written file still holds a key, an internal host, a local path or endpoint, a
-foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the private Hugging Face repos
+foreign IP or a non-emulator account id. ``--publish`` uploads both folders to the public Hugging Face repos
 (``earakely-scale/AwsIncidentsBench``), one commit each.
 """
 from __future__ import annotations
@@ -526,7 +526,7 @@ def publish() -> None:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--runs", type=Path, required=True, help="folder of run folders")
-    ap.add_argument("--publish", action="store_true", help="upload the Space and the dataset (private), one commit each")
+    ap.add_argument("--publish", action="store_true", help="upload the Space and the dataset, one commit each")
     ap.add_argument("--t03-root", type=Path, help="a checkout with the T03 world (default: this one if it has it, else "
                                                    "the sibling agentenv-awsbench-plugin-t03 worktree)")
     a = ap.parse_args(argv)

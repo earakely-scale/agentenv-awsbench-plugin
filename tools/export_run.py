@@ -85,7 +85,7 @@ INFRA_HOST = re.compile(r"[A-Za-z0-9.\-]*(?:litellm|\bscale\.com|scaleinternal\.
 AWS_HOST = re.compile(r"\b([a-z0-9\-]+)(?:\.([a-z]{2}-[a-z]+-\d))?\.amazonaws\.com\b")
 AWS_SERVICES = {"sqs", "dynamodb", "autoscaling", "route53", "ssm", "ecs", "logs", "monitoring", "cloudtrail", "sts",
                 "iam", "ec2", "elasticloadbalancing", "events", "lambda", "s3", "rds", "kms", "sns", "secretsmanager",
-                "cloudwatch", "acm", "application-autoscaling", "servicediscovery", "elasticache"}
+                "cloudwatch", "acm", "application-autoscaling", "servicediscovery", "elasticache", "ecr"}
 ACCOUNT = "000000000000"
 # The emulator's account and the ones scenarios declare (T03's vl-prod), all fictional, are kept as they are.
 ACCOUNTS = {ACCOUNT} | set(re.findall(r"(?m)^account:\s*'?(\d{12})", "\n".join(

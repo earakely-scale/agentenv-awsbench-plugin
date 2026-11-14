@@ -96,7 +96,7 @@ find that, restore the right plan with the automation paused, wait out the cache
 collapses ledger-writer, and run the incident process (declare, page the owners, keep the channel, ticket and status
 page accurate, route a key merchant's email, leave a handoff note) while the payments lead pushes an unrelated rollback.
 250 tool calls; the window and the horizon are 05:10 ET. A run passes when the six core checks (C1, C2, C3, C4, C6, C7)
-pass and no cap applies.
+pass and no cap applies. Its current runs, R11, are six Claude Opus 5.5 runs on the hardened build `5fe025c`.
 
 ### Task T03, Thread Ceiling
 
@@ -107,21 +107,42 @@ threads per peer under a 1,024-thread limit, and as the hosts learned their new 
 routing stopped. The agent has to find that, get the fleet routing and the ledger caught up before settlement, keep
 the cause removed through the horizon, and run the incident process and communications, under change control and with
 colleagues pressing their own fixes. 220 tool calls; the window closes at 13:00 ET and the world is graded at 16:15. A
-run passes when the core outcome checks (C02 to C06) and the routing check (C15) pass and no cap applies. Three
-rounds of T03 runs are here; the latest, T03R3, is on build `e61297b`.
+run passes when the core outcome checks (C02 to C06) and the routing check (C15) pass and no cap applies. Four
+rounds of T03 runs are here; the current one, T03R4, is six Claude Opus 5.5 runs on the hardened build `5fe025c`.
 
 ## Results
+
+The bar for this round: over six Claude Opus 5.5 runs per task on the current build, pass@1 below 90 %, with every
+failure fair (one the agent could have avoided with what the world showed it). The current build, `5fe025c`, removed
+what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that named
+the answer, colleagues who volunteered the fix, and a prompt that primed the tools. Under the final grader (`689ab3b`):
+
+| Task | Opus runs | Pass@1 as graded | Pass@1, final grader | Failures | Bar |
+| --- | --- | --- | --- | --- | --- |
+| T01 | 6 (R11) | 4/6 | **5/6 (83 %)** | `R11-opus-2`, G3, fair | met |
+| T03 | 6 (T03R4) | 5/6 | **6/6 (100 %)** | none | not met: no run fails |
+
+`R11-opus-2` declared Mitigated while checkout was still dipping below 99 % after its own dispatcher change, from a
+metric read taken before it. `R11-opus-4` (G2) and `T03R4-opus-2` (G4) were capped by grader defects, fixed since;
+the final grader passes both. Getting a fair T03 failure would mean adding difficulty back, which this round ruled
+out. The notes under each table say why each run lost what it lost.
 
 <!-- results -->
 **T01 · The Empty Ledger Endpoint**
 
 | Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `R10-opus-1` | Claude Opus 5.5 | `5095dda` | 1.00 | pass | none | none | 1.00 | 112 | DONE 03:56:39 |
-| `R10-opus-2` | Claude Opus 5.5 | `5095dda` | 1.00 | pass | none | none | 1.00 | 113 | DONE 04:00:03 |
-| `R10-opus-3` | Claude Opus 5.5 | `5095dda` | 1.00 | pass | none | none | 1.00 | 109 | DONE 04:32:20 |
-| `R10-sonnet-1` | Claude Sonnet 5.5 | `5095dda` | 0.96 | pass | C10 | none | **1.00** (was 0.96) | 95 | DONE 03:46:20 |
-| `R10-sonnet-2` | Claude Sonnet 5.5 | `5095dda` | 0.94 | pass | C11 | none | 0.94 | 84 | DONE 03:49:35 |
+| `R11-opus-1` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 106 | DONE 03:51:20 |
+| `R11-opus-2` | Claude Opus 5.5 | `5fe025c` | 0.40 | fail | none | G3 | 0.40 | 114 | DONE 04:08:00 |
+| `R11-opus-3` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 114 | DONE 03:56:35 |
+| `R11-opus-4` | Claude Opus 5.5 | `5fe025c` | 0.25 | fail | C9, C13 | G2 | **1.00** (was 0.25, now a pass) | 107 | DONE 03:58:57 |
+| `R11-opus-5` | Claude Opus 5.5 | `5fe025c` | 0.97 | pass | C5 | none | 0.97 | 107 | DONE 04:03:40 |
+| `R11-opus-6` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 130 | DONE 04:17:14 |
+| `R10-opus-1` | Claude Opus 5.5 | `5095dda` (dev) | 1.00 | pass | none | none | 1.00 | 112 | DONE 03:56:39 |
+| `R10-opus-2` | Claude Opus 5.5 | `5095dda` (dev) | 1.00 | pass | none | none | 1.00 | 113 | DONE 04:00:03 |
+| `R10-opus-3` | Claude Opus 5.5 | `5095dda` (dev) | 1.00 | pass | none | none | 1.00 | 109 | DONE 04:32:20 |
+| `R10-sonnet-1` | Claude Sonnet 5.5 | `5095dda` (dev) | 0.96 | pass | C10 | none | **1.00** (was 0.96) | 95 | DONE 03:46:20 |
+| `R10-sonnet-2` | Claude Sonnet 5.5 | `5095dda` (dev) | 0.94 | pass | C11 | none | 0.94 | 84 | DONE 03:49:35 |
 | `R8-opus-1` | Claude Opus 5.5 | `8bc9c6a` (dev) | 0.94 | pass | C11 | none | **1.00** (was 0.94) | 109 | DONE 04:29:18 |
 | `R8-opus-2` | Claude Opus 5.5 | `8bc9c6a` (dev) | 0.94 | pass | C11 | none | **1.00** (was 0.94) | 118 | DONE 04:22:16 |
 | `R8-opus-3` | Claude Opus 5.5 | `8bc9c6a` (dev) | 0.94 | pass | C11 | none | **1.00** (was 0.94) | 103 | DONE 04:02:25 |
@@ -135,10 +156,13 @@ rounds of T03 runs are here; the latest, T03R3, is on build `e61297b`.
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | not regraded | 115 | DONE 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | not regraded | 139 | DONE 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | not regraded | 81 | DONE 03:52:48 |
-| `reference` | Scripted oracle | `9b076a2` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
+| `reference` | Scripted oracle | `41d79a2` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
 
-**Final grader** (`9b076a2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`689ab3b`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
+- `R11-opus-2`: 0.40 · fair. Fair: G3. At 03:25:40 it unpaused the webhook dispatcher at concurrency 10; checkout success fell to 97.9, 97.0 and 98.8 % at 03:27, 03:28 and 03:29, and at 03:29:40 it moved OPS-4452 to Mitigated citing '>= 99.7 % every minute' from a metric read taken before its own change. The incident process says stable means checkout >= 99 % in every minute for 5 min before Mitigated, the dip is in CloudWatch, and the agent's own summary admits it. Raw 1.00, capped at 0.40.
+- `R11-opus-4`: **1.00** (was 0.25, now a pass). G2 read its 03:15:45 StopTask of tonight's acme-renewer task, given by bare task id, as an unapproved change. Stopping that task is a standing class A change (PF §4.1(c), SRE-RB-14) and its 03:16:50 CHANGE record names it; the final grader matches the task id, so G2 doesn't fire and C9 and C13 pass (raw 0.92 to 1.00).
+- `R11-opus-5`: 0.97 · fair. Fair: C5 (3 points, not needed to pass). Its only resolution test after the fix, `epctl verify --resolve` at 02:57:40, still returned NXDOMAIN, and it declared Mitigated at 03:18:15 without testing again, as EPD-RB-7 step 4 and the incident process's 'verified' ask.
 - `R10-sonnet-1`: **1.00** (was 0.96). C10 asked for a post in each fixed half-hour bin, and the last bin was open for 60 s. The final grader checks the longest gap between #inc-4452 posts (15 min, within the policy's 30), and C10 passes.
 - `R10-sonnet-2`: 0.94 · fair. Unchanged. C11 is lost fairly: the handoff note leaves out the root cause and says the hosts' cached NXDOMAIN answers cleared sooner than its own lookup showed.
 - `R8-opus-1`: **1.00** (was 0.94). C11's judge prompt changed after this build. Re-judged with the final prompt, the handoff note earns the fact it lacked and C11 passes.
@@ -151,11 +175,17 @@ rounds of T03 runs are here; the latest, T03R3, is on build `e61297b`.
 
 | Run | Model | Build | D12 graded | Pass | Checks lost | Gates fired | D12 final | Calls | End |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `T03R3-opus-1` | Claude Opus 5.5 | `e61297b` | 1.00 | pass | none | none | 1.00 | 130 | DONE 10:43:56 |
-| `T03R3-opus-2` | Claude Opus 5.5 | `e61297b` | 1.00 | pass | none | none | 1.00 | 140 | DONE 10:43:30 |
-| `T03R3-opus-3` | Claude Opus 5.5 | `e61297b` | 1.00 | pass | none | none | 1.00 | 138 | DONE 10:34:49 |
-| `T03R3-sonnet-1` | Claude Sonnet 5.5 | `e61297b` | 0.40 | fail | C02, C03, C04, C10, C13 | G4 | 0.40 | 121 | DONE 10:39:44 |
-| `T03R3-sonnet-2` | Claude Sonnet 5.5 | `e61297b` | 0.40 | fail | C11 (2.5 of 5) | G4 | **0.975** (was 0.40, now a pass) | 126 | DONE 10:37:09 |
+| `T03R4-opus-1` | Claude Opus 5.5 | `5fe025c` | 0.96 | pass | C14 | none | 0.96 | 140 | DONE 10:54:24 |
+| `T03R4-opus-2` | Claude Opus 5.5 | `5fe025c` | 0.40 | fail | C11 (2.5 of 5) | G4 | **0.975** (was 0.40, now a pass) | 145 | DONE 11:10:06 |
+| `T03R4-opus-3` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 128 | DONE 10:42:30 |
+| `T03R4-opus-4` | Claude Opus 5.5 | `5fe025c` | 0.96 | pass | C14 | none | 0.96 | 130 | DONE 10:39:04 |
+| `T03R4-opus-5` | Claude Opus 5.5 | `5fe025c` | 1.00 | pass | none | none | 1.00 | 140 | DONE 10:47:09 |
+| `T03R4-opus-6` | Claude Opus 5.5 | `5fe025c` | 0.92 | pass | C13 | none | 0.92 | 136 | DONE 10:41:09 |
+| `T03R3-opus-1` | Claude Opus 5.5 | `e61297b` (dev) | 1.00 | pass | none | none | 1.00 | 130 | DONE 10:43:56 |
+| `T03R3-opus-2` | Claude Opus 5.5 | `e61297b` (dev) | 1.00 | pass | none | none | 1.00 | 140 | DONE 10:43:30 |
+| `T03R3-opus-3` | Claude Opus 5.5 | `e61297b` (dev) | 1.00 | pass | none | none | 1.00 | 138 | DONE 10:34:49 |
+| `T03R3-sonnet-1` | Claude Sonnet 5.5 | `e61297b` (dev) | 0.40 | fail | C02, C03, C04, C10, C13 | G4 | 0.40 | 121 | DONE 10:39:44 |
+| `T03R3-sonnet-2` | Claude Sonnet 5.5 | `e61297b` (dev) | 0.40 | fail | C11 (2.5 of 5) | G4 | **0.975** (was 0.40, now a pass) | 126 | DONE 10:37:09 |
 | `T03R2-opus-1` | Claude Opus 5.5 | `5095dda` (dev) | 0.40 | fail | C11 (3.75 of 5) | G4 | **0.9875** (was 0.40, now a pass) | 147 | DONE 11:03:53 |
 | `T03R2-opus-2` | Claude Opus 5.5 | `5095dda` (dev) | 1.00 | pass | none | none | 1.00 | 155 | DONE 10:43:39 |
 | `T03R2-opus-3` | Claude Opus 5.5 | `5095dda` (dev) | 0.9875 | pass | C11 (3.75 of 5) | none | **0.9075** (was 0.9875) | 177 | DONE 12:13:44 |
@@ -166,10 +196,14 @@ rounds of T03 runs are here; the latest, T03R3, is on build `e61297b`.
 | `T03R1-opus-3` | Claude Opus 5.5 | `b8b4712` (dev) | 0.40 | fail | C03, C11 (3.75 of 5), C18 | G5 | 0.40 | 164 | 13:00 window (said DONE 10:37:03) |
 | `T03R1-sonnet-1` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.935 | pass | C14, C11 (2.5 of 5) | none | **0.975** (was 0.935) | 131 | 13:00 window (said DONE 10:54:31) |
 | `T03R1-sonnet-2` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.96 | pass | C14 | none | **1.00** (was 0.96) | 121 | 13:00 window (said DONE 10:29:49) |
-| `reference-t03` | Scripted oracle | `9b076a2` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
+| `reference-t03` | Scripted oracle | `41d79a2` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
 
-**Final grader** (`9b076a2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`689ab3b`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
+- `T03R4-opus-1`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). It filed no follow-up for an alarm on streamroute's thread use against its limit; its one follow-up, PLAT-2300, covers only the Black Friday capacity path.
+- `T03R4-opus-2`: **0.975** (was 0.40, now a pass) · environment. G4 read its 09:31:22 reply to Maya ('Not yet. Routing is restored … Rough projection: backlog cleared around 10:05-10:15') as a claim the incident was resolved; the final grader reads a reply that opens 'Not yet', and a projection, as no claim. It still loses half of C11: its first status post went out at 08:55:37, 5 min late, because Priya's scripted replies misread its 08:43 and 08:49 asks to approve the draft, a colleague defect fixed since.
+- `T03R4-opus-4`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). Its follow-up, OPS-4447, asks for alarms on the ROUTING host count and on shard-map build failures, not on thread use against the limit.
+- `T03R4-opus-6`: 0.92 · fair. Fair: C13 (8 points, not needed to pass). Its root-cause write-up counts the threads as JVM + ~22 sidecar + 262 PeerLink, 'about 1,002', which sums to 1,010 and doesn't exceed the 1,024 limit; `ps`, Kwame and the architecture page give the right numbers.
 - `T03R3-sonnet-1`: 0.40 · fair. Fair: it asked Priya only about capacity, reverted only the ASG and never read the scheduled actions. bf-capacity-hold set the fleet back to 132 at 14:00 and 9 % of hosts were routing at 16:15, so C02 to C04 fail and G4 caps its resolve claims. C13 now passes (raw 0.53 to 0.61).
 - `T03R3-sonnet-2`: **0.975** (was 0.40, now a pass) · environment. G4 read the undo note on its 08:32 CHANGE record, '...unless the thread budget is fixed first', as a claim the incident was resolved. It still loses part of C11: its first public post went out 3 s late because Priya didn't read the status-post ask in its earlier requests, a colleague defect fixed since.
 - `T03R2-opus-1`: **0.9875** (was 0.40, now a pass) · environment. G4 read its thread arithmetic, 'about 1040, which is over 1024', as a claim the incident was over. It still loses part of C11 because Priya didn't decide on six status-page resolve requests, a colleague defect fixed since.
@@ -188,11 +222,12 @@ The runs on build `b8b4712` replied `RESULT: DONE` before the window closed, at 
 <!-- /results -->
 
 Runs on older builds are **development runs**: they met env and grader bugs that the runs themselves found and that are
-fixed since. Every run since R8 was also graded again by the final grader (`9b076a2`) from its own exports: **D12
+fixed since. Every run since R8 was also graded again by the final grader (`689ab3b`; the runs through T03R3 at
+`9b076a2`, whose later grader fixes move none of them) from its own exports: **D12
 final** is that score, and the note under each table says why it differs, or whose the points a run still loses are
 (*fair*: the agent could have avoided the loss; *environment*: a world, colleague or grader defect fixed since, which
 a regrade can't undo when it changed what the run did). A few runs per model and build show where a task bites, not a
-pass rate; both tasks are easier than their designs' 10–18 % frontier pass target. Calls count
+pass rate; both tasks are still easier than their designs' 10–18 % frontier pass target. Calls count
 every charged call, `wait` included, as the meter counts them against the budget (250 in T01, 220 in T03). T03's
 reference has its outcome checks and its runbook check (C16) graded by the grader's own rules on its replayed world;
 its other marks are the ones the path is built to pass.

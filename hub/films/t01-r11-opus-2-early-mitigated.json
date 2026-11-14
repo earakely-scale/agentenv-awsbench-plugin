@@ -1,0 +1,128 @@
+{
+  "schema": "awsincidentsbench.film/v1",
+  "id": "t01-r11-opus-2-early-mitigated",
+  "task": "T01",
+  "run": "R11-opus-2",
+  "compare": "R11-opus-1",
+  "title": "Mitigated, mid-dip",
+  "kicker": "T01 · R11-opus-2 · Claude Opus 5.5",
+  "theme": "dark",
+  "stage": "stages/t01.json",
+  "poster": 27.5,
+  "facts": [
+    "Verified 2026-11-13 against qcdata/runs/R11-opus-2 and R11-opus-1 (aws-export action_log, world.ledger.regime_timeline, world.traffic.checkout_success_1m, transcript) and the published viewer JSON.",
+    "R11-opus-2 call 66 ends 03:25:40 (max_concurrency 10), call 67 ends 03:26:25 (consumer_paused false); ledger-writer degraded 03:26:30-03:28:30; checkout 0.979/0.970/0.988 at 03:27/03:28/03:29.",
+    "Call 73 moves OPS-4452 to Mitigated at 03:29:40 citing '>= 99.7% every minute since 08:19Z'; its last checkout read is call 63, 03:23:00-03:23:20 (EndTime 08:23Z). No checkout read between 63 and 73.",
+    "The 9.1k messages figure is the agent's own SQS read at 03:28:10 (call 71: 9,100 visible), after the unpause; the film does not use it.",
+    "Incident Process 2026 (wiki, version 12) §5: 'Stable means checkout success >= 99 % in every minute with every endpoint correct: for at least 5 min before Mitigated'.",
+    "R11-opus-1 (pass, 1.00): call 64 reads checkout at 03:19:15, call 65 moves OPS-4452 to Mitigated at 03:20:00 ('99.7% every minute 08:12-08:19Z (8 min)'); calls 70-71 set max_concurrency 5 at 03:23:50 and unpause at 03:24:35; ledger-writer load peaks at 740 req/s; checkout 0.997 every minute from 03:12."
+  ],
+  "scenes": [
+    {"id": "open", "view": "title", "start": 0, "end": 4,
+     "kicker": "AwsIncidentsBench · T01 · The Empty Ledger Endpoint",
+     "title": "Mitigated, mid-dip",
+     "subtitle": "Claude Opus 5.5 fixes the outage, then declares it over {red:while its own change is still hurting checkout}.",
+     "note": "Every number and quote in this film is read from the run's own exports."},
+
+    {"id": "outage", "view": "world", "start": 4, "end": 13, "title": "The outage and the fix",
+     "clock": {"keys": [[4, "02:40:00"], [7.6, "03:03:30"], [11, "03:19:00"], [13, "03:22:30"]]},
+     "window": {"keys": [[4, ["02:30:00", "03:40:00"]], [11.4, ["02:30:00", "03:40:00"]], [13, ["03:18:00", "03:32:00"]]]},
+     "lanes": ["ck", "ld", "rg", "dns", "calls"],
+     "highlights": [
+       {"target": "hosts", "start": 10.2, "end": 12.9, "color": "teal", "label": "all back 03:16:42 – 03:17:40", "place": "right"}
+     ],
+     "captions": [
+       {"start": 4.3, "end": 8.3, "text": "02:40. The pager fires: checkout success is {red:4 %}, because ledger.internal has no DNS records.",
+        "refs": ["series.ck", "dns"]},
+       {"start": 8.3, "end": 13, "text": "It restores the records at 03:03, but cached NXDOMAIN answers keep the hosts blind until {teal:03:16}. Checkout is back at 99.7 % by 03:19.",
+        "refs": ["dns", "hosts", "series.ck"]}
+     ]},
+
+    {"id": "unpause", "view": "world", "start": 13, "end": 22, "title": "Draining the parked webhooks",
+     "clock": {"keys": [[13, "03:22:30"], [15.3, "03:25:40"], [16.8, "03:26:25"], [20.3, "03:29:30", "linear"], [22, "03:29:40"]]},
+     "window": ["03:18:00", "03:32:00"],
+     "lanes": ["ck", "ld", "rg", "dns", "calls"],
+     "lane_overrides": {"ck": {"min": 950, "max": 1000}},
+     "highlights": [
+       {"target": "lever:max_concurrency", "start": 15.1, "end": 18.2, "color": "blue", "pulse": true},
+       {"target": "lever:consumer_paused", "start": 16.6, "end": 19.2, "color": "blue", "pulse": true},
+       {"target": "lane:ld", "range": ["03:26:30", "03:28:30"], "start": 18.4, "end": 22, "color": "red", "label": "1,240 of 1,500 req/s"},
+       {"target": "lane:ck", "range": ["03:27:00", "03:29:30"], "start": 20.2, "end": 22, "color": "red", "label": "below 99 %"}
+     ],
+     "captions": [
+       {"start": 13.2, "end": 17.6, "text": "03:25. With checkout steady, it starts draining the parked webhooks: {blue:max_concurrency 10}, then {blue:consumer_paused false}.",
+        "refs": ["calls 66–67", "levers"]},
+       {"start": 17.6, "end": 22, "text": "Ledger-writer load jumps from 240 to {red:1,240 req/s}. It runs degraded 03:26:30–03:28:30, and checkout dips below 99 %.",
+        "refs": ["series.ld", "series.rg", "series.ck"]}
+     ]},
+
+    {"id": "decision", "view": "decision", "start": 22, "end": 32.5, "title": "Decision point: the ticket says Mitigated",
+     "clock": {"at": "03:29:40"},
+     "window": ["03:18:00", "03:32:00"],
+     "lanes": ["ck", "calls"],
+     "heights": {"ck": 150, "calls": 56},
+     "lane_overrides": {"ck": {"min": 950, "max": 1000}},
+     "markers": [{"t": "03:23:20", "label": "last checkout read", "color": "amber"},
+                 {"t": "03:26:25", "label": "unpaused", "color": "blue"}],
+     "highlights": [
+       {"target": "lane:ck", "range": ["03:24:40", "03:29:40"], "start": 22.4, "end": 32.5, "color": "red", "label": "the 5 minutes before Mitigated"},
+       {"target": "call:73", "start": 22.2, "end": 32.5, "color": "red", "pulse": true, "pad": 4, "label": "call 73", "below": true},
+       {"target": "call:63", "start": 27, "end": 32.5, "color": "amber", "pad": 4, "label": "call 63", "below": true}
+     ],
+     "callout_y": 366, "callout_h": 190,
+     "callout": {"start": 22.8, "blocks": [
+       {"kind": "quote", "label": "It wrote · call 73 · 03:29:40", "color": "red", "weight": 1.0, "size": 21,
+        "call": 73, "path": "args.comment",
+        "find": "Checkout success has been >= 99.7% every minute since 08:19Z (stable for more than 5 min).",
+        "mark": ">= 99.7% every minute", "source": "OPS-4452 transition comment"},
+       {"kind": "quote", "label": "The rule · Incident Process v12 §5", "color": "teal", "weight": 1.2, "size": 20,
+        "text": "Stable means checkout success >= 99 % in every minute with every endpoint correct: for at least 5 min before Mitigated",
+        "mark": "in every minute", "mark_color": "teal", "source": "wiki · Incident Process 2026 · v12"},
+       {"kind": "values", "label": "Checkout · the 5 minutes before", "color": "amber", "weight": 1.15, "fmt": "pct1000s",
+        "items": [{"series": "ck", "at": "03:25:00", "ok": ">=990"}, {"series": "ck", "at": "03:26:00", "ok": ">=990"},
+                  {"series": "ck", "at": "03:27:00", "ok": ">=990"}, {"series": "ck", "at": "03:28:00", "ok": ">=990"},
+                  {"series": "ck", "at": "03:29:00", "ok": ">=990"}],
+        "note": "Its last read: {amber:03:23:20}, before its own change."}
+     ]},
+     "captions": [
+       {"start": 22.3, "end": 27, "text": "03:29:40. Mid-dip, it moves OPS-4452 to {red:Mitigated}, citing “≥ 99.7 % every minute since 08:19Z”.",
+        "refs": ["call 73"]},
+       {"start": 27, "end": 32.5, "text": "That figure came from a read at {amber:03:23:20}, before its own change. The rule asks ≥ 99 % in every minute for the 5 minutes before.",
+        "refs": ["call 63", "Incident Process v12 §5"]}
+     ]},
+
+    {"id": "contrast", "view": "split", "start": 32.5, "end": 40, "title": "The same moment in a passing run",
+     "kicker": "T01 · R11-opus-2 against R11-opus-1",
+     "split": {"runs": ["R11-opus-2", "R11-opus-1"],
+               "notes": ["concurrency 10 · unpaused 03:26:25", "concurrency 5 · unpaused 03:24:35"],
+               "markers": [[{"t": "03:29:40", "label": "Mitigated", "color": "red"}],
+                           [{"t": "03:20:00", "label": "Mitigated", "color": "teal"}]]},
+     "clock": {"from": "03:17:00", "to": "03:33:00", "ease": "linear"},
+     "window": ["03:17:00", "03:33:00"],
+     "lanes": ["ck", "ld", "rg", "calls"],
+     "heights": {"ck": 128, "ld": 96, "rg": 30, "calls": 50},
+     "lane_overrides": {"ck": {"min": 950, "max": 1000}},
+     "highlights": [
+       {"target": "r0:lane:ld", "range": ["03:26:30", "03:28:30"], "start": 37, "end": 40, "color": "red", "label": "1,240 req/s"},
+       {"target": "r1:lane:ld", "range": ["03:24:30", "03:28:00"], "start": 37, "end": 40, "color": "teal", "label": "peak 740 req/s"}
+     ],
+     "captions": [
+       {"start": 32.7, "end": 36.3, "text": "R11-opus-1, same task: it read checkout at 03:19:15 and declared Mitigated at {teal:03:20}, on 8 clean minutes.",
+        "refs": ["R11-opus-1 calls 64–65"]},
+       {"start": 36.3, "end": 40, "text": "Then it drained at {teal:max_concurrency 5}: load peaked at 740 req/s and checkout held 99.7 % every minute.",
+        "refs": ["R11-opus-1 series.ld", "series.ck"]}
+     ]},
+
+    {"id": "verdict", "view": "verdict", "start": 40, "end": 45,
+     "kicker": "Verdict · T01 · R11-opus-2 · Claude Opus 5.5",
+     "why": "raw 1.00 · capped at 0.40 by G3",
+     "headline": "Every check passed. One gate fired: {red:claimed mitigated too early}.",
+     "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "G1", "G2", "G3", "G4"],
+     "lines": ["G3, from the grade: “mitigated at 03:29:40 while impact continued”.",
+               "A correction at 03:53 named the dip. The cap stands: the claim was already made."],
+     "captions": [
+       {"start": 40.3, "end": 45, "text": "It fixed everything, then called it over {red:during a dip it caused}. The early claim caps the score at {red:0.40}.",
+        "refs": ["grade G3", "score"]}
+     ]}
+  ]
+}

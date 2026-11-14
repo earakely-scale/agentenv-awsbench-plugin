@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E" />
+<title>AwsIncidentsBench film</title>
+<meta name="description" content="AwsIncidentsBench: a short captioned film of one recorded run, drawn from the run's own exports.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* A film plays a script (JSON: scenes, views, captions, highlights) over a run's viewer JSON on one 1280x720 canvas.
+   ?script=<url>[&frame=<n>&fps=30] draws exactly frame n and nothing else; without frame it plays. Palette = the
+   Flight Recorder's: teal healthy/pass, red broken/fail, blue the agent, violet people, amber caution. */
+:root{
+  --bg:#ffffff; --panel:#fafafa; --panel2:#f3f3f3; --grid:#ececec; --grid2:#e3e3e3; --line:#d9d9d9;
+  --faint:#a3a3a3; --muted:#737373; --text2:#525252; --ink:#111111;
+  --teal:#65c2b9; --teal-ink:#21655f; --teal-wash:#e1f3f1;
+  --red:#e27553; --red-ink:#b8492a; --red-wash:#fbe7df;
+  --blue:#598dd2; --blue-ink:#2f5d9c; --blue-wash:#e8eff9; --blue-soft:#adc5e8;
+  --cyan:#6fcbef; --cyan-ink:#1a7194;
+  --violet:#6e56cf; --violet-ink:#553fb5; --violet-wash:#eeeafb;
+  --amber:#d9a441; --amber-ink:#8a6215; --amber-wash:#f8eed7;
+  --cap-bg:rgba(17,17,17,.86); --cap-ink:#ffffff; --scrim:rgba(255,255,255,.72);
+  --sans:Inter,-apple-system,Arial,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111111; --panel:#171717; --panel2:#1e1e1e; --grid:#232323; --grid2:#2b2b2b; --line:#3a3a3a;
+    --faint:#5e5e5e; --muted:#a3a3a3; --text2:#c9c9c9; --ink:#f5f5f5;
+    --teal-ink:#8fd8d0; --teal-wash:#15302d; --red-ink:#f2a48c; --red-wash:#3a1e16;
+    --blue-ink:#a9c6f2; --blue-wash:#17233a; --blue-soft:#3e5f8f; --cyan-ink:#a0ddf5;
+    --violet:#8f7ae2; --violet-ink:#bcaef4; --violet-wash:#241d3f;
+    --amber-ink:#e9c67e; --amber-wash:#33280f;
+    --cap-bg:rgba(0,0,0,.78); --cap-ink:#ffffff; --scrim:rgba(17,17,17,.72);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111111; --panel:#171717; --panel2:#1e1e1e; --grid:#232323; --grid2:#2b2b2b; --line:#3a3a3a;
+  --faint:#5e5e5e; --muted:#a3a3a3; --text2:#c9c9c9; --ink:#f5f5f5;
+  --teal-ink:#8fd8d0; --teal-wash:#15302d; --red-ink:#f2a48c; --red-wash:#3a1e16;
+  --blue-ink:#a9c6f2; --blue-wash:#17233a; --blue-soft:#3e5f8f; --cyan-ink:#a0ddf5;
+  --violet:#8f7ae2; --violet-ink:#bcaef4; --violet-wash:#241d3f;
+  --amber-ink:#e9c67e; --amber-wash:#33280f;
+  --cap-bg:rgba(0,0,0,.78); --cap-ink:#ffffff; --scrim:rgba(17,17,17,.72);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:10px}
+canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--bg);border-radius:8px;cursor:pointer}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:500 12px/1 var(--mono);color:var(--muted)}
+.bar button{font:500 12px/1 var(--sans);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;cursor:pointer}
+.bar input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--blue)}
+.err{color:var(--red-ink);font:13px/1.5 var(--mono);white-space:pre-wrap}
+body.frame .wrap{padding:0;max-width:none}
+body.frame canvas{border-radius:0;width:1280px;height:720px}
+body.frame .bar{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="cv" width="1280" height="720" role="img" aria-label="Film of a recorded run"></canvas>
+  <div class="bar" id="bar">
+    <button id="play" type="button">Play</button>
+    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Film position">
+    <span id="tc">0:00 / 0:00</span>
+  </div>
+  <div class="err" id="err" hidden></div>
+</div>
+<script>
+(function(){
+'use strict';
+const W = 1280, H = 720;
+const qs = new URLSearchParams(location.search);
+const FRAME = qs.has('frame') ? Math.max(0, parseInt(qs.get('frame'), 10) || 0) : null;
+const FPS = Math.max(1, parseInt(qs.get('fps') || '30', 10) || 30);
+if (FRAME !== null) document.body.classList.add('frame');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* ---------------- palette ---------------- */
+const KEYS = ['bg','panel','panel2','grid','grid2','line','faint','muted','text2','ink','teal','teal-ink','teal-wash','red','red-ink',
+  'red-wash','blue','blue-ink','blue-wash','blue-soft','cyan','cyan-ink','violet','violet-ink','violet-wash','amber','amber-ink',
+  'amber-wash','cap-bg','cap-ink','scrim'];
+const P = {};
+function readPalette(){ const cs = getComputedStyle(document.documentElement); for (const k of KEYS) P[k] = cs.getPropertyValue('--' + k).trim(); }
+const col = c => P[c] || c;
+const SANS = 'Inter, -apple-system, Arial, sans-serif', MONO = '"Geist Mono", ui-monospace, Menlo, monospace';
+const font = (w, px, mono) => `${w} ${px}px ${mono ? MONO : SANS}`;
+
+/* ---------------- time ---------------- */
+const p2 = n => String(n).padStart(2, '0');
+function sec(v){ if (v == null) return null; if (typeof v === 'number') return v; const p = String(v).split(':').map(Number); return p[0]*3600 + (p[1]||0)*60 + (p[2]||0); }
+const hms = s => { s = Math.round(s); s = ((s % 86400) + 86400) % 86400; return p2(Math.floor(s/3600)) + ':' + p2(Math.floor(s%3600/60)) + ':' + p2(s%60); };
+const hm = s => hms(s).slice(0, 5);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, f) => a + (b - a) * f;
+const ease = {linear: f => f, inOut: f => f < .5 ? 2*f*f : 1 - Math.pow(-2*f + 2, 2)/2, out: f => 1 - Math.pow(1 - f, 3), in: f => f*f*f};
+const fmtInt = n => Math.round(n).toLocaleString('en-US');
+const FMT = {
+  pct1000: v => (v/10).toFixed(1) + ' %', pct1000s: v => (v/10).toFixed(1) + '%', pct: v => (v*100).toFixed(1) + ' %', int: v => fmtInt(v), k: v => v >= 10000 ? (v/1000).toFixed(1).replace(/\.0$/, '') + 'k' : fmtInt(v),
+  raw: v => String(v)
+};
+const fmtv = (f, v) => v == null ? '–' : (FMT[f] || FMT.raw)(v);
+
+/* ---------------- script and data ---------------- */
+let S = null, RUNS = {}, DUR = 0, STAGE = {};
+function deepMerge(a, b){ if (Array.isArray(b) || typeof b !== 'object' || b === null) return b; const o = Object.assign({}, a); for (const k in b) o[k] = (k in o && typeof o[k] === 'object' && !Array.isArray(o[k])) ? deepMerge(o[k], b[k]) : b[k]; return o; }
+async function getJSON(u){ const r = await fetch(u); if (!r.ok) throw new Error(r.status + ' ' + u); return r.json(); }
+async function load(){
+  const su = qs.get('script'); if (!su) throw new Error('Pass ?script=<film script URL>.');
+  const scriptURL = new URL(su, location.href);
+  S = await getJSON(scriptURL);
+  if (S.stage && typeof S.stage === 'string') S.stage = await getJSON(new URL(S.stage, scriptURL));
+  STAGE = S.stage || {};
+  if (S.stage_overrides) STAGE = deepMerge(STAGE, S.stage_overrides);
+  const base = qs.get('data') ? new URL(qs.get('data'), location.href) : new URL(S.data_base || '../data/runs/', S.data_base ? scriptURL : location.href);
+  const ids = [S.run, S.compare, ...(S.scenes || []).map(s => s.run), ...(S.scenes || []).flatMap(s => (s.split && s.split.runs) || [])].filter(Boolean);
+  for (const id of [...new Set(ids)]) RUNS[id] = await getJSON(new URL(id + '.json', base));
+  DUR = Math.max(...S.scenes.map(s => s.end));
+  const th = qs.get('theme') || S.theme;
+  if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th);
+  readPalette();
+  document.title = (S.title || 'Film') + ' · AwsIncidentsBench';
+  const faces = ['400 16px Inter','500 16px Inter','600 16px Inter','700 16px Inter','400 16px "Geist Mono"','500 16px "Geist Mono"','600 16px "Geist Mono"'];
+  try { await Promise.race([Promise.all(faces.map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 4000))]); await document.fonts.ready; } catch (e) {}
+}
+
+/* data access: schema v1 (T01) keeps series from clock.start, v2 (T03) names series.t0 */
+const R = id => RUNS[id || S.run];
+const seriesT0 = run => run.series.t0 != null ? run.series.t0 : (STAGE.series_t0 != null ? sec(STAGE.series_t0) : run.clock.start);
+function sAt(run, key, t){
+  const s = run.series, v = s[key]; if (v == null) return null;
+  const i = Math.floor((t - seriesT0(run)) / s.dt); if (i < 0) return null;
+  return v[Math.min(i, v.length - 1)];
+}
+function getPath(o, path){ if (!path) return o; for (const k of String(path).split('.')){ if (o == null) return null; o = o[k]; } return o; }
+const stepN = (run, n) => run.steps.find(s => s.n === n);
+function stepAt(run, t){ let last = null; for (const s of run.steps){ if (s.at > t) break; last = s; } return last; }
+function lastBefore(list, t, key){ let v = null; for (const x of list || []){ const tx = key ? x[key] : x[0]; if (tx <= t) v = x; else break; } return v; }
+function leverAt(run, name, t){ let v = null; for (const l of run.levers || []) if (l.name === name && l.t <= t) v = l; return v; }
+function textOf(run, ref){
+  if (ref.text) return ref.text;
+  if (ref.call != null){ const s = stepN(run, ref.call); if (!s) return ''; const v = getPath(s, ref.path || 'detail'); return typeof v === 'string' ? v : JSON.stringify(v); }
+  if (ref.message != null){ const m = run.messages[ref.message]; return m ? m.text : ''; }
+  return String(getPath(run, ref.path) || '');
+}
+
+/* ---------------- scene timing ---------------- */
+function sceneAt(t){ let sc = S.scenes[0]; for (const s of S.scenes) if (t >= s.start) sc = s; return sc; }
+function keyed(keys, t, map){
+  // keys: [[filmT, value, ease?], ...]; values interpolated by map(a, b, f)
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++){
+    const [t1, v1, e] = keys[i], [t0, v0] = keys[i-1];
+    if (t <= t1) return map(v0, v1, (ease[e || 'inOut'])((t - t0) / Math.max(1e-6, t1 - t0)));
+  }
+  return keys[keys.length - 1][1];
+}
+function runTime(sc, t){
+  const c = sc.clock || {};
+  if (c.at != null) return sec(c.at);
+  if (c.keys) return keyed(c.keys.map(k => [k[0], sec(k[1]), k[2]]), t, lerp);
+  if (c.from != null){ const f = clamp((t - sc.start) / (sc.end - sc.start), 0, 1); return lerp(sec(c.from), sec(c.to), (ease[c.ease || 'linear'])(f)); }
+  return R(sc.run).clock.start;
+}
+function windowAt(sc, t, rt){
+  const w = sc.window;
+  if (!w) return [rt - 1800, rt + 300];
+  if (!Array.isArray(w) && w.keys) return keyed(w.keys.map(k => [k[0], [sec(k[1][0]), sec(k[1][1])], k[2]]), t, (a, b, f) => [lerp(a[0], b[0], f), lerp(a[1], b[1], f)]);
+  return [sec(w[0]), sec(w[1])];
+}
+const active = (o, t) => (o.start == null || t >= o.start) && (o.end == null || t < o.end);
+const fadeIn = (o, t, d) => o.start == null ? 1 : clamp((t - o.start) / (d || .35), 0, 1);
+const fadeOut = (o, t, d) => o.end == null ? 1 : clamp((o.end - t) / (d || .3), 0, 1);
+
+/* ---------------- canvas helpers ---------------- */
+function rr(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, Math.max(0, w), Math.max(0, h), r || 0); }
+function fillRR(x, y, w, h, r, c){ rr(x, y, w, h, r); ctx.fillStyle = col(c); ctx.fill(); }
+function strokeRR(x, y, w, h, r, c, lw, dash){ rr(x, y, w, h, r); ctx.strokeStyle = col(c); ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+function text(s, x, y, f, c, align, base){ ctx.font = f; ctx.fillStyle = col(c); ctx.textAlign = align || 'left'; ctx.textBaseline = base || 'alphabetic'; ctx.fillText(s, x, y); }
+function tw(s, f){ ctx.font = f; return ctx.measureText(s).width; }
+function line(x1, y1, x2, y2, c, lw, dash){ ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = col(c); ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+function wrap(s, f, maxW, maxLines){
+  ctx.font = f; const words = String(s).replace(/\s+/g, ' ').trim().split(' '); const out = []; let cur = '';
+  for (const w of words){
+    const nx = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(nx).width <= maxW || !cur) cur = nx; else { out.push(cur); cur = w; }
+    if (maxLines && out.length === maxLines) break;
+  }
+  if (cur && (!maxLines || out.length < maxLines)) out.push(cur);
+  if (maxLines && out.length === maxLines && out.join(' ').length < String(s).replace(/\s+/g, ' ').trim().length){
+    let l = out[maxLines - 1]; while (l && ctx.measureText(l + ' …').width > maxW) l = l.slice(0, -1); out[maxLines - 1] = l + ' …';
+  }
+  return out;
+}
+/* rich text: "plain {red:emphasis} plain" -> runs; wrapped word by word */
+function runsOf(s){ const out = []; const re = /\{(\w+(?:-\w+)?):([^}]*)\}/g; let i = 0, m; while ((m = re.exec(s))){ if (m.index > i) out.push({t:s.slice(i, m.index)}); out.push({t:m[2], c:m[1]}); i = re.lastIndex; } if (i < s.length) out.push({t:s.slice(i)}); return out; }
+function layoutRich(s, f, fb, maxW){
+  const toks = []; for (const r of runsOf(s)) for (const w of r.t.split(/(\s+)/)) if (w) toks.push({t:w, c:r.c});
+  const lines = []; let cur = [], wid = 0;
+  for (const k of toks){
+    const ws = /^\s+$/.test(k.t); const kw = tw(ws ? ' ' : k.t, k.c ? fb : f);
+    if (!ws && wid + kw > maxW && cur.length){ while (cur.length && /^\s+$/.test(cur[cur.length-1].t)) { wid -= cur.pop().w; } lines.push({toks:cur, w:wid}); cur = []; wid = 0; }
+    if (ws && !cur.length) continue;
+    cur.push({t:ws ? ' ' : k.t, c:k.c, w:kw}); wid += kw;
+  }
+  if (cur.length) lines.push({toks:cur, w:wid});
+  return lines;
+}
+function drawRich(lines, cx, y, lh, f, fb, base, align){
+  for (const ln of lines){
+    let x = align === 'left' ? cx : cx - ln.w/2;
+    for (const k of ln.toks){ text(k.t, x, y, k.c ? fb : f, k.c ? hue(k.c, 'cap') : base); x += k.w; }
+    y += lh;
+  }
+}
+const HUE = {red:['red','red-ink'], teal:['teal','teal-ink'], blue:['blue','blue-ink'], amber:['amber','amber-ink'], violet:['violet','violet-ink'], cyan:['cyan','cyan-ink'], ink:['ink','ink'], muted:['muted','muted']};
+const tint = (c, aa) => { const v = P[hue(c)] || P[c] || c; return /^#[0-9a-f]{6}$/i.test(v) ? v + aa : v; };
+function hue(c, use){ const h = HUE[c]; if (!h) return c; if (use === 'cap') return P[h[0]]; return use === 'ink' ? h[1] : h[0]; }
+
+/* ---------------- shared chrome ---------------- */
+function header(sc, t, rt, run){
+  const kick = (S.kicker || `${S.task} · ${run.id} · ${run.model || ''}`).toUpperCase();
+  text(kick, 32, 34, font(500, 15, true), 'muted');
+  text(sc.title || S.title || '', 32, 62, font(600, 23), 'ink');
+  // right cluster: chips then clock
+  let x = 1248;
+  const clk = hms(rt), cf = font(600, 38, true);
+  text(clk, x, 60, cf, 'ink', 'right'); x -= tw(clk, cf) + 8;
+  text(STAGE.tz || '', x, 60, font(500, 15, true), 'muted', 'right'); x -= tw(STAGE.tz || '', font(500, 15, true)) + 22;
+  const chips = [];
+  for (const m of (sc.hud || STAGE.hud || [])){
+    if (m.series){ const v = sAt(run, m.series, rt); const ok = v == null ? null : test(m.ok, v); chips.push({k:m.label, v:fmtv(m.fmt, v), c:ok == null ? 'line' : ok ? 'teal' : 'red', id:'hud:' + (m.id || m.series)}); }
+    else if (m.board){ const v = lastBefore(getPath(run, m.board), rt); const val = v ? v[1] : (m.empty || '–'); chips.push({k:m.label, v:val, c:(m.colors && m.colors[val]) || 'line', id:'hud:' + (m.id || m.board)}); }
+  }
+  for (let i = chips.length - 1; i >= 0; i--){
+    const c = chips[i], kf = font(500, 13, true), vf = font(600, 20, true);
+    const w = tw(c.k.toUpperCase(), kf) + tw(c.v, vf) + 34; x -= w;
+    const solid = c.c !== 'line';
+    fillRR(x, 26, w, 42, 8, solid ? c.c : 'panel2');
+    if (!solid) strokeRR(x, 26, w, 42, 8, 'line', 1);
+    const ink = solid ? '#111111' : 'ink';
+    text(c.k.toUpperCase(), x + 12, 52, kf, solid ? 'rgba(17,17,17,.72)' : 'muted');
+    text(c.v, x + w - 12, 54, vf, ink, 'right');
+    HL_RECTS[c.id] = [x, 26, w, 42];
+    x -= 10;
+  }
+}
+function test(rule, v){
+  if (!rule) return null; const m = /^(>=|<=|>|<|==)\s*(-?[\d.]+)$/.exec(rule); if (!m) return null; const n = +m[2];
+  return {'>=':v >= n, '<=':v <= n, '>':v > n, '<':v < n, '==':v == n}[m[1]];
+}
+function progress(t){
+  fillRR(0, H - 4, W, 4, 0, 'grid');
+  fillRR(0, H - 4, W * clamp(t / DUR, 0, 1), 4, 0, 'blue');
+  for (const s of S.scenes) if (s.start > 0) fillRR(W * s.start / DUR - 1, H - 4, 2, 4, 0, 'bg');
+}
+function captions(t){
+  const all = []; for (const s of S.scenes) for (const c of s.captions || []) all.push(c);
+  for (const c of S.captions || []) all.push(c);
+  const c = all.find(c => t >= c.start && t < c.end); if (!c) return;
+  const a = Math.min(clamp((t - c.start) / .25, 0, 1), clamp((c.end - t) / .25, 0, 1));
+  const f = font(500, 33), fb = font(700, 33);
+  const lines = layoutRich(c.text, f, fb, 1120).slice(0, 2);
+  const lh = 44, h = lines.length * lh + 26, wmax = Math.max(...lines.map(l => l.w));
+  const y0 = 700 - h - 6;
+  ctx.save(); ctx.globalAlpha = a;
+  fillRR(W/2 - wmax/2 - 26, y0, wmax + 52, h, 12, 'cap-bg');
+  drawRich(lines, W/2, y0 + 13 + 33, lh, f, fb, 'cap-ink');
+  if (c.refs && c.refs.length && !S.hide_refs){
+    const rs = 'source: ' + c.refs.join(' · '), rf = font(500, 13, true);
+    const rw = tw(rs, rf);
+    fillRR(W/2 + wmax/2 + 26 - rw - 16, y0 - 22, rw + 16, 20, 5, 'cap-bg');
+    text(rs, W/2 + wmax/2 + 26 - 8, y0 - 7, rf, 'rgba(255,255,255,.78)', 'right');
+  }
+  ctx.restore();
+}
+
+/* ---------------- lanes ---------------- */
+let HL_RECTS = {};   // target id -> [x,y,w,h], filled while drawing, read by highlights
+function laneDefs(ids, ov){ const all = STAGE.lanes || []; return (ids || all.map(l => l.id)).map(id => typeof id === 'string' ? all.find(l => l.id === id) : id).filter(Boolean).map(d => ov && ov[d.id] ? Object.assign({}, d, ov[d.id]) : d); }
+function drawLanes(run, box, w0, w1, rt, opts){
+  opts = opts || {};
+  const {x, y, w} = box; const X = tt => x + (tt - w0) / (w1 - w0) * w;
+  const reveal = opts.reveal === false ? Infinity : rt;
+  const defs = laneDefs(opts.lanes, opts.overrides);
+  const gap = 10; let yy = y;
+  const rects = [];
+  for (const d of defs){
+    const h = (opts.heights && opts.heights[d.id]) || d.h || 60;
+    rects.push([d, yy, h]); yy += h + gap;
+  }
+  const bottom = yy - gap;
+  // grid + axis
+  const span = w1 - w0, steps = [60, 120, 300, 600, 900, 1800, 3600];
+  const step = steps.find(s => w / (span / s) >= (opts.minTick || 92)) || 3600;
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y - 4, w, bottom - y + 8); ctx.clip();
+  for (const [d, ly, lh] of rects) fillRR(x, ly, w, lh, 4, 'panel');
+  for (let tt = Math.ceil(w0/step)*step; tt <= w1; tt += step) line(X(tt), y, X(tt), bottom, 'grid2', 1);
+  ctx.restore();
+  for (let tt = Math.ceil(w0/step)*step; tt <= w1; tt += step){
+    const xx = X(tt); if (xx < x + 14 || xx > x + w - 14) continue;
+    text(hm(tt), xx, bottom + 20, font(500, 14, true), 'muted', 'center');
+  }
+  // markers (behind data)
+  const marks = markersFor(run, opts.markers, rt);
+  for (const [d, ly, lh] of rects){
+    ctx.save(); ctx.beginPath(); ctx.rect(x, ly, w, lh); ctx.clip();
+    drawLane(run, d, x, ly, w, lh, X, w0, w1, reveal, opts);
+    ctx.restore();
+    // label
+    const lf = font(600, 13, true); const lab = (d.label || d.id).toUpperCase();
+    const lw = tw(lab, lf);
+    fillRR(x + 6, ly + 5, lw + 12, 20, 4, 'panel');
+    text(lab, x + 12, ly + 19, lf, 'muted');
+    HL_RECTS['lane:' + d.id] = [x, ly, w, lh];
+    HL_RECTS['lanex:' + d.id] = {X, y:ly, h:lh};
+  }
+  // markers on top
+  for (const m of marks){
+    if (m.t < w0 || m.t > w1 || m.t > reveal) continue;
+    const xx = X(m.t);
+    line(xx, y, xx, bottom, m.color ? hue(m.color) : 'text2', 1.5, [4, 3]);
+    const mf = font(600, 14, true), mw = tw(m.label, mf) + 12;
+    const lx = clamp(xx - mw/2, x, x + w - mw);
+    fillRR(lx, y - 26, mw, 22, 5, m.color ? hue(m.color) : 'text2');
+    text(m.label, lx + 6, y - 10, mf, '#111111');
+  }
+  // playhead
+  if (opts.playhead !== false && rt >= w0 && rt <= w1){
+    const xx = X(rt);
+    line(xx, y - 2, xx, bottom + 2, opts.frozen ? 'red' : 'ink', opts.frozen ? 2.5 : 1.5);
+    if (opts.frozen){ const fs = 'FROZEN ' + hms(rt), f = font(700, 15, true), fw = tw(fs, f) + 18, fx = clamp(xx - fw/2, x, x + w - fw); ctx.save(); ctx.globalAlpha = opts.pulse == null ? 1 : opts.pulse; fillRR(fx, y - 30, fw, 26, 6, 'red'); text(fs, fx + 9, y - 11, f, '#111111'); ctx.restore(); }
+  }
+  return {X, bottom, rects};
+}
+function markersFor(run, extra, rt){
+  const out = [];
+  for (const m of (STAGE.auto_markers || [])){
+    for (const [tt, v] of getPath(run, m.path) || []) if (!m.only || m.only.includes(v)) out.push({t:tt, label:(m.prefix || '') + v, color:(m.colors && m.colors[v]) || m.color});
+  }
+  for (const m of extra || []) out.push({t:sec(m.t), label:m.label, color:m.color});
+  return out;
+}
+function drawLane(run, d, x, y, w, h, X, w0, w1, reveal, opts){
+  const t0 = seriesT0(run), dt = run.series.dt;
+  const kind = d.kind || 'line';
+  const hiT = Math.min(w1, reveal);
+  if (kind === 'line'){
+    const vals = run.series[d.series]; if (!vals) return;
+    const capv = d.cap ? run.series[d.cap] : null;
+    let lo = d.min != null ? d.min : 0, hi = d.max;
+    if (hi == null){ hi = 0; for (let i = 0; i < vals.length; i++) hi = Math.max(hi, vals[i], capv ? capv[i] : 0); hi *= 1.12; }
+    const log = d.scale === 'log';
+    const yb = y + h - 6, yt = y + 30;
+    const Y = v => clamp(log ? (v <= (d.floor || 1) ? yb : yb - (Math.log10(v) - Math.log10(d.floor || 1)) / (Math.log10(hi) - Math.log10(d.floor || 1)) * (yb - yt)) : yb - (v - lo) / (hi - lo) * (yb - yt), yt - 8, yb);
+    if (lo > 0 && !log) text('axis ' + fmtv(d.fmt, lo) + '–' + fmtv(d.fmt, hi), x + w - 10, yb - 6, font(500, 13, true), 'faint', 'right');
+    const i0 = Math.max(0, Math.floor((w0 - t0)/dt) - 1), i1 = Math.min(vals.length - 1, Math.ceil((hiT - t0)/dt));
+    const seg = (i) => [Math.max(X(t0 + i*dt), x - 2), Math.min(X(t0 + (i+1)*dt), X(hiT))];
+    if (capv){
+      ctx.beginPath(); let st = false;
+      for (let i = i0; i <= i1; i++){ const [a, b] = seg(i); if (b < a) continue; const yy = Y(capv[i]); if (!st){ ctx.moveTo(a, yb); st = true; } ctx.lineTo(a, yy); ctx.lineTo(b, yy); }
+      if (st){ ctx.lineTo(Math.min(X(hiT), x + w), yb); ctx.closePath(); ctx.fillStyle = col('teal-wash'); ctx.fill(); }
+      ctx.beginPath(); st = false;
+      for (let i = i0; i <= i1; i++){ const [a, b] = seg(i); if (b < a) continue; const yy = Y(capv[i]); if (!st){ ctx.moveTo(a, yy); st = true; } else ctx.lineTo(a, yy); ctx.lineTo(b, yy); }
+      ctx.strokeStyle = col('teal-ink'); ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+      if (d.cap_label){ const cy = Y(capv[clamp(Math.floor((w0 - t0)/dt) + 1, 0, capv.length - 1)]); text(d.cap_label.replace('{v}', fmtv(d.fmt, capv[clamp(i0 + 1, 0, capv.length - 1)])), x + w - 10, cy - 7, font(500, 14, true), 'teal-ink', 'right'); }
+    }
+    if (d.ok){
+      for (let i = i0; i <= i1; i++){ const [a, b] = seg(i); if (b <= a) continue; const good = test(d.ok, vals[i]); ctx.fillStyle = col(good ? 'teal-wash' : 'red-wash'); ctx.fillRect(a, Y(vals[i]), b - a, yb - Y(vals[i])); }
+    }
+    if (d.threshold != null){
+      line(x, Y(d.threshold), x + w, Y(d.threshold), 'teal-ink', 1.25, [3, 4]);
+      if (d.threshold_label) text(d.threshold_label, x + w - 10, Y(d.threshold) - 6, font(600, 14, true), 'teal-ink', 'right');
+    }
+    if (opts.ghost){
+      const gv = opts.ghost.series[d.series];
+      if (gv){ ctx.beginPath(); let st = false; for (let i = i0; i <= i1; i++){ const [a, b] = seg(i); if (b < a) continue; const yy = Y(gv[i]); if (!st){ ctx.moveTo(a, yy); st = true; } else ctx.lineTo(a, yy); ctx.lineTo(b, yy); } ctx.strokeStyle = col('muted'); ctx.lineWidth = 2; ctx.setLineDash([1, 5]); ctx.lineCap = 'round'; ctx.stroke(); ctx.setLineDash([]); ctx.lineCap = 'butt'; }
+    }
+    ctx.beginPath(); let st = false;
+    for (let i = i0; i <= i1; i++){ const [a, b] = seg(i); if (b < a) continue; const yy = Y(vals[i]); if (!st){ ctx.moveTo(a, yy); st = true; } else ctx.lineTo(a, yy); ctx.lineTo(b, yy); }
+    ctx.strokeStyle = col(d.color ? hue(d.color, 'ink') : 'ink'); ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
+    // head value
+    if (reveal >= w0 && reveal <= w1 + dt && d.head !== false){
+      const v = sAt(run, d.series, Math.min(reveal, w1)); if (v != null){
+        const hx = X(Math.min(reveal, w1)), hy = Y(v);
+        ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI*2); ctx.fillStyle = col('ink'); ctx.fill();
+        const s = fmtv(d.fmt, v) + (d.unit ? ' ' + d.unit : ''), f = font(600, 18, true), sw = tw(s, f);
+        const left = hx + 10 + sw + 10 > x + w;
+        const bx = left ? hx - 10 - sw - 10 : hx + 10, by = clamp(hy - 14, y + 4, y + h - 30);
+        const good = d.ok ? test(d.ok, v) : null;
+        fillRR(bx, by, sw + 12, 26, 5, good == null ? 'panel2' : good ? 'teal' : 'red');
+        text(s, bx + 6, by + 19, f, good == null ? 'ink' : '#111111');
+      }
+    }
+    HL_RECTS['laneY:' + d.id] = Y;
+  } else if (kind === 'states' || kind === 'segments'){
+    const segs = [];
+    if (kind === 'states'){
+      const v = run.series[d.series]; if (!v) return;
+      let a = 0; for (let i = 1; i <= v.length; i++) if (i === v.length || v[i] !== v[a]){ segs.push({a:t0 + a*dt, b:t0 + i*dt, st:v[a]}); a = i; }
+    } else for (const sg of getPath(run, d.path) || []) segs.push({a:sg.a, b:sg.b, st:sg.st, l:sg.l});
+    const yy = y + 4, hh = h - 8;
+    for (const sg of segs){
+      if (sg.b < w0 || sg.a > hiT) continue;
+      const a = Math.max(X(sg.a), x), b = Math.min(X(Math.min(sg.b, hiT)), x + w); if (b <= a) continue;
+      const stc = (d.states || {})[sg.st] || {}; const c = stc.color || 'line';
+      fillRR(a, yy, Math.max(1, b - a - 1), hh, 3, stc.wash ? c + '-wash' : c);
+      const lab = d.label_from === 'l' && sg.l ? sg.l : (stc.label || sg.st);
+      const f = font(600, 14, true);
+      const lx = Math.max(a, x + tw((d.label || d.id).toUpperCase(), font(600, 13, true)) + 30);
+      if (b - lx > tw(lab, f) + 12) text(lab, lx + 6, yy + hh/2 + 5, f, stc.ink || (stc.wash ? hue(c, 'ink') : '#111111'));
+    }
+  } else if (kind === 'calls'){
+    const yb = y + h - 6;
+    const CL = STAGE.call_classes || {point_read:{h:.38, c:'blue-soft'}, write:{h:.7, c:'blue'}, broad:{h:1, c:'cyan'}, wait:{h:.22, c:'blue-wash'}, free:{h:.2, c:'grid2'}};
+    for (const s of run.steps){
+      if (s.end < w0 || s.at > hiT) continue;
+      const k = CL[s.cls] || CL.point_read; const a = Math.max(X(s.at), x), b = Math.min(X(Math.min(s.end, hiT)), x + w);
+      const hh = (h - 34) * k.h;
+      fillRR(a + .5, yb - hh, Math.max(1.5, b - a - 1.5), hh, 2, k.c);
+      if (s.prod) strokeRR(a + .5, yb - hh, Math.max(1.5, b - a - 1.5), hh, 2, 'blue-ink', 1.5);
+      if (s.error) strokeRR(a + .5, yb - hh, Math.max(1.5, b - a - 1.5), hh, 2, 'red-ink', 1.5, [3, 2]);
+      HL_RECTS['call:' + s.n] = [a, yb - hh, Math.max(3, b - a), hh];
+    }
+    if (d.events){
+      for (const e of run.events || []){
+        if (e.t < w0 || e.t > hiT || e.kind === 'horizon') continue;
+        const ex = X(e.t), ey = y + 32; const c = e.kind === 'page' ? 'red' : (e.kind === 'npc' || e.kind === 'email' || e.kind === 'approval') ? 'violet' : 'text2';
+        ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI*2); ctx.fillStyle = col(c); ctx.fill();
+      }
+    }
+  }
+}
+
+/* ---------------- side panels (world view) ---------------- */
+function panel(x, y, w, h, title, right){
+  fillRR(x, y, w, h, 10, 'panel'); strokeRR(x, y, w, h, 10, 'grid2', 1);
+  text(title.toUpperCase(), x + 14, y + 25, font(600, 13, true), 'muted');
+  if (right) text(right.s, x + w - 14, y + 26, font(600, 17, true), right.c || 'ink', 'right');
+}
+function hostsPanel(run, x, y, w, h, rt){
+  const hc = STAGE.hosts; if (!hc) return;
+  let hosts = [];
+  const src = getPath(run, hc.path);
+  if (hc.mode === 'recovered_at'){
+    const bad = sec(hc.bad_from);
+    for (const [name, rec] of Object.entries(src || {})){
+      if (hc.include && !new RegExp(hc.include).test(name)) continue;
+      const r = sec(rec); hosts.push({name, st: rt >= bad && (r == null || rt < r) ? 'bad' : 'ok'});
+    }
+  } else if (hc.mode === 'rle'){
+    const t0 = getPath(run, hc.t0_path) || seriesT0(run), dt = getPath(run, hc.dt_path) || 30;
+    const idx = Math.floor((rt - t0)/dt);
+    for (const hs of src || []){
+      let i = 0, st = null; const re = /([A-Za-z])(\d+)/g; let m;
+      while ((m = re.exec(hs.s))){ i += +m[2]; if (idx < i){ st = m[1]; break; } st = m[1]; }
+      hosts.push({name:hs.name, group:hs.az, st});
+    }
+  }
+  const gre = hc.group_regex ? new RegExp(hc.group_regex) : null;
+  for (const hh of hosts) if (hh.group == null && gre){ const m = gre.exec(hh.name); hh.group = m ? m[1] : '?'; }
+  const groups = [...new Set(hosts.map(h => h.group))].sort();
+  const okN = hosts.filter(hh => (hc.states[hh.st] || {}).ok).length;
+  panel(x, y, w, h, hc.label || 'Hosts', {s:okN + '/' + hosts.length, c:okN === hosts.length ? 'teal-ink' : 'red-ink'});
+  const top = y + 44, rowH = Math.min(36, (h - 56) / Math.max(1, groups.length));
+  groups.forEach((g, gi) => {
+    const row = hosts.filter(hh => hh.group === g).sort((a, b) => a.name.localeCompare(b.name));
+    const yy = top + gi*rowH + rowH/2;
+    text((hc.group_label || '') + g, x + 16, yy + 6, font(600, 16, true), 'text2');
+    const avail = w - 70, cell = Math.min(28, avail / Math.max(1, row.length));
+    if (cell >= 12) row.forEach((hh, i) => {
+      const stc = hc.states[hh.st] || {color:'line'};
+      ctx.beginPath(); ctx.arc(x + 58 + i*cell + cell/2, yy, Math.min(10.5, cell/2 - 2), 0, Math.PI*2); ctx.fillStyle = col(stc.color); ctx.fill();
+    });
+    else {   // a big fleet: wrap each group into a block of small squares
+      const per = Math.floor(avail / 11), rows = Math.ceil(row.length / per), sz = Math.max(4, Math.min(9, (rowH - 4) / rows - 2));
+      row.forEach((hh, i) => { const stc = hc.states[hh.st] || {color:'line'}; ctx.fillStyle = col(stc.color);
+        ctx.fillRect(x + 58 + (i % per) * 11, yy - (rows * (sz + 2))/2 + Math.floor(i / per) * (sz + 2), 9, sz); });
+    }
+  });
+  HL_RECTS.hosts = [x, y, w, h];
+}
+function leversPanel(run, x, y, w, h, rt, win){
+  const lv = STAGE.levers; if (!lv) return;
+  panel(x, y, w, h, lv.label || 'Levers');
+  const span = win[1] - win[0];
+  lv.items.forEach((it, i) => {
+    const yy = y + 56 + i*32;
+    const l = leverAt(run, it.name, rt); const v = l ? l.value : it.initial;
+    const fresh = l && rt - l.t < span * (lv.fresh || .06);
+    if (fresh) fillRR(x + 8, yy - 22, w - 16, 30, 6, 'blue-wash');
+    text(it.label || it.name, x + 16, yy, font(500, 16, true), 'text2');
+    text(String(v), x + w - 16, yy, font(600, 18, true), fresh ? 'blue-ink' : 'ink', 'right');
+    HL_RECTS['lever:' + it.name] = [x + 8, yy - 22, w - 16, 30];
+  });
+}
+function consolePanel(run, x, y, w, h, rt, pin){
+  const s = pin && pin.call != null ? stepN(run, pin.call) : stepAt(run, rt);
+  panel(x, y, w, h, 'Agent', s ? {s:'call ' + s.n + ' / ' + run.clock.calls_used, c:'blue-ink'} : null);
+  if (!s) return;
+  let yy = y + 56;
+  const tf = font(600, 17, true); text(s.tool, x + 16, yy, tf, 'blue-ink');
+  const cls = (s.cls || '').replace('point_read', 'read'); const cw = tw(cls, font(500, 13, true));
+  strokeRR(x + 22 + tw(s.tool, tf), yy - 15, cw + 10, 20, 4, 'line', 1); text(cls, x + 27 + tw(s.tool, tf), yy, font(500, 13, true), 'muted');
+  if (x + 40 + tw(s.tool, tf) + cw + tw(hms(s.at), font(500, 14, true)) < x + w - 16) text(hms(s.at), x + w - 16, yy, font(500, 14, true), 'muted', 'right');
+  yy += 12;
+  const body = pin ? textOf(run, pin) : (s.detail || '');
+  const lines = wrap(body, font(400, 15, true), w - 32, Math.max(1, Math.min(pin ? 7 : 5, Math.floor((y + h - yy - 14) / 22))));
+  for (const l of lines){ yy += 22; text(l, x + 16, yy, font(400, 15, true), 'text2'); }
+  const m = lastBefore(run.messages, rt, 't');
+  if (m && yy < y + h - 70){
+    yy += 18; line(x + 14, yy, x + w - 14, yy, 'grid2', 1); yy += 24;
+    text('SAID ' + hm(m.t) + (m.where ? ' · ' + m.where : ''), x + 16, yy, font(600, 13, true), 'muted');
+    for (const l of wrap(m.text, font(400, 15), w - 32, Math.max(1, Math.floor((y + h - yy - 10) / 21)))){ yy += 21; text(l, x + 16, yy, font(400, 15), 'ink'); }
+  }
+  HL_RECTS.console = [x, y, w, h];
+}
+
+/* ---------------- highlights and callouts ---------------- */
+function highlights(sc, t, run){
+  for (const hl of sc.highlights || []){
+    if (!active(hl, t)) continue;
+    const a = Math.min(fadeIn(hl, t, .3), fadeOut(hl, t, .25));
+    const c = hl.color || 'amber';
+    ctx.save(); ctx.globalAlpha = a;
+    if (hl.range && /^(r\d:)?lane:/.test(hl.target)){
+      const m = /^(r\d:)?lane:(.*)$/.exec(hl.target); const L = HL_RECTS[(m[1] || '') + 'lanex:' + m[2]]; if (!L){ ctx.restore(); continue; }
+      const xa = L.X(sec(hl.range[0])), xb = L.X(sec(hl.range[1]));
+      fillRR(xa, L.y, xb - xa, L.h, 4, tint(c, '30'));
+      strokeRR(xa, L.y, xb - xa, L.h, 4, hue(c), 2.5);
+      if (hl.label){ const f = font(700, 18, true), lw = tw(hl.label, f) + 16; const lx = clamp((xa + xb)/2 - lw/2, 32, W - 32 - lw); fillRR(lx, L.y + 6, lw, 28, 6, hue(c)); text(hl.label, lx + 8, L.y + 26, f, '#111111'); }
+    } else {
+      const r = HL_RECTS[hl.target]; if (!r){ ctx.restore(); continue; }
+      const pad = hl.pad != null ? hl.pad : 6, pulse = hl.pulse ? 1 + .5 * Math.abs(Math.sin((t - (hl.start || 0)) * Math.PI * 1.6)) : 1;
+      strokeRR(r[0] - pad, r[1] - pad, r[2] + pad*2, r[3] + pad*2, 8, hue(c), 3 * pulse);
+      if (hl.label){
+        const f = font(700, 17, true), lw = tw(hl.label, f) + 16;
+        const above = hl.below ? false : r[1] - pad - 34 > 74;
+        let lx = clamp(r[0] + r[2]/2 - lw/2, 32, W - 32 - lw), ly = above ? r[1] - pad - 34 : r[1] + r[3] + pad + 6;
+        if (hl.place === 'right'){ lx = r[0] + r[2] + pad + 10; ly = r[1] + r[3]/2 - 14; }
+        fillRR(lx, ly, lw, 28, 6, hue(c)); text(hl.label, lx + 8, ly + 20, f, '#111111');
+      }
+    }
+    ctx.restore();
+  }
+}
+function callout(sc, t, run, box){
+  const co = sc.callout; if (!co || t < (co.start != null ? co.start : sc.start)) return;
+  const st = co.start != null ? co.start : sc.start;
+  const {x, y, w, h} = box;
+  const blocks = co.blocks || [];
+  const gap = 16, wsum = blocks.reduce((p, b) => p + (b.weight || 1), 0), avail = w - gap*(blocks.length - 1);
+  let bx = x;
+  blocks.forEach((b, i) => {
+    const bw = avail * (b.weight || 1) / wsum, bx0 = bx; bx += bw + gap;
+    const bs = st + (b.delay != null ? b.delay : i * .9);
+    if (t < bs) return;
+    const a = ease.out(clamp((t - bs) / .45, 0, 1));
+    const by = y + (1 - a) * 18, bx1 = bx0;
+    ctx.save(); ctx.globalAlpha = a;
+    const c = b.color || 'line';
+    fillRR(bx1, by, bw, h, 12, 'panel'); strokeRR(bx1, by, bw, h, 12, c === 'line' ? 'line' : hue(c), 2);
+    fillRR(bx1, by, bw, 6, [12, 12, 0, 0], c === 'line' ? 'line' : hue(c));
+    text((b.label || '').toUpperCase(), bx1 + 18, by + 34, font(600, 14, true), c === 'line' ? 'muted' : hue(c, 'ink'));
+    let yy = by + 52;
+    if (b.kind === 'quote'){
+      let q = textOf(run, b);
+      if (b.find) q = q.includes(b.find) ? b.find : '[quote not found in run data]';
+      const f = font(500, b.size || 22), fb = font(700, b.size || 22);
+      const marked = b.mark && q.includes(b.mark) ? q.replace(b.mark, `{${b.mark_color || c}:${b.mark}}`) : q;
+      const lines = layoutRich('“' + marked + '”', f, fb, bw - 36);
+      const lh = Math.round((b.size || 22) * 1.36);
+      drawRich(lines.slice(0, b.max_lines || 6), bx1 + 18, yy + (b.size || 22), lh, f, fb, 'ink', 'left');
+      yy += Math.min(lines.length, b.max_lines || 6) * lh + 10;
+    } else if (b.kind === 'values'){
+      const items = b.items || [];
+      const cw = (bw - 36 - 8*(items.length - 1)) / items.length;
+      items.forEach((it, j) => {
+        const v = it.series ? sAt(run, it.series, sec(it.at)) : it.value;
+        const ok = it.ok ? test(it.ok, v) : null; const cc = ok == null ? 'panel2' : ok ? 'teal' : 'red';
+        const ia = clamp((t - bs - .25 - j*.18) / .3, 0, 1);
+        ctx.save(); ctx.globalAlpha = a * ia;
+        const ix = bx1 + 18 + j*(cw + 8);
+        fillRR(ix, yy, cw, 70, 8, cc);
+        text(it.label || hm(sec(it.at)), ix + cw/2, yy + 24, font(600, 15, true), ok == null ? 'muted' : 'rgba(17,17,17,.75)', 'center');
+        text(fmtv(it.fmt || b.fmt, v), ix + cw/2, yy + 55, font(700, cw < 90 ? 21 : 26, true), ok == null ? 'ink' : '#111111', 'center');
+        ctx.restore();
+      });
+      yy += 84;
+    }
+    if (b.note){ for (const l of layoutRich(b.note, font(400, 17), font(700, 17), bw - 36).slice(0, 4)){ drawRich([l], bx1 + 18, yy + 17, 24, font(400, 17), font(700, 17), 'text2', 'left'); yy += 24; } }
+    if (b.source) text(b.source, bx1 + 18, by + h - 16, font(500, 13, true), 'muted');
+    ctx.restore();
+  });
+}
+
+/* ---------------- views ---------------- */
+function bg(){ ctx.fillStyle = col('bg'); ctx.fillRect(0, 0, W, H); }
+function viewTitle(sc, t){
+  const run = R(sc.run); const a = ease.out(clamp((t - sc.start) / .8, 0, 1));
+  ctx.save(); ctx.globalAlpha = a;
+  const kick = (sc.kicker || `AwsIncidentsBench · ${S.task} · ${run.task_title || ''}`).toUpperCase();
+  text(kick, W/2, 230, font(600, 18, true), 'muted', 'center');
+  const lines = wrap(sc.title || S.title, font(700, 58), 1080, 2);
+  lines.forEach((l, i) => text(l, W/2, 312 + i*70 - (1 - a)*12, font(700, 58), 'ink', 'center'));
+  let yy = 312 + lines.length*70 + 8;
+  if (sc.subtitle){ const sl = layoutRich(sc.subtitle, font(400, 26), font(600, 26), 1000); drawRich(sl.slice(0, 2), W/2, yy, 36, font(400, 26), font(600, 26), 'text2'); yy += sl.length*36 + 22; }
+  const meta = sc.meta || [run.model, run.id, 'score ' + run.score.d12.toFixed(2) + (run.score.pass ? ' · pass' : ' · fail')];
+  const mf = font(600, 18, true); let total = 0; const ws = meta.map(m => tw(m, mf) + 28); total = ws.reduce((p, q) => p + q, 0) + 12*(meta.length - 1);
+  let mx = W/2 - total/2;
+  meta.forEach((m, i) => { const fail = /fail/.test(m), pass = /pass/.test(m); fillRR(mx, yy, ws[i], 40, 8, fail ? 'red' : pass ? 'teal' : 'panel2'); if (!fail && !pass) strokeRR(mx, yy, ws[i], 40, 8, 'line', 1); text(m, mx + ws[i]/2, yy + 27, mf, fail || pass ? '#111111' : 'ink', 'center'); mx += ws[i] + 12; });
+  ctx.restore();
+  if (sc.note) text(sc.note, W/2, 560, font(400, 17), 'muted', 'center');
+}
+function viewWorld(sc, t){
+  const run = R(sc.run); const rt = runTime(sc, t), win = windowAt(sc, t, rt);
+  header(sc, t, rt, run);
+  const L = sc.layout || {};
+  const hy = STAGE.hosts ? 254 : 92, nl = (STAGE.levers && STAGE.levers.items.length) || 0;
+  hostsPanel(run, 32, 92, 328, 150, rt);
+  leversPanel(run, 32, hy, 328, 52 + 32*nl, rt, win);
+  const cy = nl ? hy + 64 + 32*nl : hy;
+  consolePanel(run, 32, cy, 328, 544 - cy, rt, sc.excerpt && active(sc.excerpt, t) ? sc.excerpt : null);
+  drawLanes(run, {x:384, y:118, w:864}, win[0], win[1], rt, {lanes:sc.lanes, heights:sc.heights || L.heights, overrides:sc.lane_overrides, markers:sc.markers, ghost:sc.ghost ? R(sc.ghost) : null, frozen:sc.clock && sc.clock.at != null});
+}
+function viewDecision(sc, t){
+  const run = R(sc.run); const rt = runTime(sc, t), win = windowAt(sc, t, rt);
+  header(sc, t, rt, run);
+  drawLanes(run, {x:32, y:118, w:1216}, win[0], win[1], rt, {lanes:sc.lanes, heights:sc.heights, overrides:sc.lane_overrides, markers:sc.markers, frozen:true, pulse:.8 + .2 * Math.sin((t - sc.start) * 4), minTick:110});
+  callout(sc, t, run, sc.callout_box || {x:32, y:sc.callout_y || 352, w:1216, h:sc.callout_h || 200});
+}
+function viewSplit(sc, t){
+  const ids = (sc.split && sc.split.runs) || [S.run, S.compare];
+  const rt = runTime(sc, t), win = windowAt(sc, t, rt);
+  text((sc.kicker || S.task + ' · side by side').toUpperCase(), 32, 34, font(500, 15, true), 'muted');
+  text(sc.title || '', 32, 62, font(600, 23), 'ink');
+  const clk = hms(rt); text(clk, 1248, 60, font(600, 38, true), 'ink', 'right');
+  text(STAGE.tz || '', 1248 - tw(clk, font(600, 38, true)) - 8, 60, font(500, 15, true), 'muted', 'right');
+  const colW = 596;
+  ids.forEach((id, i) => {
+    const run = R(id), x = 32 + i*(colW + 24);
+    const pass = run.score.pass;
+    fillRR(x, 84, colW, 52, 10, 'panel2');
+    const badge = (pass ? 'PASS ' : 'FAIL ') + run.score.d12.toFixed(2), bf = font(700, 18, true), bw = tw(badge, bf) + 20;
+    fillRR(x + 12, 95, bw, 30, 6, pass ? 'teal' : 'red'); text(badge, x + 22, 116, bf, '#111111');
+    text(run.id, x + 24 + bw, 117, font(600, 20, true), 'ink');
+    const lab = (sc.split && sc.split.notes && sc.split.notes[i]) || run.model || '';
+    const idw = 24 + bw + tw(run.id, font(600, 20, true)) + 16;
+    const nl = wrap(lab, font(500, 15), colW - idw - 14, 1)[0] || '';
+    text(nl, x + colW - 14, 116, font(500, 15), 'text2', 'right');
+    for (const k of Object.keys(HL_RECTS)) if (!/^r\d:/.test(k)) delete HL_RECTS[k];
+    drawLanes(run, {x, y:178, w:colW}, win[0], win[1], rt, {lanes:sc.lanes, heights:sc.heights, overrides:sc.lane_overrides, markers:(sc.split && sc.split.markers && sc.split.markers[i]) || [], minTick:120});
+    for (const k of Object.keys(HL_RECTS)) if (!/^r\d:/.test(k)) HL_RECTS['r' + i + ':' + k] = HL_RECTS[k];
+  });
+}
+function viewVerdict(sc, t){
+  const run = R(sc.run), sco = run.score;
+  const a = ease.out(clamp((t - sc.start) / .6, 0, 1));
+  ctx.save(); ctx.globalAlpha = a;
+  const x = 140, y = 78 + (1 - a)*16, w = 1000, h = 470;
+  fillRR(x, y, w, h, 16, 'panel'); strokeRR(x, y, w, h, 16, sco.pass ? 'teal' : 'red', 2);
+  text((sc.kicker || `Verdict · ${S.task} · ${run.id}`).toUpperCase(), x + 36, y + 46, font(600, 15, true), 'muted');
+  const badge = sco.pass ? 'PASS' : 'FAIL', bf = font(700, 40, true), bw = tw(badge, bf) + 32;
+  fillRR(x + 36, y + 66, bw, 62, 10, sco.pass ? 'teal' : 'red'); text(badge, x + 52, y + 111, bf, '#111111');
+  text(sco.d12.toFixed(2), x + 56 + bw, y + 114, font(700, 54, true), 'ink');
+  const sw = tw(sco.d12.toFixed(2), font(700, 54, true));
+  text('score', x + 64 + bw + sw, y + 112, font(500, 20), 'muted');
+  text(sc.why || sco.why || '', x + w - 36, y + 106, font(600, 20, true), sco.caps && sco.caps.length ? 'red-ink' : 'text2', 'right');
+  // headline
+  let yy = y + 176;
+  if (sc.headline){ const hl = layoutRich(sc.headline, font(600, 30), font(700, 30), w - 72); drawRich(hl.slice(0, 2), x + 36, yy, 40, font(600, 30), font(700, 30), 'ink', 'left'); yy += Math.min(2, hl.length) * 40; }
+  // buckets
+  yy += 8;
+  const bk = sco.buckets || {}; const BK = sc.buckets || STAGE.buckets || Object.keys(bk).map(k => ({id:k, label:k}));
+  let bx = x + 36;
+  for (const b of BK){ const s = (b.label || b.id) + ' ' + Math.round(bk[b.id] || 0) + (b.of ? '/' + b.of : ''); const f = font(600, 18, true), w2 = tw(s, f) + 22; strokeRR(bx, yy, w2, 34, 7, 'line', 1); text(s, bx + 11, yy + 23, f, 'text2'); bx += w2 + 10; }
+  yy += 56;
+  // check chips
+  const ids = sc.checks || run.checks.map(c => c.id);
+  const cf = font(600, 17, true); let cx = x + 36;
+  for (const id of ids){
+    const c = run.checks.find(k => k.id === id); if (!c) continue;
+    const bad = c.gate ? c.fired : c.result === false; const ok = c.gate ? !c.fired : c.result === true;
+    const s = c.gate ? id + (c.fired ? ' fired' : '') : id, cw = tw(s, cf) + 20;
+    if (cx + cw > x + w - 36){ cx = x + 36; yy += 44; }
+    fillRR(cx, yy, cw, 34, 7, bad ? 'red' : ok ? 'teal-wash' : 'panel2'); if (!bad) strokeRR(cx, yy, cw, 34, 7, ok ? 'teal' : 'line', 1.5);
+    text(s, cx + 10, yy + 23, cf, bad ? '#111111' : ok ? 'teal-ink' : 'muted'); cx += cw + 8;
+  }
+  yy += 84;
+  for (const l of (sc.lines || [])){ const ll = layoutRich(l, font(400, 20), font(700, 20), w - 72); drawRich(ll.slice(0, 2), x + 36, yy, 28, font(400, 20), font(700, 20), 'text2', 'left'); yy += ll.length * 28 + 6; }
+  ctx.restore();
+}
+const VIEWS = {title:viewTitle, world:viewWorld, decision:viewDecision, split:viewSplit, verdict:viewVerdict};
+
+/* ---------------- frame ---------------- */
+function drawAt(t){
+  HL_RECTS = {};
+  const sc = sceneAt(t);
+  bg();
+  (VIEWS[sc.view] || viewWorld)(sc, t);
+  highlights(sc, t, R(sc.run));
+  // scene dip: fade up from the background over the first .3 s
+  const fi = sc.start > 0 ? clamp((t - sc.start) / .3, 0, 1) : 1;
+  if (fi < 1){ ctx.save(); ctx.globalAlpha = 1 - fi; ctx.fillStyle = col('bg'); ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  captions(t);
+  if (!S.hide_brand) text('AwsIncidentsBench', 1248, 704 - 10, font(500, 12, true), 'faint', 'right');
+  progress(t);
+}
+const frames = () => Math.round(DUR * FPS);
+function drawFrame(n){ drawAt(Math.min(n, frames() - 1) / FPS); }
+
+/* public API for the renderer: same drawFrame the ?frame= mode uses */
+window.__film = {ready:false, drawFrame, frames, fps:FPS, duration:() => DUR, script:() => S,
+  captionsVTT(){
+    const all = []; for (const s of S.scenes) for (const c of s.captions || []) all.push(c); for (const c of S.captions || []) all.push(c);
+    all.sort((a, b) => a.start - b.start);
+    const ts = s => { const ms = Math.round(s*1000); return p2(Math.floor(ms/3600000)) + ':' + p2(Math.floor(ms/60000)%60) + ':' + p2(Math.floor(ms/1000)%60) + '.' + String(ms%1000).padStart(3, '0'); };
+    return 'WEBVTT\n\n' + all.map((c, i) => `${i + 1}\n${ts(c.start)} --> ${ts(c.end)}\n${c.text.replace(/\{\w+(?:-\w+)?:([^}]*)\}/g, '$1')}\n`).join('\n');
+  }};
+
+/* ---------------- boot ---------------- */
+load().then(() => {
+  window.__film.ready = true;
+  if (FRAME !== null){ drawFrame(FRAME); document.documentElement.setAttribute('data-frame', String(FRAME)); return; }
+  let playing = false, t = 0, last = 0;
+  const seek = document.getElementById('seek'), tc = document.getElementById('tc'), btn = document.getElementById('play');
+  const mmss = s => Math.floor(s/60) + ':' + p2(Math.floor(s%60));
+  const show = () => { drawAt(Math.min(t, DUR - 1/FPS)); seek.value = String(Math.round(t / DUR * 1000)); tc.textContent = mmss(t) + ' / ' + mmss(DUR); };
+  const loop = now => { if (!playing) return; t += (now - last)/1000; last = now; if (t >= DUR){ t = DUR; playing = false; btn.textContent = 'Replay'; } show(); if (playing) requestAnimationFrame(loop); };
+  const toggle = () => { if (t >= DUR) t = 0; playing = !playing; btn.textContent = playing ? 'Pause' : 'Play'; if (playing){ last = performance.now(); requestAnimationFrame(loop); } };
+  btn.onclick = toggle; cv.onclick = toggle;
+  seek.oninput = () => { t = +seek.value / 1000 * DUR; show(); };
+  document.addEventListener('keydown', e => { if (e.code === 'Space'){ e.preventDefault(); toggle(); } });
+  show();
+  if (qs.has('autoplay')) toggle();
+}).catch(e => { const el = document.getElementById('err'); el.hidden = false; el.textContent = 'Film failed to load: ' + e.message; window.__film.error = e.message; });
+})();
+</script>
+</body></html>

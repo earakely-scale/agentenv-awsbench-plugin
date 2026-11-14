@@ -1,0 +1,30 @@
+{
+  "about": "T01 stage for film.html: which series, segments, hosts and levers of a schema v1 viewer JSON the film draws, and how. Every T01 constant lives here, not in the renderer.",
+  "tz": "ET",
+  "hud": [
+    {"id": "ck", "label": "Checkout", "series": "ck", "fmt": "pct1000", "ok": ">=990"},
+    {"id": "ticket", "label": "OPS-4452", "board": "board.ticket", "empty": "open",
+     "colors": {"SEV1": "red", "Investigating": "red", "Identified": "amber", "Mitigated": "amber", "Resolved": "teal"}}
+  ],
+  "lanes": [
+    {"id": "ck", "label": "Checkout success", "series": "ck", "min": 0, "max": 1000, "fmt": "pct1000", "ok": ">=990",
+     "threshold": 990, "threshold_label": "99 %", "h": 140},
+    {"id": "ld", "label": "Ledger-writer load", "series": "ld", "cap": "cap", "cap_label": "capacity {v} req/s", "fmt": "int",
+     "unit": "req/s", "min": 0, "max": 1800, "h": 104},
+    {"id": "rg", "label": "Ledger-writer", "kind": "states", "series": "rg", "h": 34,
+     "states": {"h": {"label": "healthy", "color": "teal", "wash": true}, "d": {"label": "degraded", "color": "amber"},
+                "c": {"label": "collapsed", "color": "red"}}},
+    {"id": "dns", "label": "ledger.internal", "kind": "segments", "path": "dns", "label_from": "l", "h": 34,
+     "states": {"ok": {"color": "grid2", "ink": "text2"}, "stale": {"color": "amber"}, "empty": {"color": "red"},
+                "wrong": {"color": "amber"}, "fix": {"color": "teal", "wash": true}}},
+    {"id": "calls", "label": "Agent calls", "kind": "calls", "events": true, "h": 60},
+    {"id": "bl", "label": "Webhook backlog", "series": "bl", "fmt": "k", "scale": "log", "floor": 100, "max": 500000, "h": 90}
+  ],
+  "hosts": {"label": "Core hosts resolving the ledger", "path": "hosts", "mode": "recovered_at", "bad_from": "02:31:42",
+            "include": "^core-", "group_regex": "-([a-z])-\\d+$", "group_label": "",
+            "states": {"ok": {"color": "teal", "ok": true}, "bad": {"color": "red"}}},
+  "levers": {"label": "Webhook dispatcher", "fresh": 0.08,
+             "items": [{"name": "max_concurrency", "initial": "25"}, {"name": "consumer_paused", "initial": "false"}]},
+  "buckets": [{"id": "outcome", "label": "outcome", "of": 68}, {"id": "process", "label": "process", "of": 20},
+              {"id": "comms", "label": "comms", "of": 12}]
+}
