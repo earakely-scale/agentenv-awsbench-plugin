@@ -32,6 +32,7 @@ command exits non-zero, since a path that silently fails grades as a different p
 import argparse
 import asyncio
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -303,6 +304,8 @@ async def finish(gw, grade=None):
     second = await gw.aws_extension(HORIZON_URI, {}, method="run")
     print("  horizon:", json.dumps(first)[:200], "| again:", json.dumps(second)[:120])
     aws, ws = await gw.exports()
+    if os.environ.get("AWSBENCH_DUMP"):
+        Path(os.environ["AWSBENCH_DUMP"]).write_text(json.dumps({"aws": aws, "workspace": ws}, default=str))
     graded = (grade or load_grade()).grade_from_inputs(aws, ws, None, "the driver path grades without the judge")
     for r in graded["rows"] + graded["gates"]:
         print(f"  {r['id']:4} {r['result']!s:5} {r['detail'][:140]}")

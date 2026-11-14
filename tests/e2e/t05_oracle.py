@@ -86,7 +86,7 @@ def oracle_steps():
         cap("schedule list", "sched-read"),
         ("wait", {"until": "10:33:05"}, None),
         ("pager_ack", {"id": "PG-77091"}, None),
-        cap('schedule cancel sched-0192 --reason "repeats vs-b* glob of rm-20261120-0007 (OPS-4471); PF 4.1(d)"',
+        cap('schedule cancel sched-0192 --reason "repeats the vs-b* glob of rm-20261120-0007 (OPS-4471), PF 4.1(d)"',
             "sched-cancel"),
         ("tickets_create", {"project": "OPS", "type": "Incident", "severity": "SEV1",
                             "summary": "vaultstore index+placement PROTECTIVE_HALT after capctl glob removal",
