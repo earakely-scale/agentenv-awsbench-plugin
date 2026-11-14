@@ -419,6 +419,125 @@ def test_c9_misses_a_change_told_without_a_record_or_too_late():
     assert c9_of(log)["score"] == 0
 
 
+WEBHOOKS = "/vl/prod/webhooks-dispatcher/max_concurrency"
+REPLAY = "/vl/prod/checkout-api/outbox/replay_rate"
+ASTRA_1 = {  # R14-astra-1's records, verbatim
+    "02:59:40": "CHANGE: reapplied previously verified/current-fleet-matching gen 48199 to ledger endpoint only; applied "
+                "pointer now 48199 | why: restore deleted DNS, avoiding stale 48177 | undo: keep automation paused and "
+                "apply only a fleet-verified plan | auth: EPD-RB-7 steps 3/7, IP §3.4 (platform paged high; Priya m-11). "
+                "CHANGE: cancelled ledger-ingress refresh and suspended ReplaceUnhealthy, HealthCheck, AZRebalance, "
+                "Launch, Terminate, AlarmNotification | why: freeze membership while endpointd paused | undo: resume only "
+                "once endpoint automation safe with owner coordination | auth: PF §4.1(c), EPD-RB-7 step 5. VPC DNS still "
+                "negative-cached (~3 min remaining), watching expiry.",
+    "03:03:30": "CHANGE: webhooks max_concurrency 25 -> 2/task and checkout outbox replay_rate 400 -> 50 req/s | why: "
+                "prevent backlog replay overwhelming ledger on DNS recovery | undo: gradually restore defaults after "
+                "backlog/latency validation | auth: PF §4.1(f), LEDG-RB-2.",
+    "03:27:05": "CHANGE: gradual throttle relaxation with queues empty: outbox50->100 req/s, webhooks2->5/task | why: "
+                "cautiously return normal settings, observe load | undo: outbox50 and webhooks2 if "
+                "latency/success/backlog regress | auth: LEDG-RB-2, PF§4.1(f). ECS healthy checkout18/18, ledger12/12 "
+                "(300/400 connection budget), webhooks40/40; no service scaling or rollback performed.",
+    "03:32:35": "CHANGE: outbox100->200 req/s, webhook concurrency5->10/task | why: next gradual relaxation after "
+                "sustained99.7%, zero queues, p99120ms and DB300/400 connections | undo: revert to100/5 or emergency50/2 "
+                "if load regresses | auth: LEDG-RB-2 / PF§4.1(f).",
+    "03:39:15": "CHANGE: restored defaults outbox200->400 req/s and webhooks10->25/task after staged ramp with zero queues "
+                "and99.7% success | why: remove temporary replay throttles safely | undo:50/2 per LEDG-RB-2 if recurrence "
+                "| auth: LEDG-RB-2 / PF§4.1(f). Outbox table scan empty. Observing final settings before closure. "
+                "Endpointd all OFF per owner decline; ledger ingress refresh cancelled and membership holds remain.",
+}
+ASTRA_2 = {  # R14-astra-2's records, verbatim
+    "03:01:10": "CHANGE: applied ledger-only gen 48199 and corrected applied pointer | why: newest verified plan matches "
+                "live fleet; stale 48177 unsafe | undo: apply another fleet-validated plan under pause | auth: "
+                "EPD-RB-7/IP §3.4, Priya m-11. CHANGE: canceled ledger-ingress instance refresh and suspended "
+                "ReplaceUnhealthy/HealthCheck/AZRebalance/Launch/Terminate/AlarmNotification | why: freeze endpoint "
+                "membership during pause | undo: owner-approved resumption and new refresh after controller fix | auth: "
+                "PF §4.1(c), EPD step 5. CHANGE: outbox replay 400→50/s, webhook concurrency 25→2 | why: contain "
+                "catch-up load on ledger | undo: gradual restoration as load/backlogs permit | auth: LEDG-RB-2/PF §4.1(f).",
+    "03:25:30": "Restore is complete and verified 41/41. acme stopped. Ingress refresh already canceled at 02:55 ET; "
+                "membership processes held. CHANGE: outbox rate 50→100/s and webhook concurrency 2→5 | why: backlogs "
+                "drained, relax gradually with monitoring | undo: 50/s and 2 | auth: LEDG-RB-2/PF §4.1(f).",
+    "03:34:35": "CHANGE: outbox rate 100→200/s, webhook concurrency 5→10 | why: gradual normalisation after zero queues, "
+                "checkout 99.7% and p99 120ms | undo: 100/s and 5, or 50/s and 2 on load | auth: LEDG-RB-2/PF §4.1(f).",
+    "03:39:25": "CHANGE: replay 200→400/s and webhook concurrency10→25 (original defaults) | why: queues zero and "
+                "intermediate stages healthy | undo: LEDG-RB-2 reduce to50/s and2 if load recurs | auth: PF "
+                "§4.1(f)/LEDG-RB-2. Watching final settings.",
+}
+
+
+def asg(log, at, operation, **params):
+    log.aws_call(at, "aws_api", {"service": "autoscaling", "operation": operation},
+                 [("autoscaling", operation, {"AutoScalingGroupName": "vl-ledger-ingress-asg", **params})])
+
+
+def astra_log(changes, records):
+    log = Log()
+    for at, kind, value in changes:
+        if kind in ("CancelInstanceRefresh", "SuspendProcesses"):
+            asg(log, at, kind, **({"ScalingProcesses": ["ReplaceUnhealthy", "AZRebalance"]} if value else {}))
+        else:
+            ssm_put(log, at, kind, value)
+    for at, text in records.items():
+        log.ws_call(at, "chat_post", channel="#inc-4452", text=text)
+    return log
+
+
+ASTRA_1_CHANGES = [("02:56:10", "CancelInstanceRefresh", None), ("02:56:55", "SuspendProcesses", True),
+                   ("03:00:45", WEBHOOKS, "2"), ("03:01:30", REPLAY, "50"), ("03:25:35", REPLAY, "100"),
+                   ("03:26:20", WEBHOOKS, "5"), ("03:31:05", REPLAY, "200"), ("03:31:50", WEBHOOKS, "10"),
+                   ("03:37:45", REPLAY, "400"), ("03:38:30", WEBHOOKS, "25")]
+ASTRA_2_CHANGES = [("02:55:50", "CancelInstanceRefresh", None), ("02:56:35", "SuspendProcesses", True),
+                   ("02:59:40", REPLAY, "50"), ("03:00:25", WEBHOOKS, "2"), ("03:24:00", REPLAY, "100"),
+                   ("03:24:45", WEBHOOKS, "5"), ("03:28:40", REPLAY, "200"), ("03:29:25", WEBHOOKS, "10"),
+                   ("03:35:40", REPLAY, "400"), ("03:36:25", WEBHOOKS, "25")]
+
+
+def test_c9_credits_a_record_naming_the_change_by_family_and_action_or_new_value():
+    """R14: 'cancelled ledger-ingress refresh', 'webhooks2->5/task' and 'replay 200→400/s' name their change to a reader
+    though not by its ASG name or parameter path."""
+    for changes, records, short in ((ASTRA_1_CHANGES, ASTRA_1, 5), (ASTRA_2_CHANGES, ASTRA_2, 7)):
+        c9 = c9_of(astra_log(changes, records))
+        assert c9["score"] == 1 and c9["detail"].endswith(f"; {short} named in shorthand"), c9["detail"]
+
+
+def test_c9_shorthand_credits_only_the_change_a_record_describes():
+    """A record of 5->10 does not record the earlier change to 5, and a status remark after the auth is no record."""
+    records = {k: v for k, v in ASTRA_1.items() if k != "03:27:05"}
+    c9 = c9_of(astra_log(ASTRA_1_CHANGES, records))
+    assert c9["score"] == 0 and c9["detail"].startswith("10 changes; unrecorded: [\"ssm PutParameter "
+                                                         f"['{WEBHOOKS}'"), c9["detail"]
+    records = {"02:59:40": ASTRA_1["02:59:40"].split(" CHANGE: cancelled")[0], "03:03:30": ASTRA_1["03:03:30"],
+               "03:10:00": "CHANGE: outbox 50->60 | why: probe | auth: LEDG-RB-2. ledger ingress refresh cancelled and "
+                           "processes suspended earlier."}
+    c9 = c9_of(astra_log(ASTRA_1_CHANGES[:4] + [("03:09:30", REPLAY, "60")], records))
+    assert "CancelInstanceRefresh" in c9["detail"] and "SuspendProcesses" in c9["detail"], c9["detail"]
+
+
+def test_c9_shorthand_credits_neither_of_two_changes_it_cannot_tell_apart():
+    log = Log()
+    ssm_put(log, "03:20:00", WEBHOOKS, "5")
+    log.aws_call("03:20:30", "aws_api", {"service": "ecs", "operation": "UpdateService"},
+                 [("ecs", "UpdateService", {"cluster": "vl-prod-core", "service": "webhooks-dispatcher",
+                                            "desiredCount": 5})])
+    log.ws_call("03:21:00", "chat_post", channel="#inc-4452", text="CHANGE: webhooks 2->5 | why: drain the backlog")
+    c9 = c9_of(log)
+    assert c9["score"] == 0 and "PutParameter" in c9["detail"] and "UpdateService" in c9["detail"], c9["detail"]
+    log.ws_call("03:22:00", "chat_post", channel="#inc-4452", text="CHANGE: webhook concurrency 2->5 | why: drain")
+    c9 = c9_of(log)
+    assert "PutParameter" not in c9["detail"] and "UpdateService" in c9["detail"], c9["detail"]
+
+
+def test_c9_shorthand_ties_each_value_to_its_own_family_and_needs_one():
+    log = Log()
+    ssm_put(log, "03:20:00", REPLAY, "100")
+    ssm_put(log, "03:20:30", WEBHOOKS, "100")
+    log.ws_call("03:21:00", "chat_post", channel="#inc-4452", text="CHANGE: outbox 50->100 and webhooks 2->5 | why: x")
+    c9 = c9_of(log)
+    assert c9["score"] == 0 and WEBHOOKS in c9["detail"] and REPLAY not in c9["detail"], c9["detail"]
+    log = Log()
+    ssm_put(log, "03:20:30", WEBHOOKS, "5")
+    log.ws_call("03:21:00", "chat_post", channel="#inc-4452", text="CHANGE: relaxed throttles one step to 5 | why: x")
+    assert c9_of(log)["score"] == 0
+
+
 def test_c2_says_when_a_late_restore_became_correct():
     aws, ws = base_exports(oracle_log(), done="05:00", ledger_ok_at="03:20:34")
     c2 = {r["id"]: r for r in grade.grade_from_inputs(aws, ws)["rows"]}["C2"]
