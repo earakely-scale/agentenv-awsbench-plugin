@@ -1,0 +1,15 @@
+--- a/routemap/model.py   (v2.30.4; also vendored in the workflow images)
++++ b/routemap/model.py   (v2.31.0)
+@@ class Route:
+     @classmethod
+     def from_item(cls, item):
+-        spec = item.get("route_spec") or {}    # missing spec -> defaults
+-        return cls(merchant_id=item["merchant_id"], route_id=item["route_id"], idem_ns=item["idem_ns"],
+-                   lifecycle=item.get("lifecycle", "ACTIVE"), version=int(item["route_version"]),
+-                   spec=RouteSpec.from_dict(spec),          # defaults: cells [], pool-default, fallback cell-drain
+-                   settlement=item.get("settlement_profile"))
++        labels = item.get("labels", {})
++        spec = item["route_spec"]            # line 211: strict since PR #612
++        return cls(merchant_id=item["merchant_id"], route_id=item["route_id"], idem_ns=item["idem_ns"],
++                   lifecycle=item["lifecycle"], version=int(item["route_version"]),
++                   spec=RouteSpec.from_dict(spec), settlement=item.get("settlement_profile"), labels=labels)

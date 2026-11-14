@@ -1,0 +1,37 @@
+name: vantleaf/routemap
+description: "routemap: merchant payment-routing control plane (routemap-api, workflows, publisher, rmctl)"
+default_branch: main
+protected: [main]
+tree:
+  "docs/state-recovery.md": {content_ref: bodies/routemap/state-recovery.md}
+  "rmctl/maintenance/purge_orphans.py": {content_ref: bodies/routemap/purge_orphans.py}
+  "routemap/model.py": {content_ref: bodies/routemap/model.py}
+commits:
+  - {sha: e3f0c29, author: ravi.menon, ts: "2026-11-20T15:40:00-05:00", message: "Add route labels; refactor Route.from_item (#612)", tag: v2.31.0}
+  - {sha: 9b77d41, author: ravi.menon, ts: "2026-10-30T11:20:00-04:00", message: "release v2.30.4", tag: v2.30.4}
+  - {sha: 5c1e0a7, author: kwame.asante, ts: "2026-04-02T16:48:00-04:00", message: "docs: state-recovery.md (PITR to side table + targeted merge) (#571)"}
+prs:
+  - number: 612
+    title: "Add route labels; refactor Route.from_item"
+    author: ravi.menon
+    state: merged
+    created: "2026-11-19T17:30:00-05:00"
+    merged_at: "2026-11-20T15:40:00-05:00"
+    reviewers: [kwame.asante]
+    files: [routemap/model.py, routemap/api/routes.py, tests/test_model.py]
+    body: "Adds optional `labels` to ROUTE items for merchant-dashboard (PLAT-2344). from_item now reads route_spec strictly; the workflows keep their vendored model."
+    diff_ref: bodies/routemap/pr-612.diff
+    review_comments:
+      - {author: kwame.asante, ts: "2026-11-20T15:31:00-05:00", body: "nit: from_item is strict now, fine since every ROUTE item has a spec. Approve."}
+  - number: 571
+    title: "docs: state recovery for partial corruption"
+    author: kwame.asante
+    state: merged
+    created: "2026-03-30T10:00:00-04:00"
+    merged_at: "2026-04-02T16:48:00-04:00"
+    reviewers: [ravi.menon]
+    files: [docs/state-recovery.md]
+    body: "Follow-up to POST-2026-006. Repointing state_table is for total loss only; partial corruption = PITR to a new table, diff, targeted merge, publish, verify, canary resume."
+deploys:
+  - {version: v2.31.0, env: prod, ts: "2026-11-20T16:05:20-05:00", by: ravi.menon, service: routemap-api, task_definition: "routemap-api:58"}
+  - {version: v2.30.4, env: prod, ts: "2026-10-30T14:10:00-04:00", by: ravi.menon, service: routemap-api, task_definition: "routemap-api:57"}

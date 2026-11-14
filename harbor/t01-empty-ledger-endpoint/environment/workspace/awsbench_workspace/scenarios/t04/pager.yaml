@@ -1,0 +1,24 @@
+next_id: 77121
+schedules:
+  sre-primary: {primary: sre-primary, escalation: "15 min unacked -> sre-secondary"}
+  sre-secondary: {primary: tomas.ilyin, escalation: "15 min unacked -> sre-manager (Priya Raman)"}
+  incident-commander: {primary: priya.raman, escalation: "15 min unacked -> infra-leadership (Daniel Brandt)"}
+  platform: {primary: kwame.asante, secondary: elena.sokolova, escalation: "high urgency unacked 30 min -> infra-leadership (Daniel Brandt)"}
+  payments: {primary: hannah.becker, escalation: "15 min unacked -> Marco Ferri"}
+  infra-leadership: {primary: daniel.brandt}
+  merchant-success: {primary: owen.gallagher, hours: "BF weekend coverage Nov 21 - Dec 2"}
+  security-primary: {primary: leo.martins, escalation: "15 min unacked -> security-leadership"}
+overrides:
+  - {schedule: platform, user: elena.sokolova, from: "15:00", to: "2026-11-22T09:00:00-05:00", note: "Kwame flying (boards 14:35 at SFO)"}
+  - {schedule: sre-secondary, user: tomas.ilyin, from: "2026-11-21T00:00:00-05:00", to: "2026-11-23T08:00:00-05:00", note: "family event until 15:00 Sat (acks, cannot join before 15:00)"}
+incidents:
+  - id: PG-77120
+    title: "payments-route-no-healthy-cell-high - ALARM since 13:06 ET"
+    urgency: high
+    triggered_at: "13:11:30"
+    schedules: [sre-primary]
+    assigned: [sre-primary]
+    status: triggered
+    created_by: alert-integration
+    details: "P1. Card authorizations failing with ROUTE_NO_HEALTHY_CELL for a growing number of merchants (Vantleaf/Payments PaymentFailures sum over 5 min > 150, 2 of 3 datapoints). vl-prod, us-east-1. Source: CloudWatch alarm payments-route-no-healthy-cell-high via SNS vl-pager-sre."
+    escalation: {sre-primary: "15 min unacked (13:26:30) -> sre-secondary (Tomas Ilyin)"}

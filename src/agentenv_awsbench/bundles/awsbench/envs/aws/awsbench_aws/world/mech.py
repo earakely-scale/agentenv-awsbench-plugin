@@ -116,7 +116,14 @@ class MechWorld:
     def fleet_job_status(self, job_id: str) -> dict:
         return self.mech.fleet_job_status(job_id, self.now)
 
-    def serve_aws(self, service: str, operation: str, params: dict) -> dict | None:
+    @property
+    def wants_region(self) -> bool:
+        """Mechanics that serve more than one region (T04's replica) take the call's region."""
+        return bool(getattr(self.mech, "wants_region", False))
+
+    def serve_aws(self, service: str, operation: str, params: dict, region: str | None = None) -> dict | None:
+        if self.wants_region:
+            return self.mech.serve_aws(service, operation, params or {}, self.now, region=region)
         return self.mech.serve_aws(service, operation, params or {}, self.now)
 
     def export(self) -> dict:
