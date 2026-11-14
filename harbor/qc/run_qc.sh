@@ -1,11 +1,11 @@
 #!/bin/bash
 # Run the T01 QC trials on a Linux host with Docker, Harbor 0.26.0 and this repo checked out at REPO:
-#   harbor/qc/run_qc.sh JOBS_DIR [PARALLEL]
+#   harbor/qc/run_qc.sh JOBS_DIR [PARALLEL] [TRIAL NAME REGEX]
 # Model keys come from ~/.config/awsbench/litellm.env (LITELLM_BASE_URL, LITELLM_API_KEY), read into the
 # environment, never echoed. Set A grades without the C11 judge (as tests/e2e/driver.py does), so its D12 is
 # comparable with the AgentEnv driver modes; set B is the owner's table with the judge on.
 set -u
-JOBS=${1:?jobs dir}; PAR=${2:-4}
+JOBS=${1:?jobs dir}; PAR=${2:-4}; ONLY=${3:-.}
 REPO=${REPO:-$(cd "$(dirname "$0")/../.." && pwd)}
 HARBOR=${HARBOR:-harbor}
 cat > /tmp/awsbench-qc-trials.txt <<LIST
@@ -37,4 +37,4 @@ run_one() {
 }
 export -f run_one; export REPO JOBS HARBOR
 mkdir -p "$JOBS"
-grep -v '^$' /tmp/awsbench-qc-trials.txt | xargs -P "$PAR" -I{} bash -c 'run_one "$@"' _ {}
+grep -v '^$' /tmp/awsbench-qc-trials.txt | grep -E "$ONLY" | xargs -P "$PAR" -I{} bash -c 'run_one "$@"' _ {}

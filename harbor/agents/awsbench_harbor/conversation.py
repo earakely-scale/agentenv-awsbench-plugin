@@ -14,12 +14,16 @@ import time
 import traceback
 
 from harbor.agents.base import BaseAgent
+from harbor.agents.capabilities import AgentCapabilities
 
 from . import harness_client
 
 
 class HookConversation(BaseAgent):
-    """A Harbor agent whose conversation the task's own post-turn hook drives; subclasses run one turn."""
+    """A Harbor agent whose conversation the task's own post-turn hook drives; subclasses run one turn. It takes the
+    task's MCP server (the front) from the harness, under the server name the gateway drew, as AgentEnv does."""
+
+    capabilities = AgentCapabilities(mcp_servers=True)
 
     async def setup(self, environment):
         self.params = await harness_client.params(environment)
