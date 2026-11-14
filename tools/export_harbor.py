@@ -49,6 +49,7 @@ SHAPE = [("deploy", "deploy_env"), ("configure", "apply_server_config"), ("clock
 PROMPT_KEYS = {"id", "type", "agent_name", "prompt_id", "prompt", "timeout_seconds", "max_conversation_turns",
                "max_turns", "fail_task_on_error", "post_turn_hooks"}
 AGENT_KEYS = {"id", "type", "agent_name", "env_ids", "role", "builtin_tools", "ttl_seconds"}
+JUDGE_MODEL = "claude-sonnet-5-5"  # verify.py's default for AWSBENCH_JUDGE_MODEL, which AgentEnv's runs used
 SOLUTION_MODES = ("oracle", "alt", "nothing", "trap", "noshed", "early", "rollback", "scale", "weakshed")
 FORBIDDEN_FILE = ROOT / ".harbor-forbidden"  # untracked: one regex per line the public package must not contain
 
@@ -169,6 +170,10 @@ exec python -m gateway.entrypoint
 """
 
 
+FRONT_HEALTH = ("code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/mcp); "
+                "case $$code in 000|502|503|504) exit 1;; esac")  # nginx up, and the gateway behind it answering
+
+
 def adapt_compose(doc, contexts):
     """Harbor's compose: the rendered services, built from the copied folders, plus the front, the harness and main."""
     services = doc["services"]
@@ -184,6 +189,8 @@ def adapt_compose(doc, contexts):
     gateway["volumes"] = ["ctl:/ctl"]
     services["mcp"] = {"build": {"context": "./mcp"},
                        "depends_on": {"gateway": {"condition": "service_healthy"}},
+                       "healthcheck": {"test": ["CMD-SHELL", FRONT_HEALTH], "interval": "5s", "timeout": "5s",
+                                       "retries": 3, "start_period": "60s", "start_interval": "2s"},
                        "networks": ["env-network", "default"]}
     services["harness"] = {
         "build": {"context": "./harness"},
@@ -193,7 +200,8 @@ def adapt_compose(doc, contexts):
                         "retries": 3, "start_period": "900s", "start_interval": "2s"},
         "networks": ["env-network"]}
     services["main"] = {"depends_on": {"harness": {"condition": "service_healthy"},
-                                       "mcp": {"condition": "service_started"}}}
+                                       "mcp": {"condition": "service_healthy"}},
+                        "extra_hosts": ["host.docker.internal:host-gateway"]}
     doc["volumes"] = {"ctl": {}}
     return doc
 
@@ -296,6 +304,8 @@ timeout_sec = 1800
 [verifier.env]
 LITELLM_API_KEY = "${{LITELLM_API_KEY:-}}"
 LITELLM_BASE_URL = "${{LITELLM_BASE_URL:-}}"
+AWSBENCH_JUDGE = "${{AWSBENCH_JUDGE:-on}}"
+AWSBENCH_JUDGE_MODEL = "${{AWSBENCH_JUDGE_MODEL:-{JUDGE_MODEL}}}"
 
 [[verifier.collect]]
 service = "harness"
@@ -303,8 +313,46 @@ command = "python -m awsbench_harness collect"
 timeout_sec = {by_id["horizon"]["timeout_seconds"] + 900}
 
 [solution.env]
-AWSBENCH_SOLUTION_MODE = "${{AWSBENCH_SOLUTION_MODE:-oracle}}"
+AWSBENCH_QC_SOLUTION_MODE = "${{AWSBENCH_QC_SOLUTION_MODE:-oracle}}"
 """
+
+
+TREES = {"bundle": BUNDLE.as_posix(), "harbor_base": "harbor/base", "driver": "tests/e2e/driver.py"}
+
+
+def git(*args, env=None):
+    return subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True,
+                          env={**os.environ, **(env or {})}).stdout.strip()
+
+
+def source_trees(ref):
+    """The git object ids of what the package is generated from: the bundle and harbor/base as trees, the driver as a
+    blob. Any commit C with `git rev-parse C:<path>` equal to an id holds exactly that source, so the ids name the task
+    version without naming a commit the package itself would have to be regenerated for. Without --ref they are
+    computed from the working tree (a throwaway index), as the next commit will record them."""
+    if ref:
+        return {name: git("rev-parse", f"{ref}:{path}") for name, path in TREES.items()}
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        git("add", "-A", "--", *TREES.values(), env=env)
+        out = {name: git("write-tree", f"--prefix={path}/", env=env) for name, path in TREES.items()
+               if name != "driver"}
+    out["driver"] = git("hash-object", TREES["driver"])
+    return out
+
+
+def server_pins(bundle):
+    """What the bundle's server images pin (both systems build them from the same Dockerfiles)."""
+    aws = (bundle / "envs/aws/Dockerfile").read_text()
+    pins = {"base": re.search(r"^FROM (\S+)", aws, re.M).group(1)}
+    for key in ("AWS_EMULATOR_VERSION", "AWS_EMULATOR_SHA256_AMD64", "AWS_EMULATOR_SHA256_ARM64"):
+        pins[key.lower()] = re.search(rf"^ARG {key}=(\S+)", aws, re.M).group(1)
+    for server in ("aws", "workspace"):
+        lock = (bundle / f"envs/{server}/requirements.txt").read_text()
+        pins[f"{server}_requirements_sha256"] = hashlib.sha256(lock.encode()).hexdigest()
+        if not re.search(r"--hash=sha256:", lock) or re.search(r"^[A-Za-z0-9._-]+(?:[<>~!]=|>|<)", lock, re.M):
+            raise ExportError(f"envs/{server}/requirements.txt is not a hashed lock of exact versions")
+    return pins
 
 
 def bundle_root(ref, tmp):
@@ -335,7 +383,7 @@ def export(out, ref=None):
         env_dir = target / "environment"
         for name in ("aws", "workspace"):
             copy_tree(bundle / "envs" / name, env_dir / name, files)
-        for name in ("entrypoint.sh", "peers.py", "turn.py", "agentenv-env.json"):
+        for name in ("entrypoint.sh", "peers.py", "turn.py", "wait_port.py", "agentenv-env.json"):
             write_bytes(env_dir / "main" / name, (BASE / "main" / name).read_bytes(), files,
                         mode=0o755 if name.endswith(".sh") else 0o644)
         write_text(env_dir / "Dockerfile", template("main/Dockerfile", agent_image=agent_image), files)
@@ -384,7 +432,8 @@ def export(out, ref=None):
         from importlib.metadata import version
         provenance = {
             "agentenv_task": source, "agentenv_task_id": AGENTENV_TASK_ID,
-            "ref": ref or "worktree", "agentenv_framework": version("agentenv-framework"),
+            "source_trees": source_trees(ref), "server_pins": server_pins(bundle),
+            "agentenv_framework": version("agentenv-framework"),
             "agentenv_framework_protocol": version("agentenv-framework-protocol"),
             "images": {"gateway": gateway_image, "agent": agent_image, "servicedb": servicedb_image,
                        "python": PYTHON_IMAGE, "nginx": NGINX_IMAGE},

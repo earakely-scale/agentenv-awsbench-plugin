@@ -3,8 +3,9 @@ with the arguments its A2A server passes (a2a_server.py `_turn`), in /app, with 
 
     python3 /opt/awsbench/turn.py SPEC.json      # writes <out>.result.json and <out>.stream.jsonl
 
-SPEC holds prompt_file, session_id, model, mcp_servers, timeout_s, task_id, role, max_turns, builtin_tools, out (a
-path prefix). The prompt and the results go through files under /logs/agent, so no text rides a command line.
+SPEC holds prompt_file, env_file, session_id, model, mcp_servers, timeout_s, task_id, role, max_turns, effort,
+max_thinking_tokens, builtin_tools, out (a path prefix). The prompt and the results go through files, so no text rides a
+command line; env_file (0600, the model endpoint and key) is read and deleted before anything else runs.
 """
 import asyncio
 import json
@@ -25,9 +26,19 @@ def agent_environment(environ):
     return env
 
 
+def take_env_file(path):
+    if not path:
+        return {}
+    path = Path(path)
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    finally:
+        path.unlink(missing_ok=True)
+
+
 async def main(spec_path):
     spec = json.loads(Path(spec_path).read_text())
-    kept = agent_environment(dict(os.environ))
+    kept = agent_environment({**os.environ, **take_env_file(spec.get("env_file"))})
     os.environ.clear()
     os.environ.update(kept)
     os.chdir("/app")
@@ -56,9 +67,9 @@ async def main(spec_path):
         project_id=None,
         task_id=spec["task_id"],
         role=spec["role"],
-        effort=None,
+        effort=spec.get("effort"),
         max_turns=spec["max_turns"],
-        max_thinking_tokens=None,
+        max_thinking_tokens=spec.get("max_thinking_tokens"),
         builtin_tools=ClaudeCodeTools(**spec["builtin_tools"]) if spec.get("builtin_tools") else None,
         event_callback=on_event,
     )

@@ -72,7 +72,10 @@ def test_compose_keeps_the_rendered_blocks():
     assert servicedb.pop("volumes") == ["./servicedb/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql:ro"]
     assert servicedb == {k: v for k, v in rendered["services"]["servicedb"].items() if k != "volumes"}
     assert "ports" not in json.dumps(ours)
-    assert ours["main"]["depends_on"]["harness"] == {"condition": "service_healthy"}
+    assert ours["main"]["depends_on"] == {"harness": {"condition": "service_healthy"},
+                                          "mcp": {"condition": "service_healthy"}}
+    assert ours["main"]["extra_hosts"] == ["host.docker.internal:host-gateway"]
+    assert "curl" in ours["mcp"]["healthcheck"]["test"][1]
     assert set(ours["mcp"]["networks"]) == {"env-network", "default"}
     assert all(ours[s]["networks"] == ["env-network"] for s in ("gateway", "aws", "workspace", "servicedb", "harness"))
 
@@ -114,7 +117,12 @@ def test_task_toml_runs_the_grader_separately_with_the_judge_keys_from_the_host(
     toml = tomllib.loads((PKG / "task.toml").read_text())
     assert toml["verifier"]["environment_mode"] == "separate"
     assert toml["verifier"]["env"] == {"LITELLM_API_KEY": "${LITELLM_API_KEY:-}",
-                                       "LITELLM_BASE_URL": "${LITELLM_BASE_URL:-}"}
+                                       "LITELLM_BASE_URL": "${LITELLM_BASE_URL:-}",
+                                       "AWSBENCH_JUDGE": "${AWSBENCH_JUDGE:-on}",
+                                       "AWSBENCH_JUDGE_MODEL": "${AWSBENCH_JUDGE_MODEL:-claude-sonnet-5-5}"}
+    grader = (BUNDLE / "artifacts/t01-grade/verify.py").read_text()
+    assert f'os.environ.get("AWSBENCH_JUDGE_MODEL", "{export_harbor.JUDGE_MODEL}")' in grader
+    assert toml["solution"]["env"] == {"AWSBENCH_QC_SOLUTION_MODE": "${AWSBENCH_QC_SOLUTION_MODE:-oracle}"}
     assert toml["verifier"]["collect"][0]["service"] == "harness"
     assert toml["artifacts"][0] == {"source": "/export", "destination": "export", "service": "harness"}
     assert toml["agent"] == {"timeout_sec": BY_ID["deploy-sre"]["ttl_seconds"], "user": "agent"}
@@ -127,3 +135,27 @@ def test_shape_change_is_refused():
         export_harbor.check_shape(steps)
     with pytest.raises(export_harbor.ExportError):
         export_harbor.check_shape(TASK[:-1])
+
+
+def test_provenance_names_the_source_trees_and_the_server_pins():
+    prov = json.loads((PKG / "PROVENANCE.json").read_text())
+    assert set(prov["source_trees"]) == {"bundle", "harbor_base", "driver"}
+    assert all(len(v) == 40 for v in prov["source_trees"].values())
+    pins = prov["server_pins"]
+    assert pins["base"].startswith("python:3.12-slim@sha256:")
+    assert pins["aws_emulator_version"] and len(pins["aws_emulator_sha256_amd64"]) == 64
+
+
+@pytest.mark.parametrize("server", ["aws", "workspace"])
+def test_server_images_install_a_hashed_lock_on_a_pinned_base(server):
+    folder = BUNDLE / "envs" / server
+    docker = (folder / "Dockerfile").read_text()
+    assert "FROM python:3.12-slim@sha256:" in docker
+    assert "--require-hashes" in docker and "--no-deps" in docker
+    lock = (folder / "requirements.txt").read_text()
+    names = {line.split("==")[0].lower() for line in lock.splitlines() if "==" in line and not line.startswith("#")}
+    wanted = {line.split("==")[0].split(">")[0].split("<")[0].strip().lower()
+              for line in (folder / "requirements.in").read_text().splitlines() if line.strip()}
+    assert wanted <= names
+    if server == "aws":
+        assert 'sha256sum /tmp/aws-emulator.deb' in docker and "AWS_EMULATOR_SHA256_AMD64=" in docker

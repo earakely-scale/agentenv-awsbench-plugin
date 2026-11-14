@@ -3,8 +3,14 @@
     python -m awsbench_harness serve        setup steps 2-6 of the task (configure, clock, tool access), then idle
     python -m awsbench_harness params       what the host-side agent needs (server name, limits, hook params)
     python -m awsbench_harness reply-chunk N B64     append a base64 chunk of turn N's reply
-    python -m awsbench_harness post-turn N LAST      run the task's post-turn hook on turn N's reply; print the decision
+    python -m awsbench_harness post-turn N LAST      run the task's post-turn hook on turn N's reply
+    python -m awsbench_harness begin AGENT  a hook-driven conversation starts (/export/agent-begin.json)
+    python -m awsbench_harness end B64JSON  how it ended: reason, turns, tool calls, error (/export/agent-end.json)
     python -m awsbench_harness collect      horizon step, then the grader's own fetch(); exports to /export
+
+params and post-turn write their answer to /run/awsbench/out/<name>.json, which the client reads with a second exec:
+Harbor folds an exec's stderr into its stdout, so nothing is parsed from a command's output. Logs go to
+/run/awsbench/harness.log, one write per line (and to stderr in `serve`).
 
 Every value comes from setup.json, which tools/export_harbor.py writes from the AgentEnv task file. The control token
 and the MCP server name are the gateway's (the `ctl` volume): this container and the gateway hold them, the agent never.
@@ -31,10 +37,24 @@ CTL = Path("/ctl")
 EXPORT = Path("/export")
 RUN = Path("/run/awsbench")
 READY = RUN / "ready"
+OUT = RUN / "out"
+LOG = RUN / "harness.log"
+TO_STDERR = False
 
 
 def log(*parts):
-    print(time.strftime("%H:%M:%S"), *parts, file=sys.stderr, flush=True)
+    line = " ".join([time.strftime("%H:%M:%S"), *map(str, parts)]) + "\n"
+    RUN.mkdir(parents=True, exist_ok=True)
+    with open(LOG, "a", encoding="utf-8") as f:
+        f.write(line)
+    if TO_STDERR:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+
+
+def answer(name, value):
+    """A command's answer, for the client's second exec (`cat`); written whole, then renamed into place."""
+    write_json(OUT / f"{name}.json", value)
 
 
 def ctl(name):
@@ -144,10 +164,63 @@ async def setup():
                            f"missing {sorted(set(expected) - set(sre))}, extra {sorted(set(sre) - set(expected))}")
     if "awsbench_control" not in harness:
         raise RuntimeError("the harness role cannot see awsbench_control")
+    front = await front_tools()
+    if len(front) != len(expected):
+        raise RuntimeError(f"the agent's front {SETUP['front_url']} lists {len(front)} tools, not {len(expected)}")
+    record["front"] = {"url": SETUP["front_url"], "tools": len(front),
+                       "tools_sha256": hashlib.sha256("\n".join(front).encode()).hexdigest()}
     write_json(EXPORT / "setup-record.json", record)
 
 
+async def mcp_post(http, url, body, session):
+    headers = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json",
+               "MCP-Protocol-Version": "2025-06-18"}
+    if session:
+        headers["Mcp-Session-Id"] = session
+    resp = await http.post(url, json=body, headers=headers)
+    resp.raise_for_status()
+    if "id" not in body:
+        return resp, None
+    text = resp.text
+    if resp.headers.get("content-type", "").startswith("text/event-stream"):
+        datas = [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
+        text = next(d for d in reversed(datas) if d)
+    message = json.loads(text)
+    if "error" in message:
+        raise RuntimeError(f"{url} answered {body['method']} with {message['error']}")
+    return resp, message["result"]
+
+
+async def front_tools(timeout=180):
+    """tools/list through the agent's front (nginx, which forces the agent's role), as the agent's MCP client calls it:
+    the front is up and serves the role's tools before the harness turns healthy."""
+    deadline, last = time.monotonic() + timeout, None
+    url = SETUP["front_url"]
+    while time.monotonic() < deadline:
+        try:
+            async with httpx.AsyncClient(timeout=30) as http:
+                resp, _ = await mcp_post(http, url, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                    "protocolVersion": "2025-06-18", "capabilities": {},
+                    "clientInfo": {"name": "awsbench-harness", "version": "1"}}}, None)
+                session = resp.headers.get("mcp-session-id")
+                await mcp_post(http, url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+                names, cursor = [], None
+                while True:
+                    _, result = await mcp_post(http, url, {"jsonrpc": "2.0", "id": 2, "method": "tools/list",
+                                                           "params": {"cursor": cursor} if cursor else {}}, session)
+                    names += [t["name"] for t in result.get("tools") or []]
+                    cursor = result.get("nextCursor")
+                    if not cursor:
+                        return sorted(names)
+        except Exception as e:  # the front starts beside the harness
+            last = e
+        await asyncio.sleep(2)
+    raise RuntimeError(f"the agent's front {url} did not list tools in {timeout}s: {last!r}")
+
+
 async def serve():
+    global TO_STDERR
+    TO_STDERR = True
     RUN.mkdir(parents=True, exist_ok=True)
     EXPORT.mkdir(parents=True, exist_ok=True)
     try:
@@ -163,8 +236,22 @@ async def serve():
 
 def params():
     """What the host-side agent needs; no secrets."""
-    print(json.dumps({"server_name": ctl("name"), "mcp_url": SETUP["front_url"], "role": SETUP["role"],
-                      "prompt": SETUP["prompt"], "hook": SETUP["hook"]["artifact_id"]}))
+    answer("params", {"server_name": ctl("name"), "mcp_url": SETUP["front_url"], "role": SETUP["role"],
+                      "prompt": SETUP["prompt"], "hook": SETUP["hook"]["artifact_id"],
+                      "sre_tools": len(SETUP["sre_tools"])})
+
+
+def begin(agent):
+    """A hook-driven conversation starts: from here on, the trial counts only when it records how it ended."""
+    write_json(EXPORT / "agent-begin.json", {"agent": agent, "at": time.time()})
+    for stale in (EXPORT / "agent-end.json", EXPORT / "hook-decisions.json"):
+        stale.unlink(missing_ok=True)
+
+
+def end(encoded):
+    value = json.loads(base64.b64decode(encoded).decode("utf-8"))
+    write_json(EXPORT / "agent-end.json", {**value, "at": time.time()})
+    log("agent end:", json.dumps(value)[:300])
 
 
 # --- the post-turn hook, as agent_env.task_step.task_steps.post_turn_hooks runs it ------------------------------------
@@ -267,11 +354,13 @@ async def post_turn(number, last):
     envs = [HookEnv(SETUP["hook"]["env_id"], card, SETUP["hook"]["artifact_id"])]
     turn = Turn(number, last, reply, envs, records)
     returned = await load_hook().post_turn(turn, copy.deepcopy(SETUP["hook"]["params"]))
-    answer = decision(returned)
+    decided = decision(returned)
     write_json(records_path, records)
+    decisions_path = EXPORT / "hook-decisions.json"
+    write_json(decisions_path, read_json(decisions_path, []) + [{"turn": number, "last": last, "decision": decided}])
     log(f"turn {number}: reply sha256 {hashlib.sha256(reply.encode()).hexdigest()[:12]}, decision "
-        f"{json.dumps(answer)[:200]}")
-    print(json.dumps({"decision": answer}))
+        f"{json.dumps(decided)[:200]}")
+    answer(f"decision-{number}", {"decision": decided})
 
 
 # --- after the agent phase ------------------------------------------------------------------------------------------
@@ -323,6 +412,10 @@ def main(argv):
             f.write(argv[2].encode())
     elif cmd == "post-turn":
         asyncio.run(post_turn(int(argv[1]), argv[2] in ("1", "true")))
+    elif cmd == "begin":
+        begin(argv[1])
+    elif cmd == "end":
+        end(argv[1])
     elif cmd == "collect":
         asyncio.run(collect())
     else:

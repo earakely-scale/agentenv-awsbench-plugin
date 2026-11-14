@@ -2,9 +2,11 @@
 
     python harbor/qc/summarize.py --harbor JOBS_DIR... --agentenv DRIVE_DIR... --out OUT_DIR
 
-Writes OUT_DIR/summary.json and OUT_DIR/summary.md, and copies each trial's verifier output (reward.json, grade.json,
-test-stdout.txt) and its solution log under OUT_DIR/trials/<job>/. A Harbor scripted trial (ScriptedSolution, judge
-off) and the AgentEnv driver run of the same mode match when D12, pass and every row's (id, result, detail) agree.
+Writes OUT_DIR/summary.json and OUT_DIR/summary.md, and copies the kept trial of each job (the one Harbor graded; a job
+retries a trial whose environment failed to start) with its verifier output (reward.json, grade.json, test-stdout.txt),
+its solution or conversation log and the harness records under OUT_DIR/trials/<job>/, and each AgentEnv driver log as
+OUT_DIR/agentenv/drive-<mode>.txt. A Harbor scripted trial (ScriptedSolution, judge off) and the AgentEnv driver run of
+the same mode match when D12, pass and every row's (id, result, detail) agree.
 """
 import argparse
 import json
@@ -16,12 +18,20 @@ ROW = re.compile(r"^  (C\d+|G\d)\s+(True|False|None)\s+(.*)$")
 D12_DRIVER = re.compile(r"^  D12: score ([\d.]+) .*pass=(True|False)")
 
 
+def kept_trial(job):
+    trials = [p for p in job.iterdir() if p.is_dir() and (p / "result.json").exists()]
+    graded = [p for p in trials if (p / "verifier").is_dir()]
+    pool = graded or trials
+    return max(pool, key=lambda p: (p / "result.json").stat().st_mtime) if pool else None
+
+
 def harbor_trials(job_dirs, out):
     trials = {}
     for jobs in job_dirs:
         for job in sorted(p for p in Path(jobs).iterdir() if p.is_dir()):
-            for trial in sorted(p for p in job.iterdir() if p.is_dir()):
-                rec = {"job": job.name, "trial": trial.name}
+            for trial in [kept_trial(job)] if kept_trial(job) else []:
+                rec = {"job": job.name, "trial": trial.name,
+                       "retried": len([p for p in job.iterdir() if p.is_dir()]) - 1}
                 reward = trial / "verifier/reward.json"
                 if reward.exists():
                     rec["reward"] = json.loads(reward.read_text())
@@ -35,11 +45,17 @@ def harbor_trials(job_dirs, out):
                 play = trial / "agent/play.json"
                 if play.exists():
                     rec["play"] = json.loads(play.read_text())
+                oracle = trial / "agent/oracle.txt"
+                if oracle.exists():
+                    rec["solution_mode"] = oracle.read_text().splitlines()[0][len("awsbench solution mode: "):]
                 dest = out / "trials" / job.name
-                dest.mkdir(parents=True, exist_ok=True)
+                if dest.exists():
+                    shutil.rmtree(dest)
+                dest.mkdir(parents=True)
                 for src in ("verifier/reward.json", "verifier/grade.json", "verifier/test-stdout.txt",
                             "agent/play.txt", "agent/oracle.txt", "agent/conversation.json",
                             "artifacts/export/setup-record.json", "artifacts/export/post_turn_hooks.json",
+                            "artifacts/export/hook-decisions.json", "artifacts/export/agent-end.json",
                             "artifacts/export/collect.json", "exception.txt"):
                     if (trial / src).exists():
                         shutil.copy(trial / src, dest / Path(src).name)
@@ -60,7 +76,7 @@ def agentenv_runs(dirs, out):
                           "problems": [l for l in text.splitlines() if l.startswith("PROBLEM:")]}
             dest = out / "agentenv"
             dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy(log, dest / log.name)
+            shutil.copy(log, dest / f"{log.stem}.txt")
     return runs
 
 
@@ -86,7 +102,8 @@ def main():
             match = "yes" if not diff and ae["d12"] == reward.get("reward") else f"no: {diff}"
         gates = ",".join(g for g in ("G1", "G2", "G3", "G4") if reward.get(g)) or "none"
         agent = "ScriptedSolution (DONE)" if name.startswith("A-") else ("nop" if "nop" in name else "oracle (solve.sh)")
-        lines.append(f"| {name} | {agent} | {'off' if name.startswith('A-') else 'on'} | "
+        judge = {1: "on", 0: "off"}.get(reward.get("judge_on"), "-")
+        lines.append(f"| {name} | {agent} | {judge} | "
                      f"{reward.get('reward', rec.get('exception', 'none'))} | {reward.get('pass', '-')} | {gates} | "
                      f"{ae['d12'] if ae else '-'} | {match} |")
     (args.out / "summary.md").write_text("\n".join(lines) + "\n")

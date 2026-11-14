@@ -33,6 +33,8 @@ timeout_sec = 1800
 [verifier.env]
 LITELLM_API_KEY = "${LITELLM_API_KEY:-}"
 LITELLM_BASE_URL = "${LITELLM_BASE_URL:-}"
+AWSBENCH_JUDGE = "${AWSBENCH_JUDGE:-on}"
+AWSBENCH_JUDGE_MODEL = "${AWSBENCH_JUDGE_MODEL:-claude-sonnet-5-5}"
 
 [[verifier.collect]]
 service = "harness"
@@ -40,4 +42,4 @@ command = "python -m awsbench_harness collect"
 timeout_sec = 1800
 
 [solution.env]
-AWSBENCH_SOLUTION_MODE = "${AWSBENCH_SOLUTION_MODE:-oracle}"
+AWSBENCH_QC_SOLUTION_MODE = "${AWSBENCH_QC_SOLUTION_MODE:-oracle}"

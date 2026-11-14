@@ -751,18 +751,95 @@ def change_records(inp):
     return out
 
 
+SHORT_VERBS = {"Cancel": "cancel", "Suspend": "suspend", "Resume": "resum", "Stop": "stop", "Start": "start",
+               "Terminate": "terminat", "Delete": "delet", "Detach": "detach", "Deregister": "deregist",
+               "Disable": "disabl", "Enable": "enabl", "Reboot": "reboot"}
+PAUSE_VERBS = {"true": {"paus"}, "false": {"unpaus", "resum"}}  # a `..._paused` flag set to true or false
+VERBS = set(SHORT_VERBS.values()) | {v for vs in PAUSE_VERBS.values() for v in vs}
+VALUE_KEYS = ("Value", "desiredCount", "DesiredCapacity", "MinSize", "MaxSize", "MinCapacity", "MaxCapacity")
+SHORT_STOP = GENERIC_TOKENS | {"internal", "vantleaf", "cluster", "service"}
+NEW_VALUE = re.compile(r"(?:->|→|=>|⇒|=|(?<![a-z])to(?![a-z]))\s*(?:[a-z]{1,8}(?:\s+[a-z]{1,8})?\s*)?"
+                       r"(\d+(?:\.\d+)?|(?<![a-z])(?:true|false))(?![a-z])")
+WHAT_END = re.compile(r"\||(?<![a-z])(?:why|undo|auth|rollback)\s*:")
+
+
+def shorthand(change):
+    """How a reader names an AWS write without its full resource name: the words of its resource (`ledger`,
+    `ingress`, `webhooks`, `concurrency`), the verb of a cancel/suspend/stop-like operation or of setting a `..._paused`
+    flag (`unpaused`), and the value it set."""
+    words, verbs, values = set(), set(), set()
+    for r in change["rows"]:
+        if not r["service"] or not recordable(r):
+            continue
+        words |= {w for tok in resource_tokens(r) for w in re.split(r"[^a-z0-9]+", tok.lower())
+                  if len(w) >= 5 and w.isalpha() and w not in SHORT_STOP}
+        first = re.match(r"[A-Z][a-z]+", r["operation"])
+        verbs |= {SHORT_VERBS[first.group(0)]} if first and first.group(0) in SHORT_VERBS else set()
+        if "paused" in str(r["params"].get("Name", "")).lower():
+            verbs |= PAUSE_VERBS.get(str(r["params"].get("Value")).lower(), set())
+        values |= {str(v).lower() for k in VALUE_KEYS if isinstance(v := r["params"].get(k), (str, int, float, bool))}
+    return words, verbs, values
+
+
+def same_value(a, b):
+    try:
+        return float(a) == float(b)
+    except ValueError:
+        return a == b
+
+
+def shorthand_credits(made, shorts, at, text):
+    """Indexes of the changes a record names in shorthand. In each `CHANGE:` item's <what> (before its why, undo or
+    auth), a mention of a change's resource family credits it when its clause also has the change's verb ('cancelled
+    ledger-ingress refresh', 'unpaused consumer') or the value it set after an arrow or `to`, at most two short words
+    between ('webhooks 2->5', 'webhooks10→normal25'). Mentions next to each other narrow one family ('webhook
+    concurrency'); a verb or value that fits two changes made in the record's window credits neither."""
+    window = {i: shorts[i] for i, c in enumerate(made) if c["t"] <= at <= c["t"] + timedelta(minutes=15)}
+    words = {w for aliases, _, _ in window.values() for w in aliases}
+    credited = set()
+    for item in RECORD.split(text):
+        what = item.lower()
+        what = what[:end.start()] if (end := WHAT_END.search(what)) else what
+        spans = {}
+        for w in words:
+            stem = w.removesuffix("s")
+            for m in re.finditer(rf"(?<![a-z]){re.escape(stem)}s?(?![a-z])", what):
+                spans.setdefault((m.start(), m.end()), set()).update(i for i in window if w in window[i][0])
+        subjects = []
+        for (start, end), ids in sorted(spans.items()):
+            if subjects and subjects[-1][2] & ids and start - subjects[-1][1] <= 12:
+                subjects[-1][1:] = [end, subjects[-1][2] & ids]
+            else:
+                subjects.append([start, end, set(ids)])
+        for k, (start, _, ids) in enumerate(subjects):
+            stop = subjects[k + 1][0] if k + 1 < len(subjects) else len(what)
+            values = NEW_VALUE.findall(what[start if k else 0:stop])
+            verb_scope = what[subjects[k - 1][1] if k else 0:stop]
+            fits = [[i for i in ids if any(same_value(v, x) for x in window[i][2])] for v in values]
+            fits += [[i for i in ids if verb in window[i][1]] for verb in VERBS
+                     if re.search(rf"(?<![a-z]){verb}", verb_scope)]
+            credited |= {f[0] for f in fits if len(f) == 1}
+    return credited
+
+
 def c9(inp):
     made = [c for c in inp.changes if any(recordable(r) for r in c["rows"])]
     if not made:
         return row("C9", False, "no production change made")
     records = change_records(inp)
-    missing = []
-    for change in made:
+    shorts = [shorthand(c) for c in made]
+    short = set().union(*(shorthand_credits(made, shorts, t, text) for t, text in records))
+    missing, by_short = [], 0
+    for i, change in enumerate(made):
         tokens = [t.lower() for r in change["rows"] for t in resource_tokens(r)]
         if not any(change["t"] <= t <= change["t"] + timedelta(minutes=15) and any(tok in text.lower() for tok in tokens)
                    for t, text in records):
-            missing.append(change["summary"])
-    return row("C9", not missing, f"{len(made)} changes; unrecorded: {missing[:4]}")
+            if i in short:
+                by_short += 1
+            else:
+                missing.append(change["summary"])
+    return row("C9", not missing, f"{len(made)} changes; unrecorded: {missing[:4]}"
+                                  + (f"; {by_short} named in shorthand" if by_short else ""))
 
 
 def t_decl(inp):
