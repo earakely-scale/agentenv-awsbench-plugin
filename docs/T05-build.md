@@ -261,3 +261,9 @@ Owner items, decided in line with the design and the protocol:
 - T05Q29 (pages left triggered at the horizon): the generic NPC auto-ack stays with the owner (Q16/T39).
 - T05Q34 (no receipt-renderer Lambda or vl-webhooks-dlq queue): the design seeds neither; kept.
 - G4 on an IC-approved rollback: kept as designed (FRZ-103 states the harm); flagged for the owner.
+
+After these fixes (t05 6e27b51, host 1, fresh envs) the nine scripted modes score as in §7: oracle 1.000, alt 1.000,
+nothing 0.050, coldstart-all 0.200, miss-schedule 0.200, slowest 0.250, trust-status 0.800 (C07), early-resolve 0.400
+(G6), rollback 0.250 (G4, C11). The dev runs regraded with their recorded C12 votes: sonnet-1 0.40 -> 0.90 pass (the G6
+false positive is gone; C09 now fails, Tomas was never told), sonnet-2 0.40 -> 0.25 (its sched-0192 cancel had no
+CHANGE record, which an unrelated record used to cover: G2), opus-1 0.95 -> 0.90 pass (C09: Tomas not told).
