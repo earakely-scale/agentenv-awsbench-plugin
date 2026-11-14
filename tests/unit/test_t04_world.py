@@ -238,6 +238,7 @@ def test_rm_admin_ls_lists_the_workdir_and_diff_folders():
     ("@kwame how many routes need restoring?", "K7-which-keys"),
     ("@kwame how do I find purged routes that no longer look purged?", "K2-find-rewritten"),
     ("@kwame I count 342 tombstones but the audit says 371, where are the rest?", "K2-find-rewritten"),
+    ("@kwame how do I find the purged routes the scaler rebuilt from defaults?", "K2-find-rewritten"),
 ])
 def test_kwame_suggests_cells_empty_only_when_asked_about_rewritten_routes(text, rule):
     from pathlib import Path
