@@ -15,6 +15,6 @@ spec.loader.exec_module(export_harbor)
 def test_every_task_grader_defaults_to_one_judge_model():
     defaults = {grader.parent.name: DEFAULT.findall(grader.read_text())
                 for grader in sorted(ARTIFACTS.glob("*-grade/verify.py"))}
-    assert {"t01-grade", "t03-grade"} <= set(defaults)
+    assert {"t01-grade", "t03-grade", "t04-grade"} <= set(defaults)
     assert all(len(found) == 1 for found in defaults.values()), defaults
     assert {found[0] for found in defaults.values()} == {export_harbor.JUDGE_MODEL}, defaults
