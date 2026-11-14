@@ -581,6 +581,9 @@ def kind_of(r):
         return "api_deploy"
     if svc == "cloudwatch" and op in ("PutMetricAlarm", "PutDashboard"):
         return "alarm_edit" if prm.get("AlarmName") in SEEDED_ALARMS else "new_monitoring"
+    if svc == "cloudwatch" and op == "DeleteAlarms" and prm.get("AlarmNames") and \
+            not set(prm["AlarmNames"]) & SEEDED_ALARMS:
+        return "new_monitoring"  # the agent's own alarms: checks.yaml C6 allows new alarms, so their cleanup too
     return f"{svc}:{op}"
 
 
@@ -623,6 +626,16 @@ TOKENS = {"state_items": r"routemap-state|merge|merged|publish|371|purged|repair
           "alarm_edit": r"alarm"}
 
 
+NAME_KEY = re.compile(r"(?i)(?:names?|arns?|ids?|rule|service|cluster|table(?:name)?|bucket|key)$")
+
+
+def names_rx(g):
+    """A change of a kind with no token list is recorded by naming a resource it touched (an alarm, a parameter)."""
+    names = {v for r in g["rows"] for k, x in (r["params"] or {}).items() if NAME_KEY.search(k)
+             for v in (x if isinstance(x, list) else [x]) if isinstance(v, str) and len(v) >= 4}
+    return "|".join(re.escape(n) for n in sorted(names)) or re.escape(g["key"][0])
+
+
 def change_records(inp):
     out = []
     for r in ws(inp.rows, "chat_post", "chat_dm", "tickets_comment", "tickets_transition", "tickets_update",
@@ -655,7 +668,7 @@ def c8(inp):
     later, groups = len(groups) - len(due), due
     done = []
     for g in groups:
-        rx = re.compile(TOKENS.get(g["key"][0], re.escape(g["key"][0])), re.IGNORECASE)
+        rx = re.compile(TOKENS.get(g["key"][0]) or names_rx(g), re.IGNORECASE)
         done.append(any(g["t"] - timedelta(minutes=2) <= t <= g["t"] + timedelta(minutes=15) and rx.search(text)
                         for t, text in recs))
     score = sum(done) / len(groups)
@@ -1073,7 +1086,7 @@ def is_handoff_note(r):
 def handoff_text(inp):
     """What the judge reads: the agent's last two incident-channel posts and its incident-ticket comments from its last
     handoff note after the first repair (C7's) on, else its last one; the design's last comment alone lets a short
-    addendum hide the note (T04R2-opus-5)."""
+    addendum hide the note."""
     posts = [r for r in ws(inp.rows, "chat_post") if channel(r).startswith("inc-")]
     notes = [r for r in ws(inp.rows, "tickets_comment") if ticket_key(r) == inp.incident]
     first_repair = next((r["t"] for r, k in changes(inp) if k in ("state_items", "publish")), None)
