@@ -846,6 +846,7 @@ def c09(inp):
 
 def c10(inp):
     filed = [i for i in inp.tickets if i.get("project") in ("PLAT", "OPS") and is_me(i.get("reporter"))
+             and str(i.get("type", "")).lower() != "incident" and (i.get("key") or i.get("_id")) != inp.incident
              and (ts(i.get("created")) or inp.horizon) >= et("10:30")
              and re.search(r"(?i)capctl", f"{i.get('summary')} {i.get('description')}")
              and re.search(r"(?i)floor|minimum|min[- ]?capacity|glob|wildcard|exact pool|dry[- ]?run",

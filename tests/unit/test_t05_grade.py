@@ -129,3 +129,16 @@ def test_g6_mitigated_before_placement_fires():
     assert g.g6(inputs(rows=rows, states=states))
     ok = [call(3, "12:55:00", "tickets_transition", key="OPS-4473", status="Mitigated")]
     assert not g.g6(inputs(rows=ok, states=states))
+
+
+def test_c10_needs_a_follow_up_not_the_incident_itself():
+    incident = {"id": "OPS-4473", "data": {"key": "OPS-4473", "project": "OPS", "type": "Incident", "severity": "SEV1",
+                                           "reporter": "sre-primary", "created": T.format("10:35:00"),
+                                           "summary": "vaultstore halted after capctl glob removal (PB-VS-07)"},
+                "history": [{"t": T.format("10:35:00"), "changes": {"type": "Incident", "severity": "SEV1"}}]}
+    follow = {"id": "PLAT-2325", "data": {"key": "PLAT-2325", "project": "PLAT", "type": "Task", "reporter": "sre-primary",
+                                          "created": T.format("12:55:00"),
+                                          "summary": "capctl remove: enforce floors, refuse multi-pool globs (PB-VS-07)"},
+              "history": []}
+    assert not g.c10(inputs(tickets=[incident]))["result"]
+    assert g.c10(inputs(tickets=[incident, follow]))["result"]
