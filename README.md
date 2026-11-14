@@ -451,6 +451,7 @@ trap, and the grader must score each the way the design expects. On the final bu
 | Model | Agent | Runs | Pass@1 | Mean D12 |
 |---|---|---|---|---|
 | Claude Haiku 5.5 | Claude Code | 6 (R12) | 0 of 6 | 0.41 |
+| Claude Sonnet 5.5 | Claude Code | 8 (R15, build 1633470) | 4 of 8 | 0.85 |
 | Claude Opus 5.5 | Claude Code | 12 (R11, R12) | 10 of 12 | 0.89 |
 | Claude Fable 5.2 | Claude Code | 6 (R13) | 6 of 6 | 1.00 |
 | GPT-6 Astra | Codex CLI, default medium effort | 6 (R14) | 6 of 6 | 1.00 |
@@ -458,7 +459,8 @@ trap, and the grader must score each the way the design expects. On the final bu
 How these runs were made and graded:
 
 - Every run is on the hardened build: R11 on 5fe025c, and R12 to R14 on 689ab3b, which adds the grader and colleague
-  fixes the R11 runs found.
+  fixes the R11 runs found. Sonnet's R15 runs came later, from the Harbor parity check, on 1633470: the same incident,
+  checks and grader, plus the realism fixes the R12 and R13 runs found. The chart above predates them.
 - Claude Code ran with its built-in tools off, so the agent acted only through the env's tools. GPT-6 Astra ran in the
   Codex CLI agent with the same tools.
 - Each run was graded again from its own exports by the final grader:
