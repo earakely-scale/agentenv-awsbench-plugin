@@ -1,0 +1,12 @@
+artifacts/awsbench-turn: v1 (new)
+[tasks/t01-draft.json] step 1/11 deploy done in 23.0s
+[tasks/t01-draft.json] step 2/11 configure done in 6.8s
+[tasks/t01-draft.json] step 3/11 clock done in 0.1s
+[tasks/t01-draft.json] step 4/11 lock-all done in 0.0s
+[tasks/t01-draft.json] step 5/11 allow-sre done in 0.0s
+[tasks/t01-draft.json] step 6/11 allow-harness done in 0.0s
+[tasks/t01-draft.json] step 7/11 deploy-sre done in 2.1s
+[tasks/t01-draft.json] step 8/11 incident done in 5.0s
+[tasks/t01-draft.json] step 9/11 horizon done in 1.0s
+[tasks/t01-draft.json] step 10/11 grade done in 2.1s
+[tasks/t01-draft.json] step 11/11 horizon-snapshot done in 0.1s

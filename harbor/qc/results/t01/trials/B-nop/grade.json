@@ -209,5 +209,13 @@
   }
  ],
  "score": 0.05,
- "judge_requests": []
+ "judge": {
+  "mode": "on",
+  "model": "claude-sonnet-5-5",
+  "called": false,
+  "answered": 0,
+  "samples": 0
+ },
+ "judge_requests": [],
+ "agent_end": null
 }

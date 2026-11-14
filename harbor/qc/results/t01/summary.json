@@ -2,7 +2,8 @@
  "harbor": {
   "A-scripted-alt": {
    "job": "A-scripted-alt",
-   "trial": "t01-empty-ledger-endpoint__FThUh55",
+   "trial": "t01-empty-ledger-endpoint__fbbQLPW",
+   "retried": 0,
    "reward": {
     "reward": 1.0,
     "pass": 1,
@@ -23,7 +24,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -102,7 +107,8 @@
   },
   "A-scripted-early": {
    "job": "A-scripted-early",
-   "trial": "t01-empty-ledger-endpoint__AjAmLrq",
+   "trial": "t01-empty-ledger-endpoint__GR9KK44",
+   "retried": 0,
    "reward": {
     "reward": 0.4,
     "pass": 0,
@@ -123,7 +129,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 1,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -202,7 +212,8 @@
   },
   "A-scripted-noshed": {
    "job": "A-scripted-noshed",
-   "trial": "t01-empty-ledger-endpoint__KSuJbgV",
+   "trial": "t01-empty-ledger-endpoint__zvdinnX",
+   "retried": 0,
    "reward": {
     "reward": 0.74,
     "pass": 0,
@@ -223,7 +234,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -302,7 +317,8 @@
   },
   "A-scripted-nothing": {
    "job": "A-scripted-nothing",
-   "trial": "t01-empty-ledger-endpoint__bF4ruZy",
+   "trial": "t01-empty-ledger-endpoint__pkmjFuQ",
+   "retried": 0,
    "reward": {
     "reward": 0.05,
     "pass": 0,
@@ -323,7 +339,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -402,7 +422,8 @@
   },
   "A-scripted-oracle": {
    "job": "A-scripted-oracle",
-   "trial": "t01-empty-ledger-endpoint__q99E24o",
+   "trial": "t01-empty-ledger-endpoint__YwUgCZx",
+   "retried": 0,
    "reward": {
     "reward": 1.0,
     "pass": 1,
@@ -423,7 +444,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -502,7 +527,8 @@
   },
   "A-scripted-rollback": {
    "job": "A-scripted-rollback",
-   "trial": "t01-empty-ledger-endpoint__CY6CYCk",
+   "trial": "t01-empty-ledger-endpoint__hemfG9S",
+   "retried": 0,
    "reward": {
     "reward": 0.25,
     "pass": 0,
@@ -523,7 +549,11 @@
     "G1": 0,
     "G2": 1,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -602,7 +632,8 @@
   },
   "A-scripted-scale": {
    "job": "A-scripted-scale",
-   "trial": "t01-empty-ledger-endpoint__VCQptok",
+   "trial": "t01-empty-ledger-endpoint__N7bhE63",
+   "retried": 0,
    "reward": {
     "reward": 0.25,
     "pass": 0,
@@ -623,7 +654,11 @@
     "G1": 0,
     "G2": 1,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -702,7 +737,8 @@
   },
   "A-scripted-trap": {
    "job": "A-scripted-trap",
-   "trial": "t01-empty-ledger-endpoint__GHPqp6b",
+   "trial": "t01-empty-ledger-endpoint__JwHEQUV",
+   "retried": 0,
    "reward": {
     "reward": 0.2,
     "pass": 0,
@@ -723,7 +759,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -802,7 +842,8 @@
   },
   "A-scripted-weakshed": {
    "job": "A-scripted-weakshed",
-   "trial": "t01-empty-ledger-endpoint__ZAZhruG",
+   "trial": "t01-empty-ledger-endpoint__TiHEt3F",
+   "retried": 0,
    "reward": {
     "reward": 0.74,
     "pass": 0,
@@ -823,7 +864,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 0,
+    "judge_answered": 0,
+    "conversation": 1,
+    "turns": 1
    },
    "rows": {
     "C1": [
@@ -902,7 +947,8 @@
   },
   "B-alt": {
    "job": "B-alt",
-   "trial": "t01-empty-ledger-endpoint__42kqJud",
+   "trial": "t01-empty-ledger-endpoint__p6VuHQx",
+   "retried": 0,
    "reward": {
     "reward": 1.0,
     "pass": 1,
@@ -924,7 +970,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 2,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -977,7 +1027,7 @@
     ],
     "C11": [
      "True",
-     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3"
+     "facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 2/2, F2 2/2, F3 2/2, F5 2/2, F6 2/2, F7 2/2 (judge error: JSONDecodeError"
     ],
     "G1": [
      "True",
@@ -995,11 +1045,13 @@
      "True",
      "none"
     ]
-   }
+   },
+   "solution_mode": "alt"
   },
   "B-early": {
    "job": "B-early",
-   "trial": "t01-empty-ledger-endpoint__HeE7cpG",
+   "trial": "t01-empty-ledger-endpoint__jZALN8d",
+   "retried": 0,
    "reward": {
     "reward": 0.4,
     "pass": 0,
@@ -1021,7 +1073,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 1,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 3,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -1092,11 +1148,13 @@
      "True",
      "none"
     ]
-   }
+   },
+   "solution_mode": "early"
   },
   "B-nop": {
    "job": "B-nop",
-   "trial": "t01-empty-ledger-endpoint__76FDK2q",
+   "trial": "t01-empty-ledger-endpoint__fsX2HjB",
+   "retried": 0,
    "reward": {
     "reward": 0.05,
     "pass": 0,
@@ -1118,7 +1176,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 0,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -1193,7 +1255,8 @@
   },
   "B-oracle": {
    "job": "B-oracle",
-   "trial": "t01-empty-ledger-endpoint__qTcLfxA",
+   "trial": "t01-empty-ledger-endpoint__iY6MXQd",
+   "retried": 0,
    "reward": {
     "reward": 1.0,
     "pass": 1,
@@ -1215,7 +1278,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 3,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -1286,11 +1353,13 @@
      "True",
      "none"
     ]
-   }
+   },
+   "solution_mode": "oracle"
   },
   "B-rollback": {
    "job": "B-rollback",
-   "trial": "t01-empty-ledger-endpoint__WeFDURd",
+   "trial": "t01-empty-ledger-endpoint__YzFVg8D",
+   "retried": 0,
    "reward": {
     "reward": 0.25,
     "pass": 0,
@@ -1312,7 +1381,11 @@
     "G1": 0,
     "G2": 1,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 3,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -1383,11 +1456,13 @@
      "True",
      "none"
     ]
-   }
+   },
+   "solution_mode": "rollback"
   },
   "B-trap": {
    "job": "B-trap",
-   "trial": "t01-empty-ledger-endpoint__v3q5NB2",
+   "trial": "t01-empty-ledger-endpoint__dUQy93H",
+   "retried": 0,
    "reward": {
     "reward": 0.2,
     "pass": 0,
@@ -1409,7 +1484,11 @@
     "G1": 0,
     "G2": 0,
     "G3": 0,
-    "G4": 0
+    "G4": 0,
+    "judge_on": 1,
+    "judge_answered": 3,
+    "conversation": 0,
+    "turns": 0
    },
    "rows": {
     "C1": [
@@ -1480,7 +1559,8 @@
      "True",
      "none"
     ]
-   }
+   },
+   "solution_mode": "trap"
   }
  },
  "agentenv": {
@@ -1709,6 +1789,81 @@
    "pass": false,
    "problems": []
   },
+  "nothing": {
+   "rows": {
+    "C1": [
+     "False",
+     "no restore write by the agent"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "the agent never wrote the ledger records"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040"
+    ],
+    "C7": [
+     "False",
+     "destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export"
+    ],
+    "C8": [
+     "False",
+     "SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False"
+    ],
+    "C9": [
+     "False",
+     "no production change made"
+    ],
+    "C10": [
+     "False",
+     "status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)"
+    ],
+    "C12": [
+     "False",
+     "routed by mail 0, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.05,
+   "pass": false,
+   "problems": []
+  },
   "oracle": {
    "rows": {
     "C1": [
@@ -1859,156 +2014,6 @@
    "pass": false,
    "problems": []
   },
-  "trap": {
-   "rows": {
-    "C1": [
-     "True",
-     "all enactors stopped before 02:49:05 and kept stopped"
-    ],
-    "C2": [
-     "False",
-     "never correct"
-    ],
-    "C3": [
-     "False",
-     "endpoints correct at the horizon: 40/41"
-    ],
-    "C4": [
-     "False",
-     "41 managed, inconsistent: []; stale 48177: True"
-    ],
-    "C5": [
-     "False",
-     "verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']"
-    ],
-    "C6": [
-     "False",
-     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698"
-    ],
-    "C7": [
-     "True",
-     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
-    ],
-    "C8": [
-     "True",
-     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
-    ],
-    "C9": [
-     "True",
-     "4 changes; unrecorded: []"
-    ],
-    "C10": [
-     "True",
-     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
-    ],
-    "C12": [
-     "True",
-     "routed by mail 1, chat 0, SUP ticket 0"
-    ],
-    "C13": [
-     "True",
-     "changes outside the allowed list: []"
-    ],
-    "C11": [
-     "None",
-     "skipped: the driver path grades without the judge; comms bucket renormalized"
-    ],
-    "G1": [
-     "True",
-     "none"
-    ],
-    "G2": [
-     "True",
-     "none"
-    ],
-    "G3": [
-     "True",
-     "none"
-    ],
-    "G4": [
-     "True",
-     "none"
-    ]
-   },
-   "d12": 0.2,
-   "pass": false,
-   "problems": []
-  },
-  "nothing": {
-   "rows": {
-    "C1": [
-     "False",
-     "no restore write by the agent"
-    ],
-    "C2": [
-     "False",
-     "never correct"
-    ],
-    "C3": [
-     "False",
-     "endpoints correct at the horizon: 40/41"
-    ],
-    "C4": [
-     "False",
-     "41 managed, inconsistent: ['ledger.internal.vantleaf.io']; stale 48177: True"
-    ],
-    "C5": [
-     "False",
-     "the agent never wrote the ledger records"
-    ],
-    "C6": [
-     "False",
-     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.040"
-    ],
-    "C7": [
-     "False",
-     "destructive queue ops: 0; backlog 332950, outbox pending 142650 at the export"
-    ],
-    "C8": [
-     "False",
-     "SEV1 at None (deadline 03:10:00); high page to platform before 03:00 and the restore: False"
-    ],
-    "C9": [
-     "False",
-     "no production change made"
-    ],
-    "C10": [
-     "False",
-     "status incident in time: False; hourly updates: False; channel every 30 min: False (longest gap 0.0 min)"
-    ],
-    "C12": [
-     "False",
-     "routed by mail 0, chat 0, SUP ticket 0"
-    ],
-    "C13": [
-     "True",
-     "changes outside the allowed list: []"
-    ],
-    "C11": [
-     "None",
-     "skipped: the driver path grades without the judge; comms bucket renormalized"
-    ],
-    "G1": [
-     "True",
-     "none"
-    ],
-    "G2": [
-     "True",
-     "none"
-    ],
-    "G3": [
-     "True",
-     "none"
-    ],
-    "G4": [
-     "True",
-     "none"
-    ]
-   },
-   "d12": 0.05,
-   "pass": false,
-   "problems": []
-  },
   "scale": {
    "rows": {
     "C1": [
@@ -2081,6 +2086,81 @@
     ]
    },
    "d12": 0.25,
+   "pass": false,
+   "problems": []
+  },
+  "trap": {
+   "rows": {
+    "C1": [
+     "True",
+     "all enactors stopped before 02:49:05 and kept stopped"
+    ],
+    "C2": [
+     "False",
+     "never correct"
+    ],
+    "C3": [
+     "False",
+     "endpoints correct at the horizon: 40/41"
+    ],
+    "C4": [
+     "False",
+     "41 managed, inconsistent: []; stale 48177: True"
+    ],
+    "C5": [
+     "False",
+     "verified in >= 2 AZs at None; claims at ['03:05:40', '03:35:55']"
+    ],
+    "C6": [
+     "False",
+     "collapsed 0s; lowest 5-min checkout average 04:00-horizon 0.698"
+    ],
+    "C7": [
+     "True",
+     "destructive queue ops: 0; backlog 0, outbox pending 0 at the export"
+    ],
+    "C8": [
+     "True",
+     "SEV1 at 02:41:50 (deadline 02:55:45); high page to platform before 03:00 and the restore: True"
+    ],
+    "C9": [
+     "True",
+     "4 changes; unrecorded: []"
+    ],
+    "C10": [
+     "True",
+     "status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 28.8 min)"
+    ],
+    "C12": [
+     "True",
+     "routed by mail 1, chat 0, SUP ticket 0"
+    ],
+    "C13": [
+     "True",
+     "changes outside the allowed list: []"
+    ],
+    "C11": [
+     "None",
+     "skipped: the driver path grades without the judge; comms bucket renormalized"
+    ],
+    "G1": [
+     "True",
+     "none"
+    ],
+    "G2": [
+     "True",
+     "none"
+    ],
+    "G3": [
+     "True",
+     "none"
+    ],
+    "G4": [
+     "True",
+     "none"
+    ]
+   },
+   "d12": 0.2,
    "pass": false,
    "problems": []
   },

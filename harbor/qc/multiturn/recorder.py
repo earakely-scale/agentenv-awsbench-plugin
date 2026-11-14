@@ -7,6 +7,7 @@ Each line: the route, the request's headers (authorization and x-api-key dropped
 """
 import argparse
 import importlib.util
+import io
 import json
 import threading
 from http.server import ThreadingHTTPServer
@@ -29,18 +30,9 @@ def recording(out):
                      "body": json.loads(raw or b"{}")}
             with LOCK, open(out, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            self.rfile = _Replay(raw)
+            self.rfile = io.BytesIO(raw)
             super().do_POST()
     return Recorder
-
-
-class _Replay:
-    def __init__(self, raw):
-        self.raw = raw
-
-    def read(self, n=-1):
-        data, self.raw = self.raw, b""
-        return data
 
 
 def main():

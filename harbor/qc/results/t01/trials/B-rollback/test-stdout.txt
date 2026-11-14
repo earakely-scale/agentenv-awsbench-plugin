@@ -1,4 +1,5 @@
 D12 0.25 pass=False: score 0.250 (raw 0.840, caps [0.25]); pass=False
+judge on (claude-sonnet-5-5, 3/3 answered)
   C1   True  all enactors stopped before 02:49:50 and kept stopped
   C2   True  first correct ledger.internal sample at 02:50:00
   C3   True  endpoints correct at the horizon: 41/41

@@ -1,6 +1,11 @@
 {
+ "agent": "awsbench-scripted",
  "end": "done",
- "turns": [
+ "turns": 1,
+ "tool_calls": 0,
+ "turn_errors": [],
+ "error": null,
+ "detail": [
   {
    "turn": 1,
    "error": null,

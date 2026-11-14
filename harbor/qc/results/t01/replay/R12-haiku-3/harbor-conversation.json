@@ -1,0 +1,19 @@
+{
+ "agent": "awsbench-replay",
+ "end": "done",
+ "turns": 1,
+ "tool_calls": 0,
+ "turn_errors": [],
+ "error": null,
+ "detail": [
+  {
+   "turn": 1,
+   "error": null,
+   "reply_tail": "og is gone.\n- Rollback to :411 is not done. Recommended against for now, since the outbox is clear and checkout is stable.\n\nPages PG-77052 is resolved. PG-77053, PG-77055, PG-77056 and PG-77057 are still open.\n\nDONE — with the caveat above: the handoff is written, but I have not been relieved as IC.",
+   "calls": 161,
+   "decision": {
+    "end": "done"
+   }
+  }
+ ]
+}

@@ -1,0 +1,55 @@
+{
+ "agentenv": {
+  "requests": 2,
+  "turns": 2,
+  "sessions": [
+   "3d980233-9ae4-41d9-906f-35d4cdeff4a2",
+   "3d980233-9ae4-41d9-906f-35d4cdeff4a2"
+  ],
+  "turn2_resumes_turn1": true,
+  "turn2_digest": [
+   "[02:44 ET] #inc-4452 hannah.becker: @sre-primary checkout is basically hard down. We shipped checkout-api v2026.11.17-1 at 01:55 (PAY-881, the new ledger-client breaker) and the logs are full o..."
+  ],
+  "same_session": true
+ },
+ "harbor": {
+  "requests": 2,
+  "turns": 2,
+  "sessions": [
+   "7b84b998-3800-4be2-919e-8f3c65c489af",
+   "7b84b998-3800-4be2-919e-8f3c65c489af"
+  ],
+  "turn2_resumes_turn1": true,
+  "turn2_digest": [
+   "[02:44 ET] #inc-4452 hannah.becker: @sre-primary checkout is basically hard down. We shipped checkout-api v2026.11.17-1 at 01:55 (PAY-881, the new ledger-client breaker) and the logs are full o..."
+  ],
+  "same_session": true,
+  "digest_is_the_hooks_message": true,
+  "end": "done"
+ },
+ "per_turn": [
+  {
+   "turn": 1,
+   "differing_keys": [],
+   "messages_equal": true,
+   "system_equal": true,
+   "tools_equal": true,
+   "tools": 57
+  },
+  {
+   "turn": 2,
+   "differing_keys": [],
+   "messages_equal": true,
+   "system_equal": true,
+   "tools_equal": true,
+   "tools": 57
+  }
+ ],
+ "verdict": {
+  "both_two_turns": true,
+  "both_resumed": true,
+  "both_same_session": true,
+  "digests_equal": true,
+  "requests_equal": true
+ }
+}

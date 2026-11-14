@@ -208,5 +208,21 @@
   }
  ],
  "score": 0.74,
- "judge_requests": []
+ "judge": {
+  "mode": "off",
+  "model": null,
+  "called": false,
+  "answered": 0,
+  "samples": 0
+ },
+ "judge_requests": [],
+ "agent_end": {
+  "agent": "awsbench-scripted",
+  "end": "done",
+  "turns": 1,
+  "tool_calls": 0,
+  "turn_errors": [],
+  "error": null,
+  "at": 1794626796.537384
+ }
 }

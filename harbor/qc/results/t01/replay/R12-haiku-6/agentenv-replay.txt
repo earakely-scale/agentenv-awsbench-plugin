@@ -1,0 +1,17 @@
+turn 1: 92 calls played, 51 tools listed
+turn 1: decision {"message": [{"kind": "text", "text": "[04:01 ET] 10 minutes passed; nothing new."}]}
+turn 2: 6 calls played, 51 tools listed
+turn 2: decision {"message": [{"kind": "text", "text": "[04:23 ET] 10 minutes passed; nothing new."}]}
+turn 3: 3 calls played, 51 tools listed
+turn 3: decision {"message": [{"kind": "text", "text": "[04:33 ET] 10 minutes passed; nothing new."}]}
+turn 4: 3 calls played, 51 tools listed
+turn 4: decision {"message": [{"kind": "text", "text": "[04:44 ET] 10 minutes passed; nothing new."}]}
+turn 5: 4 calls played, 51 tools listed
+turn 5: decision {"message": [{"kind": "text", "text": "[04:56 ET] 10 minutes passed; nothing new."}]}
+turn 6: 3 calls played, 51 tools listed
+turn 6: decision {"message": [{"kind": "text", "text": "[05:06 ET] 10 minutes passed; nothing new."}]}
+turn 7: 3 calls played, 51 tools listed
+turn 7: decision {"message": [{"kind": "text", "text": "[05:10 ET] 2 minutes passed; nothing new. The incident window has closed; wrap up and reply DONE."}]}
+turn 8: 2 calls played, 51 tools listed
+turn 8: decision {"end": "window_end"}
+D12 0.15

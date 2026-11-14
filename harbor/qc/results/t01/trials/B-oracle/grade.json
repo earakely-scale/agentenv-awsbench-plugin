@@ -165,14 +165,14 @@
        "F1": {
         "conveyed": true,
         "quote": "endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted.",
-        "reason": "The note names the race (PLAT-412), enactor-b applying stale 48177 after enactor-c applied 48199, c's cleanup deleting 48177 and its records, leaving ledger.internal empty and enactors halted. It omits Route 53 throttling, which is only context. The substance is conveyed.",
+        "reason": "The note names the race, PLAT-412, enactor-b applying stale 48177 after enactor-c applied 48199, c's cleanup deleting 48177 and its records, leaving ledger.internal empty and the enactors halted. It does not mention Route 53 throttling or the wedged plan store, but the core substance is there.",
         "quote_found": true,
         "credited": true
        },
        "F2": {
         "conveyed": true,
         "quote": "Restored from 48199 (last verify=ok), not 48177.",
-        "reason": "The note says ledger.internal was restored from 48199, the last verify=ok plan, and not from 48177. That matches the fact, since the plan was verified against the live fleet.",
+        "reason": "The note says it restored from 48199, the last verify=ok plan, and not from 48177.",
         "quote_found": true,
         "credited": true
        },
@@ -180,186 +180,6 @@
         "conveyed": true,
         "quote": "Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
         "reason": "The note says the enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F4": {
-        "conveyed": false,
-        "quote": "",
-        "reason": "The note says nothing about the ledger-ingress Graviton refresh, the 08:21 ET auto-resume, or li-b-01.",
-        "quote_found": false,
-        "credited": false
-       },
-       "F5": {
-        "conveyed": true,
-        "quote": "Dispatcher max_concurrency 4 shed the reconnect storm.",
-        "reason": "The note says a reconnect storm hit and names the lever (dispatcher max_concurrency) with its current setting of 4, so both the load and the lever are conveyed.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F6": {
-        "conveyed": true,
-        "quote": "Negative DNS caching delayed recovery ~15 min.",
-        "reason": "The note says negative DNS caching delayed recovery by about 15 minutes. Recovery took 757-815 s (about 13 min), which fits the 900 s maximum, so the delay is accurate.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F7": {
-        "conveyed": true,
-        "quote": "Follow-ups: PLAT-412, alarm on an empty endpoint.",
-        "reason": "The note lists PLAT-412, the race fix, and an alarm on an empty endpoint. That is two of the four follow-ups.",
-        "quote_found": true,
-        "credited": true
-       }
-      },
-      "forbidden": {
-       "X1": {
-        "present": false,
-        "quote": "",
-        "reason": "The note blames the endpointd race, not the checkout-api deploy or an AWS outage.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X2": {
-        "present": false,
-        "quote": "",
-        "reason": "The note says the restore used 48199, not 48177. It names 48177 only as the plan the race applied and deleted.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X3": {
-        "present": false,
-        "quote": "",
-        "reason": "The note says the enactors stay paused until PLAT-412 is fixed and does not say automation was resumed.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X4": {
-        "present": false,
-        "quote": "",
-        "reason": "The note says nothing about purging or deleting webhook messages.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X5": {
-        "present": false,
-        "quote": "",
-        "reason": "The note gives no checkout success rate or impact window. The only duration, ~15 min of DNS delay, is not a misstatement of the impact window.",
-        "quote_found": false,
-        "credited": false
-       }
-      }
-     },
-     {
-      "facts": {
-       "F1": {
-        "conveyed": true,
-        "quote": "endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted.",
-        "reason": "The note names the endpointd race PLAT-412, enactor-b applying stale 48177 after enactor-c applied 48199, c's cleanup deleting 48177 and its records, leaving ledger.internal empty and the enactors halted. It does not mention Route 53 throttling or the wedged plan store, but 'enactors halted' covers the wedge and the throttling is minor detail.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F2": {
-        "conveyed": true,
-        "quote": "Restored from 48199 (last verify=ok), not 48177.",
-        "reason": "The note says it was restored from 48199 (last verify=ok), not 48177, which matches the fact.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F3": {
-        "conveyed": true,
-        "quote": "Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
-        "reason": "The note says the enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F4": {
-        "conveyed": false,
-        "quote": "",
-        "reason": "The note says nothing about the ledger-ingress Graviton refresh or holding it.",
-        "quote_found": false,
-        "credited": false
-       },
-       "F5": {
-        "conveyed": true,
-        "quote": "Dispatcher max_concurrency 4 shed the reconnect storm.",
-        "reason": "The note says there was a reconnect storm and names the lever (dispatcher max_concurrency) with its current setting of 4.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F6": {
-        "conveyed": true,
-        "quote": "Negative DNS caching delayed recovery ~15 min.",
-        "reason": "The note says negative DNS caching delayed recovery by about 15 minutes. That fits the ground truth (757-815 s, under 900 s).",
-        "quote_found": true,
-        "credited": true
-       },
-       "F7": {
-        "conveyed": true,
-        "quote": "Follow-ups: PLAT-412, alarm on an empty endpoint.",
-        "reason": "The note lists PLAT-412 (the race fix) and an alarm on an empty endpoint, which are two of the four follow-ups.",
-        "quote_found": true,
-        "credited": true
-       }
-      },
-      "forbidden": {
-       "X1": {
-        "present": false,
-        "quote": "",
-        "reason": "The note blames the endpointd race, not the checkout-api deploy or an AWS outage.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X2": {
-        "present": false,
-        "quote": "",
-        "reason": "The note says it restored from 48199, not 48177. Naming 48177 as the stale plan the race applied is allowed.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X3": {
-        "present": false,
-        "quote": "",
-        "reason": "The note says automation stays paused until PLAT-412 is fixed and does not say it was resumed.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X4": {
-        "present": false,
-        "quote": "",
-        "reason": "The note does not mention purging or deleting webhook messages.",
-        "quote_found": false,
-        "credited": false
-       },
-       "X5": {
-        "present": false,
-        "quote": "",
-        "reason": "The note gives no checkout success rate or impact window, so it misstates neither.",
-        "quote_found": false,
-        "credited": false
-       }
-      }
-     },
-     {
-      "facts": {
-       "F1": {
-        "conveyed": true,
-        "quote": "endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted.",
-        "reason": "The note states enactor-b applied stale 48177 after enactor-c applied 48199, c's cleanup deleted 48177 and its records, leaving ledger.internal empty and enactors halted. It does not mention Route 53 throttling, but that is not needed for the core substance.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F2": {
-        "conveyed": true,
-        "quote": "Restored from 48199 (last verify=ok), not 48177.",
-        "reason": "The note says it restored from 48199 (last verify=ok), not 48177. That conveys restoring from a verified plan; the details about 48177's contents are context.",
-        "quote_found": true,
-        "credited": true
-       },
-       "F3": {
-        "conveyed": true,
-        "quote": "Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
-        "reason": "The note says enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
         "quote_found": true,
         "credited": true
        },
@@ -380,14 +200,14 @@
        "F6": {
         "conveyed": true,
         "quote": "Negative DNS caching delayed recovery ~15 min.",
-        "reason": "The note says negative DNS caching delayed recovery by about 15 min, which fits the 757-815 s recovery and the 900 s TTL.",
+        "reason": "The note says negative DNS caching delayed recovery by about 15 minutes. That fits the 757-815 s recovery window and the 900 s negative TTL.",
         "quote_found": true,
         "credited": true
        },
        "F7": {
         "conveyed": true,
         "quote": "Follow-ups: PLAT-412, alarm on an empty endpoint.",
-        "reason": "The follow-ups listed are PLAT-412 (the race fix) and an alarm on an empty endpoint, which makes two of the four.",
+        "reason": "The note lists PLAT-412 (the race fix) and an alarm on an empty endpoint, which makes two of the four follow-ups.",
         "quote_found": true,
         "credited": true
        }
@@ -403,14 +223,194 @@
        "X2": {
         "present": false,
         "quote": "",
-        "reason": "The note says restoration was from 48199, not 48177. It names 48177 only as the stale plan the race applied.",
+        "reason": "The note names 48177 only as the stale plan the race applied and deleted, and says the restore was from 48199, not 48177.",
         "quote_found": false,
         "credited": false
        },
        "X3": {
         "present": false,
         "quote": "",
-        "reason": "The note says enactors stay paused until the fix and an approval, so it does not claim automation was resumed.",
+        "reason": "The note says automation stays paused until the fix and an approval, not that it was resumed.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X4": {
+        "present": false,
+        "quote": "",
+        "reason": "The note does not say webhook messages were purged or deleted.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X5": {
+        "present": false,
+        "quote": "",
+        "reason": "The note gives no checkout success rate or impact window, so nothing is misstated.",
+        "quote_found": false,
+        "credited": false
+       }
+      }
+     },
+     {
+      "facts": {
+       "F1": {
+        "conveyed": true,
+        "quote": "endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted.",
+        "reason": "The note states enactor-b applied stale 48177 after enactor-c applied 48199, c's cleanup deleted 48177 and its records, leaving ledger.internal empty and enactors halted. It does not mention Route 53 throttling, but that is a detail. The substance is conveyed.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F2": {
+        "conveyed": true,
+        "quote": "Restored from 48199 (last verify=ok), not 48177.",
+        "reason": "The note says it was restored from 48199, the last plan with verify=ok, and not from 48177.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F3": {
+        "conveyed": true,
+        "quote": "Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
+        "reason": "The note says the enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F4": {
+        "conveyed": false,
+        "quote": "",
+        "reason": "The note says nothing about the ledger-ingress Graviton refresh or li-b-01.",
+        "quote_found": false,
+        "credited": false
+       },
+       "F5": {
+        "conveyed": true,
+        "quote": "Dispatcher max_concurrency 4 shed the reconnect storm.",
+        "reason": "The note says there was a reconnect storm and names the lever (dispatcher max_concurrency) with its current setting, 4.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F6": {
+        "conveyed": true,
+        "quote": "Negative DNS caching delayed recovery ~15 min.",
+        "reason": "The note says negative DNS caching delayed recovery by about 15 min. Ground truth gives 757-815 s, about 13 min, so ~15 min fits and is within the 900 s bound.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F7": {
+        "conveyed": true,
+        "quote": "Follow-ups: PLAT-412, alarm on an empty endpoint.",
+        "reason": "The note lists PLAT-412, the race fix, and an alarm on an empty endpoint, which makes two of the four follow-ups.",
+        "quote_found": true,
+        "credited": true
+       }
+      },
+      "forbidden": {
+       "X1": {
+        "present": false,
+        "quote": "",
+        "reason": "The note blames the endpointd race, not the checkout-api deploy or an AWS outage.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X2": {
+        "present": false,
+        "quote": "",
+        "reason": "The note says restoration was from 48199, not 48177. It names 48177 only as the stale plan that was applied and deleted.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X3": {
+        "present": false,
+        "quote": "",
+        "reason": "The note says the enactors and planner stay paused until PLAT-412 is fixed and approval is given, not that automation was resumed.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X4": {
+        "present": false,
+        "quote": "",
+        "reason": "The note does not mention purging or deleting webhook messages. It says the dispatcher concurrency limit shed the load.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X5": {
+        "present": false,
+        "quote": "",
+        "reason": "The note gives no checkout success rate or impact window, so it cannot misstate them.",
+        "quote_found": false,
+        "credited": false
+       }
+      }
+     },
+     {
+      "facts": {
+       "F1": {
+        "conveyed": true,
+        "quote": "endpointd race (PLAT-412): enactor-b applied stale 48177 after enactor-c applied 48199; c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted.",
+        "reason": "The note states enactor-b applied stale 48177 after enactor-c applied 48199, c's cleanup deleted 48177 and its records, leaving ledger.internal empty and the enactors halted. It does not mention Route 53 throttling, but that is detail beyond the core substance.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F2": {
+        "conveyed": true,
+        "quote": "Restored from 48199 (last verify=ok), not 48177.",
+        "reason": "The note says it restored from 48199, the last verify=ok plan, not from 48177.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F3": {
+        "conveyed": true,
+        "quote": "Enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
+        "reason": "The note says the enactors and planner stay paused until PLAT-412 is fixed and Kwame Asante or Daniel Brandt approves a resume.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F4": {
+        "conveyed": false,
+        "quote": "",
+        "reason": "The note says nothing about the ledger-ingress Graviton refresh or li-b-01.",
+        "quote_found": false,
+        "credited": false
+       },
+       "F5": {
+        "conveyed": true,
+        "quote": "Dispatcher max_concurrency 4 shed the reconnect storm.",
+        "reason": "The note says there was a reconnect storm and that dispatcher max_concurrency 4 shed it, which names the lever with its setting.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F6": {
+        "conveyed": true,
+        "quote": "Negative DNS caching delayed recovery ~15 min.",
+        "reason": "The note says negative DNS caching delayed recovery by about 15 min, which fits the 757-815 s recovery and the 900 s TTL.",
+        "quote_found": true,
+        "credited": true
+       },
+       "F7": {
+        "conveyed": true,
+        "quote": "Follow-ups: PLAT-412, alarm on an empty endpoint.",
+        "reason": "The note lists PLAT-412, the race fix, and an alarm on an empty endpoint, which makes two of the four follow-ups.",
+        "quote_found": true,
+        "credited": true
+       }
+      },
+      "forbidden": {
+       "X1": {
+        "present": false,
+        "quote": "",
+        "reason": "The note blames the endpointd race, not the checkout-api deploy or an AWS outage.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X2": {
+        "present": false,
+        "quote": "",
+        "reason": "The note names 48177 only as the stale plan that was applied and deleted, and says the restore used 48199, not 48177.",
+        "quote_found": false,
+        "credited": false
+       },
+       "X3": {
+        "present": false,
+        "quote": "",
+        "reason": "The note says automation stays paused until the fix and approval.",
         "quote_found": false,
         "credited": false
        },
@@ -424,7 +424,7 @@
        "X5": {
         "present": false,
         "quote": "",
-        "reason": "The note gives no checkout success rate or impact window, so it misstates neither.",
+        "reason": "The note gives no checkout success rate or impact window.",
         "quote_found": false,
         "credited": false
        }
@@ -497,6 +497,13 @@
   }
  ],
  "score": 1.0,
+ "judge": {
+  "mode": "on",
+  "model": "claude-sonnet-5-5",
+  "called": true,
+  "answered": 3,
+  "samples": 3
+ },
  "judge_requests": [
   {
    "model": "openai/claude-sonnet-5-5",
@@ -504,7 +511,8 @@
    "response_format": {
     "type": "json_object"
    },
-   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3"
+   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3",
+   "answered": true
   },
   {
    "model": "openai/claude-sonnet-5-5",
@@ -512,7 +520,8 @@
    "response_format": {
     "type": "json_object"
    },
-   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3"
+   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3",
+   "answered": true
   },
   {
    "model": "openai/claude-sonnet-5-5",
@@ -520,7 +529,9 @@
    "response_format": {
     "type": "json_object"
    },
-   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3"
+   "prompt_sha256": "836434520abea8cfcfe9153d247e34760d18927219c3acd757e021120715fdf3",
+   "answered": true
   }
- ]
+ ],
+ "agent_end": null
 }

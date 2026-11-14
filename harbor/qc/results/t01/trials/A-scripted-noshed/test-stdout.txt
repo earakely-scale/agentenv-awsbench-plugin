@@ -1,4 +1,5 @@
 D12 0.74 pass=False: score 0.740 (raw 0.740, caps []); pass=False
+judge off; conversation ended done after 1 turn(s)
   C1   True  all enactors stopped before 02:48:20 and kept stopped
   C2   True  first correct ledger.internal sample at 02:48:30
   C3   True  endpoints correct at the horizon: 41/41

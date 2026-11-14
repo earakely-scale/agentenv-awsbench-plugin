@@ -1,4 +1,5 @@
 D12 1.0 pass=True: score 1.000 (raw 1.000, caps []); pass=True
+judge on (claude-sonnet-5-5, 2/3 answered)
   C1   True  all enactors stopped before 02:48:45 and kept stopped
   C2   True  first correct ledger.internal sample at 02:48:50
   C3   True  endpoints correct at the horizon: 41/41
@@ -11,7 +12,7 @@ D12 1.0 pass=True: score 1.000 (raw 1.000, caps []); pass=True
   C10  True  status incident in time: True; hourly updates: True; channel every 30 min: True (longest gap 24.3 min)
   C12  True  routed by mail 1, chat 0, SUP ticket 0
   C13  True  changes outside the allowed list: []
-  C11  True  facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 3/3, F2 3/3, F3 3/3, F5 3/3, F6 3/3, F7 3/3
+  C11  True  facts ['F1', 'F2', 'F3', 'F5', 'F6', 'F7']; forbidden []; votes F1 2/2, F2 2/2, F3 2/2, F5 2/2, F6 2/2, F7 2/2 (judge error: JSONDecodeError('Expecting property
   G1   True  none
   G2   True  none
   G3   True  none

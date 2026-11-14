@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 613, in run
-    await self._prepare()
-  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 651, in _prepare
-    self._validate_agent_capabilities()
-  File "/home/ubuntu/harbor-t01/hvenv/lib/python3.12/site-packages/harbor/trial/trial.py", line 1812, in _validate_agent_capabilities
-    raise ValueError(
-ValueError: Agent 'awsbench-scripted' does not support MCP servers; configured MCP servers require capabilities.mcp_servers = True.

@@ -265,5 +265,10 @@
   "harness": [
    "awsbench_control"
   ]
+ },
+ "front": {
+  "url": "http://mcp:18765/mcp",
+  "tools": 51,
+  "tools_sha256": "1bc85f519301fbfe1cfc888a6a5eaf49b5a2937c633a3c13afbffea5c23f4dce"
  }
 }
