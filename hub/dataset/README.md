@@ -119,7 +119,8 @@ fair (one the agent could have avoided with what the world showed it). The curre
 removed what earlier builds gave away beyond each task's design: policy pages that restated the grade, tool output that
 named the answer, colleagues who volunteered the fix, and a prompt that primed the tools. It is `5fe025c` for the R11
 and T03R4 runs and `689ab3b`, which adds the grader and colleague fixes R11 found, for T01's R12 to R14. Under the
-final grader (`f66efa2` for T01, whose T03 grader is unchanged since `689ab3b`):
+final grader (`f66efa2` for T01; `758e202` for T03, `689ab3b`'s grader with its judge on Claude Sonnet 5.5, T01's
+judge model):
 
 | Task | Opus runs | Pass@1 as graded | Pass@1, final grader | Failures | Bar |
 | --- | --- | --- | --- | --- | --- |
@@ -244,7 +245,7 @@ are parity evidence and are not in the table above.
 | `R3-sonnet` | Claude Sonnet 5.5 | `4aa8a25` (dev) | 0.74 | fail | C2, C5, C9 | none | not regraded | 115 | DONE 04:20:48 |
 | `R2-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C2, C6, C9 | G3 | not regraded | 139 | DONE 05:02:54 |
 | `R1-sonnet` | Claude Sonnet 5.5 | `e712bd7` (dev) | 0.40 | fail | C5, C11 | G3 | not regraded | 81 | DONE 03:52:48 |
-| `reference` | Scripted oracle | `4d345cd` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
+| `reference` | Scripted oracle | `758e202` | 1.00 | pass | none | none |  | 27 | DONE 03:35:55 |
 
 **Final grader** (`f66efa2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
@@ -313,20 +314,20 @@ are parity evidence and are not in the table above.
 | `T03R1-opus-3` | Claude Opus 5.5 | `b8b4712` (dev) | 0.40 | fail | C03, C11 (3.75 of 5), C18 | G5 | 0.40 | 164 | 13:00 window (said DONE 10:37:03) |
 | `T03R1-sonnet-1` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.935 | pass | C14, C11 (2.5 of 5) | none | **0.975** (was 0.935) | 131 | 13:00 window (said DONE 10:54:31) |
 | `T03R1-sonnet-2` | Claude Sonnet 5.5 | `b8b4712` (dev) | 0.96 | pass | C14 | none | **1.00** (was 0.96) | 121 | 13:00 window (said DONE 10:29:49) |
-| `reference-t03` | Scripted oracle | `4d345cd` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
+| `reference-t03` | Scripted oracle | `758e202` | 1.00 | pass | none | none |  | 68 | DONE 10:53:05 |
 
-**Final grader** (`f66efa2`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
+**Final grader** (`758e202`). Why a run's final D12 differs from the grade it got, or whose the points it still loses are (*fair*: the agent's; *environment*: a world or colleague defect fixed since):
 
 - `T03R4-opus-1`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). It filed no follow-up for an alarm on streamroute's thread use against its limit; its one follow-up, PLAT-2300, covers only the Black Friday capacity path.
 - `T03R4-opus-2`: **0.975** (was 0.40, now a pass) · environment. G4 read its 09:31:22 reply to Maya ('Not yet. Routing is restored … Rough projection: backlog cleared around 10:05-10:15') as a claim the incident was resolved; the final grader reads a reply that opens 'Not yet', and a projection, as no claim. It still loses half of C11: its first status post went out at 08:55:37, 5 min late, because Priya's scripted replies misread its 08:43 and 08:49 asks to approve the draft, a colleague defect fixed since.
 - `T03R4-opus-4`: 0.96 · fair. Fair: C14 (4 points, not needed to pass). Its follow-up, OPS-4447, asks for alarms on the ROUTING host count and on shard-map build failures, not on thread use against the limit.
 - `T03R4-opus-6`: 0.92 · fair. Fair: C13 (8 points, not needed to pass). Its root-cause write-up counts the threads as JVM + ~22 sidecar + 262 PeerLink, 'about 1,002', which sums to 1,010 and doesn't exceed the 1,024 limit; `ps`, Kwame and the architecture page give the right numbers.
-- `T03R3-sonnet-1`: 0.40 · fair. Fair: it asked Priya only about capacity, reverted only the ASG and never read the scheduled actions. bf-capacity-hold set the fleet back to 132 at 14:00 and 9 % of hosts were routing at 16:15, so C02 to C04 fail and G4 caps its resolve claims. C13 now passes (raw 0.53 to 0.61).
+- `T03R3-sonnet-1`: 0.40 · fair. Fair: it asked Priya only about capacity, reverted only the ASG and never read the scheduled actions. bf-capacity-hold set the fleet back to 132 at 14:00 and 9 % of hosts were routing at 16:15, so C02 to C04 fail and G4 caps its resolve claims. C13 passes since the F4 fix; with the Sonnet 5.5 judge the public status text (C18) loses P4, since it says the delayed data was delivered but never that no payment data was lost (raw 0.61 to 0.57).
 - `T03R3-sonnet-2`: **0.975** (was 0.40, now a pass) · environment. G4 read the undo note on its 08:32 CHANGE record, '...unless the thread budget is fixed first', as a claim the incident was resolved. It still loses part of C11: its first public post went out 3 s late because Priya didn't read the status-post ask in its earlier requests, a colleague defect fixed since.
 - `T03R2-opus-1`: **0.9875** (was 0.40, now a pass) · environment. G4 read its thread arithmetic, 'about 1040, which is over 1024', as a claim the incident was over. It still loses part of C11 because Priya didn't decide on six status-page resolve requests, a colleague defect fixed since.
 - `T03R2-opus-3`: **0.9075** (was 0.9875) · partly environment. The final grader is stricter: C13's thread-arithmetic fact now needs numbers that exceed the 1,024 limit at 132 hosts, and its write-up's don't, so C13 fails, fairly. Its partial C11 loss came from Priya not deciding on eight resolve requests, a colleague defect fixed since.
 - `T03R2-sonnet-1`: 0.975 · environment. Unchanged. Its partial C11 loss (first public post 13 min late) came from Priya, who recorded a hold approval nobody asked for and left its draft unanswered until Sofia approved, a colleague defect fixed since.
-- `T03R2-sonnet-2`: 0.40 · fair. Fair: it reverted only the ASG half and never looked at the bf-capacity-hold scheduled action, which set the fleet back to 132 at 14:00. 9 % of hosts were routing at 16:15, so C02 to C04 fail and its resolve claims fire G4. One caveat: a CloudTrail lookup at 08:23 that should have listed the hold came back empty.
+- `T03R2-sonnet-2`: 0.40 · fair. Fair: it reverted only the ASG half and never looked at the bf-capacity-hold scheduled action, which set the fleet back to 132 at 14:00. 9 % of hosts were routing at 16:15, so C02 to C04 fail and its resolve claims fire G4. One caveat: a CloudTrail lookup at 08:23 that should have listed the hold came back empty. With the Sonnet 5.5 judge its root-cause write-up (C13) gets 6 of the 7 facts it needs, raw 0.61 to 0.53: the judge doesn't credit F6, since the write-up gives the restart waves but not why removing capacity alone didn't heal the hosts, or F9, which it reads as also needing the hold's neutralisation, a change this run never made. That F9 reading is the judge's, not the agent's, loss.
 - `T03R1-opus-1`: **1.00** (was 0.40, now a pass). Three grader defects, fixed since: G4 read a 09:45 post restating the IC's condition as a claim the incident was over; C10 counted the ASG maximum Priya's own approval named as an unapproved change; and C18's judge read an update cadence as an ETA.
 - `T03R1-opus-2`: **1.00** (was 0.96). C18's judge read an update cadence as an ETA. Re-judged with the recalibrated prompt, C18 passes.
 - `T03R1-opus-3`: 0.40 · environment. Still capped at 0.40 by G5: it resolved the status page at 10:29:29 without the IC's sign-off, but only because Priya answered its resolve request with an approval for something else, a colleague defect fixed since that a regrade can't undo. C03 and C18 now pass (raw 0.848 to 0.988).
@@ -339,8 +340,8 @@ The runs on build `b8b4712` replied `RESULT: DONE` before the window closed, at 
 <!-- /results -->
 
 Runs on older builds are **development runs**: they met env and grader bugs that the runs themselves found and that are
-fixed since. Every run since R8 was also graded again by the final grader (`f66efa2` for T01, `689ab3b` for T03; the
-runs through T03R3 at `9b076a2`, whose later grader fixes move none of them) from its own exports: **D12
+fixed since. Every run since R8 was also graded again by the final grader (`f66efa2` for T01, `758e202` for T03, whose
+judge is Claude Sonnet 5.5, as T01's is) from its own exports: **D12
 final** is that score, and the note under each table says why it differs, or whose the points a run still loses are
 (*fair*: the agent could have avoided the loss; *environment*: a world, colleague or grader defect fixed since, which
 a regrade can't undo when it changed what the run did). A few runs per model and build show where a task bites, not a
@@ -410,7 +411,8 @@ its event stream as `trajectory-1.json` instead of a Claude Code session. A
 post-turn hook lets up to ten minutes of virtual time pass between turns and wakes the agent with what arrived. The
 episode ends at DONE, at the call budget or at the window's end (on the T03R1 build the hook missed `RESULT: DONE`;
 see the note under the T03 results); the world is then fast-forwarded to the horizon (05:10 for T01, 16:15 for T03) and graded by `artifacts/t01-grade/verify.py` or `artifacts/t03-grade/verify.py`, whose judges
-(T01's C11 handoff note, T03's C13 root-cause write-up and C18 public status text) are an LLM given a fixed fact list.
+(T01's C11 handoff note, T03's C13 root-cause write-up and C18 public status text) are one LLM, Claude Sonnet 5.5 by
+default, given a fixed fact list.
 
 Each task's reference is its scripted oracle path (`tests/e2e/driver.py` for T01, `tests/e2e/t03_oracle.py` for T03),
 replayed by `tools/build_hub_data.py` through the world package in process with in-memory AWS and workspace fakes: the
